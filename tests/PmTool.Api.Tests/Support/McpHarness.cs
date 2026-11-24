@@ -1,0 +1,72 @@
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using ModelContextProtocol.Client;
+using PmTool.Identity;
+using PmTool.Work;
+
+namespace PmTool.Api.Tests.Support;
+
+/// <summary>
+/// 一個連好的 MCP 用戶端加它背後的假模組：測試用 <see cref="Factory"/> 的 Modules 設定模組的回應、檢查模組收到的呼叫，
+/// 用 <see cref="CallAsync"/> 呼叫工具。
+/// </summary>
+internal sealed class McpHarness : IAsyncDisposable
+{
+    private McpHarness(ApiFactory factory, FakeBlueprintUsageService usage, McpClient client, AuthenticatedUser user)
+    {
+        Factory = factory;
+        Usage = usage;
+        Client = client;
+        User = user;
+    }
+
+    public ApiFactory Factory { get; }
+
+    public FakeModules Modules => Factory.Modules;
+
+    public FakeBlueprintUsageService Usage { get; }
+
+    public McpClient Client { get; }
+
+    public AuthenticatedUser User { get; }
+
+    /// <summary>用授權發出的權杖（有授權編號）連線；沒指定範圍就是四個全有。</summary>
+    public static Task<McpHarness> StartAsync(params AccessTokenScope[] scopes) => StartAsync(TestUsers.Member, scopes);
+
+    public static Task<McpHarness> StartAsync(AuthenticatedUser user, params AccessTokenScope[] scopes) =>
+        StartAsync(user, project: null, scopes);
+
+    /// <summary>用個人存取權杖（本機代理的那種）連線，帶 <c>X-Kumi-Project</c> 標頭（<paramref name="project"/> 是 null 就不帶）。</summary>
+    public static Task<McpHarness> StartForAgentAsync(string? project, params AccessTokenScope[] scopes) =>
+        StartAsync(TestUsers.Member, project, scopes);
+
+    public static async Task<McpHarness> StartAsync(AuthenticatedUser user, string? project, params AccessTokenScope[] scopes)
+    {
+        var usage = new FakeBlueprintUsageService();
+        var factory = new ApiFactory(
+            FakeBlueprintValidator.Passing(),
+            new ApiFactoryOptions
+            {
+                // 設定使用狀況的服務與模板庫只有 MCP 與 AI 助理用；Program.cs 接上的是真的（模板庫要用真的驗證器載入），測試換成假的。
+                ConfigureServices = services =>
+                {
+                    services.RemoveAll<IBlueprintUsageService>();
+                    services.AddSingleton<IBlueprintUsageService>(usage);
+                    services.RemoveAll<ITemplateLibrary>();
+                    services.AddSingleton<ITemplateLibrary>(new FakeTemplateLibrary());
+                },
+            });
+        var secret = McpTesting.GrantToken(factory, user, scopes.Length == 0 ? McpTesting.AllScopes : scopes);
+        return new McpHarness(factory, usage, await McpTesting.ConnectAsync(factory, secret, project), user);
+    }
+
+    public Task<(bool IsError, JsonNode Body)> CallAsync(string tool, object? arguments = null) =>
+        McpTesting.CallAsync(Client, tool, arguments);
+
+    public async ValueTask DisposeAsync()
+    {
+        await Client.DisposeAsync();
+        Factory.Dispose();
+    }
+}

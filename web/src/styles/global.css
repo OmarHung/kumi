@@ -1,0 +1,257 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* 黏在上方的頁列不能蓋住取得焦點、或被捲到眼前的元素。 */
+  scroll-padding-top: calc(var(--page-bar-height) + var(--space-2));
+}
+
+/* 手機的網址列會收合：用 dvh 才是看得到的高度。 */
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+/*
+ * 捲軸自己畫（docs/design/02-tokens.md 2.2「捲軸」）：作業系統的灰色捲軸和紙、側欄的色調不搭。
+ * Chrome、Edge、Safari 用 ::-webkit-scrollbar 畫成細的膠囊，軌道透明；Firefox 沒有這個偽元素，只給它標準的寫法
+ * （Chrome 同時有標準的 scrollbar-color 時會忽略 ::-webkit-scrollbar，就畫不成膠囊）。顏色是半透明的字色，任何底上都一樣深。
+ */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scrollbar-thumb) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+  background: transparent;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: var(--space-0-5) solid transparent;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--color-scrollbar-thumb-hover);
+}
+
+/* 強制色彩會拿掉作者的顏色：把手畫成系統的字色，軌道是系統的底色，才分得出來。 */
+@media (forced-colors: active) {
+  ::-webkit-scrollbar-track {
+    background: Canvas;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: CanvasText;
+  }
+}
+
+h1,
+h2,
+h3 {
+  line-height: var(--leading-tight);
+  font-weight: var(--weight-semibold);
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* 觸控時輸入框的字是 16px：小於 16px，iOS 聚焦時會放大整頁。 */
+input,
+textarea {
+  font-size: var(--text-control);
+}
+
+/*
+ * 勾選框（docs/DESIGN.md 7.3）：元素仍然是原生的 <input type="checkbox">（鍵盤、表單、名稱、測試都不變），只換畫法，
+ * 全站一次換掉。:where() 讓權重是零：功能自己的 class（CheckboxField 的 .box、轉換表格的格子）蓋得過去。
+ * 勾是右下兩條邊轉 45 度：不用圖片（內容安全政策不允許 data: 網址）、不用文字符號。
+ */
+:where(input[type='checkbox']) {
+  --checkbox-size: 1rem;
+  --checkbox-mark-width: 0.3125rem;
+  --checkbox-mark-height: 0.5625rem;
+  /* 勾的線寬：兩條邊轉 45 度，1px 太細、看起來像灰的。 */
+  --checkbox-mark-stroke: 2px;
+  /* 圓角：--radius-sm 是 6px，16px 的方框用它太圓、像一顆圓點；小 2px（4px）才看得出是方框。從 --radius-sm 算，圓角變數改了跟著變。 */
+  --checkbox-radius: calc(var(--radius-sm) - 2px);
+
+  display: inline-grid;
+  flex: none;
+  place-content: center;
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  /* 瀏覽器給勾選框的外距（各家不一樣）拿掉：和旁邊的字對齊由呼叫端的 gap 決定，功能的 CSS 不必各自歸零。 */
+  margin: 0;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--checkbox-radius);
+  background: var(--color-surface);
+  appearance: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+:where(input[type='checkbox'])::before {
+  width: var(--checkbox-mark-width);
+  height: var(--checkbox-mark-height);
+  margin-top: calc(-1 * var(--space-0-5));
+  border: solid var(--color-accent-contrast);
+  border-width: 0 var(--checkbox-mark-stroke) var(--checkbox-mark-stroke) 0;
+  content: '';
+  opacity: 0;
+  transform: rotate(45deg);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+:where(input[type='checkbox']:hover:not(:checked, :disabled)) {
+  border-color: var(--color-text-muted);
+}
+
+:where(input[type='checkbox']:checked) {
+  border-color: var(--color-accent-solid);
+  background: var(--color-accent-solid);
+}
+
+:where(input[type='checkbox']:checked)::before {
+  opacity: 1;
+}
+
+:where(input[type='checkbox'][aria-invalid='true']) {
+  border-color: var(--color-danger);
+}
+
+/*
+ * 部分選取（表頭的「選取全部」，7.1「多選」）：indeterminate 和勾選一樣是實心的底，裡面是一條橫線（不是勾）：
+ * 形狀和勾不同，不只靠顏色分辨「全部」與「一部分」。
+ */
+:where(input[type='checkbox']:indeterminate) {
+  border-color: var(--color-accent-solid);
+  background: var(--color-accent-solid);
+}
+
+:where(input[type='checkbox']:indeterminate)::before {
+  width: var(--checkbox-mark-height);
+  height: 0;
+  margin-top: 0;
+  border-width: var(--checkbox-mark-stroke) 0 0;
+  opacity: 1;
+  transform: none;
+}
+
+/* 停用：凹下去的底、比較深的外框，勾變灰（勾選了也一樣：看得出勾著，也看得出不能改）。 */
+:where(input[type='checkbox']:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-sunken);
+  cursor: not-allowed;
+}
+
+:where(input[type='checkbox']:disabled)::before {
+  border-color: var(--color-text-muted);
+}
+
+/* 強制色彩（Windows 高對比）會拿掉自己畫的底色與勾：退回系統的勾選框。 */
+@media (forced-colors: active) {
+  :where(input[type='checkbox']) {
+    appearance: auto;
+  }
+
+  :where(input[type='checkbox'])::before {
+    content: none;
+  }
+}
+
+/* 單選鈕目前沒有用到；需要時照勾選框的做法自己畫（規範 7.3）。在那之前只換成強調色。 */
+input[type='radio'] {
+  accent-color: var(--color-accent-solid);
+}
+
+/* 焦點一律看得到；只在鍵盤操作時顯示，滑鼠點擊不會留下外框。 */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--z-dialog);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transform: translateY(-200%);
+}
+
+/* 陰影只在出現時才加：藏在畫面上方時，陰影會滲到頁列的左上角。 */
+.skip-link:focus-visible {
+  box-shadow: var(--shadow-dialog);
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,65 @@
+/*
+ * 頭像：圓形，照名稱固定一種色調（Avatar.tsx 的 data-tone，docs/DESIGN.md 第 4 節）——淡底、同色相的深字，
+ * 六種的字對底都在 4.5:1 以上（第 2.2 節）。沒有色調的（名稱是空白，只畫「?」）維持中性。
+ */
+.avatar {
+  --avatar-size-sm: 1.25rem;
+  --avatar-size-md: 1.75rem;
+
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--avatar-size-md);
+  height: var(--avatar-size-md);
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.avatar[data-size='sm'] {
+  width: var(--avatar-size-sm);
+  height: var(--avatar-size-sm);
+}
+
+.avatar[data-tone='1'] {
+  background: var(--color-avatar-1-soft);
+  color: var(--color-avatar-1);
+}
+
+.avatar[data-tone='2'] {
+  background: var(--color-avatar-2-soft);
+  color: var(--color-avatar-2);
+}
+
+.avatar[data-tone='3'] {
+  background: var(--color-avatar-3-soft);
+  color: var(--color-avatar-3);
+}
+
+.avatar[data-tone='4'] {
+  background: var(--color-avatar-4-soft);
+  color: var(--color-avatar-4);
+}
+
+.avatar[data-tone='5'] {
+  background: var(--color-avatar-5-soft);
+  color: var(--color-avatar-5);
+}
+
+.avatar[data-tone='6'] {
+  background: var(--color-avatar-6-soft);
+  color: var(--color-avatar-6);
+}
+
+/* 強制色彩會拿掉淡底：畫系統色的外框（outline：不改變大小），仍然看得出是一個圓。 */
+@media (forced-colors: active) {
+  .avatar {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+}

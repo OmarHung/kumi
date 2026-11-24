@@ -1,0 +1,30 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PmTool.Api/PmTool.Api.csproj" />
+    <Project Path="src/PmTool.Cli/PmTool.Cli.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/PmTool.Ai.Contracts/PmTool.Ai.Contracts.csproj" />
+    <Project Path="src/Modules/PmTool.Ai/PmTool.Ai.csproj" />
+    <Project Path="src/Modules/PmTool.Blueprint/PmTool.Blueprint.csproj" />
+    <Project Path="src/Modules/PmTool.Identity.Contracts/PmTool.Identity.Contracts.csproj" />
+    <Project Path="src/Modules/PmTool.Identity/PmTool.Identity.csproj" />
+    <Project Path="src/Modules/PmTool.Notifications.Contracts/PmTool.Notifications.Contracts.csproj" />
+    <Project Path="src/Modules/PmTool.Notifications/PmTool.Notifications.csproj" />
+    <Project Path="src/Modules/PmTool.Work.Contracts/PmTool.Work.Contracts.csproj" />
+    <Project Path="src/Modules/PmTool.Work/PmTool.Work.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/PmTool.Abstractions/PmTool.Abstractions.csproj" />
+    <Project Path="src/Shared/PmTool.Http/PmTool.Http.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PmTool.Ai.Tests/PmTool.Ai.Tests.csproj" />
+    <Project Path="tests/PmTool.Api.Tests/PmTool.Api.Tests.csproj" />
+    <Project Path="tests/PmTool.Blueprint.Tests/PmTool.Blueprint.Tests.csproj" />
+    <Project Path="tests/PmTool.Cli.Tests/PmTool.Cli.Tests.csproj" />
+    <Project Path="tests/PmTool.Identity.Tests/PmTool.Identity.Tests.csproj" />
+    <Project Path="tests/PmTool.Notifications.Tests/PmTool.Notifications.Tests.csproj" />
+    <Project Path="tests/PmTool.Work.Tests/PmTool.Work.Tests.csproj" />
+  </Folder>
+</Solution>

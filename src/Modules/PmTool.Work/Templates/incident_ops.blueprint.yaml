@@ -1,0 +1,78 @@
+# 內建模板「維運與事故」，格式第 0 版。
+# 設計理由：
+# - 事故的狀態：發生 → 處理中 → 已緩解 → 事後檢討 → 關閉。「已緩解」把止血和找根因分開：服務恢復了不代表事情結束，
+#   還要檢討、還要有後續改善。已緩解之後若又復發可以退回處理中。
+# - 轉到「關閉」要求先填根本原因：沒有根因就關閉，同一件事會再發生。
+# - 「誤報」是 canceled 類別：告警響了、查下去發現沒有事故，不該算成一起事故走完檢討，也不該佔著進行中。
+#   發生或處理中都可能發現是誤報；誤報後若其實是真的可以回到發生。檢討時發現緩解不完整，也可以從事後檢討退回處理中。
+# - 後續改善是事故的下層項目，用最簡單的待辦、進行中、完成，不限制轉換（所以也沒有列出轉換）；
+#   檢討會議的結論變成一筆筆改善，才追蹤得到有沒有做。「取消」是 canceled 類別，評估後決定不做的改善放這裡，不必硬標成完成。
+# - 欄位：事故等級（SEV1 最嚴重）決定要多快反應；影響範圍用一句話說誰受影響；根本原因與檢討文件連結是事後檢討的產出。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: incident_ops
+  name: 維運與事故
+  description: 給維運團隊。事故從發生、緩解、檢討到關閉，後續改善逐項追蹤。
+  basedOn: { template: incident_ops, version: "1.0.0" }
+
+fields:
+  - key: sev
+    name: 事故等級
+    type: single_select
+    options:
+      - { key: sev1, name: SEV1, color: red }
+      - { key: sev2, name: SEV2, color: orange }
+      - { key: sev3, name: SEV3, color: yellow }
+      - { key: sev4, name: SEV4, color: gray }
+  - { key: impact_scope, name: 影響範圍,     type: text }
+  - { key: root_cause,   name: 根本原因,     type: long_text }
+  - { key: review_url,   name: 檢討文件連結, type: url }
+
+workflows:
+  - key: incident_flow
+    name: 事故流程
+    states:
+      - { key: occurred,  name: 發生,     category: not_started }
+      - { key: handling,  name: 處理中,   category: in_progress }
+      - { key: mitigated, name: 已緩解,   category: in_progress }
+      - { key: review,    name: 事後檢討, category: in_progress }
+      - { key: closed,    name: 關閉,     category: done }
+      - { key: false_alarm, name: 誤報,   category: canceled }
+    transitions:
+      - { from: occurred,  to: handling }
+      - { from: handling,  to: mitigated }
+      - { from: mitigated, to: handling }    # 復發，回到處理
+      - { from: mitigated, to: review }
+      - { from: review,    to: closed, requireFields: [root_cause] }
+      - { from: closed,    to: review }      # 結論有誤，重新檢討
+      - { from: review,    to: handling }    # 檢討發現緩解不完整
+      - { from: occurred,  to: false_alarm }
+      - { from: handling,  to: false_alarm }
+      - { from: false_alarm, to: occurred }  # 其實是真的
+  - key: followup_flow
+    name: 改善流程
+    states:
+      - { key: todo,  name: 待辦,   category: not_started }
+      - { key: doing, name: 進行中, category: in_progress }
+      - { key: done,  name: 完成,   category: done }
+      - { key: dropped, name: 取消, category: canceled }
+
+itemTypes:
+  - { key: incident, name: 事故,     workflow: incident_flow, fields: [sev, impact_scope, root_cause, review_url] }
+  - { key: followup, name: 後續改善, workflow: followup_flow, parents: [incident] }
+
+views:
+  - { key: board, name: 事故看板, type: board, groupBy: state }
+  - key: incidents
+    name: 事故清單
+    type: table
+    columns: [title, state, sev, impact_scope, due_date]
+    sort: [{ field: sev, direction: asc }]
+    filter: { itemTypes: [incident] }
+  - key: followups
+    name: 後續改善
+    type: table
+    columns: [title, state, assignee, due_date]
+    sort: [{ field: due_date, direction: asc }]
+    filter: { itemTypes: [followup] }

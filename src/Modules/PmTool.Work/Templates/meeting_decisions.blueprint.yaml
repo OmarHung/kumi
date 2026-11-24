@@ -1,0 +1,70 @@
+# 內建模板「會議與決議追蹤」，格式第 0 版。
+# 設計理由：
+# - 三種類型串成一條線：會議產生決議，決議與會議都會產生待辦。決議的上層是會議，待辦的上層是會議或決議
+#   （有些待辦直接來自會議、不屬於任何一項決議），這樣開完會後「決定了什麼、誰要做什麼」都找得到。
+# - 會議的狀態：預定 → 已開會 → 已整理，加上取消（canceled，會議沒開成）。開完會和整理完紀錄分開，是因為紀錄常延後才補；
+#   沒整理的會議在看板上一目了然。所以會議流程列出轉換：轉到「已整理」一定要先填會議紀錄，否則「已整理」是空的；
+#   取消的會議可以重新排回預定，已整理發現漏記可以退回已開會。
+# - 決議：提案 → 已決議，加上撤回（canceled）；待辦：待辦 → 進行中 → 完成。這兩條流程不限制轉換。
+# - 「會議日期」和內建的開始日、到期日分開：開始日、到期日是項目要做的期間，會議是某一天發生的事，用到期日會讓
+#   「逾期」統計把還沒開的會議當成逾期；而且會議清單要依會議日期排序，待辦的到期日則是另一回事（開完會之後才要做完的日子）。
+# - 欄位只有三個，各放在最需要的類型：會議日期與會議紀錄在會議，決議內容在決議；待辦用內建的負責人與到期日。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: meeting_decisions
+  name: 會議與決議追蹤
+  description: 給所有團隊。會議留下決議與待辦，逐項追蹤到完成。
+  basedOn: { template: meeting_decisions, version: "1.0.0" }
+
+fields:
+  - { key: meeting_date,  name: 會議日期, type: date }
+  - { key: minutes,       name: 會議紀錄, type: long_text }
+  - { key: decision_text, name: 決議內容, type: long_text }
+
+workflows:
+  - key: meeting_flow
+    name: 會議流程
+    states:
+      - { key: scheduled, name: 預定,   category: not_started }
+      - { key: held,      name: 已開會, category: in_progress }
+      - { key: notes_done, name: 已整理, category: done }
+      - { key: canceled_meeting, name: 取消, category: canceled }
+    transitions:
+      - { from: scheduled,  to: held }
+      - { from: scheduled,  to: canceled_meeting }
+      - { from: canceled_meeting, to: scheduled }   # 改期重開
+      - { from: held,       to: notes_done, requireFields: [minutes] }
+      - { from: notes_done, to: held }              # 紀錄漏記，退回補
+  - key: decision_flow
+    name: 決議流程
+    states:
+      - { key: proposed,  name: 提案,   category: not_started }
+      - { key: decided,   name: 已決議, category: done }
+      - { key: withdrawn, name: 撤回,   category: canceled }
+  - key: action_flow
+    name: 待辦流程
+    states:
+      - { key: todo,  name: 待辦,   category: not_started }
+      - { key: doing, name: 進行中, category: in_progress }
+      - { key: done,  name: 完成,   category: done }
+
+itemTypes:
+  - { key: meeting,  name: 會議, workflow: meeting_flow,  fields: [meeting_date, minutes] }
+  - { key: decision, name: 決議, workflow: decision_flow, parents: [meeting], fields: [decision_text] }
+  - { key: action,   name: 待辦, workflow: action_flow,   parents: [meeting, decision] }
+
+views:
+  - { key: board, name: 看板, type: board, groupBy: state }
+  - key: meetings
+    name: 會議清單
+    type: table
+    columns: [title, state, meeting_date]
+    sort: [{ field: meeting_date, direction: desc }]
+    filter: { itemTypes: [meeting] }
+  - key: open_actions
+    name: 未完成的待辦
+    type: table
+    columns: [title, state, assignee, due_date]
+    sort: [{ field: due_date, direction: asc }]
+    filter: { itemTypes: [action], stateCategories: [not_started, in_progress] }

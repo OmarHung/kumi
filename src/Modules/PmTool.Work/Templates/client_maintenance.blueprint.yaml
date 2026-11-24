@@ -1,0 +1,70 @@
+# 內建模板「客戶維運」：接案、代管團隊把所有客戶的維護工作放在同一個專案。
+# - 為什麼全部客戶一個專案：大多數客戶一個月只有零到兩件事，一個客戶一個專案會散成幾十個幾乎空的專案，
+#   主管看不到全貌、排不出先後。有頭有尾的建置案另外用「接案專案」開。
+# - 為什麼每個月一個週期：代管的工作照月份（或季）結算，週期就是那個月份；「規劃」頁看得到每個月排了什麼。
+# - 狀態的重點是看得出在等誰：「等客戶」單獨一個狀態，和「內部驗收」（等我們自己）分開，
+#   主管每天看「等客戶」就知道該催誰。「暫停」是客戶喊停、還沒結束的，類別放 backlog：仍然算未完成，不會從清單消失。
+# - 不列 transitions：維運的事情常常跳步（小修改直接完成、上線後客戶又有意見），限制轉換只會多點幾下。
+# - 跨客戶的工作（例如同一個漏洞要修幾十個網站）：上層一個項目，每個客戶一個下層「任務」，各自有狀態，
+#   上層的「下層項目」就列出哪幾站還沒做，不用讀留言。下層一律用「任務」，規則才簡單。
+# - 欄位只放三個：客戶（用單選不用文字：同一個客戶的寫法才會一致，依客戶排序、算工時才算得起來）、
+#   實際工時（「估計」填預估的小時數，兩個一起看才知道準不準），
+#   網址（出問題或要改的頁面）。負責人只放實際做的人；要盯的人按「關注」。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: client_maintenance
+  name: 客戶維運
+  description: 給接案與代管團隊。所有客戶的修改、問題、資安與例行工作放在同一個專案，每個月一個週期。
+  basedOn: { template: client_maintenance, version: "1.0.0" }
+
+fields:
+  - key: client
+    name: 客戶
+    type: single_select
+    description: 開始用之前，先到「設定」把選項換成你們的客戶。
+    options:
+      - { key: client_a, name: 範例客戶 A, color: blue }
+      - { key: client_b, name: 範例客戶 B, color: green }
+      - { key: client_c, name: 範例客戶 C, color: purple }
+  - { key: actual_hours, name: 實際工時, type: number, description: 實際花了幾小時。預估的小時數填在「估計」。 }
+  - { key: page_url,     name: 網址,     type: url,    description: 出問題或要改的頁面。 }
+
+workflows:
+  - key: maintenance_flow
+    name: 維運流程
+    states:
+      - { key: todo,            name: 待辦,     category: not_started }
+      - { key: doing,           name: 進行中,   category: in_progress }
+      - { key: internal_review, name: 內部驗收, category: in_progress }
+      - { key: waiting_client,  name: 等客戶,   category: in_progress }
+      - { key: to_release,      name: 待上線,   category: in_progress }
+      - { key: done,            name: 完成,     category: done }
+      - { key: on_hold,         name: 暫停,     category: backlog }
+      - { key: canceled,        name: 取消,     category: canceled }
+
+itemTypes:
+  - { key: change,     name: 修改, workflow: maintenance_flow, fields: [client, actual_hours, page_url] }
+  - { key: issue,      name: 問題, workflow: maintenance_flow, fields: [client, actual_hours, page_url] }
+  - { key: security,   name: 資安, workflow: maintenance_flow, fields: [client, actual_hours, page_url] }
+  - { key: routine,    name: 例行, workflow: maintenance_flow, fields: [client, actual_hours, page_url] }
+  - { key: assessment, name: 評估, workflow: maintenance_flow, fields: [client, actual_hours, page_url] }
+  - key: task
+    name: 任務
+    workflow: maintenance_flow
+    parents: [change, issue, security, routine, assessment]
+    fields: [client, actual_hours, page_url]
+
+views:
+  - { key: board, name: 進度看板, type: board, groupBy: state }
+  - key: waiting_client
+    name: 等客戶
+    type: table
+    columns: [title, client, assignee, due_date]
+    filter: { states: [waiting_client] }
+    sort: [{ field: due_date, direction: asc }]
+  - key: by_client
+    name: 依客戶
+    type: table
+    columns: [title, client, item_type, state, assignee, estimate, actual_hours, due_date]
+    sort: [{ field: client, direction: asc }, { field: due_date, direction: asc }]

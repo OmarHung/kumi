@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\schemas\blueprint\v0\*.schema.json" LogicalName="PmTool.Blueprint.Schemas.%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="PmTool.Blueprint.Tests" />
+  </ItemGroup>
+
+</Project>

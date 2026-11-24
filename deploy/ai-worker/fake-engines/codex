@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+'use strict';
+// 假的 codex（codex-cli 0.163.0 的形狀）：給測試與演練用，不進正式映像檔。
+// 登入狀態存在 $FAKE_ENGINE_STATE_DIR/codex-auth.json；起始狀態用 FAKE_CODEX_AUTH（api、subscription、none，預設 none），
+// `login --with-api-key`（從標準輸入讀金鑰，不存）登入成 FAKE_CODEX_LOGIN_AS（預設 api）。
+const { readJson, writeJson, readStdin, runScenario } = require('./common');
+
+const args = process.argv.slice(2);
+const initial = process.env.FAKE_CODEX_AUTH || 'none';
+const auth = () => readJson('codex-auth.json', { method: initial });
+
+if (args[0] === '--version') { console.log('codex-cli 0.163.0'); process.exit(0); }
+if (args[0] === 'login' && args[1] === 'status') {
+  const { method } = auth();
+  if (method === 'api') { console.error('Logged in using an API key - sk-***'); process.exit(0); }
+  if (method === 'subscription') { console.error('Logged in using ChatGPT'); process.exit(0); }
+  console.error('Not logged in'); process.exit(1);
+}
+if (args[0] === 'login' && args[1] === '--with-api-key') {
+  if (!readStdin().trim()) { console.error('沒有收到金鑰'); process.exit(1); }
+  writeJson('codex-auth.json', { method: process.env.FAKE_CODEX_LOGIN_AS || 'api' });
+  console.error('Successfully logged in');
+  process.exit(0);
+}
+if (args[0] === 'logout') { writeJson('codex-auth.json', { method: 'none' }); process.exit(0); }
+if (args[0] === 'exec' && args[1] === '--help') {
+  console.log('Usage: codex exec [OPTIONS]\n  --json\n  --strict-config\n  --ignore-user-config\n  --ignore-rules\n  --ephemeral'); process.exit(0);
+}
+if (args[0] === 'features' && args[1] === 'list') {
+  for (const name of ['shell_tool', 'view_image', 'apps', 'plugins', 'hooks', 'memories']) console.log(`${name.padEnd(36)} stable             true`);
+  process.exit(0);
+}
+
+(async () => {
+  if (args[0] !== 'exec') { console.error('不認得的指令'); process.exit(9); }
+  if (auth().method === 'none') {
+    console.log(JSON.stringify({ type: 'error', message: 'Not logged in. Please run codex login.' }));
+    process.exit(1);
+  }
+  const prompt = readStdin();
+  const config = (key) => {
+    const entry = args.find((arg, index) => args[index - 1] === '-c' && arg.startsWith(`${key}=`));
+    return entry ? entry.slice(key.length + 1) : null;
+  };
+  const url = JSON.parse(config('mcp_servers.kumi.url'));
+  const headers = config('mcp_servers.kumi.http_headers') || '';
+  const project = (headers.match(/"X-Kumi-Project" = "([^"]+)"/) || [])[1] || process.env.FAKE_PROJECT_KEY || 'DEMO';
+  const token = process.env.KUMI_MCP_TOKEN;
+  if (!token) { console.error('缺少 KUMI_MCP_TOKEN'); process.exit(2); }
+  const out = (value) => console.log(JSON.stringify(value));
+  let item = 0;
+  let current = null;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  out({ type: 'thread.started', thread_id: 'fake' });
+  out({ type: 'turn.started' });
+  await runScenario({
+    prompt, url, token, project,
+    sink: {
+      init: () => {},
+      text: (delta) => {
+        const id = `item_${++item}`;
+        outputTokens += delta.length;
+        out({ type: 'item.started', item: { id, type: 'agent_message', text: '' } });
+        out({ type: 'item.completed', item: { id, type: 'agent_message', text: delta } });
+      },
+      toolStart: (name, input) => {
+        current = { id: `item_${++item}`, name, input };
+        inputTokens += 50;
+        out({ type: 'item.started', item: { id: current.id, type: 'mcp_tool_call', server: 'kumi', tool: name, arguments: input, status: 'in_progress' } });
+      },
+      toolEnd: (name, text, isError) => out({
+        type: 'item.completed',
+        item: {
+          id: current.id, type: 'mcp_tool_call', server: 'kumi', tool: name, arguments: current.input,
+          status: isError ? 'failed' : 'completed',
+          ...(isError ? { error: { message: text } } : { result: { content: [{ type: 'text', text }] } }),
+        },
+      }),
+      done: () => out({ type: 'turn.completed', usage: { input_tokens: inputTokens + 100, cached_input_tokens: 0, output_tokens: outputTokens + 10 } }),
+    },
+  });
+})().catch((error) => { console.error(String(error.message)); process.exit(3); });

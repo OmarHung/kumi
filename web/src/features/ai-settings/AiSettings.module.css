@@ -1,0 +1,221 @@
+/*
+ * AI 設定（閱讀頁，docs/DESIGN.md 6.2）：兩塊 SettingsSection（AI 助理的表單、連線的清單）。沒有卡片與色條；
+ * 儲存的結果在按鈕旁邊，不把下面推開。
+ */
+.form {
+  --ai-field-width: 26rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.defaults {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--ai-field-width);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+}
+
+/* 儲存的結果：在按鈕旁邊，不推動下面的版面。 */
+.result {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.result:empty {
+  flex: 0;
+}
+
+.result[data-tone='success'] {
+  color: var(--color-success);
+}
+
+.result[data-tone='danger'] {
+  color: var(--color-danger);
+}
+
+.connectionsBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.connections {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--color-border);
+}
+
+.connection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+
+.connection + .connection {
+  border-top: 1px solid var(--color-border);
+}
+
+.connectionMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.connectionInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.connectionName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.connectionKind {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.connectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 對話框 */
+.dialogForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.kind {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+
+  /*
+   * 四個供應商在 320 寬放不下：這一列自己橫向捲。width: 0 加 min-width: 100% 讓它不參與對話框寬度的計算
+   * （overflow 只擋住內容，擋不住它的最小寬度），不然對話框被撐出畫面。
+   */
+  width: 0;
+  min-width: 100%;
+  overflow-x: auto;
+}
+
+.keyLink {
+  display: block;
+}
+
+.models {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.modelsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* 模型很多時清單自己捲，對話框不被撐得比畫面高。 */
+.modelList {
+  display: flex;
+  flex-direction: column;
+  max-height: 16rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.modelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.modelName {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.modelDetail {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.customAdd {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.customAdd > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 用 OpenRouter 登入：主要按鈕與「或貼上 API 金鑰」同一列；失敗的說明在下面，出現時只有它自己長出來。 */
+.login {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.loginMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

@@ -1,0 +1,45 @@
+/*
+ * 用 OpenRouter 登入回來的頁面：和同意頁、登入頁同一種做法，沒有側欄、桌面上放一張紙、靠細線分邊界（docs/DESIGN.md 第 1、5 節）。
+ * 卡片從頁面上方開始排，失敗的說明與回去的連結出現時，上面的字不動。
+ */
+.page {
+  --login-panel-width: 28rem;
+
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: start center;
+  padding: max(var(--space-6), 10vh) var(--space-4) var(--space-6);
+  background: var(--color-canvas);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(100%, var(--login-panel-width));
+  padding: var(--space-8) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.brand {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-accent);
+}
+
+.heading {
+  margin-top: calc(var(--space-1) * -2);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

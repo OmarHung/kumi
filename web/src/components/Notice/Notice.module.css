@@ -1,0 +1,100 @@
+/*
+ * 提示（docs/DESIGN.md 第 7 節 Notice）：語意的淡底，圖示與標題是語意的顏色（對各自的淡底：成功 4.73／7.68、危險 4.84／6.91、
+ * 警告 5.22／7.90）、內文是一般的字色，沒有左邊的色條。資訊是中性的（下面）。
+ * 外框是透明的 1px：平常看不到，強制色彩（Windows 高對比）拿掉淡底時系統會把它畫出來，提示仍然是一塊。
+ * 格線：圖示｜標題與內容｜動作｜「知道了」。純文字的內容沒有外層元素（見 Notice.tsx），
+ * 由格線自動放進第二欄：有標題時在標題下面，沒有時在第一列。
+ */
+.notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-auto-columns: auto;
+  align-items: start;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--notice-soft);
+  /* 內文用一般的字色（在淡底上 14:1 以上，比語意色好讀）；語意由圖示與標題的顏色帶出來。 */
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 資訊是中性的：紫藍是「可以按」的顏色，提示不能按，用它會被當成連結或按鈕。底是中性的淡底，圖示是次要的字色
+ * （對它 4.98／6.40），標題和內文一樣是一般的字色。
+ */
+.notice[data-tone='info'] {
+  --notice-color: var(--color-text-muted);
+  --notice-soft: var(--color-neutral-soft);
+}
+
+.notice[data-tone='info'] .title {
+  color: var(--color-text);
+}
+
+.notice[data-tone='success'] {
+  --notice-color: var(--color-success);
+  --notice-soft: var(--color-success-soft);
+}
+
+.notice[data-tone='warning'] {
+  --notice-color: var(--color-warning);
+  --notice-soft: var(--color-warning-soft);
+}
+
+.notice[data-tone='danger'] {
+  --notice-color: var(--color-danger);
+  --notice-soft: var(--color-danger-soft);
+}
+
+/* 圖示和第一行字對齊：行高比圖示高一點，往下推半個差距。 */
+.icon {
+  grid-row: 1;
+  grid-column: 1;
+  margin-top: var(--space-0-5);
+  color: var(--notice-color);
+}
+
+.title {
+  grid-row: 1;
+  grid-column: 2;
+  color: var(--notice-color);
+  font-weight: var(--weight-semibold);
+}
+
+.message {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.actions {
+  grid-row: 1;
+  grid-column: 3;
+  align-self: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dismiss {
+  grid-row: 1;
+  grid-column: 4;
+  align-self: center;
+}
+
+/* 有標題時是兩列：圖示、動作佔滿兩列，內容才會排進標題下面的第二欄，而不是圖示底下。 */
+.notice:has(> .title) .icon,
+.notice:has(> .title) .actions,
+.notice:has(> .title) .dismiss {
+  grid-row: 1 / span 2;
+}
+
+.notice:has(> .title) .icon {
+  align-self: start;
+}

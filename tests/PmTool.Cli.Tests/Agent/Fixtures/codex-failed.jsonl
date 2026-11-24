@@ -1,0 +1,4 @@
+{"type":"turn.started"}
+{"type":"error","message":"Reconnecting... waiting for network (1/5)"}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"這段話在重連前"}}
+{"type":"turn.failed","error":{"message":"stream disconnected before completion"}}

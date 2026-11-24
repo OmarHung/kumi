@@ -1,0 +1,63 @@
+# 內建模板「設計專案」，格式第 0 版。
+# 設計理由：
+# - 狀態：探索 → 線框 → 視覺 → 設計審查 → 交付開發，照設計師實際的收斂順序：先確認問題，再定結構，再上視覺。
+#   設計審查沒過會退回視覺，審查常發現結構問題，所以也可以退回線框；因此列出轉換。
+# - 「擱置」是 canceled 類別：需求被砍或優先度掉下去時，任務不是做完也不是做錯，只是不做了；任何一個進行前的階段都能擱置，
+#   之後要做再從探索重新開始。交付開發之後開發發現設計有問題，可以直接退回設計審查（handoff → review），不必另開一筆。
+# - 審查通過、交付開發前一定要有設計稿連結（requireFields），否則開發沒東西可取用。
+# - 只有一種類型「設計任務」，小團隊不用先學一套層級；要拆細時直接多開幾筆即可。
+# - 欄位：設計稿連結讓開發一鍵打開；平台用多選，因為同一個任務常同時做網頁與手機；審查者是流程裡實際卡關的人。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: design_project
+  name: 設計專案
+  description: 給設計團隊。設計任務從探索、線框、視覺到審查，通過後交付開發。
+  basedOn: { template: design_project, version: "1.0.0" }
+
+fields:
+  - { key: design_url, name: 設計稿連結, type: url }
+  - key: platforms
+    name: 平台
+    type: multi_select
+    options:
+      - { key: web,     name: 網頁,    color: blue }
+      - { key: ios,     name: iOS,     color: purple }
+      - { key: android, name: Android, color: green }
+  - { key: reviewer, name: 審查者, type: person }
+
+workflows:
+  - key: design_flow
+    name: 設計流程
+    states:
+      - { key: discovery, name: 探索,     category: not_started }
+      - { key: wireframe, name: 線框,     category: in_progress }
+      - { key: visual,    name: 視覺,     category: in_progress }
+      - { key: review,    name: 設計審查, category: in_progress }
+      - { key: handoff,   name: 交付開發, category: done }
+      - { key: shelved,   name: 擱置,     category: canceled }
+    transitions:
+      - { from: discovery, to: wireframe }
+      - { from: wireframe, to: visual }
+      - { from: visual,    to: wireframe }   # 結構要改
+      - { from: visual,    to: review }
+      - { from: review,    to: visual }      # 審查沒過，退回視覺
+      - { from: review,    to: wireframe }
+      - { from: review,    to: handoff, requireFields: [design_url] }
+      - { from: handoff,   to: review }      # 開發回報設計有問題
+      - { from: discovery, to: shelved }
+      - { from: wireframe, to: shelved }
+      - { from: visual,    to: shelved }
+      - { from: review,    to: shelved }
+      - { from: shelved,   to: discovery }   # 重新啟動
+
+itemTypes:
+  - { key: design_task, name: 設計任務, workflow: design_flow, fields: [design_url, platforms, reviewer] }
+
+views:
+  - { key: board, name: 設計看板, type: board, groupBy: state }
+  - key: all_tasks
+    name: 所有設計任務
+    type: table
+    columns: [title, state, assignee, platforms, reviewer, due_date]
+    sort: [{ field: due_date, direction: asc }]

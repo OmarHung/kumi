@@ -1,0 +1,473 @@
+/*
+ * 行事曆（docs/DESIGN.md 6.2 的工作區頁、docs/design/08-interaction.md 的「行事曆」）：
+ * 內容區撐滿頁列與工具列以下的高度，上面一列是月份與切換，下面的月曆自己捲。
+ * 沒有色條或底色帶：週期與里程碑是文字，今天是日期數字外面一圈細框（形狀，不只靠顏色）。
+ *
+ * 月曆格子的高度固定（--day-height）：一天最多 3 行（里程碑、週期標示、項目、「還有 N 個」都算一行，dayRows.ts 的
+ * DAY_ROW_BUDGET），每一行最高 --day-row（= --target-min，滑鼠 24px、觸控 44px，項目與里程碑的連結都至少這麼高）。
+ * 高度 = 上內距 + 日期那一行 + 3 行 + 兩個行距 + 下內距 + 1px 下框
+ *      = 4 + 24 + 3 × 24 + 2 × 2 + 8 + 1 = 113px（滑鼠）；觸控是 4 + 24 + 3 × 44 + 4 + 8 + 1 = 173px。
+ * 內容最多就是這麼高（標題一行、省略號），格子不會被撐開；整個月 6 週在滑鼠上是 6 × 113 + 表頭，內容區自己捲。
+ */
+.view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  /* 項目面板排在旁邊時離它的線一點（SidePanel.module.css 的 --content-gap-end）：外框、按鈕不貼著面板。 */
+  padding-inline-end: var(--content-gap-end, 0px);
+}
+
+/*
+ * 內容區上方的一列：月份標題與三顆換月份的按鈕。窄螢幕（390 觸控）排在同一行，不折行：
+ * 高度 = 上下內距 2 × 8 + 按鈕 44 = 60；按鈕的字縮短成「‹ 上月」「今天」「下月 ›」，
+ * 三顆約 69 + 54 + 69 + 間距 8 = 200px，加上標題約 100px 與間距 12px，小於 390 扣掉左右留白後的 358px。
+ * 窄螢幕拿掉這一列的上下內距（高度 = 按鈕 44），議程第一段的上內距也拿掉（.agenda 的 padding-block-start: 0）。
+ * contentStart 的算式（390 觸控）：頁面上方的一切（頁列 48 ＋ 工具列兩列）＋ 這一列 44 ＋ 議程第一段標題上方 0；
+ * 「N 個項目沒有到期日」不在上面（放議程最下面）。實測 225 = 保留內距時的 60 ＋ 議程上內距 12 ＋ 其餘 153；
+ * 拿掉 16 與 12 之後是 197，預算 200（待實測）。
+ */
+.bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+/*
+ * 窄螢幕（48rem 以下）拿掉月份那一列的上下內距，議程第一段也不再留上方的空白：
+ * 高度預算 200 的算式見上面「contentStart」。按鈕仍然是 44px 觸控高度，省的是留白。
+ */
+@media (max-width: 48rem) {
+  .bar {
+    padding-block: 0;
+  }
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+/* 換月的按鈕與「一週從」的下拉靠右排在一起；窄螢幕沒有下拉，只剩按鈕。 */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline-start: auto;
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.notices {
+  flex: none;
+  padding-bottom: var(--space-2);
+}
+
+.noDue {
+  flex: none;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 窄螢幕放在議程最下面：和議程的內距對齊。 */
+.noDueBottom {
+  margin: 0;
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.scroll[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.month {
+  width: 100%;
+  min-width: 40rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.weekday {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-align: start;
+  color: var(--color-text-muted);
+}
+
+.day {
+  --day-row: var(--target-min);
+  --day-number-height: 1.5rem;
+  /* 算式見檔案最上面。 */
+  --day-height: calc(var(--space-1) + var(--day-number-height) + 3 * var(--day-row) + 2 * var(--space-0-5) + var(--space-2) + 1px);
+  height: var(--day-height);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+  border-inline-end: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.day:last-child {
+  border-inline-end: 0;
+}
+
+tr:last-child > .day {
+  border-block-end: 0;
+}
+
+.dayNumber {
+  display: flex;
+  align-items: center;
+  height: var(--day-number-height);
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+
+/* 日期數字放在一個固定大小的圈裡：今天只是把圈的邊框畫出來，格子的高度不變。 */
+.dayNumberText {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding-inline: var(--space-0-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+}
+
+.outside .dayNumber,
+.outside .marker {
+  color: var(--color-text-muted);
+}
+
+.outside {
+  background: var(--color-surface-sunken);
+}
+
+/* 今天：日期數字外面一圈 1px 的細框加強調色與粗體，不加色條與底色（這是有意義的指示，不是裝飾）；框是形狀，不只靠顏色。 */
+.today .dayNumberText {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: var(--weight-bold);
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.marker {
+  display: block;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+/* 里程碑是連結：和項目一樣至少 --target-min 高（週期的「開始」「結束」是純文字，維持原樣）。 */
+a.marker {
+  /* 行高撐到一行的高度：用 block 加行高而不是 flex，省略號才畫得出來。 */
+  line-height: var(--day-row, var(--target-min));
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+a.marker:hover {
+  color: var(--color-accent);
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+  padding: var(--space-0-5) var(--space-1);
+  border-radius: var(--radius-sm);
+  /* 和看板卡片的標題（--text-sm）一致：格子裡只剩標題，小字更難讀。 */
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--color-hover);
+}
+
+.item[aria-current='true'] {
+  background: var(--color-selected);
+}
+
+.itemKey {
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+
+.itemTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overdue .itemTitle {
+  color: var(--color-danger);
+}
+
+/* 過期的另一個線索：標題前的「!」（形狀，強制色彩拿掉顏色時還在）。 */
+.overdueMark {
+  flex: none;
+  font-weight: var(--weight-bold);
+  color: var(--color-danger);
+}
+
+.more {
+  min-height: var(--day-row, var(--target-min));
+  padding: var(--space-0-5) var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.more:hover {
+  background: var(--color-hover);
+}
+
+.popoverList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 14rem;
+  max-width: 20rem;
+  max-height: 20rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.popoverTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+/*
+ * 期間排法（個人偏好，寬螢幕；docs/design/08-interaction.md「行事曆」的「排法」）：項目從開始日畫到到期日。
+ * 條疊在格子上面：每一週的條放在那一週第一天的格子裡（SpanLanes.tsx），鋪滿七天（寬度 = 7 格），位置只靠 data-col、
+ * data-span、data-lane 設的 --col、--span、--lane。格子的高度仍然固定：日期那一行 + 三條車道 + 底下一行（標示與
+ * 「還有 N 個」）= 4 + 24 + 4 × 24 + 3 × 2 + 8 + 1 = 139px（滑鼠；觸控 4 + 24 + 4 × 44 + 6 + 8 + 1 = 219px）。
+ * 車道的位置在格子裡先用 .laneSpace 留著（條是絕對定位、不佔位置），底下那一行才不會被蓋住。
+ * 條是有邊框的淡底（--color-neutral-soft）：單天的項目長得和依到期日排時一樣（沒有底、沒有邊框）；接續上一週或下一週的那一端
+ * 不是圓角、前面或後面有「‹」「›」，形狀就是線索，不畫色條。
+ */
+.daySpan {
+  --lanes: 3;
+  --week-days: 7;
+  --day-height: calc(var(--space-1) + var(--day-number-height) + (var(--lanes) + 1) * var(--day-row) + var(--lanes) * var(--space-0-5) + var(--space-2) + 1px);
+  position: relative;
+}
+
+.laneSpace {
+  height: calc(var(--lanes) * (var(--day-row) + var(--space-0-5)));
+}
+
+.spanLanes {
+  position: absolute;
+  inset-block-start: calc(var(--space-1) + var(--day-number-height));
+  inset-inline-start: 0;
+  width: calc(var(--week-days) * 100%);
+  height: calc(var(--lanes) * (var(--day-row) + var(--space-0-5)));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /*
+   * 疊在整週的格子上面：後面六格都是有定位的（.daySpan），同一層裡照 DOM 順序後畫的在上，不給層級的話條會被它們的底色蓋住
+   * （頭尾補的上個月、下個月的格子有 --color-surface-sunken 的底，只剩第一格看得到）。1 在黏住的表頭（--z-sticky 5）與
+   * 浮層、選單（--z-popover 50）底下，所以不會蓋住它們。
+   */
+  z-index: 1;
+  /* 覆蓋層蓋在後面六格上：本身不接滑鼠，只有條接，格子底下的按鈕照樣點得到。 */
+  pointer-events: none;
+}
+
+.spanLane {
+  position: absolute;
+  inset-block-start: calc(var(--lane) * (var(--day-row) + var(--space-0-5)));
+  inset-inline-start: calc(var(--col) * 100% / var(--week-days) + var(--space-0-5));
+  width: calc(var(--span) * 100% / var(--week-days) - 2 * var(--space-0-5));
+  height: var(--day-row);
+  pointer-events: auto;
+}
+
+.spanLane > .item {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 一天寬的一段（接續上一週、只佔一格）：標題拿走「‹」與「!」之後剩下的寬度，放不下用省略號，不縮成 0。 */
+.spanLane > .item > .itemTitle {
+  flex: 1 1 0;
+}
+
+.spanLane[data-col='0'] { --col: 0; }
+.spanLane[data-col='1'] { --col: 1; }
+.spanLane[data-col='2'] { --col: 2; }
+.spanLane[data-col='3'] { --col: 3; }
+.spanLane[data-col='4'] { --col: 4; }
+.spanLane[data-col='5'] { --col: 5; }
+.spanLane[data-col='6'] { --col: 6; }
+.spanLane[data-span='1'] { --span: 1; }
+.spanLane[data-span='2'] { --span: 2; }
+.spanLane[data-span='3'] { --span: 3; }
+.spanLane[data-span='4'] { --span: 4; }
+.spanLane[data-span='5'] { --span: 5; }
+.spanLane[data-span='6'] { --span: 6; }
+.spanLane[data-span='7'] { --span: 7; }
+.spanLane[data-lane='0'] { --lane: 0; }
+.spanLane[data-lane='1'] { --lane: 1; }
+.spanLane[data-lane='2'] { --lane: 2; }
+
+.spanBar {
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-neutral-soft);
+}
+
+.spanBar:hover {
+  background: var(--color-hover);
+}
+
+/* 條的類別叫 spanBar、不叫 bar：月份那一列（CalendarBar）早就用了 .bar，CSS Modules 同名會合併，那一列就多了框與底。 */
+/* 接續上一週、下一週的那一端是平的。 */
+.barOpenStart {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+.barOpenEnd {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+/* 「‹」「›」：條是在這一週之前就開始、之後才結束的記號。 */
+.barMark {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* 「還有 N 個」的浮層裡跨天的項目後面的日期範圍。 */
+.itemRange {
+  flex: none;
+  margin-inline-start: auto;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 窄螢幕的議程：這個月有項目的日子，一天一段。 */
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-3);
+}
+
+@media (max-width: 48rem) {
+  .agenda {
+    padding-block-start: 0;
+  }
+}
+
+.agendaDay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.agendaHeading {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.agendaToday .agendaHeading {
+  align-self: flex-start;
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent);
+}
+
+.agendaEmpty {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 強制色彩（Windows 高對比）：背景色與文字色都被換掉，只剩形狀與系統色。
+ * 選取的項目（面板開著的那一筆）本來只靠底色，改畫外框；今天的外框用 Highlight；
+ * 過期的靠標題前的「!」，顏色拿掉了也看得到。
+ */
+@media (forced-colors: active) {
+  .item[aria-current='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .today .dayNumberText,
+  .agendaToday .agendaHeading {
+    border-color: Highlight;
+    border-width: 2px;
+  }
+
+  .overdueMark {
+    color: CanvasText;
+  }
+
+  /* 條的底色拿掉了：邊框換成系統色，形狀還在。 */
+  .spanBar {
+    border-color: CanvasText;
+  }
+}

@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+'use strict';
+// 假的 claude（Claude Code 2.1.330 的形狀）：給測試與演練用，不進正式映像檔。
+// 登入狀態存在 $FAKE_ENGINE_STATE_DIR/claude-auth.json；起始狀態用 FAKE_CLAUDE_AUTH（api、subscription、none，預設 none），
+// `auth login --console` 登入成 FAKE_CLAUDE_LOGIN_AS（api 或 subscription，預設 api）。
+const fs = require('fs');
+const { readJson, writeJson, readStdin, runScenario } = require('./common');
+
+const args = process.argv.slice(2);
+const initial = process.env.FAKE_CLAUDE_AUTH || 'none';
+const auth = () => readJson('claude-auth.json', { method: initial });
+
+if (args[0] === '--version') { console.log('2.1.330 (Claude Code)'); process.exit(0); }
+if (args[0] === '--help') {
+  console.log('Usage: claude [options]\n  -p, --print\n  --tools <tools>\n  --allowedTools <tools>\n  --setting-sources <sources>\n  --strict-mcp-config\n  --disable-slash-commands\n  --append-system-prompt[-file] <text>\n  --no-session-persistence\n  --permission-mode <mode>\n  --mcp-config <configs...>');
+  process.exit(0);
+}
+if (args[0] === 'auth') {
+  if (args[1] === 'status') {
+    const { method } = auth();
+    if (method === 'api') { console.log(JSON.stringify({ loggedIn: true, authMethod: 'api_key', apiKeySource: '/login managed key' })); process.exit(0); }
+    if (method === 'subscription') { console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max', email: 'someone@example.com' })); process.exit(0); }
+    console.log(JSON.stringify({ loggedIn: false, authMethod: 'none' })); process.exit(1);
+  }
+  if (args[1] === 'login') {
+    console.error('（假的）Claude Code 登入：不需要瀏覽器。');
+    writeJson('claude-auth.json', { method: process.env.FAKE_CLAUDE_LOGIN_AS || 'api' });
+    process.exit(0);
+  }
+  if (args[1] === 'logout') { writeJson('claude-auth.json', { method: 'none' }); process.exit(0); }
+}
+
+(async () => {
+  if (auth().method === 'none') {
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: 'Not logged in · Please run /login' }));
+    process.exit(1);
+  }
+  const prompt = readStdin();
+  const configPath = args[args.indexOf('--mcp-config') + 1];
+  const server = JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers.kumi;
+  const token = process.env.KUMI_MCP_TOKEN;
+  if (!token) { console.error('缺少 KUMI_MCP_TOKEN'); process.exit(2); }
+  const project = (server.headers || {})['X-Kumi-Project'] || process.env.FAKE_PROJECT_KEY || 'DEMO';
+  const out = (value) => console.log(JSON.stringify(value));
+  let messageNumber = 0;
+  let toolNumber = 0;
+  let pending = null;
+  let last = '';
+  let inputTokens = 0;
+  let outputTokens = 0;
+  await runScenario({
+    prompt, url: server.url, token, project,
+    sink: {
+      init: (names) => out({
+        type: 'system', subtype: 'init', cwd: process.cwd(), session_id: 'fake', model: 'claude-fake',
+        tools: names.map((name) => `mcp__kumi__${name}`), mcp_servers: [{ name: 'kumi', status: 'connected' }],
+      }),
+      text: (delta) => {
+        messageNumber++;
+        last = delta;
+        outputTokens += delta.length;
+        out({ type: 'stream_event', event: { type: 'message_start', message: { id: `m${messageNumber}` } } });
+        out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta } } });
+      },
+      toolStart: (name, input) => {
+        pending = `toolu_${++toolNumber}`;
+        inputTokens += 50;
+        out({ type: 'assistant', message: { id: `m${++messageNumber}`, role: 'assistant', content: [{ type: 'tool_use', id: pending, name: `mcp__kumi__${name}`, input }] } });
+      },
+      toolEnd: (name, text, isError) => out({
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: pending, is_error: isError, content: [{ type: 'text', text }] }] },
+      }),
+      done: () => out({ type: 'result', subtype: 'success', is_error: false, result: last, usage: { input_tokens: inputTokens + 100, output_tokens: outputTokens + 10 } }),
+    },
+  });
+})().catch((error) => { console.error(String(error.message)); process.exit(3); });

@@ -1,0 +1,114 @@
+/*
+ * 項目的浮動視窗的內容區（外框、背景、圓角、陰影在 components/Dialog 的 size="item"）。
+ * 自己是捲動容器，標題列（SidePanel.module.css 的 .header）黏在它的上方；
+ * 標題列與內容的留白、寬到可以排兩欄的版面都沿用面板的，內容是同一份元件。
+ */
+.region {
+  --side-panel-inline: var(--space-6);
+  --page-bar-inset: 0rem;
+
+  /*
+   * 長段文字（說明、留言、附件、下層項目）不限在 --reading-max：視窗的寬度就是使用者自己拉的閱讀寬度。
+   * 限著的話，視窗一寬，內容停在 46rem、欄位在最右邊，中間空一大段（2026-11-21 實測 1700 寬的畫面空了約 320px）。
+   */
+  --reading-max: none;
+
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  /* 外框不裁切（把手要伸到外面），內容的圓角在這裡裁：捲動容器照自己的圓角裁掉裡面的東西。 */
+  border-radius: inherit;
+}
+
+/*
+ * 左右兩緣調整寬度的把手（FloatingPanelResizer）：點得到的範圍整個在視窗外面（遮罩上），不伸進視窗——
+ * 右緣是內容的捲軸（Windows 的捲軸約 15px 寬，伸進去會吃掉它的外緣）。寬度是 --target-min，但不超過遮罩的留白
+ * （--space-6）：觸控時 --target-min 是 44px，視窗拉到最寬時超出留白的部分會被遮罩裁掉。
+ * 看得到的是視窗邊上一條細線，滑過、焦點、拖曳中才畫（功能的指示，不是裝飾的色條）。
+ * 定位基準是視窗的外框（components/Dialog 的 size="item"）。
+ */
+.resizer {
+  --resizer-width: min(var(--target-min), var(--space-6));
+
+  position: absolute;
+  inset-block: 0;
+  z-index: 1;
+  width: var(--resizer-width);
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.resizer[data-edge='start'] {
+  inset-inline-start: calc(-1 * var(--resizer-width));
+}
+
+.resizer[data-edge='end'] {
+  inset-inline-end: calc(-1 * var(--resizer-width));
+}
+
+/* 細線畫在視窗的邊上（蓋住外框的線），上下讓出圓角。 */
+.resizer::before {
+  position: absolute;
+  inset-block: var(--radius-xl);
+  width: 2px;
+  background: transparent;
+  content: '';
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.resizer[data-edge='start']::before {
+  inset-inline-end: -1px;
+}
+
+.resizer[data-edge='end']::before {
+  inset-inline-start: -1px;
+}
+
+@media (hover: hover) {
+  .resizer:hover::before {
+    background: var(--color-border-strong);
+  }
+}
+
+.resizer:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.resizer:focus-visible::before,
+.resizer[data-dragging='true']::before {
+  background: var(--color-focus);
+}
+
+/* 拖曳中整個視窗是調寬的游標、不選取文字（指標在內容上經過時照樣是調寬）。 */
+.region:has(~ .resizer[data-dragging='true']) {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* 窄螢幕：視窗本來就幾乎和畫面一樣寬，不調寬。 */
+@media (max-width: 48rem) {
+  .resizer {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .resizer::before {
+    forced-color-adjust: none;
+  }
+
+  .resizer:hover::before {
+    background: CanvasText;
+  }
+
+  .resizer:focus-visible::before,
+  .resizer[data-dragging='true']::before {
+    background: Highlight;
+  }
+}

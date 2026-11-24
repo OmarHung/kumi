@@ -1,0 +1,860 @@
+# Kumi License
+
+Version 1.0, 2026
+
+Copyright © 2026 Chih-Hung Chang (張誌宏)
+
+Kumi is licensed under the Kumi License, which consists of Part I
+(Additional Conditions) and Part II (Apache License, Version 2.0).
+
+Part II reproduces the Apache License, Version 2.0, verbatim and without
+modification. However, Kumi is not licensed under the Apache License,
+Version 2.0 alone. The additional conditions in Part I form an integral
+part of this License and prevail wherever the two parts conflict.
+
+The Kumi License is a source-available license. It permits broad
+personal, organizational, and commercial use, subject to the
+restrictions on hosted services, commercial distribution, and branding
+set out below.
+
+Neither Part I nor Part II constitutes a separate license. Together,
+they form the complete "Kumi License".
+
+------------------------------------------------------------------------
+
+                     Part I — Additional Conditions
+
+Definitions
+
+For purposes of this License:
+
+"Licensor" means Chih-Hung Chang (張誌宏), the individual who develops
+and distributes Kumi and owns its copyright, and any successor or
+assignee of that copyright.
+
+"Kumi" means the software distributed by the Licensor under this
+License, in Source or Object form, including its original code, compiled
+code, documentation, configuration, and any Derivative Works of such
+software.
+
+"Your organization" means You, or the single legal entity on whose
+behalf You exercise the permissions granted by this License, together
+with any entities that control, are controlled by, or are under common
+control with that entity, and the employees and individual contractors
+of those entities when acting within their organizational roles.
+
+For this definition, "control" means the direct or indirect power to
+direct the management or policies of an entity, whether through
+ownership, contract, or otherwise. External agencies, vendors, or
+third-party companies engaged on a project or outsourcing basis are
+separate entities and are not part of Your organization unless
+controlled as defined above.
+
+"Guest" means a person or entity outside Your organization whom You
+invite into an instance of Kumi operated by Your organization to
+collaborate with Your organization on Your organization's own specific
+projects or activities.
+
+"Operator" means a person or entity that operates, administers, or
+controls a Kumi instance or service for the purpose of providing access
+to Kumi to other persons or organizations. An organization that runs an
+instance for its own use, including for its Guests, is not an Operator.
+Merely providing infrastructure, installation, technical support, or
+maintenance under the direction and control of the organization that
+owns and uses the instance does not, by itself, make a service provider
+an Operator.
+
+"Kumi Interface" means any user interface that incorporates,
+reproduces, or is derived in whole or in substantial part from the user
+interface source code of Kumi. This includes, without limitation:
+
+   - the source code located under the `web/` directory;
+   - compiled or bundled web applications generated from that source
+     code;
+   - user interfaces included in Kumi container images or other builds;
+   - modified, renamed, relocated, translated, or separately packaged
+     versions of that interface code; and
+   - derivative versions of the above.
+
+A user interface independently developed without copying or deriving
+from Kumi's protected interface code does not become a Kumi Interface
+merely because it provides similar functionality, workflows, or visual
+concepts.
+
+"Substantial Part" means a portion of Kumi's Source or Object code, or
+a modified, translated, compiled, or otherwise transformed version of
+that code, that reproduces or incorporates a material portion of Kumi's
+protected expression, core engine, workflow execution logic, data
+models, or implementation. Whether a portion is substantial depends on
+the qualitative nature and significance of the material used, not
+merely on the percentage of code copied or whether the user interface
+is omitted or replaced. Independent implementations of similar ideas,
+functionality, protocols, or methods of operation are not considered
+Substantial Parts solely because they provide similar capabilities.
+
+"Commercial License" means a separate written permission granted by the
+Licensor authorizing specific uses of Kumi that would otherwise be
+restricted under Condition 2.
+
+"Branding Waiver" means a separate written permission granted by the
+Licensor authorizing specific removal, replacement, or modification of
+Kumi branding that would otherwise be restricted under Condition 3.
+
+A Commercial License and a Branding Waiver are separate permissions.
+Either may be requested by contacting omar40276@gmail.com. A request
+does not constitute permission. Permission is effective only when
+expressly granted in writing by the Licensor.
+
+Capitalized terms that Part I uses but does not define — including
+"You", "Source", "Object", "Derivative Works", "Contribution" and
+"Contributor" — have the meanings given in Part II. A reference to a
+"Condition" is to a numbered condition of Part I. A reference to a
+"Section" of Part II is to a numbered section of the Apache License,
+Version 2.0, as reproduced there.
+
+1. Permitted Use
+
+   You may use Kumi for any purpose, including commercial purposes,
+   within Your organization, without obtaining a Commercial License.
+   The following activities are expressly permitted.
+
+   1(a). Internal Use
+
+   You may:
+
+   - install and operate any number of Kumi instances;
+   - create any number of organizations, workspaces, and projects;
+   - use Kumi for internal business operations;
+   - modify, extend, and customize Kumi for Your organization's own
+     use;
+   - use Kumi in production environments; and
+   - use Kumi as part of Your organization's internal commercial
+     activities.
+
+   There is no restriction on the number of users, instances, projects,
+   or deployments used internally by Your organization.
+
+   1(b). Guest Access and Collaboration
+
+   You may invite Guests into Kumi instances operated by Your
+   organization. Guest access is considered part of Your organization's
+   permitted internal use, provided that:
+
+   1. Guests use Kumi only to collaborate with Your organization on
+      Your organization's own specific projects or activities;
+   2. You do not provide Guests with an independent instance,
+      organization, or workspace for managing projects or operations
+      unrelated to Your organization;
+   3. access to Kumi is not itself the product, platform, or service
+      that You sell, license, or commercially provide to Guests;
+   4. You do not use Guest access to give third parties that primarily
+      manage their own workflows a general external user community,
+      client portal, or multi-party collaboration platform; and
+   5. Guests do not receive, through that access, an independent right
+      to operate or commercially exploit Kumi.
+
+   For clarity, inviting a client, supplier, business partner, or
+   external collaborator to participate in Your organization's projects
+   is permitted. Providing third parties with independent Kumi
+   environments for their own unrelated business operations is not
+   permitted without a Commercial License.
+
+   1(c). Installation, Consulting, and Technical Services
+
+   You may install, configure, deploy, maintain, support, and customize
+   Kumi for another organization, whether for a fee or without charge.
+
+   The organization receiving these services must:
+
+   1. operate and own its own dedicated Kumi instance on infrastructure
+      controlled by that receiving organization, for its own
+      organizational purposes;
+   2. exercise direct administrative control over its own users,
+      organizations, workspaces, and projects; and
+   3. be directly responsible for complying with this License.
+
+   In such circumstances, the receiving organization is the one that
+   operates the instance, for its own use, and this License applies to
+   it directly. It needs no Commercial License for that use.
+
+   A service provider may provide infrastructure setup, technical
+   support, maintenance, upgrades, configuration, and development
+   services under the direction and control of that organization.
+
+   However, hosting Kumi on the service provider's own infrastructure,
+   operating or managing a Kumi instance on behalf of another
+   organization, administering workspaces for clients, or charging
+   recurring hosting, subscription, seat-based, or usage-based fees
+   for ongoing operation of Kumi falls under Condition 2 and requires a
+   Commercial License.
+
+   For clarity, charging one-time or recurring fees for the
+   maintenance, support, upgrade, or development of an instance that
+   the receiving organization itself operates on infrastructure it
+   controls is permitted, and is not a fee for the ongoing operation
+   of Kumi.
+
+   1(d). Publication and Distribution of Source Code
+
+   You may publish, share, and distribute the original or modified
+   source code of Kumi in public or private repositories. Such
+   publication and distribution must comply with every condition of
+   this License.
+
+   Making source code publicly available does not grant recipients any
+   permission to engage in activities restricted under Condition 2 or
+   Condition 3.
+
+   Any Derivative Work or modified version of Kumi distributed by You
+   must remain subject to the restrictions of Part I, and You may not
+   impose additional or different license terms that purport to waive,
+   override, or weaken Part I.
+
+   All redistributions must comply with Condition 4(a) and
+   Condition 7(d).
+
+2. Hosted Services and Commercial Distribution
+
+   Unless expressly authorized by a Commercial License, You may not
+   engage in any of the following activities.
+
+   2(a). Hosted or Managed Services
+
+   You may not operate, provide, or offer Kumi to persons or
+   organizations outside Your organization as a hosted, managed, or
+   remotely operated service.
+
+   This restriction applies where third parties receive access to or
+   use of all or a substantial part of Kumi's functionality through an
+   instance operated or controlled by You. Examples include, without
+   limitation:
+
+   - offering Kumi as a public or private SaaS platform;
+   - providing third parties with Kumi accounts, organizations, or
+     workspaces for their independent use;
+   - operating Kumi instances for other organizations as a managed
+     service;
+   - providing Kumi as a subscription-based or usage-based service;
+   - offering free or paid access to Kumi as an independently usable
+     service; and
+   - operating a shared or multi-tenant Kumi environment for unrelated
+     third parties.
+
+   This restriction applies regardless of whether You:
+
+   - charge a subscription, seat, or usage fee;
+   - generate advertising, platform, commission, referral, or other
+     direct or indirect revenue;
+   - bundle access to Kumi with consulting, agency, or other paid
+     services;
+   - provide the service free of charge;
+   - offer the service to the public or only to selected organizations;
+     or
+   - operate the service directly or through an affiliated entity.
+
+   For clarity, a third party's use of Kumi for its own independent
+   projects or business operations is not considered Your
+   organization's internal use merely because You provide access
+   through an instance that You operate.
+
+   2(b). Embedding in Commercial Products or Services
+
+   You may not include, distribute, sublicense, or otherwise
+   incorporate Kumi, in whole or in Substantial Part, as a component of
+   a product or service that is sold, licensed, subscribed to, or
+   otherwise commercially distributed or provided to third parties.
+
+   This restriction applies whether Kumi is distributed or incorporated:
+
+   - as source code;
+   - as compiled or executable software;
+   - as a container image;
+   - as a bundled application;
+   - as a backend engine, worker, or microservice component;
+   - as a separately packaged module or library;
+   - with its user interface removed or replaced; or
+   - under a different name or product identity.
+
+   Changing Kumi's name, modifying its source code, splitting it into
+   separate components, replacing its frontend, or distributing those
+   components through different repositories does not exempt the
+   resulting work from this Condition.
+
+   2(c). API Integration and Interoperability
+
+   Merely communicating with Kumi through documented APIs, protocols,
+   or integration interfaces does not, by itself, constitute embedding
+   Kumi into a commercial product or service.
+
+   You may independently develop commercial software that interoperates
+   with Kumi, provided that:
+
+   1. Your software does not redistribute or incorporate Kumi or a
+      Substantial Part of Kumi;
+   2. Your software does not operate or provide access to Kumi as a
+      hosted or managed service in violation of Condition 2(a);
+   3. Your software does not act as a proxy, wrapper, API gateway, or
+      pass-through layer whose primary commercial value or core
+      functionality substantially relies on Kumi's execution, data
+      processing, or workflow capabilities, provided to third parties
+      through a Kumi instance that You operate or control; and
+   4. Your integration does not otherwise circumvent the restrictions in
+      this License.
+
+   For clarity, item 3 does not cover software that connects to a Kumi
+   instance operated by the software's own user or by that user's
+   organization.
+
+   This exception does not grant permission to host Kumi for third
+   parties or to commercially distribute Kumi functionality without the
+   required Commercial License.
+
+   2(d). Separate Commercial Authorization
+
+   Any activity restricted under this Condition requires a Commercial
+   License expressly granted by the Licensor.
+
+   Each person or organization that engages in an activity restricted
+   under this Condition, including each Operator, must obtain its own
+   Commercial License. A Commercial License granted to one person or
+   organization does not automatically extend to:
+
+   - its customers;
+   - its affiliates;
+   - its service providers;
+   - its contractors;
+   - other Operators; or
+   - recipients of Kumi distributed by that person or organization.
+
+   A Commercial License is valid strictly within the scope expressly
+   specified in the written permission granted by the Licensor
+   (including, without limitation, authorized products, domains,
+   deployments, tenant or user limits, revenue thresholds, and
+   duration). Any use exceeding the expressly authorized scope
+   constitutes an unlicensed use in breach of this License.
+
+3. Branding and Attribution in the Kumi Interface
+
+   Unless the Licensor has expressly granted a Branding Waiver in
+   writing, You may not remove, replace, hide, obscure, or materially
+   alter:
+
+   1. the Kumi name;
+   2. the Kumi logo;
+   3. copyright notices;
+   4. author attribution; or
+   5. other Kumi branding or attribution information displayed by a
+      Kumi Interface.
+
+   This restriction applies to original and modified versions of a
+   Kumi Interface.
+
+   You may modify the layout, styling, colors, and other visual
+   elements of a Kumi Interface, provided that the Kumi name, logo, and
+   required attribution information remain intact, legible, and
+   prominently visible in their designated or equivalent interface
+   locations without requiring users to navigate to hidden or obscure
+   menus.
+
+   A Branding Waiver does not grant permission to engage in any
+   activity restricted under Condition 2.
+
+   This Condition does not apply where no Kumi Interface is
+   redistributed or operated, including circumstances where You use
+   only:
+
+   - the Kumi server API;
+   - the `kumi` command-line tool;
+   - the Kumi MCP server; or
+   - other non-interface components of Kumi.
+
+   Condition 4 applies to those circumstances.
+
+4. Attribution When No Kumi Interface Is Used
+
+   If You redistribute Kumi, or operate a product or service built on
+   Kumi, without redistributing or operating a Kumi Interface, You
+   must do both of the following.
+
+   4(a). Preserve Notices
+
+   Retain all applicable copyright, patent, trademark, and attribution
+   notices included in the original source code and any NOTICE file.
+   You must also comply with the notice preservation requirements in
+   Part II, Section 4.
+
+   4(b). Provide Attribution to Users
+
+   Include a clear statement, in documentation or other legal or
+   informational materials made available to Your users, that the
+   product or service is built on Kumi. The statement must include a
+   link to https://github.com/OmarHung/kumi. For example:
+
+      "This product uses Kumi, a source-available software project
+      licensed under the Kumi License."
+
+   The attribution must be reasonably accessible to users, such as in:
+
+   - product documentation;
+   - an About page;
+   - a Legal Notices page;
+   - a Third-Party Licenses page; or
+   - where no user-facing interface exists (such as backend services,
+     CLI tools, or MCP servers), in the repository README, deployment
+     documentation, release notes, or accompanying legal/notice files.
+
+   You may not imply that the Licensor endorses, sponsors, or is
+   affiliated with Your product or service without express written
+   permission.
+
+5. Separate Permissions and No Implied Authorization
+
+   A Commercial License and a Branding Waiver are independent
+   permissions. Obtaining one does not grant the other.
+
+   No permission may be implied from:
+
+   - the Licensor's silence;
+   - the Licensor's failure to enforce a condition;
+   - informal discussions;
+   - the review, acceptance, or merging of contributions;
+   - the publication of modified source code; or
+   - the granting of any other permission under this License.
+
+   All additional permissions must be expressly granted in writing by
+   the Licensor. The scope, duration, permitted activities, deployment
+   or scale limits, and other applicable conditions of any additional
+   permission are strictly determined by the written authorization.
+
+6. Contributions
+
+   By intentionally submitting a Contribution for inclusion in Kumi,
+   whether through a pull request, patch, issue tracker, email, or
+   other communication, You agree to the following terms unless the
+   submission is conspicuously marked or otherwise designated in
+   writing as "Not a Contribution".
+
+   6(a). Authority to Contribute
+
+   You represent and warrant that:
+
+   1. You have the full legal right and authority to submit the
+      Contribution;
+   2. the Contribution does not knowingly infringe any third-party
+      copyright, patent, trade secret, or other intellectual property
+      right; and
+   3. if the Contribution is created within the scope of employment,
+      using an employer's resources, or under an agreement with another
+      entity, You have obtained all necessary written permissions,
+      waivers, and authorizations from that employer or entity.
+
+   6(b). License to the Contribution
+
+   You grant the Licensor a perpetual, worldwide, non-exclusive,
+   royalty-free, irrevocable (except where required by applicable law)
+   license to:
+
+   - reproduce the Contribution;
+   - modify and adapt the Contribution;
+   - prepare Derivative Works based on the Contribution;
+   - distribute the Contribution in Source or Object form;
+   - publicly display and publicly perform the Contribution;
+   - use the Contribution for any lawful purpose; and
+   - sublicense the Contribution to third parties.
+
+   This grant includes the right to use, modify, distribute, and
+   sublicense the Contribution under terms different from this License,
+   including commercial licenses and licenses that do not require Kumi
+   branding.
+
+   No additional payment, royalty, or compensation is owed to You for
+   exercising these rights.
+
+   6(c). Copyright Ownership
+
+   Unless otherwise agreed in a separate written agreement, You retain
+   ownership of the copyright in Your Contribution. The license granted
+   under Condition 6(b) does not constitute an assignment or transfer
+   of copyright ownership.
+
+   6(d). Patent Rights
+
+   To the extent that Your Contribution is subject to patent rights
+   that You are legally entitled to license, You grant the Licensor the
+   patent license described in Part II, Section 3, for the purposes of
+   developing, using, distributing, and licensing Kumi and its
+   Derivative Works.
+
+   6(e). Future Licensing
+
+   The Licensor may use, modify, combine, distribute, and commercially
+   exploit Contributions under any licensing arrangement permitted by
+   the rights granted under this Condition.
+
+   The Licensor may change the licensing terms that apply to future
+   versions of Kumi, and may make them stricter or more permissive. A
+   version of Kumi that the Licensor has already released remains
+   available under the terms it was released with.
+
+   6(f). No Obligation to Accept Contributions
+
+   The Licensor is not obligated to accept, merge, publish, or
+   otherwise incorporate any Contribution.
+
+   The Licensor's review, acceptance, or merging of a Contribution does
+   not create any obligation to provide compensation, ownership rights,
+   or additional permissions to the Contributor.
+
+7. Relationship Between Part I and Part II
+
+   7(a). Complete License
+
+   This entire document constitutes the Kumi License. Part I and
+   Part II must be read together as a single license.
+
+   7(b). Interpretation of Part II
+
+   Where Part II refers to "this License", "the License", or similar
+   expressions, those references shall mean the Kumi License as a
+   whole, including Part I. This applies in particular to:
+
+   - the license copy required under Part II, Section 4(a);
+   - the terms governing Contributions under Part II, Section 5; and
+   - all other rights and obligations under Part II.
+
+   7(c). Priority and Conflict
+
+   If any provision of Part I conflicts with or limits any provision of
+   Part II (including, without limitation, the grant of rights in
+   Sections 2 and 3 or the additional terms clause in Section 4 of
+   Part II), Part I shall prevail to the extent of the conflict or
+   limitation. Notwithstanding any reference to "irrevocable" in
+   Part II, all permissions granted under this License are subject to
+   termination under Condition 8. All provisions of Part II that do not
+   conflict with Part I remain applicable.
+
+   7(d). Redistribution of the Complete License
+
+   If You redistribute Kumi or any Derivative Work of Kumi, You must
+   provide recipients with a complete copy of this entire License,
+   including both Part I and Part II. Providing Part II alone does not
+   satisfy this requirement.
+
+   7(e). Severability
+
+   If any provision of this License is determined to be invalid,
+   illegal, or unenforceable under applicable law, that provision shall
+   be enforced to the maximum extent permitted by law, and the
+   remaining provisions shall remain in effect. If a provision cannot
+   be enforced, it shall be severed without affecting the validity of
+   the remaining provisions.
+
+   7(f). No Waiver
+
+   Failure by the Licensor to enforce any provision of this License
+   does not constitute a waiver of that provision or any other
+   provision. Any waiver must be expressly granted in writing by the
+   Licensor.
+
+   7(g). Entire Agreement
+
+   This License constitutes the complete agreement governing the
+   permissions granted for Kumi, except for separate written agreements
+   expressly entered into between the Licensor and You.
+
+   A separate written Commercial License, Branding Waiver, or other
+   agreement may supplement or override this License within the scope
+   expressly specified in that agreement.
+
+8. Termination
+
+   8(a). Automatic Termination
+
+   If You engage in an activity that Condition 2 restricts without the
+   required Commercial License, exceed the scope of a granted
+   Commercial License, breach Condition 3, Condition 4, or
+   Condition 7(d), or otherwise materially breach this License, the
+   permissions granted to You under this License terminate
+   automatically at the time of the breach. No notice from the Licensor
+   is required.
+
+   8(b). Reinstatement After Cure
+
+   Your permissions are reinstated if You stop the breach and remedy it
+   in full within thirty (30) days after the earlier of:
+
+   1. the day You become aware of the breach; and
+   2. the day You receive written notice of the breach from the
+      Licensor.
+
+   Reinstatement under this Condition 8(b) is available only for the
+   first breach of which the Licensor notifies You. After any later
+   breach, Your permissions are reinstated only under Condition 8(e).
+
+   Reinstatement does not waive any claim, fee, or remedy that the
+   Licensor has for the period during which the breach continued.
+
+   8(c). Effect of Termination
+
+   Upon termination, and for as long as Your permissions are not
+   reinstated:
+
+   1. You must immediately cease all activities that require
+      permissions under this License;
+   2. You must stop operating any unauthorized hosted or managed Kumi
+      service;
+   3. You must stop distributing Kumi in any manner that requires
+      permissions You no longer hold;
+   4. any continued use, reproduction, hosting, or distribution of Kumi
+      without valid permissions constitutes both a breach of this
+      License and copyright infringement, entitling the Licensor to
+      injunctive relief, damages, and all other remedies available under
+      applicable law; and
+   5. any outstanding obligations accrued before termination remain
+      enforceable.
+
+   8(d). Downstream Recipients
+
+   Termination of Your permissions does not automatically terminate the
+   permissions previously granted to recipients who received Kumi or a
+   Derivative Work from You in compliance with this License, provided
+   that those recipients continue to comply with the applicable license
+   terms.
+
+   8(e). Reinstatement by the Licensor
+
+   The Licensor may reinstate terminated permissions through an express
+   written authorization. Reinstatement is effective only within the
+   scope specified in that authorization.
+
+9. Governing Law and Jurisdiction
+
+   This License shall be governed by the laws of the Republic of China
+   (Taiwan), without regard to its conflict-of-law principles.
+
+   To the extent permitted by applicable law, disputes arising out of
+   or relating to this License shall be submitted to the Taiwan Taipei
+   District Court as the court of first instance.
+
+   The Licensor may also bring proceedings to enforce this License, or
+   the Licensor's intellectual property rights in Kumi, in any court
+   that has jurisdiction over You, Your assets, or the place where the
+   breach or infringement occurs.
+
+   Nothing in this Condition shall exclude or restrict any mandatory
+   rights or protections that cannot lawfully be excluded under
+   applicable law.
+
+------------------------------------------------------------------------
+
+                 Part II — Apache License, Version 2.0
+
+The text below is reproduced verbatim and without modification from
+https://www.apache.org/licenses/LICENSE-2.0.txt. It is incorporated
+into the Kumi License subject to Part I and to the interpretation and
+priority rules set out in Condition 7.
+
+------------------------------------------------------------------------
+
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.

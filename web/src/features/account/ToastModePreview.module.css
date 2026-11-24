@@ -1,0 +1,66 @@
+/*
+ * 「通知提示」的示意圖（ToastModePreview）：縮小的一個畫面。外框是細線、畫布的底色，左邊一條側欄、右邊是內容區，
+ * 提示貼在內容區的右下角（和真的一樣的位置）。沒有裝飾的色塊：側欄與提示都是畫面上本來就有的東西。
+ * 高度固定在放得下「完整」的提示（三行加摘錄），切換方式時版面不跳；窄螢幕提示變窄、摘錄多換行時才長高。
+ */
+.screen {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  min-height: 10.5rem;
+  max-width: 40rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-inline-end: 1px solid var(--color-border);
+  background: var(--color-sidebar);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.navIcon {
+  flex: none;
+}
+
+.navLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* 提示貼在右下角：和真的提示一樣，最寬 24rem，內容區比較窄時跟著縮。 */
+.main {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: var(--space-3);
+}
+
+.main > * {
+  width: min(24rem, 100%);
+}
+
+/* 窄螢幕：側欄只留圖示與數字，提示才放得下。 */
+@media (max-width: 48rem) {
+  .screen {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .navLabel {
+    display: none;
+  }
+}

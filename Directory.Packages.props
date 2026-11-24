@@ -1,0 +1,51 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- 間接帶進來的套件也照這裡的版本。Npgsql 的 EF 提供者帶的是較舊的 EF Core Relational，
+         不釘住的話編譯和部署會用到不同版本（MSB3277）。 -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="AngleSharp" Version="1.10.5" />
+    <!-- AI 助理接 Anthropic（官方 SDK，實作 Microsoft.Extensions.AI 的 IChatClient）。Apache-2.0，可以用在另外賣商業授權的產品（散布時附上授權與 NOTICE）。
+         這個 SDK 幾天就出一版，挑一週以上的。 -->
+    <PackageVersion Include="Anthropic" Version="13.8.0" />
+    <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
+    <!-- 附件的雲端儲存（GCS）。Apache-2.0，可以用在另外賣商業授權的產品。 -->
+    <PackageVersion Include="Google.Cloud.Storage.V1" Version="4.16.0" />
+    <!-- AI 助理接 Google Gemini（官方 SDK，實作 IChatClient）。Apache-2.0。2.x 是 11 月剛出的大版本，先用 1.x。 -->
+    <PackageVersion Include="Google.GenAI" Version="1.28.0" />
+    <!-- 寄信（SMTP）。MIT，可以用在另外賣商業授權的產品；帶進來的 MimeKit、BouncyCastle.Cryptography 也是 MIT。
+         微軟自己的 System.Net.Mail.SmtpClient 文件寫明不建議新開發用。5.0 剛出（2026-11-10），先用 4.x。 -->
+    <PackageVersion Include="MailKit" Version="4.18.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
+    <!-- 即時連線（SignalR）的 .NET 用戶端，只給測試專案連 hub 用，不進正式的程式。MIT，可以用在另外賣商業授權的產品。 -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
+    <!-- MCP 伺服器（官方 C# SDK，2026-07-28 版規格、無狀態的 Streamable HTTP）。Apache-2.0。2.3.1 相依的
+         Microsoft.Extensions.AI.Abstractions 剛好是上面釘的 10.11.0；2.4.0 剛出，先用 2.3.x。 -->
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.3.1" />
+    <!-- MCP 的用戶端，只給測試專案連 /mcp 用，不進正式的程式。Apache-2.0。 -->
+    <PackageVersion Include="ModelContextProtocol" Version="2.3.1" />
+    <!-- AI 的統一介面（IChatClient、工具呼叫的迴圈、思考深度 ReasoningOptions）。MIT。11.x 要 .NET 11 的 Extensions，先用 10.x。
+         OpenAI 走 Chat Completions：.NET SDK 的 Responses API 還標著實驗性（OPENAI001），規矩不准關掉診斷。 -->
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.15" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+  <ItemGroup Label="測試">
+    <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
+    <PackageVersion Include="NUnit" Version="4.3.2" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.7.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="5.0.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
+  </ItemGroup>
+</Project>

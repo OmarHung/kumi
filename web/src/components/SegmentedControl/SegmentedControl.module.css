@@ -1,0 +1,69 @@
+/* 和 NavTabs 同一套長相：凹下去的軌道，目前的那一格浮起來（--shadow-raised，第 5 節）；不畫色條。 */
+.group {
+  display: inline-flex;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+/* sm：整組和小的圖示按鈕（--control-height-sm）一樣高，放進編輯器的工具列不撐高。 */
+.group[data-size='sm'] .segment {
+  min-height: calc(var(--control-height-sm) - 2 * var(--space-0-5));
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.segment:hover {
+  color: var(--color-text);
+}
+
+/* 目前的那一格：浮起來的紙、字 semibold；深色模式下紙比頁面亮一階（--color-surface-raised）。 */
+.segment[aria-pressed='true'] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--shadow-raised);
+  cursor: default;
+}
+
+/* 暫時不能切換：字變淡、不再有滑過的反應，游標是禁止；目前那一格照樣看得出是哪一個。 */
+.segment[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.segment[aria-disabled='true']:hover {
+  color: var(--color-text-muted);
+}
+
+.segment[aria-disabled='true'][aria-pressed='true']:hover {
+  color: var(--color-text);
+}
+
+/* 強制色彩會拿掉底色與陰影：目前的那一格畫系統色的外框。 */
+@media (forced-colors: active) {
+  .segment[aria-pressed='true'] {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+}

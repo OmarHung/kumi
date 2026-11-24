@@ -1,0 +1,291 @@
+/*
+ * 看板（docs/DESIGN.md 6.2、7.2）：工作區頁的內容，剛好撐滿頁列與工具列以下的高度。
+ * 看板自己橫向捲（欄多時頁面不被撐寬），每一欄自己直向捲，欄的標題列黏在欄的上方。
+ * 欄是凹下去的軌道（surface-sunken），卡片是浮在上面的紙（surface）：一眼分得出哪裡可以放、哪一張是什麼。
+ * 欄沒有狀態顏色的色條：狀態由標題列的 StateBadge（形狀、顏色、文字）說明，色條看不出意思。
+ */
+.view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 週期與里程碑讀不到的說明：取代整個看板，不貼著工具列。 */
+.message {
+  padding-top: var(--space-4);
+}
+
+/* 被擋下來的說明：在看板上方。很多則時自己捲，不把欄擠到看不見。 */
+.problems {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 40%;
+  padding-top: var(--space-2);
+  overflow-y: auto;
+}
+
+.problemBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/*
+ * 「正在把…移到…」「已把…移到…」：一直佔著一行（也是工具列與欄之間的留白），文字出現或換掉時欄不會跳動。
+ * 元素要一直在，螢幕閱讀器才會唸出之後出現的訊息。
+ */
+.moveStatus {
+  flex: none;
+  min-height: calc(var(--text-xs) * var(--leading-normal) + 2 * var(--space-0-5));
+  padding-block: var(--space-0-5);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 欄的捲動容器（橫向）。用滿內容區的寬度（抵掉頁面左右的留白，捲過去的欄貼著邊走），
+ * 同時是隱藏文字的定位基準：捲出去的欄裡絕對定位的文字才不會把整頁撐寬（第 5 節）。
+ */
+.lanes {
+  position: relative;
+  display: grid;
+  flex: 1;
+  grid-auto-columns: var(--lane-width);
+  grid-auto-flow: column;
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-height: 0;
+  margin-inline-start: calc(-1 * var(--page-gutter));
+  /* 右邊伸到頁面的邊緣；項目面板排在旁邊時那裡是面板，不伸過去，捲到最後一欄時離面板的線 --content-gap-end（SidePanel.module.css）。 */
+  margin-inline-end: calc(-1 * var(--content-bleed-end, var(--page-gutter)));
+  padding: 0 var(--page-gutter) max(var(--space-3), env(safe-area-inset-bottom));
+  padding-inline-end: max(var(--content-bleed-end, var(--page-gutter)), var(--content-gap-end, 0px));
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: var(--page-gutter) max(var(--content-bleed-end, var(--page-gutter)), var(--content-gap-end, 0px));
+}
+
+/* 窄螢幕：一欄八成寬，看得到下一欄的邊，知道可以往旁邊滑；滑完吸附在欄的開頭。 */
+@media (max-width: 48rem) {
+  .lanes {
+    grid-auto-columns: 80%;
+    scroll-snap-type: x proximity;
+  }
+
+  .column {
+    scroll-snap-align: start;
+  }
+}
+
+/* 拖曳中自動捲動時不要被吸附拉回去。 */
+.lanesDragging {
+  scroll-snap-type: none;
+}
+
+/*
+ * 一欄：剛好是看板的高度，裡面的捲動容器自己直向捲。標題列的高度固定（每一欄一樣高，卡片在各欄對齊），
+ * 也是用 Tab 走到被標題列蓋住的卡片時要讓出的距離。--lane-bg 給欄與黏住的標題列同一個底色。
+ * 圓角比卡片大一級（--radius-xl 對 --radius-lg）：卡片放在欄裡，外面的角要包得住裡面的角。
+ */
+.column {
+  --lane-bg: var(--color-surface-sunken);
+  --lane-header-pad-top: var(--space-2);
+  --lane-header-pad-bottom: var(--space-1);
+  --lane-header-height: calc(var(--control-height-sm) + var(--lane-header-pad-top) + var(--lane-header-pad-bottom));
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xl);
+  background: var(--lane-bg);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.laneScroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-padding-top: var(--lane-header-height);
+}
+
+/* 欄捲動的內容：標題列黏在它的上方。拖曳的落點是整欄（BoardColumn 的 useColumnDrop）。 */
+.laneBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 100%;
+  padding: 0 var(--space-2) var(--space-2);
+}
+
+.columnHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-inline: calc(-1 * var(--space-2));
+  padding: var(--lane-header-pad-top) var(--space-3) var(--lane-header-pad-bottom);
+  background: var(--lane-bg);
+}
+
+.columnTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+}
+
+/* 名稱很長時截掉，完整的名稱在 title 與標題的名稱裡。 */
+.columnName {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+}
+
+.count {
+  flex: none;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.addToggle {
+  flex: none;
+  margin-left: auto;
+}
+
+/*
+ * 拖曳中走不到的原因：貼在標題列下緣、蓋在淡掉的卡片上（標題列是它的定位基準），不撐高標題列，
+ * 卡片在拖曳開始與結束時不會跳。一張紙加細線，在淡掉的卡片上也讀得清楚。
+ */
+.blockedNote {
+  position: absolute;
+  top: 100%;
+  right: var(--space-2);
+  left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+
+.column[aria-busy='true'] .cards {
+  opacity: 0.6;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+/*
+ * 拖曳中：走得到的欄有虛線框，指標所在的那一欄填色；走不到的欄換成更淡的底（和表格「不適用」的格子同一個底色）、
+ * 卡片淡掉，標題列與原因保持原本的對比，看得清楚為什麼不能放。
+ */
+.canDrop {
+  border-style: dashed;
+  border-color: var(--color-border-strong);
+}
+
+.cannotDrop {
+  --lane-bg: var(--color-canvas);
+}
+
+.cannotDrop .laneBody > :not(.columnHeader) {
+  opacity: 0.45;
+}
+
+.over.canDrop {
+  --lane-bg: var(--color-accent-soft);
+
+  border-style: solid;
+  border-color: var(--color-accent);
+}
+
+.over.cannotDrop {
+  border-style: dashed;
+  border-color: var(--color-danger);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 空的欄：卡片形狀的虛線框（和卡片一樣的圓角），看得出卡片會放在這裡。 */
+.empty {
+  padding: var(--space-4) var(--space-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.loadMore {
+  align-self: stretch;
+}
+
+/* 第一欄的快速新增：標題列下面一張紙，跟著卡片捲。 */
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.addActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* 「已新增 AGY-25。」與「開啟」（item-table/CreatedStatus.tsx，字級與顏色在那裡）。 */
+.addStatus[data-created='false'] {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+/* 依負責人、欄位分欄的標題：名稱的文字（沒有狀態的形狀）；「沒有負責人」「沒有填」是次要的灰字。 */
+.columnNameText {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.columnNameEmpty {
+  color: var(--color-text-muted);
+}
+
+/* 依負責人、欄位分欄時，看板最下面的「載入更多」：一次讀進來的清單還有下一頁。 */
+.groupFooter {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}

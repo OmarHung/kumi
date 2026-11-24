@@ -1,0 +1,50 @@
+# 範例項目：示範一次發行與掛在底下的檢查項目，有已確認、待確認、不適用，以及一筆已過期還沒確認的項目。
+items:
+  - ref: start
+    type: release
+    title: 從這裡開始：發行檢查怎麼用
+    state: planning
+    priority: low
+    description: |
+      每次發行新增一筆「發行」，填版本號、環境與回復計畫，再把「檢查項目」掛在它的下面（設定上層項目）。
+
+      - 發行的流程：規劃中 → 準備中 → 上線中 → 已上線；不上線了放「已取消」，上線後退回上一版放「已回復」。
+      - 檢查項目的流程：待確認 → 已確認；這次用不到的放「不適用」。
+      - 用上方的狀態篩選選「待確認」，就只看還沒確認的檢查項目。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+  - ref: v240
+    type: release
+    title: 範例：2.4.0 正式上線
+    state: preparing
+    priority: high
+    startInDays: -7
+    dueInDays: 3
+    fields:
+      version: 2.4.0
+      environment: production
+      rollback_plan: |
+        1. 保留 2.3.2 的部署檔，十分鐘內可以切回。
+        2. 資料庫遷移都可以反向執行，回復前先確認備份。
+  - type: check_item
+    title: 範例：預備環境冒煙測試通過
+    state: confirmed
+    parent: v240
+  - type: check_item
+    title: 範例：資料庫備份已完成
+    state: pending
+    priority: high
+    parent: v240
+    dueInDays: -1
+  - type: check_item
+    title: 範例：更新日誌已寫好
+    state: pending
+    priority: low
+    parent: v240
+    dueInDays: 2
+  - type: check_item
+    title: 範例：通知客服團隊上線時間
+    state: not_needed
+    priority: none
+    parent: v240
+    description: 這次沒有使用者看得到的變更，不需要通知。

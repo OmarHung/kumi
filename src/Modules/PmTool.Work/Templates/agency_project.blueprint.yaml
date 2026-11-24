@@ -1,0 +1,98 @@
+# 內建模板「接案專案」。任務的流程和 schemas/blueprint/v0/examples/agency-project.blueprint.yaml 不同：
+# - 為什麼任務用八個狀態：實際做案子會有「內部驗收」「等客戶」「待上線」，三個狀態裝不下；
+#   名稱與類別和「客戶維運」的維運流程一致，團隊兩邊切換不用重新記。
+# - 為什麼不限制轉換：任務常常跳步（小修改直接完成、上線後客戶又有意見），限制只會多點幾下。
+# - 為什麼有「子任務」：類型不能把自己當上層，任務底下要再拆就得另開一個類型；子任務只能掛在任務底下，再深就不拆了。
+# 開專案時 metadata 會換成那個專案的；其餘照原樣存成專案藍圖的第 1 版。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: agency_project
+  name: 接案專案
+  description: 從需求確認到結案的交付流程，客戶以訪客身分參與驗收。
+  basedOn: { template: agency_project, version: "1.0.0" }
+
+fields:
+  - { key: quote_amount,        name: 報價金額,   type: currency, currency: TWD }
+  - { key: client_signoff_date, name: 客戶驗收日, type: date }
+  - { key: change_reason,       name: 變更原因,   type: long_text }
+  - key: impact
+    name: 影響程度
+    type: single_select
+    options:
+      - { key: low,    name: 低, color: gray }
+      - { key: medium, name: 中, color: yellow }
+      - { key: high,   name: 高, color: red }
+  - { key: actual_hours, name: 實際工時, type: number, description: 實際花了幾小時。預估的小時數填在「估計」。 }
+
+workflows:
+  - key: delivery
+    name: 交付流程
+    states:
+      - { key: confirming,  name: 需求確認, category: not_started }
+      - { key: quoting,     name: 報價,     category: not_started }
+      - { key: designing,   name: 設計,     category: in_progress }
+      - { key: developing,  name: 開發,     category: in_progress }
+      - { key: internal_qa, name: 內部驗收, category: in_progress }
+      - { key: client_qa,   name: 客戶驗收, category: in_progress }
+      - { key: closed,      name: 結案,     category: done }
+    transitions:
+      - { from: confirming,  to: quoting }
+      - { from: quoting,     to: designing }
+      - { from: designing,   to: developing }
+      - { from: developing,  to: internal_qa }
+      - { from: internal_qa, to: developing }                                   # 內部驗收退回
+      - { from: internal_qa, to: client_qa, allowedRoles: [project_manager] }
+      - { from: client_qa,   to: developing }                                   # 客戶驗收退回
+      - { from: client_qa,   to: closed, allowedRoles: [project_manager], requireFields: [client_signoff_date] }
+  - key: task_flow
+    name: 任務流程
+    states:
+      - { key: todo,            name: 待辦,     category: not_started }
+      - { key: doing,           name: 進行中,   category: in_progress }
+      - { key: internal_review, name: 內部驗收, category: in_progress }
+      - { key: waiting_client,  name: 等客戶,   category: in_progress }
+      - { key: to_release,      name: 待上線,   category: in_progress }
+      - { key: done,            name: 完成,     category: done }
+      - { key: on_hold,         name: 暫停,     category: backlog }
+      - { key: canceled,        name: 取消,     category: canceled }
+    # 沒有列 transitions：任何兩個狀態之間都可以互相轉換
+
+itemTypes:
+  - { key: requirement,    name: 需求,       workflow: delivery,  fields: [quote_amount, client_signoff_date] }
+  - { key: change_request, name: 需求變更單, workflow: delivery,  fields: [change_reason, impact, quote_amount, client_signoff_date] }
+  - { key: task,           name: 任務,       workflow: task_flow, parents: [requirement, change_request], fields: [actual_hours] }
+  - { key: subtask,        name: 子任務,     workflow: task_flow, parents: [task], fields: [actual_hours] }
+
+views:
+  - { key: progress_board, name: 進度看板, type: board, groupBy: state }
+  - key: requirement_table
+    name: 需求清單
+    type: table
+    columns: [title, state, assignee, quote_amount, due_date]
+    sort: [{ field: due_date, direction: asc }]
+    filter: { itemTypes: [requirement, change_request] }
+  - key: client_view
+    name: 給客戶看
+    type: table
+    columns: [title, state, client_signoff_date]
+    filter: { itemTypes: [requirement, change_request] }
+    visibleTo: [client, project_manager]
+
+automations:
+  - key: mr_merged_to_internal_qa
+    name: 合併請求合併後轉內部驗收
+    trigger: { source: gitlab, event: merge_request.merged }
+    conditions: [{ field: state, in: [developing] }]
+    actions: [{ type: transition, to: internal_qa }]
+
+roles:
+  - key: project_manager
+    name: 專案經理
+    permissions: [item.read, item.create, item.update, item.transition, comment.create, blueprint.read, blueprint.propose, blueprint.apply]
+  - key: client
+    name: 客戶
+    permissions: [item.read, comment.create]
+
+bindings:
+  - { connector: gitlab, resource: example-group/web-app }

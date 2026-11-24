@@ -1,0 +1,243 @@
+/* 外層只是「點在這裡面不算外面」與焦點離開的範圍（和 Select 一樣），不影響排版。 */
+.root {
+  display: contents;
+}
+
+/*
+ * 輸入框加右邊的日曆圖示（docs/DESIGN.md 7.3「日期」）。輸入框的長相是 TextField 那一套（fieldControlClassName），
+ * 圖示疊在輸入框裡、垂直置中：md、sm、觸控時變高都對得上；輸入框的右內距讓出圖示的位置。
+ */
+.field {
+  --date-icon-size: 1rem;
+
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.input {
+  padding-right: calc(var(--space-3) + var(--date-icon-size) + var(--space-2));
+  font-variant-numeric: tabular-nums;
+}
+
+/* 裝飾：點它和點輸入框一樣（點擊穿過去）。 */
+.icon {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/*
+ * 格子裡（variant="bare"）：和 Select 的 bare 一樣，沒有外框、底色、焦點光暈，撐滿格子；左右內距和平常的格子一樣
+ * （--space-3），框由格子畫。字照全域的 --text-control（觸控時 16px：小於 16px 的輸入框，iOS 聚焦時會放大整頁）。
+ */
+.field[data-variant='bare'] {
+  height: 100%;
+}
+
+.bare {
+  width: 100%;
+  height: 100%;
+  min-height: var(--control-height-sm);
+  padding: 0 calc(var(--space-3) + var(--date-icon-size) + var(--space-2)) 0 var(--space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* outline 留著透明的：強制色彩模式會把它畫成系統色，格子的框（陰影）被拿掉時仍然看得到焦點。 */
+.bare:focus-visible {
+  outline: 2px solid transparent;
+}
+
+/*
+ * 日曆的外殼和 Select 的清單同一族（Floating：紙、細線、--shadow-popover），裡面有格子所以圓角大一號、內距 --space-3。
+ * [data-side] 是 Floating 一定會設的屬性：多一個屬性的權重蓋過 Floating 自己的 .floating（兩個 CSS 檔的先後不保證）。
+ */
+.calendar[data-side] {
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+}
+
+/*
+ * 格子的大小放在日曆這一層：日期、月份、年份三種畫面用同一組，換畫面時日曆的寬與高不跳。
+ * 日期格 32px 見方（觸控 44px：--target-min 是 24／44px，取大的那個），格子之間 4px（焦點外框畫在格子外面 1px，
+ * 不會壓到隔壁）。320px 寬的手機放不下七格 44px，就照畫面寬度縮（扣掉浮層兩邊的留白、外框、內距與格子之間的間隙），
+ * 日曆不超出畫面。月曆的寬是七格加六個間隙，高是表頭一列加六列。
+ */
+.dialog {
+  --datepicker-gap: var(--space-1);
+  --datepicker-day: min(
+    max(2rem, var(--target-min)),
+    calc((100vw - 2 * var(--space-2) - 2px - 2 * var(--space-3) - 6 * var(--datepicker-gap)) / 7)
+  );
+  --datepicker-grid-width: calc(7 * var(--datepicker-day) + 6 * var(--datepicker-gap));
+  --datepicker-grid-height: calc(var(--space-6) + 6 * var(--datepicker-day) + 6 * var(--datepicker-gap));
+  --datepicker-chevron: 0.875rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 上一頁｜標題｜下一頁。 */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* 年份畫面的標題（範圍，不是按鈕）。 */
+.title {
+  flex: 1;
+  color: var(--color-text);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  text-align: center;
+}
+
+/*
+ * 日期、月份畫面的標題是按鈕（ghost 的長相）：字和年份畫面的標題一樣（一般的字色、semibold），後面一個小的向下箭頭。
+ * .header 加在前面：權重蓋過 Button 自己的 ghost 字色（兩個 CSS 檔的先後不保證）。
+ */
+.header .titleButton {
+  gap: var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-base);
+}
+
+.titleChevron {
+  width: var(--datepicker-chevron);
+  height: var(--datepicker-chevron);
+  color: var(--color-text-muted);
+}
+
+/* 日期畫面：一列七欄的 CSS grid（不用 <table>，見 CalendarGrids.tsx）。 */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--datepicker-gap);
+}
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, var(--datepicker-day));
+  gap: var(--datepicker-gap);
+}
+
+.weekday {
+  display: grid;
+  place-items: center;
+  height: var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* 月份、年份畫面：3×4 的格子撐滿日期畫面的寬與高（換畫面時日曆不跳）。 */
+.period {
+  display: flex;
+  flex-direction: column;
+  gap: var(--datepicker-gap);
+  width: var(--datepicker-grid-width);
+  height: var(--datepicker-grid-height);
+}
+
+.periodRow {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--datepicker-gap);
+}
+
+/* 三種畫面的格子同一套：滑過、今天（環線）、選的（實心）、焦點。 */
+.cell {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.day {
+  width: var(--datepicker-day);
+  height: var(--datepicker-day);
+}
+
+.cell:hover {
+  background: var(--color-hover);
+}
+
+/* 前後月份補上的日子：灰字，照樣可以選。 */
+.cell[data-outside] {
+  color: var(--color-text-muted);
+}
+
+/* 今天（月份、年份畫面是今天所在的月、年）：強調色的字加一圈 1px 的環線（不是色條、不是小圓點）。 */
+.cell[aria-current='date'] {
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+/*
+ * 選的那一天（月份、年份畫面是選的日期所在的月、年）：實心的強調色（--color-accent-solid，日曆的慣例），
+ * 也是今天時不再畫環線。日曆裡實心的是「選的那一個」，鍵盤所在的那一格是焦點外框（不是實心）：兩件事分得開。
+ */
+.cell[aria-selected='true'],
+.cell[aria-selected='true']:hover {
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+  font-weight: var(--weight-semibold);
+  box-shadow: none;
+}
+
+/* 鍵盤焦點是全域的焦點外框，畫在格子外面 1px：選的那一個是實心的強調色，畫在裡面會看不出來。 */
+.cell:focus-visible {
+  outline-offset: 1px;
+}
+
+/* 「今天」「清除」：一條細線和月曆分開。 */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+/*
+ * 強制色彩（Windows 高對比）會拿掉底色與環線：選的那一個用系統的 Highlight 底與 HighlightText 字（系統色不會被換掉），
+ * 今天用系統色的外框；別的月份是 GrayText。
+ */
+@media (forced-colors: active) {
+  .cell[aria-selected='true'],
+  .cell[aria-selected='true']:hover {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .cell[aria-current='date'] {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .cell[data-outside] {
+    color: GrayText;
+  }
+
+  .cell:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
+  }
+}

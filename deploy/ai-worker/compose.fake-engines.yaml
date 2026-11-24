@@ -1,0 +1,19 @@
+# 演練用的覆寫檔：把假引擎（deploy/ai-worker/fake-engines）掛進 ai-worker，不用真的登入供應商、不花任何額度。
+# 假引擎真的用工作的權杖打 /mcp，再依提示的關鍵字（藍圖、讀、搜尋、提出、慢一點）呼叫工具。只給測試與演練，不要用在正式環境。
+#
+#   COMPOSE_PROJECT_NAME=pmtool-aiw docker compose --env-file <演練的 env> \
+#     -f compose.yaml -f deploy/ai-worker/compose.fake-engines.yaml --profile ai-worker up -d --build ai-worker
+#
+# 假引擎的起始登入狀態：FAKE_CLAUDE_AUTH／FAKE_CODEX_AUTH（api、subscription、none，預設 none）；
+# kumi host login 時登入成什麼：FAKE_CLAUDE_LOGIN_AS／FAKE_CODEX_LOGIN_AS（api 或 subscription，預設 api；用 subscription 演練「訂閱被拒絕」）。
+# Codex 的登入要輸入一段任意文字當金鑰（假的，不存）。
+services:
+  ai-worker:
+    environment:
+      KUMI_AGENT_CLAUDE_PATH: /fake-engines/claude
+      KUMI_AGENT_CODEX_PATH: /fake-engines/codex
+      FAKE_ENGINE_STATE_DIR: /home/kumi/.fake-engines
+      FAKE_CLAUDE_LOGIN_AS: ${FAKE_CLAUDE_LOGIN_AS:-api}
+      FAKE_CODEX_LOGIN_AS: ${FAKE_CODEX_LOGIN_AS:-api}
+    volumes:
+      - ./deploy/ai-worker/fake-engines:/fake-engines:ro

@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pm-tool:blueprint:v0:project-blueprint",
+  "title": "專案藍圖（第 0 版）",
+  "description": "描述一個專案怎麼運作的設定。資源都是平的清單，彼此用 key 引用，沒有巢狀遞迴。這份 Schema 只管結構；key 的格式、引用是否存在、數量上限由伺服器的語意驗證負責，所以這裡刻意不寫 pattern、長度與數值範圍。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "fields", "workflows", "itemTypes"],
+  "properties": {
+    "apiVersion": { "const": "blueprint/v0" },
+    "kind": { "const": "ProjectBlueprint" },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "fields": {
+      "type": "array",
+      "description": "自訂欄位。核心欄位 title、description、state、assignee、priority、start_date、due_date、estimate、parent 是內建的，不必也不能在這裡宣告。",
+      "items": { "$ref": "#/$defs/field" }
+    },
+    "workflows": { "type": "array", "items": { "$ref": "#/$defs/workflow" } },
+    "itemTypes": { "type": "array", "items": { "$ref": "#/$defs/itemType" } },
+    "views": { "type": "array", "items": { "$ref": "#/$defs/view" } },
+    "automations": { "type": "array", "items": { "$ref": "#/$defs/automation" } },
+    "roles": {
+      "type": "array",
+      "description": "自訂的專案角色。admin、editor、commenter、viewer 四個內建角色不必宣告。",
+      "items": { "$ref": "#/$defs/role" }
+    },
+    "bindings": { "type": "array", "items": { "$ref": "#/$defs/binding" } }
+  },
+  "$defs": {
+    "key": {
+      "type": "string",
+      "description": "不會變的識別字：小寫英文字母開頭，只能有小寫字母、數字與底線，2 到 40 個字元。顯示名稱可以改，key 不能改。"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "basedOn": {
+          "type": "object",
+          "description": "這份藍圖是從哪個模板的哪一版來的，模板升級時用來算差異。",
+          "additionalProperties": false,
+          "required": ["template", "version"],
+          "properties": {
+            "template": { "$ref": "#/$defs/key" },
+            "version": { "type": "string" }
+          }
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "type"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "type": {
+          "enum": ["text", "long_text", "number", "currency", "date", "single_select", "multi_select", "person", "checkbox", "url"]
+        },
+        "description": { "type": "string" },
+        "options": {
+          "type": "array",
+          "description": "只有 single_select 與 multi_select 可以有，而且必須有。",
+          "items": { "$ref": "#/$defs/fieldOption" }
+        },
+        "currency": { "type": "string", "description": "只有 currency 型別使用，填 ISO 4217 代碼，例如 TWD。" }
+      }
+    },
+    "fieldOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "color": { "enum": ["gray", "red", "orange", "yellow", "green", "blue", "purple"] }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "states"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "states": {
+          "type": "array",
+          "description": "第一個狀態是新項目的起始狀態。",
+          "items": { "$ref": "#/$defs/state" }
+        },
+        "transitions": {
+          "type": "array",
+          "description": "省略時，任何兩個狀態之間都可以互相轉換。有列出時，只允許列出的轉換。",
+          "items": { "$ref": "#/$defs/transition" }
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "category"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "category": {
+          "description": "固定的五個類別。跨專案的報表與「我的工作」靠類別運作。",
+          "enum": ["backlog", "not_started", "in_progress", "done", "canceled"]
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "$ref": "#/$defs/key" },
+        "to": { "$ref": "#/$defs/key" },
+        "allowedRoles": {
+          "type": "array",
+          "description": "只有這些角色可以做這個轉換。省略時，有 item.transition 權限的人都可以。",
+          "items": { "type": "string" }
+        },
+        "requireFields": {
+          "type": "array",
+          "description": "做這個轉換之前必須先填好的欄位。",
+          "items": { "$ref": "#/$defs/key" }
+        }
+      }
+    },
+    "itemType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "workflow"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "workflow": { "$ref": "#/$defs/key" },
+        "fields": {
+          "type": "array",
+          "description": "這種項目有哪些自訂欄位，填 fields 裡的 key。",
+          "items": { "$ref": "#/$defs/key" }
+        },
+        "parents": {
+          "type": "array",
+          "description": "可以掛在哪些類型底下，填 itemTypes 裡的 key。省略表示只能放在最上層。",
+          "items": { "$ref": "#/$defs/key" }
+        },
+        "icon": { "type": "string" }
+      }
+    },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "type"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "type": { "enum": ["table", "board"] },
+        "groupBy": {
+          "type": "string",
+          "description": "state、assignee、item_type，或一個 single_select 欄位的 key。"
+        },
+        "columns": {
+          "type": "array",
+          "description": "表格要顯示的欄位，可以是核心欄位或自訂欄位的 key。",
+          "items": { "type": "string" }
+        },
+        "sort": { "type": "array", "items": { "$ref": "#/$defs/viewSort" } },
+        "filter": { "$ref": "#/$defs/viewFilter" },
+        "visibleTo": {
+          "type": "array",
+          "description": "只有這些角色看得到這個檢視。省略表示專案成員都看得到。",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "viewSort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "direction"],
+      "properties": {
+        "field": { "type": "string" },
+        "direction": { "enum": ["asc", "desc"] }
+      }
+    },
+    "viewFilter": {
+      "type": "object",
+      "description": "第 0 版只有這四種條件，彼此是「而且」的關係。",
+      "additionalProperties": false,
+      "properties": {
+        "itemTypes": { "type": "array", "items": { "$ref": "#/$defs/key" } },
+        "states": { "type": "array", "items": { "$ref": "#/$defs/key" } },
+        "stateCategories": {
+          "type": "array",
+          "items": { "enum": ["backlog", "not_started", "in_progress", "done", "canceled"] }
+        },
+        "assignee": { "enum": ["me", "unassigned"] }
+      }
+    },
+    "automation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "trigger", "actions"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "trigger": { "$ref": "#/$defs/automationTrigger" },
+        "conditions": { "type": "array", "items": { "$ref": "#/$defs/automationCondition" } },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/automationAction" } }
+      }
+    },
+    "automationTrigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "event"],
+      "properties": {
+        "source": { "enum": ["item", "gitlab", "github", "schedule", "webhook"] },
+        "event": {
+          "type": "string",
+          "description": "事件名稱，例如 item.created、merge_request.merged。可用的事件由各來源定義，語意驗證會檢查。"
+        }
+      }
+    },
+    "automationCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "in"],
+      "properties": {
+        "field": { "type": "string", "description": "state、item_type，或一個選項型欄位的 key。" },
+        "in": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "automationAction": {
+      "type": "object",
+      "description": "每種動作用到的參數不同：transition 用 to；set_field 用 field 與 value；notify 用 message；webhook 用 url。語意驗證會檢查。",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["transition", "set_field", "notify", "webhook"] },
+        "to": { "type": "string" },
+        "field": { "type": "string" },
+        "value": { "type": "string" },
+        "message": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "permissions"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "item.read", "item.read_own", "item.create", "item.update", "item.transition", "item.delete",
+              "comment.create",
+              "blueprint.read", "blueprint.propose", "blueprint.apply",
+              "project.manage"
+            ]
+          }
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "description": "這個專案連到哪個外部資源。憑證不放在藍圖裡。",
+      "additionalProperties": false,
+      "required": ["connector", "resource"],
+      "properties": {
+        "connector": { "enum": ["gitlab", "github", "webhook"] },
+        "resource": { "type": "string", "description": "例如 GitLab 的 group/project 路徑，或出站 webhook 的名稱。" }
+      }
+    }
+  }
+}

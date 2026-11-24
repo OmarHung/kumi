@@ -1,0 +1,359 @@
+/*
+ * 我的工作分組（docs/DESIGN.md 7.1、8.2）：每一組一個標題（h2）與數量，下面是那一組的表格或清單。
+ * 組與組之間是區塊的間距；標題一行，和表格之間是同一組裡的間距。
+ */
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.group {
+  min-width: 0;
+}
+
+/*
+ * 標題一行（--leading-tight）：第一組的第一列離頂端要在清單頁的預算裡（第 14 節，寬螢幕 176px）。
+ * 黏在左邊、寬度照內容：所有的組一起橫向捲動時（.gridGroups），標題不跟著捲出去。
+ */
+.heading {
+  position: sticky;
+  left: 0;
+  display: flex;
+  width: fit-content;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-md);
+}
+
+.count {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 寬螢幕的所有組放在同一個 TableScroll 裡（MyWorkGrid）。欄寬的區域變數定義在這一層：最小寬度（.gridGroups）、
+ * 欄寬（.col*）、固定欄的位置與捲動時讓出的寬度（scroll-padding-left）用同一組。編號欄和專案的表格
+ * （features/item-table 的 --item-key-width）一樣寬。這裡是預設寬度；使用者拉過的欄寬換掉同一組變數
+ * （myWorkColumns.ts 的 myWorkVariables，設在這一層上），每一組一起變（docs/DESIGN.md 7.1「欄寬」）。
+ * 上下的細線改畫在每一張表格上（TableScroll 給 frame={false}）：外框的細線會畫在第一組的標題上面、
+ * 和工具列的細線疊成兩條（docs/DESIGN.md 7.1）。
+ */
+.groupsScroll {
+  /*
+   * 欄寬照最長的內容量過（左右內距各 --space-3）：DEMO-123、狀態的標籤、「優先度」加排序的圖示（表頭是排序按鈕，
+   * 圖示沒排這一欄時是透明的，位置照樣佔著，實測 80px）、日期加「已過期」、專案名稱（放不下用省略號）。
+   * 2026-11-21 表頭加了排序：優先度 4rem 放不下圖示，從狀態借 1rem（內建模板與實際的專案裡狀態名稱最長四個字，
+   * 約 98px），總寬不變，1024 寬加上展開的側欄照樣放得下。
+   */
+  --my-work-key-width: 6.5rem;
+  --my-work-state-width: 8.5rem;
+  --my-work-priority-width: 5rem;
+  --my-work-due-width: 10.5rem;
+  --my-work-project-width: 7rem;
+  /* 標題欄最少這麼寬（約 8 個中文字，放不下用省略號，完整的標題在 title 與連結的名稱）。 */
+  --my-work-title-min: 8.5rem;
+  /* 拉寬的標題欄最多到表格的寬度減掉它左邊固定的欄與這一段（myWorkColumns.ts）：開著面板時其他欄還捲得出來。 */
+  --my-work-scroll-reserve: 8rem;
+
+  /*
+   * 固定欄（標題和它左邊的欄）的位置與標題左邊固定欄的寬度：這裡是預設的順序（編號、專案、標題），
+   * 使用者換了順序或依專案分組時由 myWorkColumns.ts 的 myWorkVariables 換掉（設在這一層上）。
+   */
+  --my-work-key-left: 0px;
+  --my-work-project-left: var(--my-work-key-width);
+  --my-work-title-left: calc(var(--my-work-key-width) + var(--my-work-project-width));
+  --my-work-pinned-width: var(--my-work-title-left);
+  --my-work-fixed-width: calc(
+    var(--my-work-key-width) + var(--my-work-state-width) + var(--my-work-priority-width) + var(--my-work-due-width)
+  );
+
+  /* 用鍵盤往左走、格子被捲到固定的欄底下時，讓出那幾欄（標題欄這時是最小寬度）。 */
+  scroll-padding-left: calc(var(--my-work-pinned-width) + var(--my-work-title-min));
+}
+
+/*
+ * 包住捲動區塊的容器：拉寬的標題欄用它的寬度（100cqi）夾住（myWorkColumns.ts 的 myWorkVariables）。
+ * 版面不變：一般的區塊，寬度就是內容區給的寬度。
+ */
+.gridFrame {
+  container: my-work-table / inline-size;
+}
+
+/*
+ * 最小寬度設在包住所有組的這一層：TableScroll 比的是第一個子元素的寬度。固定的欄加上標題欄的最小寬度：
+ * 1024 寬加上展開的側欄（內容約 46～47rem）放得下；更窄（項目面板開著、48～64rem 而且側欄展開）時所有的組一起退回橫向捲動，
+ * 編號與標題固定在左邊（7.1）。依專案分組沒有專案欄，最小寬度少那一欄。
+ */
+.gridGroups {
+  /* 專案欄不一定有（依專案分組沒有專案欄）：沒有的話不算進最小寬度。 */
+  --my-work-project-extra: var(--my-work-project-width);
+
+  min-width: calc(
+    var(--my-work-fixed-width) + var(--my-work-project-extra) + var(--my-work-title-min)
+  );
+}
+
+.gridGroups[data-show-project='false'] {
+  --my-work-project-extra: 0px;
+}
+
+/*
+ * 每一組是一張自己的表格：固定的欄寬（table-layout: fixed），每一組的欄才對得齊；標題欄吃掉剩下的寬度。
+ * 上下各一條細線收邊（docs/DESIGN.md 7.1，原本由 TableScroll 畫）。格子左右的內距是 --space-3：
+ * 和狀態格裡的按鈕一樣，表頭的字、按鈕裡的標籤、其他格子的字對齊在同一條線上，窄的欄也不浪費。
+ */
+.table {
+  table-layout: fixed;
+  border-block: 1px solid var(--color-border);
+}
+
+.table tr > :is(th, td) {
+  padding-inline: var(--space-3);
+}
+
+.colKey {
+  width: var(--my-work-key-width);
+}
+
+.colState {
+  width: var(--my-work-state-width);
+}
+
+.colPriority {
+  width: var(--my-work-priority-width);
+}
+
+.colDue {
+  width: var(--my-work-due-width);
+}
+
+.colProject {
+  width: var(--my-work-project-width);
+}
+
+/* 標題欄拉過之後就是那個寬度（換掉的是它的最小寬度），後面空的欄吃掉剩下的寬度（MyWorkGrid 的 MyWorkColumns）。 */
+.colTitle {
+  width: var(--my-work-title-min);
+}
+
+/*
+ * 格子的寬度是欄寬：放不下的值一行、用省略號（第 3 節的截斷），不畫到隔壁那一格；完整的值就是格子的文字（報讀軟體唸得到）。
+ * 狀態那一格不裁：裡面是表格的格內編輯，浮起來的編輯器要長出格子（按鈕自己裁，item-table/cells）。
+ */
+.table td:not(.stateCell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 到期日是日期加「已過期」（一整塊）：換成跟著格子縮的一塊，日期先縮成省略號，「已過期」留著。 */
+.table td.dueCell > :only-child {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table td.dueCell > :only-child > time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 標題那一格不再是 components/Table 的最少 12rem：欄寬是標題欄的寬度，使用者可以拉得比它窄。 */
+.table td.titleCell {
+  min-width: 0;
+}
+
+/* 一列一行：放不下的編號、標題、專案名稱用省略號，完整的文字在 title 與連結的名稱裡（第 3 節的截斷）。 */
+.clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 固定在左邊的欄（7.1）：標題和它左邊的欄（myWorkColumnOrder.ts，預設是編號、專案、標題）。放得下時看不出來；
+ * 所有的組一起橫向捲動時，捲過去的格子從它們底下經過。位置是捲動區塊上的變數（它左邊固定欄的寬度加起來）。
+ * 實心的底色才蓋得住；滑過、選取的樣子照 components/Table（選取的規則比這裡具體，蓋得過）。
+ */
+.pinned {
+  position: sticky;
+  z-index: 1;
+  background: var(--color-surface);
+}
+
+.pinKey {
+  left: var(--my-work-key-left);
+}
+
+.pinProject {
+  left: var(--my-work-project-left);
+}
+
+.pinTitle {
+  left: var(--my-work-title-left);
+}
+
+/* 表頭裡的固定欄：和表頭（components/Table）一樣是紙底，橫向捲動時蓋過捲過去的表頭與它們調欄寬的把手（1）。 */
+.table thead .pinned {
+  z-index: 2;
+  background: var(--color-surface);
+}
+
+/*
+ * 固定欄之間的把手放在自己這一格裡（和最後一欄一樣）：固定欄的表頭疊在同一層，後面那一格會蓋住伸過交界的那一半。
+ * 把手是 components/Table 的 ColumnResizer（role="separator"）。
+ */
+.table thead .pinned:has(+ .pinned) > [role='separator'] {
+  inset-inline-end: 0;
+}
+
+.table thead .pinned:has(+ .pinned) > [role='separator']::after {
+  inset-inline: auto 0;
+}
+
+.table tbody tr:hover > .pinned {
+  background: linear-gradient(var(--color-hover), var(--color-hover)), var(--color-surface);
+}
+
+/* 橫向捲動時標題欄右邊一條細線，分得出哪裡是固定的；放得下時不畫（表格沒有直線，7.1）。 */
+div.groupsScroll[data-overflowing='true'] tbody .pinTitle {
+  box-shadow: inset -1px 0 0 var(--color-border);
+}
+
+div.groupsScroll[data-overflowing='true'] thead .pinTitle {
+  box-shadow:
+    inset -1px 0 0 var(--color-border),
+    inset 0 -1px 0 var(--color-border);
+}
+
+/* 狀態那一格是表格的格內編輯（features/item-table/cells）：格子本身不留內距，按鈕撐滿一格、滑過時的外框貼著格子。 */
+.table tr > .stateCell {
+  height: auto;
+  padding: 0;
+}
+
+/* 專案內容還沒讀到：先顯示狀態類別，位置和可以改的格子一樣。 */
+.stateFallback {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  min-height: var(--row-height);
+  padding: 0 var(--space-3);
+}
+
+/*
+ * 剛改成完成或取消的列（data-settled）：留在原位，字變淡、標題劃掉，重新整理後才離開清單（8.2）。
+ * 淡是換成次要的字色（對比仍在 4.5:1 以上），不用透明度：這一列還可以操作（改回去、開面板）。
+ */
+.row[data-settled='true'] > * {
+  color: var(--color-text-muted);
+}
+
+/* 優先度也變淡（它有自己的顏色）；狀態的標籤維持原樣：「完成」「取消」就是這一列為什麼淡掉的說明。 */
+.row[data-settled='true'] .priorityCell * {
+  color: var(--color-text-muted);
+}
+
+.row[data-settled='true'] .title,
+.settledTitle {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+/* 劃掉的標題照樣是連結：滑過時和其他列一樣變成強調色並加底線（劃線留著）。 */
+.row[data-settled='true'] .title:hover {
+  color: var(--color-accent);
+  text-decoration: line-through underline;
+}
+
+/*
+ * 連到專案頁的專案名稱（MyWorkProjectLink：表格的專案格、依專案分組的組名）：平常是一般的字色（剛完成的列照樣跟著變淡），
+ * 滑過才是強調色加底線——它是位置的說明，不搶標題（和項目頁的專案連結同一個樣子）。
+ */
+.projectLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.projectLink:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+/* 工具列右邊一直掛著的 status：一行小字，出現時不會推動下面的清單。 */
+.settledStatus {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 拖表頭換欄的順序（MyWorkHeader.tsx）：拖著的那一欄的表頭是選取的底色，放下去的位置是交界上一條強調色的線
+ * （功能的指示，只在拖曳中出現，不是裝飾的色條，第 9 節）。拖曳中整張表格是抓著的游標、不能選取文字。
+ */
+.table thead th:has(> [data-dragging='true']) {
+  background: var(--color-selected);
+}
+
+/* 層級 3：畫在固定欄（2）交界上時，伸進固定欄那一邊的半條不被它蓋住。 */
+.dropMarker {
+  position: absolute;
+  inset-block: var(--space-1);
+  z-index: 3;
+  width: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+.dropMarker[data-side='before'] {
+  inset-inline-start: -1px;
+}
+
+.dropMarker[data-side='after'] {
+  inset-inline-end: -1px;
+}
+
+.table:has([data-dragging='true']),
+.table:has([data-dragging='true']) button {
+  cursor: grabbing;
+  user-select: none;
+}
+
+@media (forced-colors: active) {
+  .dropMarker {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}
+
+/* 「欄的順序」（MyWorkColumnOrderPicker.tsx）：一行說明，下面一欄一行，名稱靠左、往前與往後移靠右。 */
+.orderNote {
+  max-width: 18rem;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.orderList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orderItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+}
+
+.orderLabel {
+  flex: 1;
+  min-width: 0;
+}

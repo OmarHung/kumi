@@ -1,0 +1,338 @@
+/*
+ * 側欄是桌面（docs/DESIGN.md 6.1）：上面是產品名稱、「搜尋或跳到…」（長得像搜尋框的按鈕，右邊是快捷鍵；
+ * 樣式在 features/jump/JumpButton.module.css）與主要導覽，最下面是帳號選單。
+ * 整條剛好一個畫面高；專案多了只有專案清單自己捲，「人員」與帳號選單一直看得到。
+ * 畫面矮到連其他項目都放不下時，側欄本身才捲動（專案清單會先縮到沒有）。
+ */
+.sidebar {
+  position: sticky;
+  top: 0;
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--space-4) var(--space-3) var(--space-3);
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-sidebar);
+}
+
+/* 寬螢幕收起來：hidden 屬性的預設樣式會被上面的 display 蓋掉，這裡明確藏起來。 */
+.sidebar[hidden] {
+  display: none;
+}
+
+/*
+ * 產品名稱：前面是 Kumi 的標誌（和瀏覽器分頁的圖示同一個 SVG，裝飾、aria-hidden），一眼認得出是哪個產品。
+ * 標誌 24px，和名稱那一行（16px 的字、--leading-normal）差不多高：加上它側欄的高度不變。
+ * 標誌自己畫了圓角方塊與顏色（固定的品牌色，不跟主題換），這裡只給大小。
+ * 字重是 semibold：--weight-bold 只給內容區的大標題（第 3 節）。
+ */
+.brand {
+  --brand-mark-size: 1.5rem;
+
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-5);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: var(--color-accent);
+}
+
+.brandMark {
+  display: block;
+  flex: none;
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+}
+
+.nav {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-height: 0;
+}
+
+.link {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.link:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+/*
+ * 目前所在的頁面（NavLink 標的 aria-current）：選取的底色、字與圖示是強調色、字重 semibold。
+ * 不畫左邊的色條（docs/DESIGN.md 6.1）：字重是顏色以外的差別，強制色彩拿掉底色時也看得出來。
+ */
+.link[aria-current='page'],
+.link[aria-current='page']:hover {
+  background: var(--color-selected);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.linkIcon {
+  flex: none;
+}
+
+.linkText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 專案清單：唯一自己捲的地方，接在「專案」底下、往右縮一格。
+ * 捲動的容器會裁掉超出它的東西：四邊各留出焦點外框的寬度（2px 外框加 2px 間隔），再用負的外距抵銷，位置不變。
+ */
+.projects {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) var(--space-1);
+  padding: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.projectList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: 0 0 0 var(--space-6);
+  list-style: none;
+}
+
+.projectList .link {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+.projectList .link[aria-current='page'] {
+  font-weight: var(--weight-semibold);
+}
+
+/* 一列：資訊圖示浮在右邊（絕對定位），出現或消失時名稱不重排。 */
+.projectItem {
+  position: relative;
+}
+
+/*
+ * 資訊圖示：底色蓋住名稱的尾巴，所以永遠和那一列此刻的底色一樣：側欄、滑過或鍵盤焦點的 --color-hover、目前所在的 --color-selected。
+ * 「那一列」是整個 li：滑鼠停在圖示上、或鍵盤焦點在名稱上，名稱連結也一起換底，不會只有圖示有一塊灰。
+ * 兩邊的 background-color 用同一個過渡，淡入的中間幀不會疊出較深的一塊。
+ * 藏起來用 opacity 不用 visibility／display：焦點還要能 Tab 到它。出現的條件是滑過、或鍵盤焦點（:focus-visible）在這一列；
+ * 不用 :focus-within：滑鼠點了專案之後焦點留在連結上，圖示會一直顯示。藏著時不接收滑鼠，點下去的是下面的專案連結。
+ */
+.infoLink {
+  /* 滑過的底色（--color-hover）是半透明的：疊在名稱連結同樣的半透明底上會深一塊。所以圖示的底固定是不透明的側欄色，
+     那一列的底色改用內陰影蓋上去（內陰影才有顏色的過渡），和名稱連結看起來一樣深。 */
+  --info-tint-size: 2rem;
+
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-sidebar);
+  box-shadow: inset 0 0 0 var(--info-tint-size) var(--color-sidebar);
+  color: var(--color-text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.projectItem:hover .infoLink,
+.projectItem:has(:focus-visible) .infoLink {
+  box-shadow: inset 0 0 0 var(--info-tint-size) var(--color-hover);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.projectItem:hover .link:not([aria-current='page']),
+.projectItem:has(:focus-visible) .link:not([aria-current='page']) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.projectItem:has(.link[aria-current='page']) .infoLink {
+  box-shadow: inset 0 0 0 var(--info-tint-size) var(--color-selected);
+  color: var(--color-accent);
+}
+
+.infoLink:hover {
+  color: var(--color-text);
+}
+
+.projectItem:has(.link[aria-current='page']) .infoLink:hover {
+  color: var(--color-accent);
+}
+
+/*
+ * 觸控的裝置（和 tokens.css 的觸控判斷一致：沒有滑過，或主要輸入是手指）：圖示一律顯示，名稱右邊讓出圖示的位置，不讓它蓋住字；
+ * --control-height-sm 在觸控時是 44px（tokens.css），點得到。主要輸入是滑鼠的觸控筆電不在這裡：靠滑過，或專案頁頁列的「資訊」。
+ */
+@media (hover: none), (pointer: coarse) {
+  .infoLink {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .projectItem .link {
+    padding-right: var(--control-height-sm);
+  }
+}
+
+.projectKey {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 目前的專案：代號也跟著字變成強調色，整個項目是同一個顏色。 */
+.link[aria-current='page'] .projectKey {
+  color: inherit;
+}
+
+.projectName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  padding: var(--space-1) var(--space-3) var(--space-2) var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inlineButton {
+  margin-left: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 帳號選單：一直在最下面，和上面的導覽隔一條細線。 */
+.account {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.accountButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.accountButton:hover,
+.accountButton[aria-expanded='true'] {
+  background: var(--color-hover);
+}
+
+.accountButton[aria-disabled='true'] {
+  cursor: progress;
+}
+
+.accountText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.userName {
+  overflow: hidden;
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userMeta {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountIcon {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.error {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+@media (max-width: 48rem) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: var(--z-drawer);
+    width: min(18rem, 85vw);
+    visibility: hidden;
+    box-shadow: var(--shadow-dialog);
+    transform: translateX(-100%);
+    transition:
+      transform var(--duration-normal) var(--ease-out),
+      visibility 0s linear var(--duration-normal);
+  }
+
+  /* 關起來時用 visibility 藏起來，裡面的連結才不會被 Tab 走到。 */
+  .sidebar[data-open='true'] {
+    visibility: visible;
+    transform: none;
+    transition: transform var(--duration-normal) var(--ease-out);
+  }
+}

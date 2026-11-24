@@ -1,0 +1,111 @@
+/*
+ * 多選與批次動作列（docs/DESIGN.md 7.1「多選」、8.3「批次操作」）。固定尺寸都在這裡（第 2.2 節：區域變數）。
+ */
+.notice {
+  margin-bottom: var(--space-4);
+}
+
+/* 沒做成的項目：一筆一行，編號是連結、後面是原因。 */
+.failures {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.failureKey {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/*
+ * 批次動作列：和工具列同一個位置、同一個高度（控制項是 sm，和篩選一樣矮一號），內容換掉、不推動版面。
+ * 放不下時換行（和 Toolbar 一樣），不橫向捲動。
+ */
+.bar {
+  display: flex;
+  flex: 1;
+  /* 永遠一行（放不下的欄位動作收進「更多動作」，barLayout.ts）：不推動版面。 */
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex: 1;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.count {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.hint,
+.busy {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 動作列上的下拉：欄位的名稱就是按鈕上的字，不是「目前的值」，所以字色和按鈕一樣，寬度只到字加箭頭。 */
+.bar .picker[data-width='content'] {
+  --select-content-min: 4.5rem;
+  --select-content-max: 8rem;
+}
+
+.bar .picker span[data-placeholder] {
+  color: var(--color-text);
+}
+
+/* 刪除：ghost 的底、危險的字色（實心的 danger 只給確認的按鈕）。 */
+.remove {
+  color: var(--color-danger);
+}
+
+.remove:hover:not(:disabled, [aria-disabled='true']) {
+  color: var(--color-danger);
+}
+
+/* 日期浮層：日期欄位在上、「清除到期日」在下。 */
+.datePanel {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/*
+ * 表格第一欄的勾選框：點擊範圍是整格，框本身照全站的勾選框樣式。
+ * 至少一列高（--row-height）：表格的格子靠上對齊（ItemTable 的 .cell），格子裡的 height: 100% 撐不開，
+ * 只用 --target-min（寬螢幕 24px）時框會比同一列的文字偏上。觸控時 --target-min 比較大，取兩者大的。
+ */
+.selectLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: max(var(--target-min), var(--row-height));
+  cursor: pointer;
+}
+
+/* 「更多動作」浮層：每個收進來的動作一列，欄位的名稱在上、控制項在下。 */
+.menuPanel {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 14rem;
+}
+
+.menuField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.menuLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}

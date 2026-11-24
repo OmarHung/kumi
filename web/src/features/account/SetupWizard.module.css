@@ -1,0 +1,154 @@
+/*
+ * 設定精靈的步驟卡（docs/design/08-interaction.md「命令列與整合」）：一步一張細框的卡，由上往下排。
+ * 還沒到的步驟只有淡色的一行標題；完成的收成「勾＋標題＋一行摘要＋重看」。沒有裝飾用的色條或色塊：
+ * 狀態靠序號／勾的圖示與文字，目前的這一步只有序號圈換成強調色。
+ */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
+}
+
+.marker {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.step[data-state='current'] .marker {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.step[data-state='done'] .marker {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.step[data-state='upcoming'] .title {
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.summary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-1) var(--space-4) var(--space-4);
+}
+
+.body p {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 下載的連結長得像按鈕，不被拉滿整行。 */
+.download {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+/*
+ * 第三步：兩欄的定義清單，左欄（圖示加名稱）寬度跟著最長的名稱，右欄是結果，所以值上下對齊、不留固定的大空白。
+ * 名稱太長（窄螢幕）時左欄最多佔一半，名稱與值都可以換行。沒有這一項（組織沒開放）的整列淡色。
+ */
+.status {
+  display: grid;
+  grid-template-columns: fit-content(50%) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+  margin: 0;
+}
+
+.line {
+  display: contents;
+}
+
+.lineIcon {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  color: var(--color-text-muted);
+}
+
+.line[data-kind='done'] .lineIcon {
+  color: var(--color-success);
+}
+
+.line[data-kind='error'] .lineIcon {
+  color: var(--color-danger);
+}
+
+.lineLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.lineText {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+}
+
+.line[data-kind='done'] .lineText {
+  color: var(--color-text);
+}
+
+.line[data-kind='muted'] {
+  color: var(--color-text-muted);
+}

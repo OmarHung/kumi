@@ -1,0 +1,110 @@
+# 範例項目：示範所有客戶的維護工作放在同一個專案，每個月一個週期。
+# - 兩個週期：這個月、下個月，連續排開不重疊。日期相對建立專案那天，所以只是示意，開始用時改成真正的月份。
+# - 項目涵蓋：在等客戶回覆的修改、已經過期的問題、跨三個客戶的資安修補（上層一個、每個客戶一個下層任務，
+#   三站的進度各不相同），以及排在下個月的例行工作。
+# - 「估計」填預估的小時數，「實際工時」填做完實際花的；下層任務各自填，上層不填，免得同一份工作算兩次。
+cycles:
+  - ref: this_month
+    name: 範例：這個月
+    startInDays: 0
+    endInDays: 29
+  - ref: next_month
+    name: 範例：下個月
+    startInDays: 30
+    endInDays: 59
+items:
+  - ref: start
+    type: routine
+    title: 從這裡開始：客戶維運怎麼用
+    state: doing
+    priority: low
+    cycle: this_month
+    description: |
+      所有客戶的維護工作都放在這個專案，每個項目在「客戶」欄位記下是哪個客戶的事。有報價、有上線日的建置案，另外用「接案專案」開一個專案。
+
+      - 類型有五種：修改、問題、資安、例行、評估。要拆開做的，在底下開「任務」。
+      - 流程：待辦 → 進行中 → 內部驗收 → 等客戶 → 待上線 → 完成。客戶喊停的放「暫停」，不做的放「取消」。狀態之間可以直接跳。
+      - 「內部驗收」是等我們自己，「等客戶」是等客戶回覆。每天看一次「等客戶」，就知道該催誰。
+      - 一個項目只放一位負責人，就是實際做的人。要盯進度的人按「關注」；要別人做其中一段，開一個下層任務指派給他。
+      - 每個月一個週期：到頁列的「規劃」把週期改成真正的月份，新的事情排進當月。
+      - 「估計」填預估的小時數，做完在「實際工時」填實際花的。
+      - 跨客戶的工作（同一個漏洞要修好幾個網站），看「範例：表單送出漏洞修補」：上層一個項目，每個客戶一個下層任務。
+
+      開始用之前，先到「設定」把「客戶」的選項換成你們的客戶。這幾筆是範例，看懂之後可以逐筆刪掉。
+  - type: change
+    title: 範例：首頁輪播換成新的活動圖
+    state: waiting_client
+    priority: medium
+    cycle: this_month
+    estimate: 1
+    startInDays: -3
+    dueInDays: 4
+    description: 圖已經換好放在測試站，等客戶確認文字與連結再上線。
+    fields:
+      client: client_a
+      page_url: https://example.com/
+  - type: issue
+    title: 範例：聯絡表單送出後收不到通知信
+    state: doing
+    priority: urgent
+    cycle: this_month
+    estimate: 2
+    startInDays: -5
+    dueInDays: -1
+    description: 客戶反映上週起都沒收到表單通知。已經過了到期日，還在查寄信的設定。
+    fields:
+      client: client_b
+      page_url: https://example.com/contact
+  - ref: form_fix
+    type: security
+    title: 範例：表單送出漏洞修補（3 個網站）
+    state: doing
+    priority: high
+    cycle: this_month
+    startInDays: -2
+    dueInDays: 7
+    description: 同一套表單元件有相同的漏洞，三個網站都要修。每個網站一個下層任務，各自有負責人與狀態；上層看下層的完成數，就知道還剩幾站。
+  - type: task
+    title: 範例：範例客戶 A 修補並更版
+    state: done
+    priority: high
+    parent: form_fix
+    cycle: this_month
+    estimate: 1
+    startInDays: -2
+    dueInDays: 1
+    fields:
+      client: client_a
+      actual_hours: 1.5
+  - type: task
+    title: 範例：範例客戶 B 修補並更版
+    state: to_release
+    priority: high
+    parent: form_fix
+    cycle: this_month
+    estimate: 1
+    startInDays: -1
+    dueInDays: 3
+    fields:
+      client: client_b
+      actual_hours: 1
+  - type: task
+    title: 範例：範例客戶 C 修補並更版
+    state: todo
+    priority: high
+    parent: form_fix
+    cycle: this_month
+    estimate: 1
+    dueInDays: 7
+    fields:
+      client: client_c
+  - type: routine
+    title: 範例：網站的 SSL 憑證續約
+    state: todo
+    priority: medium
+    cycle: next_month
+    estimate: 0.5
+    dueInDays: 40
+    description: 憑證到期前兩週完成續約與更換，避免網站顯示不安全。
+    fields:
+      client: client_c

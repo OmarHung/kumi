@@ -1,0 +1,60 @@
+# 範例項目：示範設計任務走過各個狀態，與一筆已過期的審查。
+items:
+  - ref: start
+    type: design_task
+    title: 從這裡開始：設計專案怎麼用
+    state: discovery
+    priority: low
+    description: |
+      每個設計任務的流程是：探索 → 線框 → 視覺 → 設計審查 → 交付開發。
+      設計審查沒過時，把狀態退回「視覺」（結構要改就退回「線框」）。不做的任務放進「擱置」，之後要做再從「探索」重新開始。
+
+      - 把設計稿的連結放在「設計稿連結」，選好平台。
+      - 交付開發之前一定要填「設計稿連結」，開發直接從連結取用。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+  - type: design_task
+    title: 範例：註冊流程使用者訪談整理
+    state: discovery
+    priority: medium
+    startInDays: -2
+    dueInDays: 5
+    fields:
+      platforms: [web, ios]
+  - type: design_task
+    title: 範例：首頁版面線框
+    state: wireframe
+    priority: medium
+    startInDays: -4
+    dueInDays: 6
+    fields:
+      design_url: https://example.com/design/homepage-wireframe
+      platforms: [web]
+  - type: design_task
+    title: 範例：設定頁視覺稿
+    state: visual
+    priority: high
+    startInDays: -10
+    dueInDays: 3
+    fields:
+      design_url: https://example.com/design/settings
+      platforms: [web, ios, android]
+  - type: design_task
+    title: 範例：訂單明細頁視覺稿
+    state: review
+    priority: high
+    startInDays: -14
+    dueInDays: -2
+    description: 審查提出按鈕順序與字級的意見，已逐項回覆。
+    fields:
+      design_url: https://example.com/design/order-detail
+      platforms: [ios, android]
+  - type: design_task
+    title: 範例：通知設定圖示組
+    state: handoff
+    priority: low
+    startInDays: -20
+    dueInDays: -8
+    fields:
+      design_url: https://example.com/design/notification-icons
+      platforms: [web, ios, android]

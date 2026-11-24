@@ -1,0 +1,48 @@
+/*
+ * 已刪除的項目頁（清單頁，不放說明：要說的話在空白狀態裡，docs/DESIGN.md 6.2）。表格與清單用共用的元件，這裡只有編號欄、動作欄與頁尾。
+ * 沒有卡片的外框與裝飾色條（docs/DESIGN.md 第 1、5 節）。
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 編號：等寬字，和表格其他頁的編號一樣（Table 的 .mono）。 */
+.key {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+/* 最右一顆「復原」：靠右、不換行，欄寬就是按鈕的寬度。 */
+.action {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--row-height);
+}
+
+.count {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.loadError {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+/* 提示裡「先復原 AGY-3」的連結按鈕：和文字同一行，不撐高提示。 */
+.parentLink {
+  vertical-align: baseline;
+  font-family: var(--font-mono);
+}

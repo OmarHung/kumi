@@ -1,0 +1,242 @@
+/* 只在開發模式有的展示頁：獨立的一頁（不在 AppShell 裡），用內容區的紙色。 */
+.page {
+  min-height: 100dvh;
+  background: var(--color-surface);
+}
+
+.themes {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.lead {
+  max-width: var(--reading-max);
+  color: var(--color-text-muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-md);
+}
+
+.demo {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.demoName {
+  padding-top: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.demoBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* 表單欄位、提示這類一行一個的，排成一欄。 */
+.demoBody > div:not([role='group']) {
+  flex: 1 1 16rem;
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* demoBody 是橫向排列：說明獨占一整列，編輯器排在下面。 */
+.noteRow {
+  flex: 1 0 100%;
+}
+
+/* 工具列那一列的下拉：照目前的值的寬度排成一列（和表格、看板的篩選一樣）。 */
+.selectRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * 模擬編輯中的格子（規範 8.3「就地編輯」）：一列高、紙底、一圈 2px 的焦點色、--radius-sm。
+ * 裡面的下拉是 variant="bare"：只有這一圈框，沒有「格子一圈、按鈕又一圈」。
+ */
+.cellFrame {
+  --cell-demo-width: 12rem;
+
+  display: flex;
+  align-items: stretch;
+  width: var(--cell-demo-width);
+  height: var(--row-height);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 2px var(--color-focus);
+}
+
+.frame {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+/* 工作區的展示：工作區是 100dvh 高，在這裡用一個固定高度的框裁著看，量頁列加工具列的高度。 */
+.workspaceFrame {
+  --workspace-demo-height: 20rem;
+
+  width: 100%;
+  height: var(--workspace-demo-height);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.workspaceScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/*
+ * SidePanel 的展示。fill：模擬工作區的內容區（左右 --page-gutter，面板抵掉右邊那一塊），固定高度裁著看；
+ * page：跟著這一頁捲。點了的那一列是選取的底色（aria-current）。
+ */
+.panelFrame {
+  --panel-demo-height: 22rem;
+
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: var(--panel-demo-height);
+  padding-inline: var(--page-gutter);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.panelPage {
+  width: 100%;
+}
+
+.panelRow[aria-current='true'] > td {
+  background: var(--color-selected);
+}
+
+.rowButton {
+  min-height: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font-weight: var(--weight-medium);
+  text-align: start;
+  cursor: pointer;
+}
+
+.rowButton:hover {
+  text-decoration: underline;
+}
+
+.panelBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.panelFields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+
+.panelFields dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.panelFields dd {
+  margin: 0;
+}
+
+.dialogForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fakeBar {
+  display: flex;
+  align-items: center;
+  min-height: var(--page-bar-height);
+  padding: 0 var(--page-gutter);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inlineField {
+  flex: 0 1 14rem;
+}
+
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.iconItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--row-height);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 48rem) {
+  .demo {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+}
+
+/* 填滿畫面高度的編輯器（專案說明、說明格式）：呼叫端設 --editor-reserved 與 --editor-min-height，這裡模擬一個佔掉 28rem 的頁面。 */
+.editorFill {
+  --editor-reserved: 28rem;
+  --editor-min-height: 10rem;
+}
+
+/* 設定頁區塊的展示：自己當一個容器（和設定中心的內容欄同名），區塊才會照寬度排成左右或上下。 */
+.settingsFrame {
+  container: settings-hub / inline-size;
+  width: 100%;
+}
+
+.settingsForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 26rem;
+}

@@ -1,0 +1,33 @@
+/* 清單頁與編輯頁共用的小東西。沒有卡片與裝飾色條。 */
+.intro {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-medium);
+}
+
+/* 編輯與「更多」並排；窄螢幕清單的最後面也是這一組。 */
+.actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* 最後一欄：欄寬只夠動作、靠右；觸控時按鈕和列一樣高，格子上下不留內距（和人員表格一樣）。 */
+.actionCell {
+  width: 1%;
+  padding-block: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.status {
+  margin-bottom: var(--space-4);
+}

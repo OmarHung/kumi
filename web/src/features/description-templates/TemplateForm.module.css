@@ -1,0 +1,57 @@
+/*
+ * 編輯頁：名稱與「設成預設」在編輯器上面，高度固定（錯誤訊息出現在欄位下面時才多一行，不是每打一個字就變）。
+ * 編輯器填滿剩下的高度（project-info/editorFill.module.css）：頁列、內容區的內距、名稱那一排、
+ * 編輯器下面的提示、提醒與按鈕之外的整個畫面，最少約 20 行。17.75rem 是原本文字框時的預留，
+ * 編輯器多一列工具列（按鈕高加上下內距 0.5rem、底線 1px）與外框上下各 1px，加在後面。
+ */
+.form {
+  --editor-reserved: calc(var(--page-bar-height) + 17.75rem + var(--control-height-sm) + 0.5rem + 3px);
+  --editor-min-height: 28rem;
+
+  max-width: var(--reading-max);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 窄螢幕名稱與勾選各占一行，多一行的高度要讓出來，整頁才不會比畫面高。 */
+@media (max-width: 48rem) {
+  .form {
+    --editor-reserved: calc(var(--page-bar-height) + 20.75rem + var(--control-height-sm) + 0.5rem + 3px);
+  }
+}
+
+.head {
+  /* 名稱欄下面出現錯誤訊息時不長高：先留一行的高度，編輯器和按鈕才不會被推動。 */
+  min-height: 4.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-6);
+}
+
+/* 名稱欄不必撐滿整行；放不下時（窄螢幕）勾選換到下一行。 */
+.nameField {
+  flex: 1 1 20rem;
+  max-width: 32rem;
+}
+
+.reminder {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* 訊息在按鈕左邊，占剩下的寬度；沒有訊息時是空的、不占高度。 */
+.alert {
+  flex: 1;
+  min-width: 0;
+}

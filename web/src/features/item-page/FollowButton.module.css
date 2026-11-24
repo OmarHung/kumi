@@ -1,0 +1,19 @@
+/*
+ * 「關注」切換：平常是一般的次要按鈕；關注中是選取的樣子（--color-selected 的底、強調色的字，和側欄目前所在的那一項一樣）
+ * 加實心的鈴鐺（平常是空心的輪廓），沒有色條。名稱不變，狀態靠 aria-pressed；看得到的差別是底色與實心的圖示，不只靠顏色。
+ * 不是專案成員時（aria-disabled）是淡的，但停得到，說明才讀得到。
+ */
+.follow[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--color-selected);
+  color: var(--color-accent);
+}
+
+.follow[aria-pressed='true'] svg {
+  fill: currentColor;
+}
+
+.follow[aria-pressed='true']:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-selected);
+  color: var(--color-accent-hover);
+}

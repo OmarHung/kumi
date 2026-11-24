@@ -1,0 +1,32 @@
+/*
+ * 「分享」：平常是一般的按鈕（面板裡是只有圖示的 ghost，整頁是次要的按鈕），複製好了圖示換成打勾、字是成功的顏色一下子，
+ * 不推動版面（同一個大小的圖示）。不只靠顏色：圖示也換了，報讀軟體另外唸一句。
+ */
+.share[data-copied='true'] {
+  color: var(--color-success);
+}
+
+/*
+ * 看得到的「已複製連結」：浮在按鈕旁邊的小紙片（Floating 的外框、陰影），一行小字加圖示，成功是成功的字色、失敗是危險的字色
+ * （圖示也不同，不只靠顏色）。不擋點擊：提示蓋到的東西照樣點得到。
+ */
+.hint {
+  pointer-events: none;
+}
+
+.hintBody {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.hintBody[data-tone='success'] {
+  color: var(--color-success);
+}
+
+.hintBody[data-tone='danger'] {
+  color: var(--color-danger);
+}

@@ -1,0 +1,58 @@
+/*
+ * 寄信設定（閱讀頁，docs/DESIGN.md 6.2）：四塊 SettingsSection，右欄的欄位不必拉滿整行（--email-field-width）。
+ * 沒有卡片與色條；結果的提示在按鈕下面，不把按鈕推走。
+ */
+.stack {
+  --email-field-width: 26rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.provider {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.fields {
+  --email-field-width: 26rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--email-field-width);
+}
+
+/* 連接埠與加密方式並排；窄螢幕各占一行。 */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-4);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 提示與結果訊息的寬度和欄位那一欄對齊（不撐到整個閱讀寬度）。 */
+.narrow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--email-field-width);
+}
+
+.narrow:empty {
+  display: none;
+}

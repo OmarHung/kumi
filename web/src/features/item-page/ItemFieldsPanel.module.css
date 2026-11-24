@@ -1,0 +1,166 @@
+/*
+ * 欄位面板：名稱和值在同一行、名稱後面緊接著值；值就是表格的格子（滑過出現框線、點一下就編輯）。不是卡片：靠細線和內容分開，沒有陰影
+ * （docs/DESIGN.md 第 5 節）。
+ * - 窄（標題下面）：下面一條細線；欄位依面板的寬度排成一、兩、三組一列（auto-fill），手機上不必捲過一長條才看到說明。
+ *   區塊標題「欄位」只給報讀軟體：緊接在標題下面的名稱與值一看就懂，省下一列。
+ * - 寬（右邊一欄，ItemPage.module.css 的 item-page 容器 52rem 以上）：左邊一條細線，一樣依寬度排；貼在頁列下面，太長時自己捲。
+ */
+.panel {
+  /* 一組最少的寬度：放得下四個字的名稱加頭像與四個字的名字、或日期，再窄就少一欄。 */
+  --field-min: 10.5rem;
+
+  container: item-fields / inline-size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 窄的時候只給報讀軟體（和 global.css 的 visually-hidden 一樣）；寬的時候是一般的區塊標題，和左邊的「說明」對齊。 */
+.heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@container item-page (min-width: 52rem) {
+  .panel {
+    position: sticky;
+    top: calc(var(--page-bar-height) + var(--space-4));
+    max-height: calc(100dvh - var(--page-bar-height) - 2 * var(--space-4));
+    overflow-y: auto;
+    padding: 0 0 var(--space-2) var(--space-6);
+    border-bottom: 0;
+    border-inline-start: 1px solid var(--color-border);
+  }
+
+  .heading {
+    position: static;
+    display: flex;
+    align-items: center;
+    width: auto;
+    height: auto;
+    min-height: var(--control-height-sm);
+    overflow: visible;
+    clip-path: none;
+    font-size: var(--text-md);
+    white-space: normal;
+  }
+}
+
+/*
+ * 名稱和值在同一行，名稱後面緊接著值，沒有對齊用的名稱欄：名稱欄不管固定寬度或跟著最長的名稱，名稱大多兩、三個字，
+ * 名稱和值之間都會空一段（使用者 2026-11-20 兩次嫌欄位名稱旁邊空太多）。
+ * 為什麼不把名稱放在值的上面：試過（2026-11-20 演練環境），面板裡欄位區從 216px 長到 330px，說明被往下推，空白只是從左右換成上下。
+ * 同一行時高度和原本一樣（每列一個格子高）。各列的值不對齊，但一組一組讀得清楚。
+ * 一列放幾組由面板自己的寬度決定（auto-fill，每組至少 --field-min），不必逐一寫斷點。值太長照舊省略。
+ */
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--field-min), 1fr));
+  gap: 0 var(--space-4);
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-width: 0;
+}
+
+/* 值旁邊有連結的欄位（上層項目、網址的「開啟」）與長文字要一整列的寬度，編號、網址才不會被擠成幾個字。編輯中的欄位不再撐開：編輯器浮在格子上
+   （docs/DESIGN.md 8.3「就地編輯」的兩層），版面在編輯前後一樣。 */
+.row[data-wide='true'] {
+  grid-column: 1 / -1;
+}
+
+/*
+ * 名稱：淡色、只佔自己的字寬（不撐成一欄），和值之間的距離就是值的格子自己的左內距（--space-3）。
+ * 太長的名稱折行（不省略：手機沒有滑過，看不到全名），最多佔一組的四成，值才不會被擠掉。
+ */
+.label {
+  /* 不跟著值一起縮：長的網址會把「monday 原連結」這種名稱擠成兩行；名稱真的超過四成才折行。 */
+  flex: 0 0 auto;
+  max-width: 40%;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/* 表格裡的格子不折行，面板窄，這裡讓長的值（人名、選項）折下去。 */
+.value button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 勾選欄位：表格裡勾選框在格子中間，這裡和其他欄位的值一樣靠左（點擊範圍照舊是整個標籤）。 */
+.value label:has(> input[type='checkbox']) {
+  justify-content: flex-start;
+}
+
+/*
+ * 到期日與「已過期」在表格裡排成一行；這裡一組只有半欄寬（項目面板裡更窄），放不下時「已過期」折到日期下面，
+ * 不會被面板的邊裁掉。
+ */
+.value button > span:has(> time) {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+
+.withLink {
+  display: flex;
+  align-items: flex-start;
+}
+
+.withLink > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 上層項目讀不到（只看自己的人）：沒有「開啟」，在編號旁說明；和「開啟」一樣不縮，編號與說明各自折行。 */
+.hiddenNote {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: var(--row-height);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 「開啟」上層項目：點擊範圍至少 --target-min（觸控時 44px）。 */
+.link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--target-min);
+  min-height: var(--row-height);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.plain {
+  display: flex;
+  align-items: center;
+  min-height: var(--row-height);
+  padding: 0 var(--space-3);
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}

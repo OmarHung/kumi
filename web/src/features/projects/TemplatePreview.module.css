@@ -1,0 +1,140 @@
+/*
+ * 模板預覽（docs/design/08-interaction.md「建立專案」）：沉下去的底、不畫色條。
+ * 每個流程是「類型」一行加一串狀態標籤；下面一條細線隔開上下層與欄位（左邊一欄是名稱）。
+ */
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.workflow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.types {
+  margin: 0;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+/* 一串狀態：標籤與它後面的箭頭是一個 li、不拆開，換行只在 li 之間。 */
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.arrow {
+  flex: none;
+  width: var(--text-sm);
+  height: var(--text-sm);
+  margin-inline: var(--space-0-5);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 主線之外的狀態（完成之後的暫停、取消類）：和主線隔開一段，前面一個小標「另外」。
+ * 間隔放在主線最後一個狀態的後面、不放在「另外」前面：窄的時候「另外」換到下一行，行首才不會多縮一段。
+ */
+.beforeOthers {
+  margin-inline-end: var(--space-3);
+}
+
+.others {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.othersLabel {
+  font-size: var(--text-xs);
+}
+
+/* 上下層與欄位：名稱一欄只佔字寬，值接在右邊。 */
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.factLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-normal);
+  /* 和右邊第一行的字對齊（右邊是 --text-sm 的行或標籤）。 */
+  padding-top: var(--space-0-5);
+}
+
+.factValue {
+  min-width: 0;
+  margin: 0;
+}
+
+/* 一棵樹一行：各層不拆開，放不下才在層與層之間換行。 */
+.tree {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-1);
+  margin: 0;
+}
+
+.typeName {
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+
+.level {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.branch {
+  flex: none;
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 欄位的名稱：細框的小標籤（不是狀態，不用 Badge 的淡底與圓點）。 */
+.tag {
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+}

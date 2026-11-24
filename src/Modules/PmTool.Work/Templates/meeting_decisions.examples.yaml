@@ -1,0 +1,62 @@
+# 範例項目：示範一場已整理的會議（有決議與待辦）、一場預定的會議，以及一筆已過期的待辦。
+items:
+  - ref: start
+    type: meeting
+    title: 從這裡開始：會議與決議追蹤怎麼用
+    state: scheduled
+    priority: low
+    description: |
+      這個專案有三種類型：會議、決議、待辦。決議的上層項目是會議，待辦的上層項目是會議或決議。
+
+      - 會議的流程：預定 → 已開會 → 已整理；開完會先記日期與紀錄，轉到「已整理」之前要先填會議紀錄。沒開成的會議放「取消」。
+      - 決議的流程：提案 → 已決議，不採用的放「撤回」。
+      - 待辦的流程：待辦 → 進行中 → 完成，用負責人與到期日追蹤。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+    fields:
+      meeting_date: 0
+  - ref: kickoff
+    type: meeting
+    title: 範例：新版本啟動會議
+    state: notes_done
+    priority: medium
+    fields:
+      meeting_date: -7
+      minutes: |
+        - 確認新版本的範圍只含訂單與報表兩個模組。
+        - 測試環境下週一準備好。
+  - ref: scope
+    type: decision
+    title: 範例：新版本不含行動版
+    state: decided
+    priority: medium
+    parent: kickoff
+    fields:
+      decision_text: 行動版延到下一個版本，這個版本只做網頁。
+  - type: decision
+    title: 範例：改用每週一次的版本發行
+    state: proposed
+    priority: low
+    parent: kickoff
+    fields:
+      decision_text: 提議每週三固定發行，等下次會議確認。
+  - type: action
+    title: 範例：準備測試環境
+    state: doing
+    priority: high
+    parent: kickoff
+    startInDays: -6
+    dueInDays: -2
+  - type: action
+    title: 範例：通知客戶行動版的新時程
+    state: todo
+    priority: medium
+    parent: scope
+    dueInDays: 3
+  - type: meeting
+    title: 範例：每週進度會議
+    state: scheduled
+    priority: none
+    dueInDays: 2
+    fields:
+      meeting_date: 2

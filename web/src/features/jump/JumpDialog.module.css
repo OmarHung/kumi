@@ -1,0 +1,144 @@
+/*
+ * 快速跳轉（docs/DESIGN.md 8.3）：輸入框、結果（listbox）、最下面一行是 status 與「關閉」。
+ * 結果自己捲：輸入框一直看得到；高度不超過畫面的一半（手機上叫出鍵盤時對話框才放得下）。
+ */
+.body {
+  --jump-results-max: 24rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * contain: inline-size：結果列的最小寬度不算進對話框的寬度。選項裡的字是 nowrap（放不下用省略號），
+ * 最小寬度就是整段字；說明的摘錄一長（主機、網址一行常有六十個字），對話框就被撐到比畫面還寬（手機實測 454～504px，
+ * 左右都超出畫面）。對話框的寬度改由 Dialog 的 min(100%, --dialog-width-lg) 決定，結果列照它的寬度排。
+ */
+.results {
+  contain: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: min(var(--jump-results-max), 50dvh);
+  margin-inline: calc(-1 * var(--space-2));
+  padding: var(--space-0-5) var(--space-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.results[hidden] {
+  display: none;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groupLabel {
+  padding: var(--space-1) var(--space-2) 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 一個選項一列（--row-height，觸控時 44px）。選起來的那一個（aria-selected，也就是 Enter 會去的地方；
+ * 方向鍵與滑鼠移過去都會換，同時只有一個）是反白：實心的 --color-accent-solid 底、--color-accent-contrast（白）的字，
+ * 和 Select、Menu 的反白一樣（docs/DESIGN.md 8.3）。淡底和紙的對比不到 1.2:1，鍵盤走到哪一個看不出來；
+ * 實心的底對比夠，不需要左邊的色條。不用 --color-accent：深色是淺紫，白字不夠對比。
+ */
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--row-height);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.option[aria-selected='true'] {
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+}
+
+.optionIcon {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* 反白的那一列裡，原本灰的圖示、編號、提示也跟著換成反白的字色：灰字在實心的強調色上讀不清楚。 */
+.option[aria-selected='true'] :is(.optionIcon, .code, .hint, .tag) {
+  color: inherit;
+}
+
+/* 名稱後面的小標籤（封存的專案）：不收縮、有框線，顏色跟著選起來的字色；灰字被截斷時它還在。 */
+.tag {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* 強制色彩（Windows 高對比）會拿掉作者的底色：反白改用系統的 Highlight／HighlightText。 */
+@media (forced-colors: active) {
+  .option[aria-selected='true'] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+.code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  /* 說明的摘錄是以比對到的字為中心截的，最多 80 字：留夠寬，比對到的字才不會被省略號吃掉（名稱、標題至少還有 40%）。 */
+  max-width: 60%;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.status {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

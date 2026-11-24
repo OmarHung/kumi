@@ -1,0 +1,38 @@
+/* 錯誤頁的內容寬度：一句說明加一顆按鈕，太寬反而不好讀。程式出錯的畫面另外加上左右的留白。 */
+.page {
+  --error-page-width: 32rem;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: var(--error-page-width);
+  padding: var(--space-6) 0;
+}
+
+/*
+ * 程式出錯的畫面沒有頁列：上方讓出頁列的高度（外框疊在左上角的按鈕才不會蓋住標題），左右照內容區的留白。
+ * 不在外框裡（整頁）時一樣適用。
+ */
+.standalone {
+  max-width: calc(var(--error-page-width) + 2 * var(--page-gutter));
+  padding: calc(var(--page-bar-height) + var(--space-6)) var(--page-gutter) var(--space-10);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+/* 錯誤頁的 h1 是內容區的大標題（docs/DESIGN.md 6.2）：和項目的標題一樣是 --weight-bold。 */
+.title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.message {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,281 @@
+/*
+ * 時間軸：左邊一條細線串起每一筆，線上是作者的頭像（底色一圈和紙同色，看起來像線從後面穿過）。
+ * 系統事件是一行小字；留言多一塊有細線外框的內文，一眼就分得出「人說的話」和「系統記下的事」。
+ * 人名、動作在左，時間靠右對齊成一欄。整個區塊和說明一樣以 --reading-max 為限（ItemPage.module.css 的 .main）。
+ */
+.section {
+  --rail-width: 1.5rem;
+  /* 人名與動作至少這麼寬，比這窄時時間折到下一行。 */
+  --summary-min: 16rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 標題在左、切換在右，同一列垂直置中；不換行，標題收縮（min-width: 0），切換不縮，窄的面板裡也不推動版面。 */
+.headingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.heading {
+  min-width: 0;
+  font-size: var(--text-md);
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: var(--space-3);
+  bottom: var(--space-3);
+  left: calc(var(--rail-width) / 2 - 1px);
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+}
+
+.entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  /* 對齊開頭（很高的留言）時，不被面板黏住的標題列或整頁的頁列蓋住。 */
+  scroll-margin-block-start: calc(var(--page-bar-height) + var(--space-3));
+}
+
+/*
+ * 點了由留言產生的通知之後被標出來的那一筆：留言的卡片外框換成 --color-accent、底色換成 --color-accent-soft，
+ * 停一下再淡回原樣；和看板卡片剛放下的 .landed 同一套（BoardCard.module.css）。不用色條（DESIGN 第 9 節），
+ * 只換顏色、不改外框粗細，所以不推動版面。
+ * 為什麼不用墊在後面的淡底色：淺色主題幾乎看不見，而且留言的卡片本身是紙色，蓋住大部分的底色。
+ * data-highlighted 的值在 a、b 之間交替，兩個 keyframes 內容一樣、名字不同：2.4 秒內再點同一則，換名字動畫就重來。
+ * 曲線用 linear：前面停留、後面淡出，不要 --ease-out 前段陡的曲線把停留吃掉。
+ * 用 block: start 對齊很高的留言時，不被面板黏住的標題列或整頁的頁列蓋住。
+ */
+.entry[data-highlighted='a'] > .body > .comment {
+  animation: target-flash-a var(--duration-target) linear;
+}
+
+.entry[data-highlighted='b'] > .body > .comment {
+  animation: target-flash-b var(--duration-target) linear;
+}
+
+@keyframes target-flash-a {
+  0%,
+  40% {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+}
+
+@keyframes target-flash-b {
+  0%,
+  40% {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+}
+
+/* 減少動態效果：全域樣式會把動畫縮成 0.01ms（一閃而過）；改成不用動畫，標著的整段時間維持外框與底色。 */
+@media (prefers-reduced-motion: reduce) {
+  .entry[data-highlighted] > .body > .comment {
+    animation: none;
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+}
+
+/* 強制色彩：自訂的顏色都會被換掉，外框用系統的 Highlight，不用動畫，標著的整段時間都在。 */
+@media (forced-colors: active) {
+  .entry[data-highlighted] > .body > .comment {
+    animation: none;
+    border-color: Highlight;
+  }
+}
+
+.commentEntry {
+  padding: var(--space-3) 0;
+}
+
+/*
+ * 回覆：收在最上層留言的內容欄底下，縮排靠的是那一欄本來就比軌道窄（沒有色條或另一條線，DESIGN 第 9 節）；
+ * 和留言同一種長相，上下的間距小一號。閃一下只標被指到的那一則的卡片（上面的選擇器限定在直接子層，不會連回覆一起亮）。
+ */
+.replies {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.replyEntry {
+  padding: var(--space-2) 0;
+}
+
+.replyLead {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 回覆的按鈕與回覆框接在內容欄裡，不再縮進「軌道加間距」那一段（那是最下面的留言框用的）。 */
+.replyAction,
+.body .composer {
+  margin-left: 0;
+}
+
+.replyAction {
+  display: flex;
+}
+
+/* 頭像的中心對準第一行文字的中線；外面一圈紙的顏色把軌道的線切開。 */
+.marker {
+  display: flex;
+  justify-content: center;
+  align-self: start;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 3px var(--color-surface);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.summary {
+  flex: 1 1 var(--summary-min);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.actor {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+.action {
+  color: var(--color-text-muted);
+}
+
+/* 改了什麼值：淡底的小塊，掃過去就看得到前後的差別。 */
+.value {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+.stamp {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.time {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border-left: 2px solid var(--color-border);
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 留言的內文：細線外框、區塊的圓角（--radius-lg）、不加陰影（陰影只給浮起來的東西，第 5 節）。 */
+.comment {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.footer,
+.composer {
+  margin-left: calc(var(--rail-width) + var(--space-3));
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.loadError {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+/*
+ * 留言框：平常是一行（文字框一列高、說明與按鈕收起來），取得焦點或已經打了字才展開成三行加「送出留言」。
+ * 收起來的說明與按鈕是 display: none：說明照樣用 aria-describedby 連著（隱藏的內容也算進說明），按鈕本來就停用。
+ */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* 展開時捲進看得到的地方（CommentForm 的 useRevealOnExpand）：底下留一點，不貼著面板的底。 */
+  scroll-margin-block-end: var(--space-3);
+}
+
+/*
+ * 右下角的 AI 助理按鈕在的時候（AssistantLauncher 設的 data-assistant）：留出它的高度加上它離畫面底的距離（--anchor-bottom，
+ * AssistantPanel.module.css），再空一點，「送出留言」在按鈕上面、不貼著它。
+ */
+:root[data-assistant='button'] .composer {
+  scroll-margin-block-end: calc(var(--assistant-button-size) + var(--anchor-bottom, var(--space-4)) + var(--space-3));
+}
+
+.composer[aria-busy='true'] {
+  opacity: 0.8;
+}
+
+.composerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.composer[data-expanded='false'] .composerActions {
+  display: none;
+}

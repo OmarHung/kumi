@@ -1,0 +1,78 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-sm);
+}
+
+.heading {
+  font-size: var(--text-md);
+}
+
+/* 沒有說明、不能編輯：虛線框只是「這裡會有內容」的提示（裝飾，不是控制項）。 */
+.empty {
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 沒有說明、能編輯：整塊虛線框就是「新增說明」的按鈕（docs/DESIGN.md 8.3「說明」）。
+ * 它是控制項，虛線用 --color-control-border（第 2.2 節：控制項的外框對比要 3:1，--color-border-strong 不夠）。
+ */
+.add {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.add:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-hover);
+}
+
+/* 看得到的第一行是動作（強調色，和連結、按鈕一樣是「可以按」），下一行灰字是提示。 */
+.addLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.addHint {
+  font-size: var(--text-sm);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

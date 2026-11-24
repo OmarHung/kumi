@@ -1,0 +1,10 @@
+/* 圖示和文字排在一起時不被擠扁，也不多佔一行的高度。 */
+.icon {
+  flex: none;
+  vertical-align: middle;
+}
+
+/* 「進行中」的半滿：只填內側的半圓（外圈維持線條）。 */
+.halfFilled path {
+  fill: currentcolor;
+}

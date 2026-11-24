@@ -1,0 +1,36 @@
+/* 已封存的專案：接在清單下面，和上面的清單隔一段距離，標題是次要的區塊標題（不是第二個頁面標題）。 */
+.archived {
+  margin-top: var(--space-8);
+}
+
+.archivedHeading {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-md);
+}
+
+/* 搜尋框：和表格上方那一列的搜尋同一種（sm 高、標籤視覺上隱藏），有最大寬度，提示文字放得下；和下面的清單隔一小段。 */
+.search {
+  max-width: 28rem;
+  margin-bottom: var(--space-3);
+}
+
+/* 結果滿了的提示：接在清單下面的一行灰字。 */
+.limitNote {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 換字之後新的結果還沒回來，暫時顯示舊的（aria-busy）：變淡，和窄螢幕的 List 一樣（components/List）。 */
+.results[aria-busy='true'] {
+  opacity: 0.6;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+/* 最後一欄「資訊」：欄寬只夠按鈕、靠右；觸控時按鈕和列一樣高，格子上下不留內距（和說明格式、人員表格一樣）。 */
+.actionCell {
+  width: 1%;
+  padding-block: 0;
+  text-align: right;
+  white-space: nowrap;
+}

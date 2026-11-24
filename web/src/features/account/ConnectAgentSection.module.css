@@ -1,0 +1,45 @@
+/* 連接 Claude Code／Codex：可以複製的指令區塊。版面的外距沿用我的帳號（AccountPage.module.css）。 */
+
+.subheading {
+  margin-top: var(--space-2);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 指令放不下時在區塊裡橫向捲動，不把頁面撐寬。 */
+.code {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* 要貼進終端機執行的長指令：折行顯示，執行之前整段看得到。任何位置都能斷（路徑與參數裡沒有空白）。 */
+.wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.copyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 「已複製」的位置固定掛著，出現時不推動旁邊的東西。 */
+.result {
+  min-height: 1lh;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,6 @@
+/* 工具列上的「檢視」與它的對話框。 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

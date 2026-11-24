@@ -1,0 +1,62 @@
+/*
+ * 側欄最上面的「搜尋或跳到…」：長得像一個（不能打字的）搜尋框，看得出按了會出現輸入框；右邊是快捷鍵。
+ * 外框是 --color-control-border（第 2.2 節：控制項的外框對比 3:1 以上）。
+ */
+.button {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height);
+  margin-bottom: var(--space-3);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+/* 滑過時外框加深，和輸入框（TextField）滑過的樣子一樣：它看起來就是一個搜尋框。 */
+.button:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+}
+
+.icon {
+  flex: none;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 快捷鍵像鍵帽：等寬字、細線的框。 */
+.keys {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+/* 觸控的裝置多半沒有實體鍵盤：快捷鍵的提示不佔位置（aria-keyshortcuts 照舊）。 */
+@media (pointer: coarse) {
+  .keys {
+    display: none;
+  }
+}

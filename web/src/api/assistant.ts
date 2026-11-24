@@ -1,0 +1,312 @@
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  AiOptions,
+  AssistantConversation,
+  AssistantConversationSummary,
+  AssistantMessageInput,
+  AssistantStreamEvent,
+  ItemProposal,
+} from './aiTypes';
+import { createSseParser, toStreamEvent } from './assistantStream';
+import { ApiError, apiRequest, CSRF_HEADER, networkError, unwrapResponse } from './http';
+import { listItems } from './items';
+import type { Item } from './types';
+import { queryKeys } from './queryKeys';
+
+const conversationsPath = (projectKey: string) => `/v1/projects/${encodeURIComponent(projectKey)}/assistant/conversations`;
+const conversationPath = (projectKey: string, conversationId: string) =>
+  `${conversationsPath(projectKey)}/${encodeURIComponent(conversationId)}`;
+
+/** 成員能選的 AI；available 是 false 時沒有 AI 助理的入口。 */
+export function getAiOptions(signal?: AbortSignal): Promise<AiOptions> {
+  return apiRequest<AiOptions>('/v1/ai/options', { signal });
+}
+
+export function useAiOptions() {
+  return useQuery({
+    queryKey: queryKeys.aiOptions,
+    queryFn: ({ signal }) => getAiOptions(signal),
+  });
+}
+
+export function listConversations(projectKey: string, signal?: AbortSignal): Promise<readonly AssistantConversationSummary[]> {
+  return apiRequest<readonly AssistantConversationSummary[]>(conversationsPath(projectKey), { signal });
+}
+
+/** 403 ai.assistant_forbidden；422 ai.unavailable（組織沒開 AI）。 */
+export function createConversation(projectKey: string): Promise<AssistantConversationSummary> {
+  return apiRequest<AssistantConversationSummary>(conversationsPath(projectKey), { method: 'POST', body: {} });
+}
+
+export function getConversation(projectKey: string, conversationId: string, signal?: AbortSignal): Promise<AssistantConversation> {
+  return apiRequest<AssistantConversation>(conversationPath(projectKey, conversationId), { signal });
+}
+
+/** 409 ai.conversation_busy：正在回覆的對話不能刪。 */
+export function deleteConversation(projectKey: string, conversationId: string): Promise<null> {
+  return apiRequest<null>(conversationPath(projectKey, conversationId), {
+    method: 'DELETE',
+  });
+}
+
+const RUNNING_POLL_MS = 2000;
+
+/**
+ * 對話清單。有哪一則「回覆中」就每兩秒讀一次，直到都存完：串流收到 done 的當下，伺服器還沒放掉那一則的租約，
+ * 這時重讀的清單仍說它在回覆（標題後面一直是「回覆中」），輪詢是這個時間差的後備。
+ */
+export function useConversations(projectKey: string) {
+  return useQuery({
+    queryKey: queryKeys.assistantConversations(projectKey),
+    queryFn: ({ signal }) => listConversations(projectKey, signal),
+    refetchInterval: (query) => (query.state.data?.some((conversation) => conversation.isRunning) === true ? RUNNING_POLL_MS : false),
+  });
+}
+
+/**
+ * 一則對話。自己這一頁正在收串流時（isStreaming）不重抓也不輪詢：串流寫進快取的訊息還沒存完，
+ * 重抓會用伺服器那一份蓋掉正在長出來的文字，視窗重新取得焦點也一樣。
+ * 其他時候伺服器說還在回覆（重新整理、串流中途斷線、剛按了停止、別的分頁在回）就每兩秒讀一次，直到它存完。
+ */
+export function useConversation(projectKey: string, conversationId: string | undefined, isStreaming = false) {
+  return useQuery({
+    queryKey: queryKeys.assistantConversation(projectKey, conversationId ?? ''),
+    queryFn: ({ signal }) => getConversation(projectKey, conversationId ?? '', signal),
+    enabled: conversationId !== undefined,
+    refetchOnWindowFocus: !isStreaming,
+    refetchInterval: (query) => (!isStreaming && query.state.data?.conversation.isRunning === true ? RUNNING_POLL_MS : false),
+  });
+}
+
+export function useCreateConversation(projectKey: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => createConversation(projectKey),
+    onSuccess: (created) => {
+      // 先放進快取：換網址之後不必等一次讀取，也不會讀到比串流還舊的內容。
+      queryClient.setQueryData<AssistantConversation>(queryKeys.assistantConversation(projectKey, created.id), {
+        conversation: created,
+        messages: [],
+      });
+      // exact：不然剛放進去的對話（鍵以清單的鍵開頭）也被重抓。
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.assistantConversations(projectKey),
+        exact: true,
+      });
+    },
+  });
+}
+
+export function useDeleteConversation(projectKey: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (conversationId: string) => deleteConversation(projectKey, conversationId),
+    onSuccess: (_, conversationId) => {
+      queryClient.removeQueries({
+        queryKey: queryKeys.assistantConversation(projectKey, conversationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.assistantConversations(projectKey),
+      });
+    },
+  });
+}
+
+/** 串流怎麼結束的：done 收到了；incomplete 是連線中途斷了（沒收到 done，要重抓對話）；aborted 是使用者按了停止。 */
+export type StreamOutcome = 'done' | 'incomplete' | 'aborted';
+
+function isAbort(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+}
+
+async function openStream(path: string, input: AssistantMessageInput, signal: AbortSignal): Promise<Response> {
+  try {
+    return await fetch(path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      signal,
+      headers: {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+        [CSRF_HEADER]: '1',
+      },
+      body: JSON.stringify(input),
+    });
+  } catch (error) {
+    if (isAbort(error, signal)) throw error;
+    throw networkError();
+  }
+}
+
+/** 伺服器每 15 秒送一次心跳；三倍的時間一個位元組都沒收到，就當連線已經斷了（代理或網路悄悄卡住）。 */
+export const STREAM_IDLE_TIMEOUT_MS = 45_000;
+const STREAM_INTERRUPTED = '回覆的連線中斷了，請再試一次。';
+
+/** 回應不是串流、或還沒開始（沒收到 start）就結束：什麼都沒送出去，照送出之前的失敗處理（字留著）。 */
+function streamInterrupted(): ApiError {
+  return new ApiError({ status: 0, code: 'client.stream_interrupted', message: STREAM_INTERRUPTED });
+}
+
+/**
+ * 讀到結束或中斷為止，每個事件交給 onEvent；回傳有沒有收到 done。
+ * 超過 STREAM_IDLE_TIMEOUT_MS 沒有任何資料：自己中斷連線（idle），當成斷線（incomplete）；使用者按停止才是 aborted。
+ */
+async function readEvents(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal,
+  idle: AbortController,
+  onEvent: (event: AssistantStreamEvent) => void,
+): Promise<StreamOutcome> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const parser = createSseParser();
+  let hasDone = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      idle.abort();
+    }, STREAM_IDLE_TIMEOUT_MS);
+  };
+  try {
+    arm();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      arm();
+      for (const message of parser.push(decoder.decode(value, { stream: true }))) {
+        const event = toStreamEvent(message);
+        if (event === null) continue;
+        hasDone = hasDone || event.type === 'done';
+        onEvent(event);
+      }
+    }
+  } catch {
+    return signal.aborted ? 'aborted' : 'incomplete';
+  } finally {
+    clearTimeout(timer);
+    reader.releaseLock();
+  }
+  return signal.aborted ? 'aborted' : hasDone ? 'done' : 'incomplete';
+}
+
+/**
+ * 送一則訊息並讀回覆的串流（internal/HANDOFF-ai-assistant.md 6.2）。串流開始之前的失敗（409、422、429…）是一般的 JSON 錯誤，
+ * 丟出 ApiError（照 http.ts 拆信封）；回應不是 text/event-stream、或沒收到 start 就結束也丟 ApiError。
+ * 開始之後的事件一個一個交給 onEvent。signal 取消（停止）時回傳 aborted，不丟錯誤。
+ */
+export async function streamAssistantReply(
+  projectKey: string,
+  conversationId: string,
+  input: AssistantMessageInput,
+  signal: AbortSignal,
+  onEvent: (event: AssistantStreamEvent) => void,
+): Promise<StreamOutcome> {
+  // 自己的中斷（沒有資料太久）與使用者的停止分開：fetch 與讀取看 idle.signal，結果的判斷看 signal。
+  const idle = new AbortController();
+  const relay = () => {
+    idle.abort();
+  };
+  if (signal.aborted) relay();
+  signal.addEventListener('abort', relay);
+  try {
+    return await streamWith(projectKey, conversationId, input, signal, idle, onEvent);
+  } finally {
+    signal.removeEventListener('abort', relay);
+  }
+}
+
+async function streamWith(
+  projectKey: string,
+  conversationId: string,
+  input: AssistantMessageInput,
+  signal: AbortSignal,
+  idle: AbortController,
+  onEvent: (event: AssistantStreamEvent) => void,
+): Promise<StreamOutcome> {
+  let response: Response;
+  try {
+    response = await openStream(`${conversationPath(projectKey, conversationId)}/messages`, input, idle.signal);
+  } catch (error) {
+    if (isAbort(error, signal)) return 'aborted';
+    throw error;
+  }
+  if (!response.ok) {
+    unwrapResponse(response.status, await response.text());
+    return 'incomplete';
+  }
+  const isStream = response.headers.get('Content-Type')?.includes('text/event-stream') === true;
+  if (!isStream || response.body === null) throw streamInterrupted();
+  const progress = { hasStarted: false };
+  const outcome = await readEvents(response.body, signal, idle, (event) => {
+    progress.hasStarted = progress.hasStarted || event.type === 'start';
+    onEvent(event);
+  });
+  if (outcome === 'incomplete' && !progress.hasStarted) throw streamInterrupted();
+  return outcome;
+}
+
+const proposalPath = (proposalId: string) => `/v1/ai/item-proposals/${encodeURIComponent(proposalId)}`;
+
+/** 404 ai.item_proposal_not_found：別人的、不存在的。 */
+export function getItemProposal(proposalId: string, signal?: AbortSignal): Promise<ItemProposal> {
+  return apiRequest<ItemProposal>(proposalPath(proposalId), { signal });
+}
+
+/** 409 ai.item_proposal_closed（已經處理過）；工作引擎的失敗原樣回來（409 item.description_conflict、403、422…）。 */
+export function applyItemProposal(proposalId: string): Promise<ItemProposal> {
+  return apiRequest<ItemProposal>(`${proposalPath(proposalId)}/apply`, { method: 'POST', body: {} });
+}
+
+/** 409 ai.item_proposal_closed。 */
+export function dismissItemProposal(proposalId: string): Promise<ItemProposal> {
+  return apiRequest<ItemProposal>(`${proposalPath(proposalId)}/dismiss`, { method: 'POST', body: {} });
+}
+
+export function useItemProposal(proposalId: string) {
+  return useQuery({
+    queryKey: queryKeys.itemProposal(proposalId),
+    queryFn: ({ signal }) => getItemProposal(proposalId, signal),
+  });
+}
+
+const ITEM_CHOICE_LIMIT = 10;
+
+/** 選項目的下拉：這個專案的項目，text 是編號或標題（空的時候是最前面的幾個）。 */
+export function useAssistantItemChoices(projectKey: string, text: string) {
+  return useQuery({
+    queryKey: queryKeys.assistantItemChoices(projectKey, text),
+    // 換字時先留著上一份結果（變成新的之前不閃成空的）。
+    placeholderData: keepPreviousData,
+    // 項目的標題常在別處改：每次打開下拉都重讀，不留著 30 秒的舊結果。
+    staleTime: 0,
+    queryFn: async ({ signal }): Promise<readonly Item[]> => {
+      const page = await listItems(projectKey, { limit: ITEM_CHOICE_LIMIT, ...(text === '' ? {} : { q: text }) }, signal);
+      return page.items;
+    },
+  });
+}
+
+/** 套用或作廢之後：換成伺服器回的新狀態；套用還要讓那個項目的各份快取失效（單一項目、活動、清單、我的工作）。 */
+export function useDecideItemProposal(proposal: ItemProposal) {
+  const queryClient = useQueryClient();
+  const settle = (decided: ItemProposal) => {
+    queryClient.setQueryData(queryKeys.itemProposal(proposal.id), decided);
+  };
+  const apply = useMutation({
+    mutationFn: () => applyItemProposal(proposal.id),
+    onSuccess: (decided) => {
+      settle(decided);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.item(proposal.itemKey) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.items(proposal.projectKey) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assistantItemChoiceLists(proposal.projectKey) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
+    },
+    onError: () => {
+      // 已經處理過（別的分頁按了）等失敗：以伺服器現在的狀態為準。
+      void queryClient.invalidateQueries({ queryKey: queryKeys.itemProposal(proposal.id) });
+    },
+  });
+  const dismiss = useMutation({ mutationFn: () => dismissItemProposal(proposal.id), onSuccess: settle });
+  return { apply, dismiss };
+}

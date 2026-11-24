@@ -1,0 +1,123 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/*
+ * 寬螢幕的表格（TableScroll，細線樣式）：成員多時自己直向捲動、表頭黏住，對話框底下的「加入成員」與「關閉」
+ * 才一直看得到。用方向鍵（或 Shift+Tab 回到停駐點）走到被黏住的表頭蓋住的格子時，捲動讓出表頭的高度。
+ */
+.tableWrap {
+  --members-max-height: 50dvh;
+
+  max-height: var(--members-max-height);
+  overflow-y: auto;
+  scroll-padding-top: var(--row-height);
+}
+
+/* 角色選單與「移除」（--control-height-sm）放在一列裡：格子不加上下內距，列維持 --row-height（觸控 44px）。 */
+.tableWrap .roleCell,
+.tableWrap .actionCell {
+  padding-block: 0;
+}
+
+/*
+ * 名稱與唯讀的角色是格子自己當停駐點（docs/DESIGN.md 8.3「清單的鍵盤操作」）：焦點外框畫在格子裡面，
+ * 不被黏住的表頭與捲動容器的邊裁掉（和專案的表格一樣）。
+ */
+.tableWrap td:focus-visible,
+.tableWrap th:focus-visible {
+  outline-offset: -2px;
+}
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 角色選單只有選項那麼寬，不撐滿格子。 */
+.roleField {
+  width: fit-content;
+}
+
+/* 「移除」靠右，不佔太多寬度。 */
+.actionCell {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.subheading {
+  font-size: var(--text-base);
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.addRow > :first-child {
+  flex: 1 1 12rem;
+}
+
+/* 按鈕和欄位的輸入框對齊（欄位上方有標籤）。 */
+.addButton {
+  margin-top: calc(var(--text-sm) * var(--leading-normal) + var(--space-1));
+}
+
+/* 「加入成員」與就地展開的「新增人員」是兩個表單（表單不能包表單），排在一起。 */
+.addSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * 「新增人員…」在人員選單下面、靠左，不加負外距：按鈕的左緣對齊選單的左緣，按鈕裡的字（sm 的左內距 --space-3）
+ * 就和選單裡的字（輸入框的左內距也是 --space-3）對齊。原本抵掉 --space-2，兩邊都對不上。
+ */
+.newPersonToggle {
+  align-self: flex-start;
+}
+
+/*
+ * 就地展開的「新增人員」：凹下去的一塊（--color-surface-sunken），看得出是「加入成員」底下臨時多出來的步驟，
+ * 不是另一個對話框；欄位直排，和人員頁的對話框一樣。圓角是區塊的 --radius-lg：裡面的輸入框是 --radius-md。
+ */
+.newPerson {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+/* h4 沒有在全域樣式裡歸零外距（只做到 h3），這裡自己歸零。 */
+.newPersonHeading {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.newPersonHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.newPersonActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

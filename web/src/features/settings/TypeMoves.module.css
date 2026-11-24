@@ -1,0 +1,17 @@
+/* 類型換流程：要搬的狀態一個一行，每個選單下面接它的問題。凹下去的一塊，圓角和欄位的選項（.options）一樣。 */
+.typeMoves {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+.moveEntry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

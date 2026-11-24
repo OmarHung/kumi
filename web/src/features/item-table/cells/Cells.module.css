@@ -1,0 +1,433 @@
+/*
+ * 格子的三種樣子：唯讀（static）、可以編輯（trigger，滑過時出現細框）、編輯中（editor，一圈焦點色的框，浮在 trigger 上面）。
+ * 高度一律是 --row-height（觸控時 44px），表格的每一列一樣高（docs/DESIGN.md 7.1）。
+ */
+.static,
+.trigger,
+.key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--row-height);
+  padding: 0 var(--space-3);
+}
+
+/* 短的值（類型、負責人、日期）不要因為欄窄就折成兩行：列高忽高忽低，整張表就很難一眼掃過去。
+   長的值各自有截斷或換行的規則。 */
+.static,
+.trigger {
+  white-space: nowrap;
+}
+
+/*
+ * 表格裡格子的寬度是欄寬（table-layout: fixed，docs/DESIGN.md 7.1「欄寬」）：值比欄寬長時一行、用省略號（第 3 節的截斷），
+ * 不畫到隔壁那一格；完整的值在按鈕的名稱（「負責人：…」）、標題另外在 title。裁的是格子裡的按鈕與文字，
+ * 不是格子（td）本身：浮起來的編輯器要長出格子。只在表格的格子裡（td、th）：項目頁的欄位（dd）照舊。
+ * 焦點外框畫在按鈕裡面（outline-offset: -2px），不會被裁掉。
+ */
+:is(td, th) .trigger,
+:is(td, th) > .static,
+:is(td, th) > .key {
+  overflow: hidden;
+}
+
+/*
+ * 只有文字的值（負責人、開始日、估計、類型、編號）：省略號只畫在一般的區塊裡，所以這時按鈕從 flex 換成 block，
+ * 行高是一列高，字照樣垂直置中、列高不變。
+ */
+:is(td, th) .trigger:not(:has(> *)),
+:is(td, th) > .static:not(:has(> *)),
+:is(td, th) > .key:not(:has(> *)) {
+  display: block;
+  line-height: var(--row-height);
+  text-overflow: ellipsis;
+}
+
+/*
+ * 值是一個元素（優先度、上層項目的編號、狀態、到期日）：它跟著縮，裡面的字用省略號。
+ * 勾選欄位的標籤（點擊範圍至少 --target-min）不縮。
+ */
+:is(td, th) :is(.trigger, .static) > :only-child:not(label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 到期日是日期加「已過期」：日期先縮成省略號，「已過期」留著。 */
+:is(td, th) :is(.trigger, .static) > :only-child:not(label) > time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 文字欄位在表格裡跟著欄寬（原本最寬 16rem，那是內容撐欄寬的時候為了不撐太寬）。 */
+:is(td, th) .clamp {
+  max-width: none;
+}
+
+/* 網址欄位的「開啟」：欄非常窄時跟著縮，不畫到隔壁。 */
+:is(td, th) .open {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 圓角和編輯中的框一樣：滑過的細框、鍵盤的焦點外框、編輯中的框是同一個形狀。 */
+.trigger {
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: text;
+  transition:
+    box-shadow var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+/* 滑過看得出這一格可以改（8.3）：控制項的外框色（對比 3:1）。唯讀的格子沒有反應。 */
+.trigger:hover {
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-control-border);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.key {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.title {
+  font-weight: var(--weight-medium);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 表格裡的標題是進項目的連結（平常安靜，滑過或用鍵盤到這裡時才像連結）；高度與內距和其他格子一樣。 */
+.titleLink {
+  display: block;
+  min-height: var(--row-height);
+  padding: 0 var(--space-3);
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+  line-height: var(--row-height);
+  text-decoration: none;
+}
+
+.titleLink:hover .titleLine {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.titleLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/*
+ * 表格裡的標題：一行，放不下用省略號；完整的標題在連結的 title 裡（第 3 節的截斷規則）。
+ * 最寬是固定的標題欄減掉按鈕左右的內距：--item-title-width 定義在 ItemTable.module.css 的 .scroll（欄寬、
+ * 捲動讓出的寬度用同一個），字不會把欄撐寬。只在表格裡用（項目頁的 h1 用 .title，不截斷）。
+ */
+.titleLine {
+  display: block;
+  max-width: calc(var(--item-title-width) - 2 * var(--space-3));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 格子裡的編號（上層項目）：只換字型，不帶 .key 的內距與高度（否則和按鈕的疊在一起，那一列會變高）。 */
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.clamp {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/*
+ * 可以編輯的格子：按鈕外面一層定位用的框。編輯中按鈕留在原位撐住格子的大小（EditableCell 標 inert、aria-hidden），
+ * 編輯器疊在上面（.editor），不參與表格的版面：進入編輯、儲存中、出錯時欄寬與列高都不變（docs/DESIGN.md 8.3、7.1）。
+ * 是 span：項目頁的標題在 h1 裡，h1 裡面只能放行內的元素。
+ */
+.editable {
+  position: relative;
+  display: block;
+}
+
+/*
+ * 編輯中的格子只有一圈框（docs/DESIGN.md 8.3「就地編輯」）：這一層自己畫焦點色的框，裡面的輸入框、多行文字框與下拉
+ * （Select 的 bare）都沒有自己的外框、底色與焦點外框，不會出現格子一圈、輸入框又一圈的兩層框。
+ * 浮在格子上：最少和格子一樣大，內容需要更寬（日期加日曆圖示、長文字、多選、錯誤說明）時往右長（放不下往左，
+ * EditorFrame 的 data-align），往下長的部分（儲存中、錯誤說明、長文字）蓋住下一列。
+ * 層級 2：蓋過下面幾列的格子與固定欄（1），黏住的表頭（3，components/Table）照樣蓋得過它；固定欄的格子另外升一層
+ * （下面的 :has）。往左長時不長進固定欄的範圍（editorPlacement.ts 扣掉捲動區塊的 scroll-padding-left）。
+ * 左右不留內距：編輯器自己的左右內距和平常的格子一樣（--space-3），進入編輯時字不會跳。
+ * 編輯器（--control-height-sm）加上下的留白剛好是一列高；觸控時兩個都是 44px，留白是 0。
+ */
+.editor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  padding: calc((var(--row-height) - var(--control-height-sm)) / 2) 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 2px var(--color-focus);
+}
+
+.editor[data-align='end'] {
+  right: 0;
+  left: auto;
+}
+
+/*
+ * 固定欄（標題）自己是一層（sticky 加 z-index 1），裡面的編輯器出不了那一層：往下長的錯誤說明會被下一列同樣是 1 的
+ * 固定欄蓋住。編輯中的那一格升到 2，仍然在黏住的表頭（3）底下：編輯標題時捲動，表頭照樣蓋在上面。
+ */
+:is(td, th):has(> .editable > .editor) {
+  z-index: 2;
+}
+
+/* 有錯時框換成危險色（和輸入框的 aria-invalid 一樣），錯誤的說明在下面。 */
+.editor[data-invalid='true'] {
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+}
+
+/* 強制色彩（Windows 高對比）會拿掉陰影畫的框，裡面的輸入框又沒有焦點外框：改用系統色的外框，編輯中照樣看得出來。 */
+@media (forced-colors: active) {
+  .editor {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+/* 框裡的說明（儲存中、提示）和輸入框的字對齊。 */
+.editor > .saving,
+.editor > .hint {
+  padding: 0 var(--space-3);
+}
+
+/* 「儲存中…」的狀態區一直掛著（EditorFrame）：沒有字時不佔位置，但留在無障礙樹裡，換字時才唸得到。 */
+.editor > .saving:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* 錯誤的說明是框裡的一塊淡底：離框留一點，不蓋住框線（觸控時上下沒有留白）。 */
+.editor > .problem {
+  margin: 0 var(--space-1) var(--space-1);
+}
+
+/* 字重跟著格子。 */
+.input,
+.textarea {
+  width: 100%;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-weight: inherit;
+}
+
+/* 輸入框自己的寬度（size 屬性的 20 個字）不算進浮起來那一層的寬度：和格子一樣寬就好，不必為了它往右長。 */
+.input,
+.textarea {
+  contain: inline-size;
+}
+
+/*
+ * 日期（DateEditor，components/DatePicker 的 bare）：一樣不照輸入框自己的寬度，最少放得下「2026/12/15」加右邊的日曆圖示
+ * （觸控時字是 16px），格子比這窄時往右長。日曆浮在下面（Floating）。
+ */
+.dateEditor {
+  --date-editor-width: 9.5rem;
+
+  display: block;
+  min-width: var(--date-editor-width);
+  contain: inline-size;
+}
+
+/* 上面的內距加上格子的留白，第一行的字和平常的格子在同一個高度。 */
+.textarea {
+  min-width: 18rem;
+  padding: var(--space-1) var(--space-3);
+  resize: vertical;
+}
+
+/* 格子裡的下拉：按鈕裡是格子平常的樣子，寬度不算進浮起來的那一層（和格子一樣寬），排法和格子一樣。 */
+.cellSelect {
+  contain: inline-size;
+}
+
+.selectDisplay {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.selectLeading {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+/* 焦點由格子的框表示（.editor）：輸入框再畫焦點外框就是兩層框。只有這裡可以拿掉 outline。 */
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: none;
+}
+
+.input:read-only {
+  color: var(--color-text-muted);
+}
+
+/*
+ * 補填對話框裡的多選（docs/DESIGN.md 8.3「補填再前進」）：輸入框直接用 components/Field 的長相、下拉是 components/Select；
+ * 這一組的 legend 是看得到的標籤（字的樣子是 Field 的標籤），選項是一個個 CheckboxField，不再留格子裡的內距。
+ */
+.choices[data-placement='dialog'] {
+  gap: 0;
+  padding: 0;
+}
+
+.legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.saving,
+.hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 錯誤的說明（和 Notice 一樣）：危險色的淡底，圖示是危險色、內文是一般的字色（在淡底上比危險色好讀），沒有左邊的色條。
+ * 圓角是 --radius-sm：在編輯中的框（--radius-sm）裡面，內層不能比外層圓（規範第 5 節）。
+ * 透明的細線：強制色彩模式拿掉淡底時系統把它畫出來，錯誤的說明才有邊界。
+ */
+.problem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 22rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  white-space: normal;
+}
+
+/* 圖示和第一行字對齊：行高比圖示高一點，往下推一點。 */
+.problemIcon {
+  flex: none;
+  margin-top: var(--space-0-5);
+  color: var(--color-danger);
+}
+
+.problemBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 var(--space-2);
+  margin: 0;
+  color: var(--color-text);
+}
+
+.facts dt {
+  font-weight: var(--weight-semibold);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.withAction {
+  display: flex;
+  align-items: stretch;
+}
+
+.withAction > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  min-height: var(--target-min);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* 勾選欄位：點擊範圍是包住勾選框的標籤，至少 --target-min 見方（第 5 節）。 */
+.checkTarget {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  cursor: pointer;
+}

@@ -1,0 +1,70 @@
+# 內建模板「產品路線圖」，格式第 0 版。
+# 設計理由：
+# - 類型：目標 → 計畫 → 功能三層。目標回答「為什麼做」，計畫是達成目標的一組工作，功能是可以交付的一件事；
+#   上下層用 parents 串起來，路線圖可以從目標一路看到功能。
+# - 狀態：構想 → 規劃中 → 進行中 → 已完成。構想還沒承諾，規劃中是評估排序，進行中是開發；
+#   「擱置」（canceled）收暫時不做或放棄的項目，保留當初為什麼想做的紀錄。三個類型共用同一條流程，團隊只要學一次。
+# - 欄位：影響與信心是排序的依據（兩個都高的先做），預計季度用選項（本季、下一季、之後）而不寫日期，
+#   所以模板不會過期，也符合路線圖「先排大方向」的用法。
+# - 狀態叫「已完成」而不是「已推出」：目標與計畫沒有「推出」這件事，共用一條流程，用語要三種類型都說得通。
+# - 「計畫與功能」看板只看計畫和功能，目標常常整季不動，放進看板會佔掉一整欄；目標另外用表格看。
+# - 時間軸檢視還不存在，先用看板看進度、表格看排序。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: product_roadmap
+  name: 產品路線圖
+  description: 給產品經理。從目標拆成計畫與功能，依影響與信心排序，追蹤到完成。
+  basedOn: { template: product_roadmap, version: "1.0.0" }
+
+fields:
+  - key: impact
+    name: 影響
+    type: single_select
+    options:
+      - { key: high,   name: 高, color: green }
+      - { key: medium, name: 中, color: yellow }
+      - { key: low,    name: 低, color: gray }
+  - key: confidence
+    name: 信心
+    type: single_select
+    options:
+      - { key: high,   name: 高, color: green }
+      - { key: medium, name: 中, color: yellow }
+      - { key: low,    name: 低, color: gray }
+  - key: quarter
+    name: 預計季度
+    type: single_select
+    options:
+      - { key: this_quarter, name: 本季,   color: blue }
+      - { key: next_quarter, name: 下一季, color: purple }
+      - { key: later,        name: 之後,   color: gray }
+
+workflows:
+  - key: roadmap_flow
+    name: 路線圖流程
+    states:
+      - { key: idea,     name: 構想,   category: backlog }
+      - { key: planning, name: 規劃中, category: not_started }
+      - { key: building, name: 進行中, category: in_progress }
+      - { key: launched, name: 已完成, category: done }
+      - { key: shelved,  name: 擱置,   category: canceled }
+
+itemTypes:
+  - { key: goal,    name: 目標, workflow: roadmap_flow, fields: [quarter] }
+  - { key: plan,    name: 計畫, workflow: roadmap_flow, parents: [goal], fields: [impact, confidence, quarter] }
+  - { key: feature, name: 功能, workflow: roadmap_flow, parents: [plan], fields: [impact, confidence, quarter] }
+
+views:
+  - { key: board, name: 路線圖看板, type: board, groupBy: state }
+  - { key: plan_board, name: 計畫與功能, type: board, groupBy: state, filter: { itemTypes: [plan, feature] } }
+  - key: by_quarter
+    name: 依季度排序
+    type: table
+    columns: [title, item_type, state, quarter, impact, confidence]
+    sort: [{ field: quarter, direction: asc }]
+  - key: features
+    name: 功能清單
+    type: table
+    columns: [title, state, impact, confidence, quarter, due_date]
+    filter: { itemTypes: [feature] }

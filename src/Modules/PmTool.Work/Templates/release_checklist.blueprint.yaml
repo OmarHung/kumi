@@ -1,0 +1,65 @@
+# 內建模板「發行與上線檢查」，格式第 0 版。
+# 設計理由：
+# - 兩種類型、兩條流程：「發行」是一次上線的整體進度（規劃中 → 準備中 → 上線中 → 已上線，加上已取消與已回復），
+#   「檢查項目」是掛在發行底下的一條條確認事項（待確認 → 已確認，加上不適用）。
+#   每次發行新增一筆發行，再把檢查項目掛在它的下面，上線前一眼看出還有哪幾項沒確認。
+#   引擎沒有「檢查項目全部確認才能上線」這種檢查，所以不承諾；由人看「未確認的檢查」檢視決定能不能上線。
+# - 「已回復」是 canceled 類別：上線後發現有問題、退回上一版的發行，不是完成也不是沒做過，另外標出來才查得到。
+#   發行流程沒有列轉換，狀態之間可以任意轉換。
+# - 「準備中」算進行中（in_progress）：準備就是正在做的事，放在未開始會讓看板與逾期統計把正在準備的發行當成還沒動。
+# - 檢查項目的流程只有兩步，沒有轉換限制；「不適用」（canceled）讓這次用不到的項目不必刪掉，也不算漏掉。
+# - 欄位只放在發行：版本號、環境、回復計畫。回復計畫是上線前最容易被省略、出事時最需要的一份，所以獨立成長文字欄位。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: release_checklist
+  name: 發行與上線檢查
+  description: 給開發與維運團隊。每次發行掛上檢查項目，上線前看清楚還有哪幾項沒確認。
+  basedOn: { template: release_checklist, version: "1.0.0" }
+
+fields:
+  - { key: version, name: 版本號, type: text }
+  - key: environment
+    name: 環境
+    type: single_select
+    options:
+      - { key: test,       name: 測試, color: gray }
+      - { key: staging,    name: 預備, color: yellow }
+      - { key: production, name: 正式, color: red }
+  - { key: rollback_plan, name: 回復計畫, type: long_text }
+
+workflows:
+  - key: release_flow
+    name: 發行流程
+    states:
+      - { key: planning,  name: 規劃中, category: backlog }
+      - { key: preparing, name: 準備中, category: in_progress }
+      - { key: deploying, name: 上線中, category: in_progress }
+      - { key: released,  name: 已上線, category: done }
+      - { key: canceled,  name: 已取消, category: canceled }
+      - { key: rolled_back, name: 已回復, category: canceled }
+  - key: check_flow
+    name: 檢查流程
+    states:
+      - { key: pending,    name: 待確認, category: not_started }
+      - { key: confirmed,  name: 已確認, category: done }
+      - { key: not_needed, name: 不適用, category: canceled }
+
+itemTypes:
+  - { key: release,    name: 發行,     workflow: release_flow, fields: [version, environment, rollback_plan] }
+  - { key: check_item, name: 檢查項目, workflow: check_flow,   parents: [release] }
+
+views:
+  - { key: board, name: 檢查看板, type: board, groupBy: state }
+  - key: releases
+    name: 發行清單
+    type: table
+    columns: [title, state, version, environment, due_date]
+    sort: [{ field: due_date, direction: asc }]
+    filter: { itemTypes: [release] }
+  - key: open_checks
+    name: 未確認的檢查
+    type: table
+    columns: [title, state, assignee, due_date]
+    sort: [{ field: due_date, direction: asc }]
+    filter: { itemTypes: [check_item], states: [pending] }

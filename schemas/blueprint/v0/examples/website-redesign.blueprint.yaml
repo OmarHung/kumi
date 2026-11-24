@@ -1,0 +1,32 @@
+# 「官網改版」專案的藍圖，第 12 版。它是 split-acceptance.changeset.yaml 的基準：
+# 這時候驗收還只有一個狀態，那份變更集把它拆成內部驗收與客戶驗收。
+# 兩個檔案放在一起，就是「計畫」這一步的例子：比對出 qa 被拿掉，並確認變更集有寫明底下的項目搬去哪裡。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata: { key: website_redesign, name: 官網改版 }
+fields: []
+workflows:
+  - key: main
+    name: 主要流程
+    states:
+      - { key: todo,  name: 待辦,   category: not_started }
+      - { key: doing, name: 進行中, category: in_progress }
+      - { key: qa,    name: 驗收,   category: in_progress }
+      - { key: done,  name: 完成,   category: done }
+    transitions:
+      - { from: todo,  to: doing }
+      - { from: doing, to: qa }
+      - { from: qa,    to: doing }
+      - { from: qa,    to: done }
+itemTypes:
+  - { key: task, name: 任務, workflow: main }
+automations:
+  - key: mr_merged_to_qa
+    name: 合併請求合併後轉驗收
+    trigger: { source: gitlab, event: merge_request.merged }
+    conditions: [{ field: state, in: [doing] }]
+    actions: [{ type: transition, to: qa }]
+roles:
+  - { key: project_manager, name: 專案經理, permissions: [item.read, item.update, item.transition, comment.create, blueprint.read, blueprint.propose, blueprint.apply] }
+bindings:
+  - { connector: gitlab, resource: example-group/website }

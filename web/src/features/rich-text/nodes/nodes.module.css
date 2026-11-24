@@ -1,0 +1,62 @@
+/* 編輯器裡的行內小卡（檔案、不載入的圖片、上傳中）與唯讀的原文區塊。只用設計變數，沒有裝飾色條。 */
+.card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  vertical-align: baseline;
+  user-select: none;
+}
+
+.card[data-state='uploading'] {
+  color: var(--color-text-muted);
+}
+
+.cardIcon {
+  flex: none;
+}
+
+.cardName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+/* 唯讀的原文：等寬字加淡底，整塊可以選取、刪除，內容一字不改地存回去。 */
+.rawBlock,
+.rawInline {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: none;
+}
+
+.rawBlock {
+  display: block;
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.rawInline {
+  padding: 0 var(--space-1);
+}

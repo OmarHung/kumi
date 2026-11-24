@@ -1,0 +1,58 @@
+/* 分段切換：凹下去的軌道，目前的那一格浮起來（--shadow-raised，第 5 節）。 */
+.nav {
+  min-width: 0;
+}
+
+.list {
+  display: inline-flex;
+  gap: var(--space-0-5);
+  margin: 0;
+  padding: var(--space-0-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  list-style: none;
+}
+
+.item {
+  display: flex;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+/*
+ * 目前的那一格：浮起來的紙（--color-surface-raised）、字 semibold（docs/DESIGN.md 第 7 節 NavTabs）。不畫色條，形狀就是差別。
+ * 深色模式下紙和頁面同色、陰影也看不到：浮起來的紙比紙亮一階，才看得出是哪一格。
+ */
+.tab[aria-current='page'] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--shadow-raised);
+}
+
+/* 強制色彩會拿掉底色與陰影：目前的那一格畫系統色的外框。 */
+@media (forced-colors: active) {
+  .tab[aria-current='page'] {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+}

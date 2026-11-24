@@ -1,0 +1,86 @@
+/*
+ * 資訊頁：專案說明。閱讀頁版面（docs/DESIGN.md 6.2），文字放在紙上，沒有卡片與裝飾色條。
+ * 編輯器與看的時候占同一個位置：標題列一直在（高度固定），只換下面那一塊。
+ */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--reading-max);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-sm);
+}
+
+.heading {
+  font-size: var(--text-md);
+}
+
+.updated {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* 選格式與「開始寫」一列：按鈕和下拉的底對齊（下拉有自己的標籤在上面）。 */
+.start {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.format {
+  flex: 0 1 16rem;
+  min-width: 0;
+}
+
+.form {
+  /*
+   * 編輯器內容區的高度：頁列、標題列、編輯器下面的提示與按鈕之外的整個畫面，最少約 20 行。固定值，打字時不長高；更長的內容在框裡捲。
+   * 13rem 是原本文字框時的預留；編輯器多一列工具列（按鈕高加上下內距 0.5rem、底線 1px）與外框上下各 1px，加在後面。
+   */
+  --editor-reserved: calc(var(--page-bar-height) + 13rem + var(--control-height-sm) + 0.5rem + 3px);
+  --editor-min-height: 28rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reminder {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.templatesFailed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

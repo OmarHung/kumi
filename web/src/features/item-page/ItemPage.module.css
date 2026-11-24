@@ -1,0 +1,128 @@
+/*
+ * 項目頁（閱讀頁，docs/DESIGN.md 6.2）：標題區橫跨整頁（位置在頁列上）；下面在夠寬的時候分兩欄（左邊內容、右邊欄位），
+ * 不夠寬就上下排（欄位在前）。用容器查詢而不是螢幕寬度：側欄收起來或打開時，看的是內容區實際有多寬。
+ * 欄位面板的樣子跟著同一個容器（ItemFieldsPanel.module.css 的 item-page）。
+ */
+.page {
+  --fields-column-min: 17rem;
+  --fields-column-max: 20rem;
+
+  container: item-page / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 類型與編號：一行小一號的灰字，編號是等寬字（第 3 節）。 */
+.eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.key {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/* 面板裡連到專案：和「類型 編號」那一行同一個位置與字級，平常是次要的字色，滑過才是連結的樣子（它是位置的說明，不搶標題）。 */
+.projectLink {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectLink:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+/*
+ * 標題本身就是編輯的按鈕；按鈕有內距，往左拉回來，文字才和上下的內容對齊。
+ * 內容區的頁面標題是 --weight-bold（docs/DESIGN.md 第 3 節），比頁列與區塊的標題重一級。
+ */
+.heading {
+  margin: 0 calc(-1 * var(--space-3));
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+/* 格子裡的標題是中等字重；這裡是頁面的標題，跟著上面的字重。 */
+.heading span {
+  font-weight: var(--weight-bold);
+}
+
+/*
+ * 標題進入編輯時，輸入框和標題一樣大、一樣粗、同樣的行高（全域的 input 是 --text-control，14px）：字不會縮小。
+ * 整頁與面板的標題都是 --text-xl（24px），觸控時也大於 16px，iOS 聚焦時不會放大整頁。
+ */
+.heading input {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+/* 說明、下層項目、活動與留言的右緣對齊同一條線：都以長段文字的寬度 --reading-max 為限（第 3 節）。 */
+.main > * {
+  max-width: var(--reading-max);
+}
+
+@container item-page (min-width: 52rem) {
+  /* 兩欄之間是欄位面板左邊的細線；左欄的右邊留白、右欄的左內距把它和兩邊的內容分開。 */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(var(--fields-column-min), var(--fields-column-max));
+    align-items: start;
+    gap: 0;
+  }
+
+  /* 欄位在原始碼裡排在內容前面（窄螢幕先看到狀態），寬的時候放到右邊。 */
+  .layout > :first-child {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .main {
+    grid-column: 1;
+    grid-row: 1;
+    padding-inline-end: var(--space-8);
+  }
+}

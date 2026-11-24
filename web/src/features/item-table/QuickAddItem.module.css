@@ -1,0 +1,76 @@
+/*
+ * 表格上方的快速新增（docs/DESIGN.md 8.3、第 14 節的預算 36px）：一列，高度和表格的一列一樣，不是卡片。
+ * 控制項是 Field 的 size="sm"（--control-height-sm），上下的留白補到 --row-height（觸控時兩個都是 44px，留白是 0）。
+ */
+.form {
+  /* 標題框從這個寬度開始排、有空間才變寬，最寬到上限：太寬的輸入框看不出這一列在哪裡結束。 */
+  --quick-add-title-start: 16rem;
+  --quick-add-title-max: 46rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: var(--row-height);
+  padding-block: calc((var(--row-height) - var(--control-height-sm)) / 2);
+}
+
+.icon {
+  flex: none;
+  align-self: center;
+  color: var(--color-text-muted);
+}
+
+.title {
+  flex: 1 1 var(--quick-add-title-start);
+  max-width: var(--quick-add-title-max);
+}
+
+/*
+ * 「已新增 AGY-25。」與「開啟」（CreatedStatus）：訊息是一直掛著的 status，沒有訊息時是空的、不佔位置。
+ * 新的項目不符合目前的條件時訊息多一句，放不下就換行（列跟著變高，比把訊息截掉好）。
+ */
+.created {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--color-success);
+}
+
+/* 「開啟」：字小，點擊範圍照樣至少 --target-min（觸控時 44px）。 */
+/* 新的項目不符合目前的條件：提醒，不是成功的綠色。 */
+.outside {
+  color: var(--color-text-muted);
+}
+
+.openLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  font-weight: var(--weight-medium);
+}
+
+/* 表格上方那一列：接在按鈕後面，不另外佔一列。 */
+.status {
+  flex: 0 1 auto;
+  align-self: center;
+}
+
+/* 窄螢幕的對話框：同一組欄位上下排，標籤看得到（用 grid，上面那一列的 flex 設定在這裡不作用）。 */
+.dialogForm {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* 還沒有「已新增」的訊息時，抵掉它前面的間距（元素要一直掛著，訊息出現時報讀軟體才唸得到）。 */
+.dialogForm .status[data-created='false'] {
+  margin-top: calc(-1 * var(--space-4));
+}

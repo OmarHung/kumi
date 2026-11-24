@@ -1,0 +1,41 @@
+# 變更集的例子：把「驗收」拆成「內部驗收」與「客戶驗收」。
+# 送出的是想要的藍圖全文，差異由伺服器對照第 12 版算出來。
+# 「驗收」這個狀態被拿掉了，所以要在 migrations 寫明底下的項目搬去哪裡。
+baseVersion: 12
+summary: 把驗收拆成內部驗收與客戶驗收，客戶驗收要專案經理才能送出。
+blueprint:
+  apiVersion: blueprint/v0
+  kind: ProjectBlueprint
+  metadata: { key: website_redesign, name: 官網改版 }
+  fields: []
+  workflows:
+    - key: main
+      name: 主要流程
+      states:
+        - { key: todo,        name: 待辦,     category: not_started }
+        - { key: doing,       name: 進行中,   category: in_progress }
+        - { key: internal_qa, name: 內部驗收, category: in_progress }
+        - { key: client_qa,   name: 客戶驗收, category: in_progress }
+        - { key: done,        name: 完成,     category: done }
+      transitions:
+        - { from: todo,        to: doing }
+        - { from: doing,       to: internal_qa }
+        - { from: internal_qa, to: doing }
+        - { from: internal_qa, to: client_qa, allowedRoles: [project_manager] }
+        - { from: client_qa,   to: doing }
+        - { from: client_qa,   to: done }
+  itemTypes:
+    - { key: task, name: 任務, workflow: main }
+  automations:
+    - key: mr_merged_to_internal_qa
+      name: 合併請求合併後轉內部驗收
+      trigger: { source: gitlab, event: merge_request.merged }
+      conditions: [{ field: state, in: [doing] }]
+      actions: [{ type: transition, to: internal_qa }]
+  roles:
+    - { key: project_manager, name: 專案經理, permissions: [item.read, item.update, item.transition, comment.create, blueprint.read, blueprint.propose, blueprint.apply] }
+  bindings:
+    - { connector: gitlab, resource: example-group/website }
+migrations:
+  moveStates:
+    - { workflow: main, from: qa, to: internal_qa }

@@ -1,0 +1,88 @@
+/* 標籤（docs/DESIGN.md 第 7 節 Badge）：膠囊形的淡底、同語意的字色；狀態用 --color-state-* 與各自的 -soft。 */
+.badge {
+  /* 標籤的字是 12px：16px 的圖示太重，縮小一點和字一樣高。 */
+  --badge-icon-size: 0.875rem;
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  white-space: nowrap;
+  /* 放在窄的容器裡（看板欄的標題、卡片）時，標籤自己縮、超出的文字裁在標籤裡面，外框與圓角完整。
+     不加省略號：文字是直接的子節點（既有測試靠這個結構），flex 容器裡的文字節點不吃 text-overflow。 */
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.icon {
+  width: var(--badge-icon-size);
+  height: var(--badge-icon-size);
+}
+
+.neutral {
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+}
+
+.accent {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+/* 藍圖選項的藍與紫（單選、多選欄位的標籤）。 */
+.blue {
+  background: var(--color-option-blue-soft);
+  color: var(--color-option-blue);
+}
+
+.purple {
+  background: var(--color-option-purple-soft);
+  color: var(--color-option-purple);
+}
+
+/*
+ * 狀態類別：字色與淡底都來自 --color-state-*。進行中是自己的藍，不借強調色（紫藍是「可以按」，藍是「正在做」）；
+ * 顏色之外一定有形狀（StateBadge 的圖示，第 4 節）。
+ */
+.stateIdle {
+  background: var(--color-state-idle-soft);
+  color: var(--color-state-idle);
+}
+
+.stateActive {
+  background: var(--color-state-active-soft);
+  color: var(--color-state-active);
+}
+
+.stateDone {
+  background: var(--color-state-done-soft);
+  color: var(--color-state-done);
+}
+
+/* 強制色彩會拿掉淡底：畫系統色的外框（outline：不改變大小），標籤仍然是一塊。 */
+@media (forced-colors: active) {
+  .badge {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+}

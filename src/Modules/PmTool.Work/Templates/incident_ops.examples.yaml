@@ -1,0 +1,58 @@
+# 範例項目：示範兩起事故（一起還在處理、一起已關閉並填了根本原因）與各自的後續改善，有一筆已過期的改善。
+items:
+  - ref: start
+    type: incident
+    title: 從這裡開始：維運與事故怎麼用
+    state: occurred
+    priority: low
+    description: |
+      事故的流程是：發生 → 處理中 → 已緩解 → 事後檢討 → 關閉。轉到「關閉」之前要先填「根本原因」。
+      查下去發現不是事故，就改成「誤報」。
+      檢討出來的改善，建立成「後續改善」並設定上層項目為這起事故，流程是待辦 → 進行中 → 完成（決定不做的改成「取消」）。
+
+      - 事故等級 SEV1 最嚴重，SEV4 最輕。
+      - 表格裡的「事故等級」看得出影響多大，SEV1、SEV2 優先處理。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+  - ref: db_slow
+    type: incident
+    title: 範例：資料庫回應變慢，部分頁面逾時
+    state: handling
+    priority: urgent
+    startInDays: -1
+    fields:
+      sev: sev2
+      impact_scope: 約三成使用者的訂單頁載入超過 10 秒
+  - type: followup
+    title: 範例：替慢查詢加上警示
+    state: todo
+    priority: medium
+    parent: db_slow
+    dueInDays: 7
+  - ref: cert
+    type: incident
+    title: 範例：憑證到期導致 API 連線失敗
+    state: closed
+    priority: high
+    startInDays: -15
+    dueInDays: -14
+    description: 憑證在凌晨到期，兩小時內換新並恢復服務。
+    fields:
+      sev: sev1
+      impact_scope: 所有外部整合的 API 呼叫
+      root_cause: 憑證到期提醒只寄給已離職的信箱，沒有人收到。
+      review_url: https://example.com/reviews/cert-expiry
+  - type: followup
+    title: 範例：到期提醒改寄給維運共用信箱
+    state: done
+    priority: high
+    parent: cert
+    startInDays: -13
+    dueInDays: -10
+  - type: followup
+    title: 範例：建立憑證到期清單並每月檢查
+    state: doing
+    priority: medium
+    parent: cert
+    startInDays: -10
+    dueInDays: -3

@@ -1,0 +1,158 @@
+/*
+ * 主機 AI 代理（設定中心只有擁有者看得到的一頁，internal/HANDOFF-host-agent.md 第 9 節）：
+ * 沿用 AI 設定的清單樣子——細線分隔、沒有卡片與色條；動作結果寫在旁邊，不推動下面的版面。
+ */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--color-border);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+/* 每一列：資訊在左、動作固定靠右上（不換到下面）；說明與錯誤在下面整行（docs/design/07-components.md 7.1 列上的動作）。 */
+.rowMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+}
+
+/* 代理底下的兩個引擎：縮排一格，細線分隔，不再包一層框。 */
+.engines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  list-style: none;
+}
+
+.engine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block: var(--space-2);
+}
+
+.engine + .engine {
+  border-top: 1px solid var(--color-border);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.problem[data-tone='danger'] {
+  color: var(--color-danger);
+}
+
+/* 說明裡的主機指令（CommandText.tsx）：等寬字；每個字各自不斷行，只在空白處換行，不會從 ai-worker 的連字號斷開。 */
+.command {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.commandWord {
+  white-space: nowrap;
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 對話框 */
+.dialogForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.engineChoice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.limits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+}
+
+.modelDetail {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.usageGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 用量對話框裡「依成員」「依專案」的小標：和其他對話框的小標同一個大小（h3 的瀏覽器預設會比內文大一截）。 */
+.subheading {
+  font-size: var(--text-base);
+}

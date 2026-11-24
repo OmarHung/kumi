@@ -1,0 +1,79 @@
+/*
+ * 圓點的色票（BadgeColorPicker）：和 SegmentedControl 同一套長相——凹下去的軌道，選中的那一格浮起來（--shadow-raised）；
+ * 一格是正方形、和小的控制項一樣高（觸控時 44px）。不畫色條；選中與否不只靠顏色，靠浮起來的那一格。
+ * 六個預設色一條軌道、「自訂顏色」另一條（320 寬的觸控螢幕上，六個剛好一行，自訂換到下一行）。
+ */
+/* 群組裡兩條軌道：六個預設色一條、「自訂顏色」一條，放不下時整條自訂換到下一行。 */
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.track {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.swatch {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--control-height-sm);
+  block-size: var(--control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.swatch:hover {
+  background: var(--color-hover);
+}
+
+.swatch[aria-pressed='true'] {
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raised);
+  cursor: default;
+}
+
+/* 「自訂顏色」選中之後再按是重新打開取色器，游標照樣是手指。 */
+.swatch[data-opens-picker][aria-pressed='true'] {
+  cursor: pointer;
+}
+
+.dot {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+}
+
+/*
+ * 選中的那一格除了浮起來，圓點外再加一圈 --color-text 的環：深色模式下浮起來的紙和軌道差得不多，
+ * 色票又沒有字可以像 SegmentedControl 那樣用字重當第二個線索。環和顏色無關，色弱也分得出來。
+ */
+.swatch[aria-pressed='true'] .dot {
+  border-radius: var(--radius-pill);
+  outline: 2px solid var(--color-text);
+  outline-offset: var(--space-0-5);
+}
+
+/*
+ * 強制色彩會拿掉底色與陰影：選中的那一格畫系統色的外框（和 SegmentedControl 一樣）。
+ * 圓點本身就是要選的顏色，不讓系統把六個都換成同一個系統色。
+ */
+@media (forced-colors: active) {
+  .swatch[aria-pressed='true'] {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .dot {
+    forced-color-adjust: none;
+  }
+}

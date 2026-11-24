@@ -1,0 +1,92 @@
+import type { LocalEngineKind } from '../../api/aiTypes';
+import type { HostAgent, HostAgentState, HostBilling, HostEngineReadiness, HostSource, HostSourceStatus, HostUsageTotals } from '../../api/hostAgentTypes';
+import { COMMAND_NAME } from '../../config/product';
+import { formatRelativeTime } from '../../domain/time';
+import { OPTION_LABELS } from '../ai/aiLabels';
+
+/** 主機上的兩個引擎，畫面上固定這個順序。 */
+export const HOST_ENGINES: readonly LocalEngineKind[] = ['claude_code', 'codex'];
+
+/** 指令裡的引擎名稱（kumi host login claude-code）。 */
+const ENGINE_COMMAND_NAMES: Readonly<Record<LocalEngineKind, string>> = { claude_code: 'claude-code', codex: 'codex' };
+
+export const engineLabel = (engine: LocalEngineKind): string => OPTION_LABELS[engine];
+
+/** 在主機上執行的指令（docker compose 的 ai-worker 服務）。 */
+export const PAIR_COMMAND = `docker compose exec -it ai-worker ${COMMAND_NAME} host pair`;
+
+export function loginCommand(engine: LocalEngineKind): string {
+  return `docker compose exec -it ai-worker ${COMMAND_NAME} host login ${ENGINE_COMMAND_NAMES[engine]}`;
+}
+
+/** 登入的說明：只能用計費給組織的帳號，訂閱帳號依條款不能共用。 */
+export function loginRule(engine: LocalEngineKind): string {
+  const account = engine === 'claude_code' ? 'Anthropic Console（API 用量計費）' : 'OpenAI API 金鑰';
+  const subscription = engine === 'claude_code' ? 'Claude' : 'ChatGPT';
+  return `只能用 ${account}登入。${subscription} 的訂閱帳號依條款不能給全組織共用，登入了會被拒絕並登出。`;
+}
+
+export const HOST_AGENTS_NOTE =
+  '把 Claude Code／Codex 放在主機的 ai-worker 上，全組織的成員都能在 AI 助理選它，不必各自登入或設金鑰。費用算在這裡登入的 API 帳號。';
+
+export const SOURCES_NOTE = '來源決定成員在 AI 助理選得到哪些模型與用量上限。';
+
+const AGENT_STATE_TEXT: Readonly<Record<HostAgentState, string>> = {
+  awaiting_pairing: '等待配對',
+  active: '已配對',
+  disabled: '已停用',
+};
+
+/** 代理的狀態（文字，不靠顏色）：等待配對／在線／離線（最後在 N 分鐘前）／已停用。now 由呼叫端給（最近一次讀到的時間）。 */
+export function agentStatusText(agent: HostAgent, now: number): string {
+  if (agent.state === 'awaiting_pairing' || agent.state === 'disabled') return AGENT_STATE_TEXT[agent.state];
+  if (agent.online) return '在線';
+  return agent.lastSeenAt === null ? '離線' : `離線（最後在 ${formatRelativeTime(agent.lastSeenAt, now)}）`;
+}
+
+export const READINESS_TEXT: Readonly<Record<HostEngineReadiness, string>> = {
+  ready: '可以接工作',
+  not_installed: '沒裝',
+  version_unsupported: '版本不支援',
+  not_logged_in: '需要登入',
+  not_authorized: '需要擁有者重新授權',
+  billing_not_shareable: '訂閱帳號不能共用',
+};
+
+export const BILLING_TEXT: Readonly<Record<HostBilling, string>> = {
+  api: 'API 用量計費',
+  subscription: '訂閱',
+  unknown: '計費方式不明',
+};
+
+const SOURCE_STATUS_TEXT: Readonly<Record<HostSourceStatus, string>> = {
+  ready: '可以使用',
+  disabled: '已停用',
+  agent_unavailable: '主機代理不能用',
+  agent_offline: '主機離線',
+  engine_unavailable: '引擎不能用',
+  quota_reached: '已用到上限',
+};
+
+/** 來源的狀態；伺服器有說明時接在後面。 */
+export function sourceStatusText(source: HostSource): string {
+  const base = SOURCE_STATUS_TEXT[source.status];
+  return source.statusMessage === null || source.statusMessage === '' ? base : `${base}：${source.statusMessage}`;
+}
+
+const NUMBER = new Intl.NumberFormat('en-US');
+export const formatCount = (value: number): string => NUMBER.format(value);
+
+/** 「12 則 · 輸入 1,200 · 輸出 300 token」。 */
+export function usageSummary(totals: HostUsageTotals): string {
+  return `${formatCount(totals.requests)} 則 · 輸入 ${formatCount(totals.inputTokens)} · 輸出 ${formatCount(totals.outputTokens)} token`;
+}
+
+/** 「12 則（完成 10、失敗 1、中斷 1）」：用量表的一列。 */
+export function outcomeSummary(totals: HostUsageTotals): string {
+  return `${formatCount(totals.requests)} 則（完成 ${formatCount(totals.completed)}、失敗 ${formatCount(totals.failed)}、中斷 ${formatCount(totals.stopped)}）`;
+}
+
+/** 擁有者設的上限能設多大（和 AiRules 同一份數字）。 */
+export const MAX_REQUEST_LIMIT = 1_000_000;
+export const MAX_TOKEN_LIMIT = 100_000_000_000;

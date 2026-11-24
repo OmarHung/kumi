@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 只需要讀原始碼；映像檔只建置不推送，不需要寫入套件庫的權限。
+permissions:
+  contents: read
+
+# 每個動作都固定到提交的 SHA，註解是當時的版本：標籤可以被移到別的提交，SHA 不行。
+# 怎麼更新見 docs/DEPLOYMENT.md 第 7 節。
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: 還原
+        run: dotnet restore
+
+      - name: 建置
+        run: dotnet build -c Release --no-restore
+
+      # 身分與工作引擎的測試會用 Testcontainers 起一個 PostgreSQL，執行器上本來就有 Docker。
+      - name: 測試與覆蓋率門檻
+        run: dotnet test -c Release --no-build /p:CollectCoverage=true /p:Threshold=80 /p:ThresholdType=line
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 網頁：安裝套件
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: 網頁：型別與 Lint
+        working-directory: web
+        run: npm run typecheck && npm run lint
+
+      - name: 網頁：測試與覆蓋率門檻
+        working-directory: web
+        run: npm run test:coverage
+
+      - name: 網頁：建置
+        working-directory: web
+        run: npm run build
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: 建置映像檔（不推送）
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          tags: pm-tool-api:ci

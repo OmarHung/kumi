@@ -1,0 +1,355 @@
+/*
+ * 設定頁：每個流程、類型、欄位、角色是一份清單，直接放在紙上（上下各一條細線，列與列之間一條細線，沒有卡片與陰影）。
+ * 一列一行（--row-height）；窄螢幕一列最多兩行：名稱與動作一行，其他資訊一行。
+ * 還沒送出的修改一定有標籤（StatusBadge：新增是強調色、已修改是警告色、已移動是中性、要刪除是危險色）；
+ * 已修改、已移動、要刪除的列再加同語意的淡底，新增的列只有標籤（docs/DESIGN.md 第 4 節）。不畫左邊的色條。
+ */
+.page {
+  --order-width: 1.75rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 標題下面的一段說明（閱讀頁，docs/DESIGN.md 6.2）：跟著內容捲走。 */
+.intro {
+  max-width: var(--reading-max);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 工具列上的區塊分頁。很窄的螢幕上放不下（四個分頁都帶兩個數字）時在這裡橫向捲動，不把整頁撐寬；
+ * 內距加負的外距：焦點外框不被捲動容器裁掉，版面不變。
+ */
+.sectionNav {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: calc(-1 * var(--space-1));
+  padding: var(--space-1);
+  overflow-x: auto;
+}
+
+/* 送出列上「別的區塊也有要修正的地方：流程 2 個、欄位 1 個。」 */
+.elsewhere {
+  font-size: var(--text-sm);
+}
+
+.noticeLink {
+  font-weight: var(--weight-semibold);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* 區塊標題 h2（docs/DESIGN.md 第 3 節）。從送出列連過來時焦點放在這裡（tabIndex={-1}）。 */
+.sectionTitle {
+  font-size: var(--text-md);
+}
+
+.sectionHint,
+.note {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.group + .group {
+  margin-top: var(--space-4);
+}
+
+.groupHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.groupTitle {
+  font-size: var(--text-base);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--color-border);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--order-width) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-1) var(--space-2);
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+.fieldRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/*
+ * 淡底上的灰字（代號、類別）與輸入框的外框都還在門檻以上（淺色與深色都算過，第 2.2 節）。
+ * 列上的輸入框、下拉自己是紙底，看得出是可以改的格子。
+ * 新增的列沒有底色（RowParts 的 ROW_CLASSES 不給 class）：強調色的淡底就是「已選取」的 --color-selected，
+ * 看起來會像選取了那一列；「新增」靠強調色的標籤就夠。
+ */
+.rowModified {
+  background: var(--color-warning-soft);
+}
+
+.rowMoved {
+  background: var(--color-neutral-soft);
+}
+
+.rowRemoved {
+  background: var(--color-danger-soft);
+}
+
+.order {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cells {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+
+/* 名稱以外的資訊（類別或流程、key、標籤）：寬螢幕接在名稱後面同一行，窄螢幕自己一行。 */
+.details {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+
+.name {
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.removedName {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+/* 代號（docs/DESIGN.md 第 3 節：等寬字、--text-sm）。 */
+.key {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.fieldType,
+.category {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.moveField {
+  flex-wrap: wrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-0-5);
+}
+
+.issues {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.issue {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.issueIcon {
+  flex: none;
+  margin-top: var(--space-0-5);
+}
+
+.addButton {
+  align-self: flex-start;
+}
+
+/* 欄位的「套用到」、類型的上層、角色的權限：一排勾選（每一個是 CheckboxField，整個標籤可以點），標題排在同一行。 */
+.types {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-sm);
+}
+
+.fieldRow > .types,
+.fieldRow > .note {
+  grid-column: 1 / -1;
+}
+
+.typesLegend {
+  float: left;
+  margin-right: var(--space-1);
+  padding: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+}
+
+/* 對話框裡的勾選：標題自己一行。 */
+.typesStacked {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.typesStacked > .typesLegend {
+  float: none;
+  margin-bottom: var(--space-1);
+}
+
+/* 列裡的提示（共用的 Notice，例如自動化用到要刪除的狀態）：佔滿這一列的寬度。 */
+.rowNotice {
+  grid-column: 1 / -1;
+}
+
+/* 欄位的選項：列裡凹下去的一塊。裡面有輸入框（--radius-md），外面的角大一級才包得住。 */
+.options {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+}
+
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 一個選項：還沒送出的修改和列一樣是淡底（ROW_CLASSES）加標籤，圓角是外框裡的內層項目。 */
+.option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.option > .issues {
+  flex-basis: 100%;
+}
+
+.newOptions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.newOption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+}
+
+.newOption > :not(button) {
+  flex: 1 1 9rem;
+}
+
+/* 和欄位的輸入框對齊（欄位上方有標籤）。 */
+.newOptionButton {
+  margin-top: calc(var(--text-sm) * var(--leading-normal) + var(--space-1));
+}
+
+.dialogForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (max-width: 48rem) {
+  .page {
+    --order-width: 1.25rem;
+  }
+
+  /*
+   * 一列最多兩行：第一行是名稱與動作，第二行是 details（類別或流程、key、標籤），從名稱那一欄排到最右邊（動作底下也用）。
+   * .cells 讓出自己（display: contents），名稱與 details 直接排進這一列的格線。欄的位置從右邊數：
+   * 有順序欄的列（狀態）是三欄、沒有的是兩欄，-3 都是名稱那一欄的起點。
+   */
+  .cells {
+    display: contents;
+  }
+
+  .cells > :first-child {
+    grid-row: 1;
+    grid-column: -3 / -2;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .cells > .details {
+    grid-column: -3 / -1;
+  }
+
+  .row > .actions {
+    grid-row: 1;
+    grid-column: -2 / -1;
+  }
+}

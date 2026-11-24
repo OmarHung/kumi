@@ -1,0 +1,20 @@
+/* 外層只是「點在這裡面不算外面」與 Esc 的範圍，不影響排版。 */
+.root {
+  display: contents;
+}
+
+.surface {
+  padding: var(--space-3);
+}
+
+.panel {
+  --popover-min-width: 12rem;
+
+  min-width: var(--popover-min-width);
+}
+
+/* 焦點在浮層本身時（裡面沒有可以操作的元素）：和其他元素一樣畫焦點外框，外框畫在內距裡，不被浮層的邊框裁掉。 */
+.panel:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: var(--space-1);
+}

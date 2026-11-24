@@ -1,0 +1,106 @@
+/* 頁列：固定高度、一行，黏在內容區上方；放不下時位置與標題用省略號，動作不縮。 */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--page-bar-height);
+  padding: 0 var(--page-gutter);
+  /* 外框疊在頁列左上角的按鈕（收合側欄、窄螢幕的「選單」）佔掉的寬度；沒有外框時是 0。 */
+  padding-inline-start: calc(var(--page-gutter) + var(--page-bar-inset));
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.location {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.breadcrumb {
+  min-width: 0;
+}
+
+.trail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.crumbLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 點擊範圍至少 --target-min（觸控時 44px），文字短的代號也點得到。 */
+.crumbLink {
+  display: inline-flex;
+  align-items: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.crumbLink:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.crumb [aria-current='page'] {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.separator {
+  color: var(--color-border-strong);
+}
+
+/*
+ * 窄螢幕的位置只留最近的上一層與目前那一層（docs/DESIGN.md 6.1）：頁列上有標題時，標題就是目前那一層，位置只留最後一段；
+ * 標題不在頁列時留最後兩段。其餘 display: none，畫面上與報讀軟體都略過（nav 與它的名稱不變）。
+ */
+@media (max-width: 48rem) {
+  .trail[data-has-title='true'] > .crumb:not(:last-child),
+  .trail[data-has-title='false'] > .crumb:nth-last-child(n + 3) {
+    display: none;
+  }
+}

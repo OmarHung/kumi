@@ -1,0 +1,62 @@
+/*
+ * 自己畫的取色器（CustomColorPicker）：飽和度與亮度的方塊（3:2）、色相的軌道、色碼的欄位，由上到下排在浮層裡。
+ * 方塊與軌道都是 SVG，位置用百分比畫，不用 style 屬性；圓圈畫在 SVG 外面一點也看得到（overflow: visible）。
+ */
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  inline-size: 15rem;
+  max-inline-size: 100%;
+}
+
+.area {
+  inline-size: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+/* 和觸控的目標一樣高（觸控時 44px），漸層只畫中間一半。 */
+.hue {
+  inline-size: 100%;
+  block-size: var(--control-height-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+}
+
+/* 色碼欄位與右邊的示意：對齊欄位的底（欄位上面有標籤），錯誤訊息出現時示意不跟著往下跑。 */
+.hexRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* 欄位（含下面的錯誤訊息）佔滿左邊；只有輸入框限寬，錯誤訊息不會被擠成好幾行。 */
+.hexField {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.hexField input {
+  max-inline-size: 9rem;
+}
+
+/* 強制色彩不能把漸層與圓圈換成系統色：那就看不出選的是什麼顏色。焦點框照全站的 :focus-visible。 */
+@media (forced-colors: active) {
+  .svg {
+    forced-color-adjust: none;
+  }
+}

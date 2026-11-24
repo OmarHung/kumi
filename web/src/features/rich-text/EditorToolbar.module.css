@@ -1,0 +1,99 @@
+/* 編輯器的工具列：分組只用間距，不畫分隔線或色條；按下去的格式用 secondary 的底。 */
+/*
+ * 一列：左邊是格式的工具列，右邊固定是切換編輯方式（.modeSwitch 不跟著捲）。高度和以前只有工具列時一樣
+ * （小的控制項高加上下內距加底線），Markdown 模式只留切換、下載好之前也一樣，所以切換與載入時版面不跳。
+ */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+[data-collapsed='true'] .bar {
+  display: none;
+}
+
+/*
+ * 格式按鈕一律一列：窄螢幕放不下時在列裡橫向捲（不折成兩行：「連結」單獨掉到第二行很怪，工具列的高度也會變，
+ * 專案說明填滿畫面的高度是照一列算的）。左右鍵移到看不到的按鈕時瀏覽器會自己捲過去。
+ */
+.toolbar {
+  display: flex;
+  flex: 1;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* 按鈕排成一列的寬度不算進外框的最小寬度：不然窄螢幕時外框被撐得比頁面的內容寬。 */
+  contain: inline-size;
+}
+
+/* 沒有格式工具列時（Markdown 模式）把切換推到右邊。 */
+.modeSwitch {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.reason {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.group {
+  display: flex;
+  flex: none;
+  gap: var(--space-0-5);
+}
+
+/*
+ * 「插入圖片或檔案」黏在格式按鈕那一段的右端：面板窄、格式按鈕放不下而橫向捲時，它不會被擠到看不到的地方
+ * （以前它在下面的動作列，一直看得到）。底色和編輯器的外框一樣，蓋住捲到它底下的格式按鈕；左邊留一點，不和它們貼在一起。
+ */
+.insertGroup {
+  position: sticky;
+  inset-inline-end: 0;
+  padding-inline-start: var(--space-1);
+  background: var(--color-surface);
+}
+
+/*
+ * 強制色彩（Windows 高對比）會拿掉按下去的底色：開著的格式與打開小框的連結鈕畫系統色的外框
+ * （照 SegmentedControl）。鍵盤焦點在上面時留給焦點環，不蓋掉它。
+ */
+@media (forced-colors: active) {
+  .toolbar [aria-pressed='true']:not(:focus-visible),
+  .toolbar [aria-expanded='true']:not(:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+/* 連結的浮動小框（照 Popover 的長相）。 */
+.link {
+  display: contents;
+}
+
+.surface {
+  padding: var(--space-3);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: min(20rem, 100%);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

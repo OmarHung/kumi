@@ -1,0 +1,125 @@
+/*
+ * 留言的編輯、刪除與復原（HANDOFF-comment-edit 第 6 節）：標頭右邊的「更多」、時間後面的「已編輯」、
+ * 刪除之後的佔位、就地的編輯器、版本的對話框。留言的卡片本身（.comment）在 ActivitySection.module.css，
+ * 通知帶來的閃一下靠它（.entry[data-highlighted] > .body > .comment），佔位也是同一個元素，所以照樣閃。
+ */
+
+/* 留言標頭那一行的最小高度固定成 IconButton sm 的高度：有沒有「更多」、刪除與復原前後，高度都不跳。 */
+.commentLine {
+  min-height: var(--control-height-sm);
+}
+
+/* 「更多」和時間同一列、垂直置中；沒有可做的事時整個不畫（連這個外層都沒有，不然多出一份 gap）。 */
+.menuSlot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: center;
+}
+
+.editedSeparator,
+.editedButton {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 小的文字按鈕：看起來是時間旁的一個字，不是一顆按鈕；點得到的範圍就是那兩個字。 */
+.editedButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  /* 點擊範圍照第 7 節：至少 --target-min（觸控時 44px），字還是時間旁邊的一個小字。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 0.2em;
+}
+
+.editedButton:hover {
+  color: var(--color-text);
+}
+
+/*
+ * 刪除的留言：虛線外框、沒有底色，一眼看得出這裡原本有東西；位置與大小和卡片一樣，復原之後版面不跳。
+ * 加上 [data-deleted] 提高權重：.comment 在另一個模組（ActivitySection），蓋不蓋得過不能靠兩個檔案的載入順序。
+ */
+.deletedComment[data-deleted] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.deletedLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.restoreError {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.editForm[aria-busy='true'] {
+  opacity: 0.8;
+}
+
+.editNote {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.editActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.revisions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.revision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.revisionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.revisionNumber {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}

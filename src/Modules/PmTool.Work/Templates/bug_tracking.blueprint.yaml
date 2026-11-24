@@ -1,0 +1,67 @@
+# 內建模板「缺陷追蹤」，格式第 0 版。
+# 設計理由：
+# - 狀態：新回報 → 已確認 → 修正中 → 待驗證 → 已關閉。把「確認」和「驗證」獨立出來，是因為測試與支援先重現、再由修正的人以外的人驗收；
+#   「不處理」（canceled）收重複回報、無法重現與不打算修的缺陷，留下紀錄而不是刪掉。
+# - 轉換：只列出需要的路徑。待驗證可以退回修正中；已關閉可以重新開啟成修正中；新回報、已確認、修正中、待驗證都能直接標成不處理（修到一半才發現不是缺陷，或驗證時決定接受現狀）。
+#   修正中可以退回已確認（修到一半發現要先等別的問題，不用回頭重新確認）；已確認也可以退回新回報（重現資訊不足，請回報的人補）。
+# - 看板除了依狀態，也有一個依嚴重度分組的看板，分流時一眼看出致命的有幾筆、卡在哪。
+# - 欄位：嚴重度決定處理順序，重現步驟與環境讓開發能重現，發現版本與修正版本方便對照發行。五個欄位，回報的人填得完。
+# - 嚴重度選項由重到輕排列，表格依嚴重度由上而下就是由重到輕。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: bug_tracking
+  name: 缺陷追蹤
+  description: 給測試與支援團隊。缺陷從回報、確認、修正到驗證關閉，依嚴重度排優先。
+  basedOn: { template: bug_tracking, version: "1.0.0" }
+
+fields:
+  - key: severity
+    name: 嚴重度
+    type: single_select
+    options:
+      - { key: critical, name: 致命, color: red }
+      - { key: major,    name: 嚴重, color: orange }
+      - { key: normal,   name: 一般, color: yellow }
+      - { key: minor,    name: 輕微, color: gray }
+  - { key: repro_steps, name: 重現步驟, type: long_text }
+  - { key: environment, name: 環境,     type: text }
+  - { key: found_in,    name: 發現版本, type: text }
+  - { key: fixed_in,    name: 修正版本, type: text }
+
+workflows:
+  - key: bug_flow
+    name: 缺陷流程
+    states:
+      - { key: reported,  name: 新回報, category: not_started }
+      - { key: confirmed, name: 已確認, category: not_started }
+      - { key: fixing,    name: 修正中, category: in_progress }
+      - { key: verifying, name: 待驗證, category: in_progress }
+      - { key: closed,    name: 已關閉, category: done }
+      - { key: wontfix,   name: 不處理, category: canceled }
+    transitions:
+      - { from: reported,  to: confirmed }
+      - { from: reported,  to: wontfix }
+      - { from: confirmed, to: fixing }
+      - { from: confirmed, to: wontfix }
+      - { from: fixing,    to: verifying }
+      - { from: fixing,    to: wontfix }
+      - { from: verifying, to: fixing }      # 驗證沒過，退回修正
+      - { from: verifying, to: closed }
+      - { from: closed,    to: fixing }      # 關閉後又發生，重新開啟
+      - { from: fixing,    to: confirmed }   # 修到一半要先等別的問題
+      - { from: confirmed, to: reported }    # 重現資訊不足，請回報的人補
+      - { from: verifying, to: wontfix }
+      - { from: wontfix,   to: reported }    # 改變主意，重新回報
+
+itemTypes:
+  - { key: bug, name: 缺陷, workflow: bug_flow, fields: [severity, repro_steps, environment, found_in, fixed_in] }
+
+views:
+  - { key: board, name: 缺陷看板, type: board, groupBy: state }
+  - { key: by_severity_board, name: 依嚴重度看板, type: board, groupBy: severity }
+  - key: by_severity
+    name: 依嚴重度
+    type: table
+    columns: [title, state, severity, assignee, found_in, fixed_in]
+    sort: [{ field: severity, direction: asc }]

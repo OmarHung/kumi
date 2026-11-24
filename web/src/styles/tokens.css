@@ -1,0 +1,207 @@
+/*
+ * 設計變數（docs/DESIGN.md 第 2 節）。元件只用這裡的變數，不直接寫顏色與尺寸；換主題或調密度時只改這一份。
+ * 方向是「明亮的工作室」（第 1 節）：年輕但不失專業——紫藍的強調色、圓一點的角、柔和的陰影、友善的字型；
+ * 顏色仍然只拿來表達意義（互動、狀態、危險），沒有裝飾用的色條。
+ * 顏色用 light-dark()：淺色與深色並排寫在同一行，使用者手動選的主題（<html data-theme>）蓋過系統設定。
+ */
+:root {
+  color-scheme: light dark;
+
+  /*
+   * 字型：拉丁字母與數字用自帶的 Plus Jakarta Sans（main.tsx 匯入 @fontsource-variable，檔案和網站同網域，
+   * 內容安全政策 default-src 'self' 允許）；中文沒有自帶（一套繁中字型好幾 MB），落到系統的台灣字體。
+   * 等寬字（編號、代號）用自帶的 Geist Mono。
+   */
+  --font-sans: 'Plus Jakarta Sans Variable', system-ui, -apple-system, 'Segoe UI', 'PingFang TC', 'Noto Sans TC',
+    'Microsoft JhengHei', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-base: 0.875rem; /* 14 */
+  --text-md: 1rem; /* 16 */
+  --text-lg: 1.25rem; /* 20 */
+  --text-xl: 1.5rem; /* 24 */
+  --text-control: var(--text-base); /* 輸入框裡的字，觸控時換成 16px */
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.65; /* 長段文字：項目的說明與留言的內文 */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700; /* 只給頁面與內容區的大標題 */
+
+  --space-0-5: 0.125rem; /* 2px，緊貼的小間隙 */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  --radius-sm: 6px; /* 外框裡面的內層項目（選單項目、分段切換的一格）、勾選框、小方塊 */
+  --radius-md: 8px; /* 按鈕、輸入框、選單與浮層的外框 */
+  --radius-lg: 12px; /* 看板的卡片、區塊的卡片、面板 */
+  --radius-xl: 16px; /* 對話框、看板的欄 */
+  --radius-pill: 999px; /* 標籤、頭像、計數 */
+
+  --control-height: 2rem;
+  --control-height-sm: 1.75rem;
+  --row-height: 2.25rem; /* 表格與清單一列的高度 */
+  --target-min: 1.5rem; /* 任何可以點的東西的最小邊長 */
+  --scrollbar-size: 0.625rem; /* 捲軸的寬（直向）與高（橫向）：把手兩邊各讓出 2px，看得到的把手是 6px 的膠囊 */
+  --page-bar-height: 3rem;
+  --page-bar-inset: 0rem; /* 頁列開頭讓出的寬度：外框（AppShell）把收合側欄與「選單」的按鈕疊在那裡時設定 */
+  --page-gutter: var(--space-6); /* 內容區左右的留白 */
+  --sidebar-width: 14rem;
+  --lane-width: 17.5rem;
+  --side-panel-width: 28rem; /* 清單旁邊的面板（SidePanel）的預設寬度：使用者可以拖拉調整（第 7 節），點兩下把手回到這個寬度 */
+  --content-max: 72rem;
+  --reading-max: 46rem; /* 長段文字（說明、留言）一行的最大寬度 */
+  --assistant-button-size: 3rem; /* 右下角的 AI 助理按鈕：新通知的提示讓出這個高度 */
+  --dialog-width: 30rem;
+  --dialog-width-lg: 40rem; /* 有表格的對話框 */
+  --dialog-width-item: 64rem; /* 項目的浮動視窗最少這麼寬（畫面放得下時）：欄位排在右邊一欄的版面 */
+  --dialog-width-item-max: 100rem; /* 項目的浮動視窗預設最寬（畫面的 85% 超過時；使用者可以再拉寬） */
+
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-spin: 0.8s; /* 載入指示轉一圈：唯一允許無限循環的動態 */
+  --duration-highlight: 1.4s; /* 剛移好的卡片閃一下：要慢到看得出落在哪裡 */
+  --duration-target: 2.4s; /* 點通知後被標出來的那一筆留言淡出：和 features/item-page/commentTarget.ts 的 HIGHLIGHT_MS 同一個數字 */
+  --duration-pulse: 1.6s; /* 骨架明暗變化一次：慢到不搶眼，看得出還在載入 */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* 層級由低到高。浮層在對話框上面：對話框裡也可以開選單。 */
+  --z-sticky: 5; /* 黏住的表頭、工具列 */
+  --z-topbar: 10; /* 外框疊在頁列左上角的按鈕（收合側欄、窄螢幕的「選單」），在黏住的頁列上面 */
+  --z-drawer: 20;
+  --z-assistant: 30; /* 右下角的 AI 助理按鈕與浮動面板：不是對話框（背後照樣能操作），在抽屜與項目的側邊面板上面、對話框下面 */
+  --z-dialog: 40;
+  --z-popover: 50; /* 選單、浮層 */
+
+  /*
+   * 中性色帶一點紫藍（和強調色同一個色相），整體不會冷冰冰的灰。
+   * 紙與桌面明暗都不用純白與近黑：淺色是帶紫的藤灰，深色是深藍紫的鐵紺（docs/design/02-tokens.md 2.2）。
+   */
+  --color-canvas: light-dark(#eeedf5, #1c1d2e);
+  --color-surface: light-dark(#f7f6fb, #232438);
+  /* 浮在紙上的小塊（分段切換目前的那一格、看板的卡片）：淺色就是紙；深色比紙亮一階，黑色的陰影看不到，要靠亮度分出來。 */
+  --color-surface-raised: light-dark(#f7f6fb, #2c2e45);
+  --color-surface-sunken: light-dark(#e7e5f0, #17182a);
+  --color-sidebar: light-dark(#ebe9f3, #1f2033);
+  --color-hover: light-dark(rgb(23 23 42 / 5%), rgb(236 236 244 / 6%));
+  --color-selected: var(--color-accent-soft); /* 選取的列、目前的導覽項目（反白的選項是實心的 --color-accent） */
+  --color-border: light-dark(#dddbe8, #333552);
+  --color-border-strong: light-dark(#c6c3d6, #45486a);
+  --color-control-border: light-dark(#76798f, #7c80a3); /* 輸入框與次要按鈕的外框：對比 3:1 以上 */
+  --color-scrollbar-thumb: light-dark(rgb(23 23 42 / 30%), rgb(236 236 244 / 28%)); /* 捲軸的把手：半透明的字色，在紙、側欄、凹下去的底上都一樣 */
+  --color-scrollbar-thumb-hover: light-dark(rgb(23 23 42 / 50%), rgb(236 236 244 / 45%)); /* 滑過與拖曳中的把手：對底 3:1 以上 */
+  --color-text: light-dark(#17172a, #ececf4);
+  --color-text-muted: light-dark(#565a71, #aaadc6);
+  --color-accent: light-dark(#5a4ae3, #a99eff);
+  --color-accent-hover: light-dark(#4837d0, #c2baff);
+  --color-accent-soft: light-dark(#e6e2ff, #322d63);
+  /*
+   * 實心的強調色（主要按鈕、反白的選項、勾選的方框、選的日期）：深色模式不用 --color-accent 的淡紫，
+   * 否則實心按鈕像糖果；用飽和的紫藍配白字。--color-accent 留給連結、文字、焦點外框這些「線與字」。
+   */
+  --color-accent-solid: light-dark(#5a4ae3, #6354e8);
+  --color-accent-solid-hover: light-dark(#4837d0, #5546d9);
+  --color-accent-contrast: #ffffff; /* 實心強調色、實心危險色上的字 */
+  --color-focus: var(--color-accent);
+  /* 輸入框、下拉取得焦點時外框外面的一圈光暈（3px，第 2.2 節允許的焦點寬度）：外框本身換成 --color-focus。 */
+  --color-focus-ring: light-dark(rgb(90 74 227 / 22%), rgb(169 158 255 / 30%));
+  --color-danger: light-dark(#cc2a1f, #ff8b7c);
+  --color-danger-hover: light-dark(#a81f16, #ffaca1);
+  --color-danger-soft: light-dark(#fff0ee, #4e211e);
+  --color-danger-solid: light-dark(#cc2a1f, #c9372c); /* 實心的危險按鈕、危險選單項目的反白；理由同 --color-accent-solid */
+  --color-danger-solid-hover: light-dark(#a81f16, #b02d23);
+  --color-warning: light-dark(#9c5100, #f5b553);
+  --color-warning-soft: light-dark(#fff0db, #39342a);
+  --color-success: light-dark(#0f7a4e, #5ed39b);
+  --color-success-soft: light-dark(#e2f5eb, #153c26);
+  --color-neutral-soft: light-dark(#e0deeb, #2d303d);
+  --color-overlay: light-dark(rgb(15 16 30 / 40%), rgb(0 0 0 / 60%));
+
+  /*
+   * 狀態類別。進行中是自己的藍（不再借強調色）：紫藍是「可以按」，藍是「正在做」，綠是「做完了」，
+   * 一眼分得出互動與狀態。每個類別有字色與淡底（標籤用）。
+   */
+  --color-state-idle: var(--color-text-muted); /* 待規劃、未開始、已取消 */
+  --color-state-idle-soft: var(--color-neutral-soft);
+  --color-state-active: light-dark(#1a5fd0, #6fa8ff); /* 進行中 */
+  --color-state-active-soft: light-dark(#e8f0fe, #1d345c);
+  --color-state-done: var(--color-success); /* 完成 */
+  --color-state-done-soft: var(--color-success-soft);
+
+  /*
+   * 頭像的六種色調：照名稱算出固定的一種（components/Avatar），同一個人在哪裡都是同一個顏色，
+   * 一眼認得出是誰。字色對底色都在 4.5:1 以上（第 2.2 節）。
+   */
+  --color-avatar-1: light-dark(#4b3cc9, #c3bbff);
+  --color-avatar-1-soft: light-dark(#ece9ff, #36306a);
+  --color-avatar-2: light-dark(#1b57c0, #93bdff);
+  --color-avatar-2-soft: light-dark(#e3eeff, #1c3057);
+  --color-avatar-3: light-dark(#0d6b62, #6fd6c8);
+  --color-avatar-3-soft: light-dark(#dcf4f1, #163d39);
+  --color-avatar-4: light-dark(#1d6b37, #86d99e);
+  --color-avatar-4-soft: light-dark(#e1f5e7, #1a3c23);
+  --color-avatar-5: light-dark(#8a4b00, #f3c26b);
+  --color-avatar-5-soft: light-dark(#fdf0d7, #413013);
+  --color-avatar-6: light-dark(#a8285f, #ff9cc7);
+  --color-avatar-6-soft: light-dark(#fde7f1, #4b2237);
+
+  /*
+   * 藍圖選項的顏色（單選、多選欄位的標籤）：藍與紫各有自己的變數。強調色換成紫藍之後，借它來畫「藍」的選項會變成紫色，
+   * 藍與紫也分不出來。其他顏色（紅、橙、黃、綠、灰）照舊對到語意色的標籤。
+   */
+  --color-option-blue: light-dark(#1d5fc4, #7fb2ff);
+  --color-option-blue-soft: light-dark(#e5efff, #1b3052);
+  --color-option-purple: light-dark(#7a3fc2, #cfa6ff);
+  --color-option-purple-soft: light-dark(#f2e9fd, #392858);
+
+  /* 陰影帶一點強調色的色相、比較柔：浮起來的東西看起來輕，不是一塊黑影。 */
+  --shadow-raised:
+    0 1px 2px light-dark(rgb(23 23 42 / 6%), rgb(0 0 0 / 40%)),
+    0 1px 1px light-dark(rgb(23 23 42 / 3%), rgb(0 0 0 / 20%));
+  --shadow-raised-hover: /* 滑過看板的卡片：浮起來一點，看得出拿得起來 */
+    0 4px 12px light-dark(rgb(23 23 42 / 8%), rgb(0 0 0 / 45%)),
+    0 1px 2px light-dark(rgb(23 23 42 / 6%), rgb(0 0 0 / 30%));
+  --shadow-popover:
+    0 12px 32px -4px light-dark(rgb(23 23 42 / 14%), rgb(0 0 0 / 55%)),
+    0 2px 6px light-dark(rgb(23 23 42 / 6%), rgb(0 0 0 / 30%));
+  --shadow-dialog:
+    0 24px 64px -12px light-dark(rgb(23 23 42 / 26%), rgb(0 0 0 / 65%)),
+    0 4px 12px light-dark(rgb(23 23 42 / 8%), rgb(0 0 0 / 30%));
+}
+
+/* 觸控：同一份畫面，目標變大、輸入框的字不小於 16px（否則 iOS 聚焦時會放大整頁）。 */
+@media (pointer: coarse) {
+  :root {
+    --control-height: 2.75rem;
+    --control-height-sm: 2.75rem;
+    --row-height: 2.75rem;
+    --target-min: 2.75rem;
+    --text-control: 1rem;
+  }
+}
+
+@media (max-width: 48rem) {
+  :root {
+    --page-gutter: var(--space-4);
+  }
+}
+
+/* 使用者手動選的主題蓋過系統設定；沒選就跟著系統。 */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}

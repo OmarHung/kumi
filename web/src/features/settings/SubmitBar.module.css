@@ -1,0 +1,111 @@
+/*
+ * 設定頁的送出列：還沒送出的修改有幾項、摘要、「捨棄修改」與「預覽變更」，以及問題的說明。
+ * 沒有修改時就是頁尾的一行（上面一條細線），不黏住、不佔畫面；有修改時黏在畫面底部，改到哪裡都看得到還有幾項沒送出。
+ */
+.submitBar {
+  /* 只給報讀軟體的說明是絕對定位的：以送出列為基準，不跑到別處撐寬頁面。 */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/*
+ * 黏住時往左右延伸到內容區的邊（抵銷內容的左右留白），底下讓出手機的安全區域（docs/DESIGN.md 6.3）。
+ * 不加陰影：上緣的細線就分得出它和下面捲過去的內容。
+ */
+.submitBar[data-dirty='true'] {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  margin-inline: calc(-1 * var(--page-gutter));
+  padding: var(--space-2) var(--page-gutter) calc(var(--space-2) + env(safe-area-inset-bottom));
+}
+
+.submitRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.pendingCount {
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 摘要：沒有錯誤時標籤和輸入框排在同一行（寬螢幕整條送出列是一行；nowrap 讓「摘要」兩個字不被擠成直的），
+ * 有錯誤時（輸入框 aria-invalid）照 Field 原本的直排，錯誤寫在輸入框下面。兩個 class 提高權重，蓋過 Field 自己的直排。
+ * 說明不在 Field 裡（SubmitBar.tsx 自己的 .visually-hidden 元素），這裡不必知道 Field 的 DOM 長什麼樣子。
+ */
+.submitRow > .summaryField {
+  flex: 1 1 16rem;
+}
+
+.submitRow > .summaryField:not(:has([aria-invalid='true'])) {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.submitActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.addSummary {
+  margin-left: auto;
+}
+
+.unplaced {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+/*
+ * 黏住的送出列會蓋住頁面最下面的東西：有修改時整頁留出它的高度（scroll-padding-bottom），
+ * Tab 走到、或程式把焦點放到的元素才不會停在送出列底下。高度照一列（寬螢幕）、兩列（手機）的控制項算，含安全區域；
+ * 送出列上方的說明（問題、別的區塊）出現時會更高，那時多出來的部分不算。
+ */
+:root:has(.submitBar[data-dirty='true']) {
+  --submit-bar-height: calc(var(--control-height) + 2 * var(--space-2) + 1px);
+
+  scroll-padding-bottom: calc(var(--submit-bar-height) + env(safe-area-inset-bottom) + var(--space-2));
+}
+
+/*
+ * 手機：最多兩列。沒有摘要時，幾項修改與「加上摘要」一列，「捨棄修改」「預覽變更」一列（靠右，拇指搆得到）；
+ * 摘要打開或已經有內容時，摘要自己一列排在上面，幾項修改與兩顆按鈕一列（太窄時幾項修改的字在自己的格子裡換行）。
+ */
+@media (max-width: 48rem) {
+  :root:has(.submitBar[data-dirty='true']) {
+    --submit-bar-height: calc(2 * var(--control-height) + 3 * var(--space-2) + 1px);
+  }
+
+  .submitBar[data-dirty='true'] .submitActions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+
+  .submitRow:has(> .summaryField) > .summaryField {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .submitRow:has(> .summaryField) > .pendingCount {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .submitRow:has(> .summaryField) > .submitActions {
+    flex-basis: auto;
+  }
+}

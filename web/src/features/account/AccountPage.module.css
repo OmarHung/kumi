@@ -1,0 +1,58 @@
+/*
+ * 設定中心的個人頁（我的帳號、通知、AI 帳號、命令列與整合，docs/design/08-interaction.md 8.3）：
+ * 一頁是幾塊 SettingsSection（左欄標題與說明、右欄整塊，塊與塊之間細線，沒有卡片與陰影）。
+ * 頁面本身不限寬：寬度由設定中心的內容欄決定，區塊的右欄自己以 --reading-max 為限；表單的欄位再窄一點，密碼不必拉滿一整行。
+ */
+.page {
+  --account-field-width: 24rem;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 基本資料：標籤是灰字、值是一般的字，兩欄對齊；Email 很長時在值裡換行，不把頁面撐寬。 */
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-6);
+  align-items: baseline;
+  margin: 0;
+}
+
+.fact {
+  display: contents;
+}
+
+.fact dt {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--account-field-width);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

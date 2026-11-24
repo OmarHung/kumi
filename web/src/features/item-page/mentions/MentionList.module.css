@@ -1,0 +1,52 @@
+/*
+ * 打 @ 時的成員清單：和 Select 的清單同一種紙（Floating 給的細線、--radius-md、--shadow-popover），選項的列、反白、
+ * 不能選的說明也照 Select（docs/DESIGN.md 7.3）。捲動的只有清單本身，最高 14rem。
+ */
+.surface {
+  --mention-list-max-height: 14rem;
+
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  overflow: hidden;
+}
+
+.list {
+  min-height: 0;
+  max-height: var(--mention-list-max-height);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.option,
+.empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.option {
+  cursor: pointer;
+}
+
+/* 反白（滑過或方向鍵所在，同時只有一個）：實心的強調色底、白字；不畫左邊的色條。強制色彩時由系統色接手。 */
+.option[data-active='true'] {
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+}
+
+.name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,33 @@
+/* 存取權杖：清單與建立對話框。版面的外距沿用我的帳號（AccountPage.module.css）。 */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 明文的開頭：等寬字、灰字，只是用來認出是哪一把。 */
+.prefix {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.secretView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 明文放在唯讀的欄位裡：等寬字，放不下時在欄位裡橫向捲動，不把對話框撐寬。 */
+.secretField input {
+  font-family: var(--font-mono);
+}
+
+.copyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

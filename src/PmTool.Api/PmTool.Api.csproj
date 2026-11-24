@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Modules\PmTool.Ai.Contracts\PmTool.Ai.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Ai\PmTool.Ai.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Blueprint\PmTool.Blueprint.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Identity.Contracts\PmTool.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Identity\PmTool.Identity.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Notifications.Contracts\PmTool.Notifications.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Notifications\PmTool.Notifications.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Work.Contracts\PmTool.Work.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Work\PmTool.Work.csproj" />
+    <ProjectReference Include="..\Shared\PmTool.Abstractions\PmTool.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

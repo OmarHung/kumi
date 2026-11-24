@@ -1,0 +1,77 @@
+# 範例項目：示範目標 → 計畫 → 功能三層、各個狀態，以及一筆已過期的功能。
+items:
+  - ref: start
+    type: goal
+    title: 從這裡開始：路線圖怎麼用
+    state: planning
+    priority: low
+    description: |
+      這個專案有三種類型：目標、計畫、功能。計畫的上層項目是目標，功能的上層項目是計畫。
+      三種類型共用同一個流程：構想 → 規劃中 → 進行中 → 已完成，暫時不做的放「擱置」。
+
+      - 用「影響」與「信心」替計畫與功能排序，兩個都高的先做。
+      - 「預計季度」選本季、下一季或之後，不用寫死日期。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+    fields:
+      quarter: this_quarter
+  - ref: retention
+    type: goal
+    title: 範例：提高新使用者的留存
+    state: building
+    priority: high
+    fields:
+      quarter: this_quarter
+  - ref: onboarding
+    type: plan
+    title: 範例：新手引導改版
+    state: building
+    priority: high
+    parent: retention
+    startInDays: -14
+    dueInDays: 30
+    fields:
+      impact: high
+      confidence: medium
+      quarter: this_quarter
+  - type: feature
+    title: 範例：首次登入的互動導覽
+    state: building
+    priority: high
+    parent: onboarding
+    startInDays: -7
+    dueInDays: -1
+    fields:
+      impact: high
+      confidence: high
+      quarter: this_quarter
+  - type: feature
+    title: 範例：模板專案一鍵建立
+    state: launched
+    priority: medium
+    parent: onboarding
+    startInDays: -30
+    dueInDays: -10
+    fields:
+      impact: medium
+      confidence: high
+      quarter: this_quarter
+  - type: feature
+    title: 範例：新手任務清單與完成獎勵
+    state: idea
+    priority: low
+    parent: onboarding
+    fields:
+      impact: medium
+      confidence: low
+      quarter: next_quarter
+  - type: plan
+    title: 範例：行動版離線模式
+    state: shelved
+    priority: none
+    parent: retention
+    description: 評估後影響不明確，先擱置，等有更多使用者回饋再回頭看。
+    fields:
+      impact: low
+      confidence: low
+      quarter: later

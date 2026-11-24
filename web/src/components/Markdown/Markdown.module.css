@@ -1,0 +1,232 @@
+/*
+ * 說明與留言的 Markdown（docs/DESIGN.md 7.4）：只用設計變數，深色與淺色跟著變數走。
+ * 字級與行距和原本純文字的說明一樣（--text-md、--leading-relaxed）；一行最寬由外面的容器限制（--reading-max）。
+ * 內容裡的標題只是比內文大一點的粗體，不是頁面的結構（層級由 MarkdownContent 壓在 h4 以下）。
+ */
+.markdown {
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+
+/* 還沒下載好時的純文字：換行與縮排照原樣。 */
+.markdown[data-state='plain'] {
+  white-space: pre-wrap;
+}
+
+/* 第一個與最後一個區塊貼著容器，間距只在區塊之間。 */
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown pre,
+.markdown table,
+.markdown .scroll {
+  margin: var(--space-3) 0;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: var(--space-6);
+}
+
+.markdown li + li {
+  margin-top: var(--space-1);
+}
+
+.markdown li > ul,
+.markdown li > ol {
+  margin: var(--space-1) 0 0;
+}
+
+/* 工作清單：沒有項目符號，勾選的小方塊在字前面。 */
+.markdown li[data-task='true'] {
+  list-style: none;
+}
+
+.markdown li[data-task='true'] > .taskBox,
+.markdown li[data-task='true'] > p > .taskBox:first-child {
+  margin-left: calc(-1 * var(--space-6));
+}
+
+.taskBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125em;
+  height: 1.125em;
+  margin-right: var(--space-2);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-accent-contrast);
+  vertical-align: text-bottom;
+}
+
+.taskBox[data-checked='true'] {
+  border-color: var(--color-accent-solid);
+  background: var(--color-accent-solid);
+}
+
+.heading {
+  margin: var(--space-4) 0 var(--space-2);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.heading[data-level='1'] {
+  font-size: var(--text-xl);
+}
+
+.heading[data-level='2'] {
+  font-size: var(--text-lg);
+}
+
+.heading[data-level='3'],
+.heading[data-level='4'] {
+  font-size: var(--text-md);
+}
+
+.heading[data-level='5'],
+.heading[data-level='6'] {
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+}
+
+.markdown a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.markdown a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* 引用：灰字加縮排，用字色與縮排區分，不畫色條（第 9 節）。 */
+.markdown blockquote {
+  padding-left: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.markdown :not(pre) > code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+}
+
+.markdown pre {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.markdown pre code {
+  font-family: inherit;
+}
+
+.scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* 寬的表格自己捲：外框是細線、表頭粗體，欄的內容不折行才不會擠成一條。 */
+.markdown .scroll {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.markdown table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+.markdown th,
+.markdown td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  background: var(--color-surface-sunken);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.markdown tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown hr {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.markdown del {
+  color: var(--color-text-muted);
+}
+
+/* 提及：「@名稱」在淡底上，字是強調色；前面的 @ 讓它不只靠顏色看得出來。不是連結，所以沒有底線。 */
+.mention {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-selected);
+  color: var(--color-accent);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+/*
+ * 自己附件的圖片：寬度最多一整行、高度最多 30rem（長截圖不把整段留言撐得很長），不變形；點了在新分頁開原圖。
+ * 圖片是行內的，載入失敗時換成的那一行字也是行內的（附件被刪了，留言照樣讀得通）。
+ */
+.imageLink {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.image {
+  display: block;
+  max-width: 100%;
+  max-height: 30rem;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * 還沒載好的圖片先留一點高度：通知連過來捲到某一則留言之後，上面的圖片才載好會把它推走。
+ * 載好（拿掉 data-loading）就照圖片本身的高度；用淡底讓這塊空間看得出來是在等圖片。
+ */
+.image[data-loading] {
+  min-height: 8rem;
+  min-width: 8rem;
+  background: var(--color-hover);
+}
+
+.imageGone {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}

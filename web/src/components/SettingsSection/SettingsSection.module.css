@@ -1,0 +1,77 @@
+/*
+ * 設定頁的一塊：左欄標題與說明、右欄整塊的內容（docs/design/07-components.md 的 SettingsSection）。
+ * 容器（設定中心的內容欄，container-name settings-hub）46rem 以上排成兩欄，不到時上下排；
+ * 46rem 是「左欄 14rem 加間距之後，右欄還放得下存取權杖的表格」的寬度：1024 寬、側欄展開時上下排，1280 以上兩欄。
+ */
+.section {
+  --settings-aside-width: 14rem;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3) var(--space-8);
+  align-items: start;
+  padding-block: var(--space-6);
+  scroll-margin-top: calc(var(--page-bar-height) + var(--space-4));
+}
+
+.section:first-child {
+  padding-top: 0;
+}
+
+.section + .section {
+  border-top: 1px solid var(--color-border);
+}
+
+@container settings-hub (min-width: 46rem) {
+  .section {
+    grid-template-columns: var(--settings-aside-width) minmax(0, 1fr);
+  }
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* 區塊標題 h2（第 3 節）。 */
+.title {
+  margin: 0;
+  text-wrap: balance;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.description {
+  text-wrap: pretty;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.description > * {
+  margin: 0;
+}
+
+/* 右欄：內容由上而下，同一塊裡的東西間隔 space-3；長段文字照樣以 --reading-max 為限。 */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: var(--reading-max);
+}
+
+/*
+ * 右欄的清單（存取權杖、連線、主機、電腦）：區塊上緣已經有一條分隔線，清單自己的上邊線拿掉，
+ * 不然兩條線只隔 space-6，看起來像雙線、清單也比左欄的標題高一截（2026-11-24 審查）。下邊線留著，和下面的按鈕分開。
+ * 只管右欄最外層的清單（直接放在右欄，或包在一層外框裡的 List）；清單裡面的清單不動。
+ */
+.body > ul,
+.body > div > ul {
+  border-top: 0;
+}

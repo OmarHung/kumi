@@ -1,0 +1,199 @@
+/*
+ * 設定頁的轉換：每個流程一張「從 → 到」的表格。狀態多時表格在自己的容器裡橫向捲動，第一欄（起點）固定，
+ * 整頁不會被撐寬。格子還沒送出的修改一定有文字（「新增」「已修改」「要刪除」，字是該語意的顏色）；
+ * 已修改、要刪除的格子再加同語意的淡底，新增的格子只有文字。和設定頁的列一樣，不畫左邊的色條。
+ */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.panelHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+/* 全域只重設了 h1～h3 的外距：h4 自己歸零，否則標題列上下多出一行字的空白。 */
+.panelTitle {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+/* 「限制轉換」是共用的 CheckboxField（整個標籤可以點）；這裡只放字級。 */
+.toggle {
+  font-size: var(--text-sm);
+}
+
+/*
+ * 格子裡給螢幕閱讀器的隱藏文字是絕對定位的：容器不當基準的話，捲出去的那些會把整頁撐寬。
+ * 表格直接放在紙上：外面一圈細線，沒有圓角與陰影（docs/DESIGN.md 第 5 節）。
+ */
+.scroll {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.scroll:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.matrix {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-sm);
+}
+
+.matrix th,
+.matrix td {
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.matrix tr > :last-child {
+  border-right: 0;
+}
+
+.matrix tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.corner,
+.rowHeader {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-surface-sunken);
+  text-align: left;
+}
+
+.corner {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-3);
+  white-space: nowrap;
+}
+
+.columnHeader {
+  min-width: 5.5rem;
+  max-width: 8rem;
+  padding: var(--space-2);
+  background: var(--color-surface-sunken);
+  font-weight: var(--weight-medium);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* overflow-wrap: anywhere 讓最小寬度只剩一個字，窄螢幕時表格會把這一欄擠成一字一行；給一個下限，太長的名稱才折行。 */
+.rowHeader {
+  min-width: 6rem;
+  max-width: 9rem;
+  padding: var(--space-2) var(--space-3);
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.cell {
+  min-width: 5.5rem;
+  padding: var(--space-1) var(--space-2);
+  vertical-align: top;
+}
+
+/* 新增的格子不加底：強調色的淡底就是「已選取」的底色，看起來會像選取了那一格；「新增」兩個字是強調色。 */
+.cellModified {
+  background: var(--color-warning-soft);
+}
+
+.cellRemoved {
+  background: var(--color-danger-soft);
+}
+
+.cellInvalid {
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+}
+
+.cellBody {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  min-height: var(--control-height-sm);
+}
+
+/* 勾選框的點擊範圍是包住它的 label：至少 --target-min 見方（滑鼠 24px、觸控 44px，docs/DESIGN.md 第 5 節）。 */
+.cellToggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.cellToggle:hover {
+  background: var(--color-hover);
+}
+
+.cellToggle > input {
+  cursor: inherit;
+}
+
+.cellButton {
+  padding-inline: var(--space-1);
+}
+
+.cellTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.cellStatus {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+/* 修改的文字用該語意的顏色（對紙與各自的淡底都在 4.5:1 以上）：拿掉色條之後，字（與淡底）說明是哪一種修改。 */
+.cellAdded .cellStatus {
+  color: var(--color-accent);
+}
+
+.cellModified .cellStatus {
+  color: var(--color-warning);
+}
+
+.cellRemoved .cellStatus {
+  color: var(--color-danger);
+}
+
+.cellIssue {
+  font-weight: var(--weight-semibold);
+  color: var(--color-danger);
+}
+
+/* 自己到自己：只有淡底（沒有符號），「不能轉到自己」是隱藏文字。 */
+.diagonal {
+  min-width: 5.5rem;
+  background: var(--color-surface-sunken);
+}
+
+.readOnlyList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+}

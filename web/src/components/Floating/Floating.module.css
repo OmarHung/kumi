@@ -1,0 +1,41 @@
+/*
+ * 浮起來的紙：細線、--shadow-popover。蓋過瀏覽器給 [popover] 的預設（置中、inset: 0、Canvas 底色），
+ * 座標由 Floating.tsx 用程式設定。寬度照內容，最寬到視窗減掉兩邊的留白；太高時自己捲動。
+ */
+.floating {
+  position: fixed;
+  inset: auto;
+  z-index: var(--z-popover);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--space-2));
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-sm);
+  animation: grow-down var(--duration-normal) var(--ease-out);
+}
+
+/* 從按鈕長出來（第 10 節）：淡入加一點點位移，方向跟著放在按鈕的哪一邊（翻到上方時由下往上）。 */
+.floating[data-side='top'] {
+  animation-name: grow-up;
+}
+
+@keyframes grow-down {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes grow-up {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}

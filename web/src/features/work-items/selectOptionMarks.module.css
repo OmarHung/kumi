@@ -1,0 +1,73 @@
+/*
+ * 下拉選項前面的佔位小圖（selectOptionMarks.tsx，docs/DESIGN.md 7.3）：清單裡有的選項有小圖時，其他選項也給一個同樣大的，字才對齊。
+ * 人員的清單和 Avatar 的 sm 一樣大（20px），狀態的清單和狀態的形狀（16px 的圖示）一樣大：大小是這裡的區域變數，
+ * 不借用間距的變數（間距改了，小圖不該跟著變）。
+ */
+.person {
+  --person-mark-size: 1.25rem;
+  /* 「所有人」圓裡的人員圖示：12px，和頭像裡的字一樣大（規範 7.3 寫的例外：16px 的圖示放進 20px 的圓會比頭像重）。 */
+  --everyone-icon-size: 0.75rem;
+
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--person-mark-size);
+  height: var(--person-mark-size);
+  border-radius: var(--radius-pill);
+}
+
+/*
+ * 沒有人（「沒有負責人」「沒有人」，看板卡片上的也是）：虛線的空圓，和頭像一樣大。用字色（currentColor），和其他小圖一樣
+ * 跟著所在的那一行：卡片底下那一列是次要的字色（它是唯一看得到的線索，要 3:1 以上），反白的選項是實心強調色上的
+ * --color-accent-contrast（寫死次要的字色的話，在強調色上只有 1.02:1，圓就不見了）。
+ */
+.nobody {
+  border: 1px dashed currentColor;
+}
+
+/* 所有人：頭像的底色加上人員的圖示（縮小一號，留出和頭像的字一樣的邊）。 */
+.everyone {
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+}
+
+.everyone > svg {
+  width: var(--everyone-icon-size);
+  height: var(--everyone-icon-size);
+}
+
+/* 名字查不到的人（已經不是成員）：沒有字的頭像。 */
+.unknownPerson {
+  background: var(--color-neutral-soft);
+}
+
+/* 「所有狀態」不是一個狀態：畫「沒有值」的短線（規範 7.1），框和狀態的形狀一樣大。 */
+.noState {
+  --state-mark-size: 1rem;
+  --no-state-line-width: 0.75rem;
+
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--state-mark-size);
+  height: var(--state-mark-size);
+}
+
+.noState::before {
+  width: var(--no-state-line-width);
+  height: 1px;
+  background: var(--color-border-strong);
+  content: '';
+}
+
+/* 強制色彩會拿掉底色：只靠底色的兩種另外畫系統色的外框，仍然看得出是一個圓；短線改用系統的字色。 */
+@media (forced-colors: active) {
+  .everyone,
+  .unknownPerson {
+    border: 1px solid CanvasText;
+  }
+
+  .noState::before {
+    background: CanvasText;
+  }
+}

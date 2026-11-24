@@ -1,0 +1,84 @@
+# 範例項目：建立專案時勾了「附上範例項目」才會建立。
+# 想示範四件事：需求怎麼走交付流程（需求確認到結案）、任務怎麼掛在需求底下、子任務怎麼掛在任務底下、需求變更單和需求的差別。
+# 已結案的需求把「客戶驗收日」也填上，因為客戶驗收轉到結案要求先填這個欄位；其餘的日期是示意。
+items:
+  - ref: start_here
+    type: requirement
+    title: 從這裡開始：認識接案專案
+    state: confirming
+    priority: medium
+    description: |
+      這個專案有三種項目：
+      - **需求**：客戶要的東西，依序經過需求確認、報價、設計、開發、內部驗收、客戶驗收，最後結案。
+      - **需求變更單**：做到一半客戶要改，另外開一張，走同一條流程，可以記下變更原因與影響程度。
+      - **任務**：要做的事，掛在需求或需求變更單底下，狀態有待辦、進行中、內部驗收、等客戶、待上線、完成，另外還有暫停與取消。
+      - **子任務**：任務再拆小的部分，只能掛在任務底下，狀態和任務一樣。任務與子任務都可以填實際工時。
+
+      內部驗收轉到客戶驗收要專案經理才能操作；結案前要先填客戶驗收日。
+      這些範例項目可以逐筆刪掉。
+
+  - ref: homepage
+    type: requirement
+    title: 範例：首頁改版
+    state: developing
+    priority: high
+    description: 依新的品牌風格改版首頁，含手機版面。
+    startInDays: -10
+    dueInDays: 14
+    fields:
+      quote_amount: 80000
+
+  - ref: layout_task
+    type: task
+    title: 範例：切版與共用元件
+    state: doing
+    priority: medium
+    parent: homepage
+    startInDays: -5
+    dueInDays: 5
+
+  - type: subtask
+    title: 範例：按鈕與表單元件
+    state: internal_review
+    priority: medium
+    parent: layout_task
+    dueInDays: 2
+    fields:
+      actual_hours: 6
+
+  - type: task
+    title: 範例：整理客戶提供的素材
+    state: todo
+    priority: low
+    parent: homepage
+    dueInDays: -2
+    description: 這一筆的到期日已經過了，清單上會標示過期。
+
+  - type: requirement
+    title: 範例：會員登入
+    state: closed
+    priority: medium
+    startInDays: -40
+    dueInDays: -10
+    fields:
+      quote_amount: 120000
+      client_signoff_date: -3
+
+  - ref: promo_block
+    type: change_request
+    title: 範例：首頁加上活動區塊
+    state: quoting
+    priority: high
+    description: 客戶在驗收前提出，要在首頁加一塊活動宣傳。
+    dueInDays: 21
+    fields:
+      change_reason: 客戶新增了檔期活動，希望首頁就能看到。
+      impact: medium
+      quote_amount: 15000
+
+  - type: task
+    title: 範例：評估活動區塊的工時
+    state: doing
+    priority: medium
+    parent: promo_block
+    dueInDays: 3

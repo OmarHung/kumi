@@ -1,0 +1,71 @@
+# 內建模板「Scrum 衝刺」，格式第 0 版。
+# 設計理由：
+# - 類型：史詩 → 故事 → 任務三層，缺陷掛在故事或史詩底下。史詩是跨好幾個衝刺的大主題，故事是一個衝刺內交得出來的使用者價值，
+#   任務是故事拆出來的工作；缺陷是測試或使用中發現的問題，可能屬於某個故事，也可能是整個史詩層級的問題，所以上層兩者都行。
+#   四個類型共用同一條流程，團隊只要學一次，看板上也不會因為類型不同而多出欄位。
+# - 狀態：待辦 → 進行中 → 審查中 → 完成，另有取消（canceled）。待辦是還沒開始，審查中是做完等人看過（程式審查或驗收），完成才算數。
+#   取消收下不做的項目並留下紀錄，不用刪掉。
+# - 轉換：審查沒過可以退回進行中；進行中也可以放回待辦（衝刺中途被擠掉、留到下一個衝刺）；完成後發現沒做好可以重新開啟成進行中；
+#   待辦、進行中、審查中都能取消；取消後改變主意可以放回待辦。
+# - 欄位：故事的「驗收條件」讓團隊在動工前就講好怎樣算完成；缺陷的「嚴重度」決定先修哪一筆。
+#   故事點數不另外做欄位，用核心欄位「估計」，填故事點數；衝刺的容量與進度看的是同一個數字。
+# - 週期（衝刺）與里程碑由專案的規劃頁管理，不屬於藍圖；項目屬於哪個週期是項目自己的資料。
+# - 看板依狀態，是衝刺中每天看的畫面；表格列出類型與估計，規劃衝刺時用來排。缺陷另有依嚴重度排的表格。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: scrum
+  name: Scrum 衝刺
+  description: 給產品開發團隊。以兩週一個衝刺推進，故事拆成任務。
+  basedOn: { template: scrum, version: "1.0.0" }
+
+fields:
+  - { key: acceptance_criteria, name: 驗收條件, type: long_text }
+  - key: severity
+    name: 嚴重度
+    type: single_select
+    options:
+      - { key: critical, name: 致命, color: red }
+      - { key: major,    name: 嚴重, color: orange }
+      - { key: normal,   name: 一般, color: yellow }
+      - { key: minor,    name: 輕微, color: gray }
+
+workflows:
+  - key: sprint_flow
+    name: 衝刺流程
+    states:
+      - { key: todo,        name: 待辦,   category: not_started }
+      - { key: in_progress, name: 進行中, category: in_progress }
+      - { key: in_review,   name: 審查中, category: in_progress }
+      - { key: done,        name: 完成,   category: done }
+      - { key: canceled,    name: 取消,   category: canceled }
+    transitions:
+      - { from: todo,        to: in_progress }
+      - { from: in_progress, to: in_review }
+      - { from: in_review,   to: done }
+      - { from: in_review,   to: in_progress }  # 審查沒過，退回
+      - { from: in_progress, to: todo }         # 衝刺中途被擠掉，放回待辦
+      - { from: done,        to: in_progress }  # 完成後發現沒做好，重新開啟
+      - { from: todo,        to: canceled }
+      - { from: in_progress, to: canceled }
+      - { from: in_review,   to: canceled }
+      - { from: canceled,    to: todo }         # 改變主意，放回待辦
+
+itemTypes:
+  - { key: epic,  name: 史詩, workflow: sprint_flow }
+  - { key: story, name: 故事, workflow: sprint_flow, parents: [epic], fields: [acceptance_criteria] }
+  - { key: task,  name: 任務, workflow: sprint_flow, parents: [story] }
+  - { key: bug,   name: 缺陷, workflow: sprint_flow, parents: [story, epic], fields: [severity] }
+
+views:
+  - { key: board, name: 衝刺看板, type: board, groupBy: state }
+  - key: backlog
+    name: 項目清單
+    type: table
+    columns: [title, item_type, state, assignee, estimate, due_date]
+  - key: bugs
+    name: 缺陷依嚴重度
+    type: table
+    columns: [title, state, severity, assignee, due_date]
+    filter: { itemTypes: [bug] }
+    sort: [{ field: severity, direction: asc }]

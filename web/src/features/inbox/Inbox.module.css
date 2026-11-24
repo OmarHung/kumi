@@ -1,0 +1,67 @@
+/*
+ * 收件匣（docs/DESIGN.md 8.3「收件匣」）：每一則是共用清單（components/List）的一筆，這裡只管這一頁多出來的樣子。
+ * 未讀與已讀只差字重（semibold／regular）加看不見的「未讀」二字（不只靠顏色，也沒有色條）。
+ */
+.text {
+  font-weight: var(--weight-regular);
+}
+
+.text[data-unread='true'] {
+  font-weight: var(--weight-semibold);
+}
+
+.actor {
+  font-weight: var(--weight-semibold);
+}
+
+/* 項目的編號是等寬字；標題與摘要一行、放不下用省略號（和清單的標題一樣，完整的內容在項目裡）。 */
+.itemKey {
+  font-family: var(--font-mono);
+}
+
+.clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 摘要比編號與標題更淡一點，兩者之間靠排版（換行或間距）分開，不靠分隔線。 */
+.excerpt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 工具列右邊一直掛著的 status：標成已讀的結果。放在工具列上，出現時下面的清單不會被推動。 */
+.status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 「已載入 N 則」對齊清單裡每一筆的內容（清單一筆左右的內距，components/List）。 */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.footerCount {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 側欄「收件匣」旁邊的未讀數：靠右、不縮（名稱先縮成省略號），和「我的工作」旁邊的一樣。 */
+.sidebarCount {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+}

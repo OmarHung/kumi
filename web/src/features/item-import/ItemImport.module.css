@@ -1,0 +1,148 @@
+/*
+ * 匯入項目頁（閱讀頁，docs/DESIGN.md 6.2）：選檔案、對應、檢查結果由上往下。沒有卡片外框與裝飾色條；
+ * 拖曳區只用虛線外框與凹下去的底色，拖進來時外框換成強調色。
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.section > * {
+  max-width: 100%;
+}
+
+.heading {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.subheading {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.drop[data-dragging] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.dropText {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.dropActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.drop .hint {
+  flex-basis: 100%;
+}
+
+.fileLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.fileName {
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.headerCell {
+  max-width: 14rem;
+  overflow-wrap: anywhere;
+}
+
+.sampleCell {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.selectCell {
+  min-width: 12rem;
+}
+
+.typeField {
+  width: min(100%, 20rem);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.summary {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-left: var(--space-4);
+  font-size: var(--text-sm);
+  list-style: disc;
+  color: var(--color-danger);
+}
+
+.previewCell {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.submitRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}

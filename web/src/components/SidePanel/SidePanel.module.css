@@ -1,0 +1,236 @@
+/*
+ * 清單加旁邊的面板（docs/DESIGN.md 第 7 節）。放在 PageLayout 的內容區裡，左右有 --page-gutter：
+ * 面板抵掉右邊的留白（--side-panel-bleed），貼著內容區的右緣；排成右邊一欄時和清單之間只有一條細線（不留白）。
+ * 窄的寫在前面（80rem 以下蓋在清單上面），80rem 以上才排成右邊一欄（斷點只准用第 6.3 節的三個值）。
+ * 原本 64rem 就排成右欄：1024 寬時表格只剩固定的編號與標題兩欄，其他欄捲不出來（F 輪審查），所以改成 80rem。
+ * 蓋在清單上時，焦點走到面板底下的格子由 SidePanelLayout 通知呼叫端收起面板（onCoveredFocus）。
+ *
+ * 面板的寬度可以拖拉調整：SidePanelLayout 用 style 設 --side-panel-current-width（使用者拉的、夾在範圍裡的像素），
+ * 沒有就是預設的 --side-panel-width；--side-panel-block-offset 是清單那一塊上下還沒捲走、不屬於它的高度（page 版面用）。
+ */
+.layout {
+  --side-panel-bleed: var(--page-gutter);
+  --side-panel-size: var(--side-panel-current-width, var(--side-panel-width));
+
+  position: relative;
+  display: flex;
+  gap: var(--page-gutter);
+  min-width: 0;
+}
+
+/* 工作區：撐滿 PageLayout 剩下的高度；清單那一塊照舊是直向的 flex，裡面的 TableScroll fill、看板才捲得起來。 */
+.layout[data-layout='fill'] {
+  flex: 1;
+  min-height: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.layout[data-layout='fill'] > .main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/*
+ * 面板的外框：位置、寬度、左邊的細線、底色。裡面是左緣的把手（.resizer）與捲動的 aside（.region）。
+ * 頁列放進面板的話，開頭不必讓出外框按鈕的寬度。
+ */
+.panel {
+  --side-panel-inline: var(--space-5);
+  --page-bar-inset: 0rem;
+
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(-1 * var(--side-panel-bleed));
+  z-index: var(--z-drawer);
+  display: flex;
+  flex-direction: column;
+  width: min(100% + var(--side-panel-bleed), var(--side-panel-size));
+  border-inline-start: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  animation: slide-in var(--duration-normal) var(--ease-out);
+}
+
+/*
+ * aside 本身是捲動容器，標題列黏在它的上方：焦點在標題上時 PageDown 也捲得動面板。
+ * 有定位，裡面給報讀軟體的絕對定位文字不會跑出去把頁面撐寬（第 5 節）。
+ */
+.region {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 清單頁、閱讀頁跟著頁面捲：蓋在畫面右邊、頁列下面。 */
+.layout[data-layout='page'] > .panel {
+  position: fixed;
+  inset-block: var(--page-bar-height) 0;
+  inset-inline-end: 0;
+  width: min(100%, var(--side-panel-size));
+}
+
+/*
+ * 調整寬度的把手：看得到的只有面板左緣那條細線（外框的 border），點得到的範圍是以線為中心、--target-min 寬的一條
+ * （觸控 44px）。滑過時線換成 --color-border-strong；拖曳中與鍵盤焦點時換成 --color-focus、加粗成 2px
+ * （和全域的焦點外框一樣粗）：這是「正在調整這條線」的指示，不是裝飾的色條（第 9 節）。
+ * 強制色彩時線的底色被拿掉，焦點靠透明的 outline 由系統畫出來。48rem 以下不用面板（呼叫端直接進整頁），也不出現把手。
+ */
+.resizer {
+  --resizer-line-start: calc((var(--target-min) - 1px) / 2);
+
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(-1px - var(--resizer-line-start));
+  z-index: 2;
+  width: var(--target-min);
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.resizer::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: var(--resizer-line-start);
+  width: 1px;
+  background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .resizer:hover::before {
+    background: var(--color-border-strong);
+  }
+}
+
+.resizer:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.resizer:focus-visible::before,
+.resizer[data-dragging='true']::before {
+  width: 2px;
+  background: var(--color-focus);
+}
+
+@media (max-width: 48rem) {
+  .resizer {
+    display: none;
+  }
+}
+
+/* 從右邊滑進來（第 10 節：出現的位置說明它從哪裡來）；只動 transform。 */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--page-bar-height);
+  padding-inline: var(--side-panel-inline) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 按鈕之間只留 2px：標題列有七顆按鈕，多一顆「浮動視窗」之後連「任務」都被省略成「任…」（2026-11-20）。按鈕本身夠大，點得準。 */
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+.body {
+  padding: var(--space-4) var(--side-panel-inline) max(var(--space-8), env(safe-area-inset-bottom));
+}
+
+/*
+ * 右下角的 AI 助理按鈕在的時候，內容底下多留它的高度：捲到最後，最後的留言框與「送出留言」在按鈕上面，不被蓋住
+ * （按鈕固定在畫面的右下角，面板也排到畫面的右緣）。
+ */
+:root[data-assistant='button'] .body {
+  padding-bottom: calc(var(--assistant-button-size) + var(--anchor-bottom, var(--space-4)) + var(--space-6));
+}
+
+/* 寬螢幕：右邊一欄，清單跟著縮窄；細線分隔、不加陰影（第 5 節：面板用細線），不滑進來（欄是一下就排好的）。 */
+@media (min-width: 80rem) {
+  /*
+   * 和清單之間只有面板左緣那條細線，不再隔一個留白：使用者 2026-11-20 嫌面板左邊空一大條（--page-gutter 24px，
+   * 把手看不見、那一條看起來就是空白）。用負的外距抵掉 .layout 的 gap，清單那一塊的寬度照舊由 flex 算。
+   * 把手照舊以那條線為中心、--target-min 寬，左半邊蓋在清單最右邊的 12px 上（游標換成調整寬度）。
+   */
+  .layout > .panel {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    flex: none;
+    width: var(--side-panel-size);
+    margin-inline: calc(-1 * var(--page-gutter)) calc(-1 * var(--side-panel-bleed));
+    box-shadow: none;
+    animation: none;
+  }
+
+  /*
+   * 清單那一塊和面板之間只有一條細線，所以給裡面的內容兩個約定（2026-11-24，使用者回報看板破圖、行事曆的「下個月」貼著面板）：
+   * --content-bleed-end：右邊還能伸出去多遠。沒有面板時內容可以伸進頁面右邊的留白（看板的欄捲到頁面的邊緣），
+   *   面板排在旁邊時那裡是面板，是 0（不設時內容自己用 --page-gutter）。
+   * --content-gap-end：右邊至少留多少。有自己外框或按鈕列的內容（行事曆、時間軸、看板捲到最後一欄）離那條線 --space-3，
+   *   不貼著它（兩條線疊成一條粗線、按鈕黏在線上）；表格照舊捲到線為止，不讀它。
+   * isolation：清單那一塊自成一層。看板欄的表頭有層級（黏住時蓋住捲上去的卡片），不這樣的話它的層級和面板比，畫到面板上面。
+   */
+  .layout[data-has-panel='true'] > .main {
+    --content-bleed-end: 0px;
+    --content-gap-end: var(--space-3);
+
+    isolation: isolate;
+  }
+
+  /*
+   * 跟著頁面捲：黏在頁列下面，超過的由裡面的 aside 自己捲。最高是一個畫面減掉頁列，再減掉 --side-panel-block-offset
+   * （清單那一塊上方還沒捲走的工具列與留白、捲到最後時下方露出來的留白）：面板一直在頁列與畫面的底之間。
+   * 原本只減頁列：頁面在最上面時面板的底在畫面外面約 60px，焦點到了左緣的把手（整個面板高），瀏覽器會把整頁往下捲；
+   * 清單比面板短時捲到最後，面板被清單那一塊的底往上推，標題列躲到頁列底下。
+   */
+  .layout[data-layout='page'] > .panel {
+    position: sticky;
+    inset: auto;
+    top: var(--page-bar-height);
+    align-self: flex-start;
+    width: var(--side-panel-size);
+    max-height: calc(100dvh - var(--page-bar-height) - var(--side-panel-block-offset, 0px));
+  }
+
+  /*
+   * 清單比面板短時，清單那一塊至少一個畫面減掉頁列高：它的高度就不會跟著面板變，量到的上下偏移才不會反過來決定面板的高度
+   * （不然面板第一次量到多矮，就一直那麼矮）；面板黏住時也一直有地方黏。
+   */
+  .layout[data-layout='page'][data-has-panel='true'] {
+    min-height: calc(100dvh - var(--page-bar-height));
+  }
+}

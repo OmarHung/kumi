@@ -1,0 +1,117 @@
+/* 外層只是「點在這裡面不算外面」的範圍，不影響排版：按鈕照樣是父層 flex 的一員。 */
+.root {
+  display: contents;
+}
+
+.menu {
+  --menu-min-width: 10rem;
+
+  display: flex;
+  flex-direction: column;
+  min-width: var(--menu-min-width);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.item[data-tone='danger'] {
+  color: var(--color-danger);
+}
+
+.item[aria-disabled='true'] {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/*
+ * 反白（滑過或方向鍵所在）和 Select 的選項一樣：實心的強調色底（--color-accent-solid）、白字，圖示跟著字色（規範 7.3）；
+ * 危險的動作是實心的危險色底（--color-danger-solid）。同時只有一個：鍵盤的焦點在某一項時，滑過別的項目不反白
+ * （焦點是方向鍵、Enter 作用的那一個）。焦點外框不另外畫：實心的底就是焦點的位置，強制色彩時由下面的系統色接手。
+ */
+.item:focus-visible,
+.menu:not(:has(.item:focus-visible)) .item:hover {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+}
+
+.item[data-tone='danger']:focus-visible,
+.menu:not(:has(.item:focus-visible)) .item[data-tone='danger']:hover {
+  background: var(--color-danger-solid);
+}
+
+/*
+ * 不能用的項目反白時不是實心的：淡底加灰字，看得出按不了；淡底對紙只有 1.1:1，所以焦點外框換成看得見的焦點色
+ * （畫在項目裡面），鍵盤走到這裡看得出來（看板「移到…」被擋下的目標）。
+ */
+.item[aria-disabled='true']:focus-visible,
+.menu:not(:has(.item:focus-visible)) .item[aria-disabled='true']:hover {
+  outline-color: var(--color-focus);
+  background: var(--color-hover);
+  color: var(--color-text-muted);
+}
+
+/* 圖示和第一行字對齊。 */
+.icon {
+  margin-top: var(--space-0-5);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 有些項目有圖示時，沒有圖示的項目把文字往右推，名稱才對得齊。 */
+.menu[data-has-icons='true'] .item > .text:first-child {
+  margin-left: calc(var(--space-4) + var(--space-2));
+}
+
+.reason {
+  font-size: var(--text-xs);
+}
+
+/* 分隔線用上緣的外框畫（不是底色）：強制色彩（Windows 高對比）會拿掉底色，外框則換成系統色、照樣看得到。 */
+.separator {
+  margin: var(--space-1) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* 強制色彩（Windows 高對比）：反白用系統的 Highlight 底與 HighlightText 字（系統色不會被換掉）；不能用的是 GrayText。 */
+@media (forced-colors: active) {
+  .item:focus-visible,
+  .menu:not(:has(.item:focus-visible)) .item:hover {
+    outline-color: Highlight;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  /* 危險的項目：上面那一條的權重比較低，會被沒有媒體查詢的危險色底（被系統換成 Canvas）蓋掉，HighlightText 的字就看不見了。 */
+  .item[data-tone='danger']:focus-visible,
+  .menu:not(:has(.item:focus-visible)) .item[data-tone='danger']:hover {
+    background: Highlight;
+  }
+
+  .item[aria-disabled='true'],
+  .item[aria-disabled='true']:focus-visible,
+  .menu:not(:has(.item:focus-visible)) .item[aria-disabled='true']:hover {
+    background: Canvas;
+    color: GrayText;
+  }
+}

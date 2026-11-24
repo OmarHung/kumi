@@ -1,0 +1,75 @@
+# 內建模板「需求管理」，格式第 0 版。
+# 設計理由：
+# - 狀態：訪談 → 撰寫 → 已確認 → 納入排程。需求先聽（訪談）、再寫清楚（撰寫）、由提出的人點頭（已確認），
+#   最後才排進開發；「不採納」（canceled）收不做的需求並留下紀錄，之後有人再提時查得到。
+# - 轉換：到「已確認」一定要填驗收條件，沒有驗收條件的需求不算寫完；已確認後退回撰寫、撰寫退回訪談都允許，
+#   因為需求常在確認時被推翻。納入排程之後也允許退回已確認（排程被推翻、要重新討論）或改成不採納，
+#   因為排程之後客戶砍預算或改方向是常有的事，不該為此另開一筆。
+# - 規劃書寫的「確認要簽核」要等簽核功能做好再改；現在先用「驗收條件必填」代替，擋住還沒寫完的需求。
+# - 「待確認」檢視把撰寫中與已確認的需求放在一起看，找出還在等提出人點頭、或剛點頭還沒排程的項目。
+# - 欄位：來源與提出人讓人知道該回頭問誰；商業價值決定排序；驗收條件是進入下一步的門檻。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: requirements
+  name: 需求管理
+  description: 給專案經理與業務。需求從訪談、撰寫到已確認後排程，轉到已確認之前要先寫好驗收條件。
+  basedOn: { template: requirements, version: "1.0.0" }
+
+fields:
+  - key: source
+    name: 來源
+    type: single_select
+    options:
+      - { key: client,   name: 客戶,     color: blue }
+      - { key: sales,    name: 業務,     color: purple }
+      - { key: internal, name: 內部,     color: gray }
+      - { key: feedback, name: 使用者回饋, color: green }
+  - { key: requester, name: 提出人, type: text }
+  - key: business_value
+    name: 商業價值
+    type: single_select
+    options:
+      - { key: high,   name: 高, color: green }
+      - { key: medium, name: 中, color: yellow }
+      - { key: low,    name: 低, color: gray }
+  - { key: acceptance_criteria, name: 驗收條件, type: long_text }
+
+workflows:
+  - key: requirement_flow
+    name: 需求流程
+    states:
+      - { key: interviewing, name: 訪談,     category: not_started }
+      - { key: writing,      name: 撰寫,     category: in_progress }
+      - { key: confirmed,    name: 已確認,   category: in_progress }
+      - { key: scheduled,    name: 納入排程, category: done }
+      - { key: rejected,     name: 不採納,   category: canceled }
+    transitions:
+      - { from: interviewing, to: writing }
+      - { from: interviewing, to: rejected }
+      - { from: writing,      to: interviewing }
+      - { from: writing,      to: confirmed, requireFields: [acceptance_criteria] }
+      - { from: writing,      to: rejected }
+      - { from: confirmed,    to: writing }      # 確認時被推翻，退回重寫
+      - { from: confirmed,    to: scheduled }
+      - { from: confirmed,    to: rejected }
+      - { from: scheduled,    to: confirmed }    # 排程被推翻，回到已確認重新討論
+      - { from: scheduled,    to: rejected }     # 排程後決定不做
+      - { from: rejected,     to: interviewing } # 對方再提，重新訪談
+
+itemTypes:
+  - { key: requirement, name: 需求, workflow: requirement_flow, fields: [source, requester, business_value, acceptance_criteria] }
+
+views:
+  - { key: board, name: 需求看板, type: board, groupBy: state }
+  - key: by_value
+    name: 依商業價值
+    type: table
+    columns: [title, state, source, requester, business_value, due_date]
+    sort: [{ field: business_value, direction: asc }]
+  - { key: by_source, name: 依來源, type: board, groupBy: source }
+  - key: to_confirm
+    name: 待確認
+    type: table
+    columns: [title, state, requester, business_value, due_date]
+    filter: { states: [writing, confirmed] }

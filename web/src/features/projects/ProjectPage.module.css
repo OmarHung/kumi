@@ -1,0 +1,26 @@
+/*
+ * 頁列上的「我的角色：…」：次要的資訊。64rem 以下頁列放不下（按鈕加上「資訊」之後，48～64rem 名稱會被擠到一兩個字），
+ * 只留給報讀軟體（文字還在 DOM 裡，視覺上隱藏）；64rem 以上才看得到。斷點的寫法照 docs/DESIGN.md 第 13 節：只用 min-width: 64rem。
+ */
+.role {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+@media (min-width: 64rem) {
+  .role {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+  }
+}

@@ -1,0 +1,56 @@
+.loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  color: var(--color-text-muted);
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  animation: spin var(--duration-spin) linear infinite;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-6);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* 背景重抓失敗、換頁之後的提示：放在內容上方，和下面隔開。長相是共用的 Notice。 */
+.pageNotice {
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.body {
+  max-width: 40rem;
+  color: var(--color-text-muted);
+}
+
+/* 下一步的按鈕：排成一列，放不下就換行（一般尺寸的按鈕，空白狀態是頁面的主角）。 */
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}

@@ -1,0 +1,11 @@
+/*
+ * 側欄「我的工作」旁邊的數量：靠右、不縮（名稱先縮成省略號）。長相是共用的 CountBadge（和分頁的計數一樣），
+ * 過期的是危險色加錯誤的圖示：不只靠顏色。
+ */
+.counts {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}

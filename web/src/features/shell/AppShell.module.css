@@ -1,0 +1,83 @@
+/*
+ * 外框（docs/DESIGN.md 6.1）：側欄是桌面，內容區是紙。每一頁自己用 PageLayout 排頁列、工具列與內容，
+ * 這裡不加內距；頁列開頭讓出 --page-bar-inset，給疊在上面的按鈕（收合側欄、窄螢幕的「選單」）。
+ */
+.shell {
+  --page-bar-inset: calc(var(--control-height) + var(--space-2));
+
+  display: grid;
+  grid-template-areas: 'sidebar main';
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* 寬螢幕收起側欄：內容用滿整個寬度。 */
+.shell[data-sidebar='collapsed'] {
+  grid-template-areas: 'main';
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.main {
+  grid-area: main;
+  min-width: 0;
+  background: var(--color-surface);
+}
+
+.main:focus-visible {
+  outline: none;
+}
+
+/*
+ * 疊在頁列左上角：和頁列一樣高、跟著黏在上方，在頁列（--z-sticky）上面。
+ * 只有按鈕那一塊（不是整條）蓋在頁列上，位置與標題照常點得到。
+ */
+.barStart {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+  grid-area: main;
+  align-self: start;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  height: var(--page-bar-height);
+  padding-inline-start: var(--page-gutter);
+}
+
+.drawerToggle {
+  display: none;
+}
+
+.collapseToggle {
+  display: flex;
+}
+
+.backdrop {
+  display: none;
+}
+
+/* 窄螢幕：側欄是從左邊滑出的抽屜，頂端列併進頁列——「選單」疊在頁列左上角。 */
+@media (max-width: 48rem) {
+  .shell,
+  .shell[data-sidebar='collapsed'] {
+    grid-template-areas: 'main';
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .drawerToggle {
+    display: flex;
+  }
+
+  .collapseToggle {
+    display: none;
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-drawer) - 1);
+    display: block;
+    background: var(--color-overlay);
+  }
+}

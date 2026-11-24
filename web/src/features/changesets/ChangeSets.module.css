@@ -1,0 +1,202 @@
+/*
+ * 變更集的預覽與清單。預覽頁最上面三格摘要要一眼看出「會動到多少資料、有沒有擋住」：
+ * 擋住是紅、可以套用是綠，其他是一般的紙；意思一定寫在格子的文字裡。
+ * 摘要、差異、影響都直接放在紙上，用細線分開，不是浮起來的卡片（docs/DESIGN.md 第 1、5 節）。
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* 內容區的頁面標題（docs/DESIGN.md 第 3 節：--weight-bold，比頁列與區塊的標題重一級）與接在下面的摘要。 */
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  max-width: var(--reading-max);
+  color: var(--color-text-muted);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin-top: calc(-1 * var(--space-4));
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 三格摘要：一列三格，上下各一條細線，格子之間一條直線；窄螢幕一格一列。 */
+.overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--color-border);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.stat + .stat {
+  border-left: 1px solid var(--color-border);
+}
+
+.statLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.statValue {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
+}
+
+/*
+ * 「能不能套用」那一格：擋住是危險色的淡底、可以套用是成功色的淡底，數值用同一個語意色；
+ * 意思寫在格子的文字裡（「有 2 個原因擋住套用」「可以套用」），不畫左邊的色條（docs/DESIGN.md 第 4 節）。
+ */
+.statDanger {
+  background: var(--color-danger-soft);
+}
+
+.statDanger .statValue {
+  color: var(--color-danger);
+}
+
+.statSuccess {
+  background: var(--color-success-soft);
+}
+
+.statSuccess .statValue {
+  color: var(--color-success);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--text-md);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--color-border);
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.line + .line {
+  border-top: 1px solid var(--color-border);
+}
+
+/* 句子底下一行一條的內容（例如切成限制之後能走的每一條轉換），自己佔一整行。 */
+.details {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.blockingLine {
+  background: var(--color-danger-soft);
+}
+
+.blockers {
+  border-color: var(--color-danger);
+}
+
+.blockers .line {
+  color: var(--color-danger);
+}
+
+.empty,
+.hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.dialogText {
+  color: var(--color-text-muted);
+}
+
+.dialogList {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* 套用的確認對話框裡「不能一鍵還原」的提示（共用的 Notice）：和上面的清單隔開。 */
+.dialogNotice {
+  margin-top: var(--space-4);
+}
+
+.number {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+@media (max-width: 48rem) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 一格一列時，名稱與數字排在同一行，三格不會佔掉半個畫面。 */
+  .stat {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-3);
+    padding-block: var(--space-2);
+  }
+
+  .stat + .stat {
+    border-top: 1px solid var(--color-border);
+    border-left: 0;
+  }
+
+  .statValue {
+    font-size: var(--text-md);
+  }
+}

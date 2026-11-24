@@ -1,0 +1,37 @@
+/*
+ * 項目面板的標題列（docs/DESIGN.md 第 7 節 SidePanel、8.3「項目面板」）。面板本身的樣子在 components/SidePanel。
+ */
+
+/* 編號是等寬字（第 3 節），和清單上的編號一樣。 */
+.key {
+  font-family: var(--font-mono);
+}
+
+/* 標題列很擠（上一個、下一個、關注、更多、展開、關閉）：位子不夠時類型的名稱用省略號，編號一直看得到。 */
+.title {
+  display: flex;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.typeName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.key {
+  flex: none;
+}
+
+/* 「浮動視窗」切換按下的樣子：和「關注」一樣是選取的底與強調色的字（FollowButton.module.css），不畫色條；形狀不變，靠底色與字色。 */
+.modeToggle[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--color-selected);
+  color: var(--color-accent);
+}
+
+.modeToggle[aria-pressed='true']:hover {
+  background: var(--color-selected);
+  color: var(--color-accent-hover);
+}

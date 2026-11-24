@@ -1,0 +1,32 @@
+.frame {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/*
+ * 說明的 Markdown（字級、行距、換行與長網址的折行由 components/Markdown 管）。一行最寬 --reading-max（第 3 節）。
+ * 收起來時用 line-clamp 只留前 12 行（最後一行結尾是省略號），再加一道 max-height：表格、程式碼這類不是「行」的區塊
+ * line-clamp 管不到，高度照樣收在 12 行裡。內容沒有被拿掉，報讀軟體唸得到全部。
+ */
+.text {
+  --clamp-lines: 12;
+
+  align-self: stretch;
+  max-width: var(--reading-max);
+}
+
+.text[data-collapsed='true'] {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  max-height: calc(var(--clamp-lines) * var(--text-md) * var(--leading-relaxed));
+  -webkit-line-clamp: var(--clamp-lines);
+  line-clamp: var(--clamp-lines);
+}
+
+/* 「顯示全部」是低調的文字按鈕，往左拉回按鈕的內距，和上面的文字對齊。 */
+.frame > button {
+  margin-left: calc(-1 * var(--space-3));
+}

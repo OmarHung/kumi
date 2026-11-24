@@ -1,0 +1,33 @@
+/*
+ * Markdown 原文的文字框：畫在編輯器同一個外框裡（外框、焦點環、錯誤色在 RichTextEditor.module.css），自己沒有框線與底色。
+ * 字級、行距和編輯器的內文一樣（--text-md、relaxed；不用等寬字型：中文在等寬字型裡難讀），所以切換時內容區的高度不跳。
+ * 高度：最少 rows 行（EditorFrame 的 sizer），跟著內容長高（field-sizing: content），再多由外層捲；
+ * 不支援 field-sizing 的瀏覽器固定在 sizer 的高度，內容在文字框自己裡面捲。
+ */
+.source {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  resize: none;
+  field-sizing: content;
+}
+
+/* 焦點環畫在外框上（.frame:has([data-markdown-source]:focus-visible)）。 */
+.source:focus-visible {
+  outline: none;
+}
+
+.source::placeholder {
+  color: var(--color-text-muted);
+}

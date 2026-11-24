@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PmTool.Identity.Contracts\PmTool.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\PmTool.Notifications.Contracts\PmTool.Notifications.Contracts.csproj" />
+    <ProjectReference Include="..\PmTool.Work.Contracts\PmTool.Work.Contracts.csproj" />
+    <InternalsVisibleTo Include="PmTool.Notifications.Tests" />
+  </ItemGroup>
+
+</Project>

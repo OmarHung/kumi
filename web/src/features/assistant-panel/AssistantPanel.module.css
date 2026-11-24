@@ -1,0 +1,328 @@
+/*
+ * 右下角的 AI 助理（規則在 docs/design/07-components.md 的 `AssistantPanel`）：一顆圓形按鈕（可以藏起來），按了展開成釘在同一個角落的面板。
+ * 面板不是對話框：背後的頁面照樣能操作，所以沒有遮罩；層級在抽屜與側邊面板之上、對話框之下（--z-assistant）。
+ * 沒有裝飾用的色條；強調色只給按鈕與可以按的東西。
+ */
+
+/*
+ * 按鈕的位置（離畫面右邊、下邊多遠）：預設在右下角（頁面左右留白、--space-4 加安全區），使用者拖過就是 useLauncherAnchor 放在根元素的
+ * --launcher-right、--launcher-bottom。這裡夾在畫面裡：四邊至少留 --space-2，觸控時上緣多留「×」的位置。
+ * 面板（在 body 底下）讀同一份，右下角才對得齊按鈕。記住的值不被改小，畫面變回大的時候回到原位。
+ */
+:root {
+  --launcher-top-margin: var(--space-2);
+  --anchor-right: min(max(var(--launcher-right, var(--page-gutter)), var(--space-2)), 100vw - var(--assistant-button-size) - var(--space-2));
+  --anchor-bottom: min(
+    max(var(--launcher-bottom, calc(var(--space-4) + env(safe-area-inset-bottom))), var(--space-2)),
+    100dvh - var(--assistant-button-size) - var(--launcher-top-margin)
+  );
+}
+
+@media (pointer: coarse) {
+  :root {
+    --launcher-top-margin: calc(var(--target-min) + var(--space-4));
+  }
+}
+
+/* AI 助理的容器（useAssistantHost）：不佔版面，裡面的按鈕與面板各自 position: fixed。 */
+.host {
+  display: contents;
+}
+
+/* 預設固定在畫面右下角、直接浮在頁面上：不讓項目的側邊面板、頁面為它留空間（使用者要的；擋到時可以拖開或用「×」藏起來）。 */
+.launcherFrame {
+  position: fixed;
+  inset: auto var(--anchor-right) var(--anchor-bottom) auto;
+  z-index: var(--z-assistant);
+  width: var(--assistant-button-size);
+  height: var(--assistant-button-size);
+}
+
+.launcherFrame[hidden] {
+  display: none;
+}
+
+.launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+  box-shadow: var(--shadow-popover);
+  cursor: grab;
+  /* 觸控時按住拖不會被瀏覽器當成捲動；拖曳中不選取文字。 */
+  touch-action: none;
+  user-select: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.launcher:hover {
+  background: var(--color-accent-solid-hover);
+}
+
+.launcher[data-dragging='true'] {
+  cursor: grabbing;
+}
+
+.launcher:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 右上角的小「×」：滑過或焦點在按鈕組裡才出現，觸控裝置（沒有滑過）一直顯示。 */
+.hideLauncher {
+  position: absolute;
+  inset: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) auto auto;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-popover);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.launcherFrame:hover .hideLauncher,
+.launcherFrame:focus-within .hideLauncher {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .hideLauncher {
+    opacity: 1;
+  }
+}
+
+/* 觸控時「×」是 44px，疊在 48px 的按鈕角上會蓋掉大半個按鈕：改放在按鈕正上方，不重疊。 */
+@media (pointer: coarse) {
+  .hideLauncher {
+    inset: auto 0 calc(100% + var(--space-2)) auto;
+  }
+}
+
+.panel {
+  position: fixed;
+  /* 右下角對齊按鈕的右下角；放不下時往右、往下移進畫面，左、上至少留 --space-2。 */
+  inset: auto
+    min(var(--anchor-right), 100vw - min(var(--assistant-width), 100vw - 2 * var(--page-gutter)) - var(--space-2))
+    min(var(--anchor-bottom), 100dvh - min(var(--assistant-height), 100dvh - 2 * var(--space-4)) - var(--space-2)) auto;
+  z-index: var(--z-assistant);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(var(--assistant-width), 100vw - 2 * var(--page-gutter));
+  height: min(var(--assistant-height), 100dvh - 2 * var(--space-4));
+  min-width: min(20rem, 100vw - 2 * var(--page-gutter));
+  min-height: min(25rem, 100dvh - 2 * var(--space-4));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-dialog);
+  animation: panel-in var(--duration-normal) var(--ease-out);
+}
+
+/* 關上時用 visibility 藏起來（不是 display:none：捲動的位置要留著）；同時 inert，焦點進不來。 */
+.panel[data-open='false'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 窄螢幕的全螢幕面板是 modal：背景不能捲。 */
+:root[data-assistant-modal] {
+  overflow: hidden;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+/* 窄螢幕（48rem 以下）：全螢幕，沒有調大小的把手。 */
+@media (max-width: 48rem) {
+  .panel {
+    inset: 0;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .resizer {
+    display: none;
+  }
+}
+
+/*
+ * 三個把手（左緣調寬、上緣調高、左上角兩個一起）：點得到的是邊上一條 --target-min 寬的帶子，大半在面板外面
+ * （往裡只伸 --space-1，不蓋住頁首的按鈕）；看得到的只有面板的邊線，滑過換成 --color-border-strong，
+ * 拖曳中與鍵盤焦點時是 2px 的 --color-focus（和 SidePanel 的把手同一套規則，是「正在調整這條線」的指示，不是裝飾）。
+ * 線留出角落的圓角，不畫到弧上。
+ */
+.resizer {
+  --resizer-reach: calc(var(--target-min) - var(--space-1));
+
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+  user-select: none;
+}
+
+.resizerWidth {
+  inset: var(--space-1) auto 0 calc(-1 * var(--resizer-reach));
+  width: var(--target-min);
+  cursor: ew-resize;
+}
+
+.resizerHeight {
+  inset: calc(-1 * var(--resizer-reach)) 0 auto var(--space-1);
+  height: var(--target-min);
+  cursor: ns-resize;
+}
+
+.resizerCorner {
+  inset: calc(-1 * var(--resizer-reach)) auto auto calc(-1 * var(--resizer-reach));
+  width: var(--target-min);
+  height: var(--target-min);
+  cursor: nwse-resize;
+}
+
+.resizerWidth::before,
+.resizerHeight::before {
+  content: '';
+  position: absolute;
+  background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+/* 帶子裡靠面板那一側的 --space-1 以外就是面板的邊線（1px 的外框）。 */
+.resizerWidth::before {
+  inset: var(--radius-xl) var(--space-1) var(--radius-xl) auto;
+  width: 1px;
+}
+
+.resizerHeight::before {
+  inset: auto var(--radius-xl) var(--space-1) var(--radius-xl);
+  height: 1px;
+}
+
+@media (hover: hover) {
+  .resizerWidth:hover::before,
+  .resizerHeight:hover::before,
+  .panel:has(.resizerCorner:hover) .resizerWidth::before,
+  .panel:has(.resizerCorner:hover) .resizerHeight::before {
+    background: var(--color-border-strong);
+  }
+}
+
+.resizerWidth:focus-visible,
+.resizerHeight:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.resizerWidth:focus-visible::before,
+.resizerWidth[data-dragging='true']::before,
+.panel:has(.resizerCorner[data-dragging='true']) .resizerWidth::before {
+  width: 2px;
+  background: var(--color-focus);
+}
+
+.resizerHeight:focus-visible::before,
+.resizerHeight[data-dragging='true']::before,
+.panel:has(.resizerCorner[data-dragging='true']) .resizerHeight::before {
+  height: 2px;
+  background: var(--color-focus);
+}
+
+/* 拖曳中整個面板是調大小的游標、不選取文字。 */
+.panel:has(.resizerWidth[data-dragging='true']) {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.panel:has(.resizerHeight[data-dragging='true']) {
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.panel:has(.resizerCorner[data-dragging='true']) {
+  cursor: nwse-resize;
+  user-select: none;
+}
+
+/* ---- 頁首 ---- */
+
+.header {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.title {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.contextRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-inline-end: var(--space-2);
+}
+
+.projectName {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- 內容 ---- */
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: var(--leading-relaxed);
+}

@@ -1,0 +1,195 @@
+/*
+ * 項目表格。和其他表格共用 components/Table 的樣式，這裡只加格內編輯、固定欄與欄寬需要的部分。
+ * 每一列都是 --row-height（格子裡的按鈕撐出來）；內文是 --text-base（規範第 3 節），編號是等寬字 --text-sm。
+ *
+ * 欄寬固定（table-layout: fixed，docs/DESIGN.md 7.1「欄寬」）：每一欄是預設寬度或使用者拉的寬度，不隨內容變寬；
+ * 放不下的值裁在格子裡（cells/Cells.module.css），進入編輯、載入更多也不會跳。拉過的寬度在 col 上
+ * （components/Table 的 TableColumns），固定的兩欄拉過的寬度換掉這裡的變數（itemColumnWidths.ts 的 pinnedVariables）。
+ *
+ * 固定在左邊的兩欄（編號、標題）三個地方用同一組變數：欄寬（.colKey、.colTitle 與 .pinKey、.pinTitle）、
+ * 標題的省略號（cells/Cells.module.css 的 .titleLine）與捲動時讓出的寬度（scroll-padding-left）。
+ * 不用同一組的話，用鍵盤往左走時格子就躲在固定欄底下。
+ */
+.scroll {
+  /* 多選的勾選框欄（固定欄的第一欄）：沒有這一欄時偏移是 0，編號與標題照舊貼著左邊。 */
+  --item-select-width: 2.75rem;
+  --item-select-offset: 0px;
+  --item-key-width: 6.5rem;
+  --item-title-width: 16rem;
+  /* 其他欄的預設寬度（columns.tsx 的 ColumnWidthKind）：放得下表頭與常見的值，放不下的裁掉，點兩下把手照內容調整。 */
+  --item-col-short: 5rem;
+  --item-col-name: 7rem;
+  --item-col-date: 7rem;
+  --item-col-due: 10.5rem;
+  --item-col-text: 12rem;
+  /* 拉寬的標題欄最多到表格的寬度減掉編號欄與這一段：表格變窄時（開著面板）其他欄還捲得出來。 */
+  --item-scroll-reserve: 8rem;
+
+  /* 用鍵盤往左走、格子被捲到固定的兩欄底下時，讓出那兩欄的寬度。 */
+  scroll-padding-left: calc(var(--item-select-offset) + var(--item-key-width) + var(--item-title-width));
+}
+
+/*
+ * 表格夠寬時標題欄寬一點；窄的時候留給其他欄。看的是表格自己的寬度（ItemTableView 的容器 item-table），
+ * 不是視窗：旁邊開著項目面板、側欄展開時表格變窄，標題欄就縮回 16rem，固定的兩欄不會把其他欄擠出畫面。
+ */
+@container item-table (min-width: 60rem) {
+  .scroll {
+    --item-title-width: 22rem;
+  }
+}
+
+.table {
+  table-layout: fixed;
+}
+
+.colSelect {
+  width: var(--item-select-width);
+}
+
+.colKey {
+  width: var(--item-key-width);
+}
+
+.colTitle {
+  width: var(--item-title-width);
+}
+
+.colShort {
+  width: var(--item-col-short);
+}
+
+.colName {
+  width: var(--item-col-name);
+}
+
+.colDate {
+  width: var(--item-col-date);
+}
+
+.colDue {
+  width: var(--item-col-due);
+}
+
+.colText {
+  width: var(--item-col-text);
+}
+
+.table thead th {
+  padding: 0 var(--space-3);
+}
+
+/* 可以編輯的格子由裡面的按鈕撐滿，點擊範圍才大；內距與高度放在按鈕上。 */
+.table .cell {
+  height: auto;
+  padding: 0;
+  vertical-align: top;
+}
+
+/* 多選的標籤在表格裡排成一行（項目頁的欄位可以換行）：一列的高度才不會被撐高。 */
+.cell span {
+  flex-wrap: nowrap;
+}
+
+/* 標題是列標題（th）：一行，放不下用省略號（完整的標題在按鈕的名稱與 title 裡）。 */
+.table tbody th {
+  background: var(--color-surface);
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.pinSelect,
+.pinKey,
+.pinTitle {
+  position: sticky;
+  z-index: 1;
+  background: var(--color-surface);
+}
+
+.pinSelect {
+  left: 0;
+  width: var(--item-select-width);
+  min-width: var(--item-select-width);
+  max-width: var(--item-select-width);
+  padding: 0;
+}
+
+.pinKey {
+  left: var(--item-select-offset);
+  width: var(--item-key-width);
+  min-width: var(--item-key-width);
+  max-width: var(--item-key-width);
+}
+
+.pinTitle {
+  left: calc(var(--item-select-offset) + var(--item-key-width));
+  width: var(--item-title-width);
+  min-width: var(--item-title-width);
+  max-width: var(--item-title-width);
+  box-shadow: inset -1px 0 0 var(--color-border);
+}
+
+/*
+ * 表頭裡的固定欄：在黏住的表頭那一層裡面再高（Table.module.css），橫向捲動時蓋過其他表頭與它們調欄寬的把手（1）。
+ * 編號比標題再高一層：編號右緣的把手疊在標題欄的左邊，不被標題的表頭蓋住。
+ */
+.table thead .pinSelect,
+.table thead .pinKey,
+.table thead .pinTitle {
+  background: var(--color-surface);
+}
+
+.table thead .pinSelect {
+  z-index: 3;
+  padding: 0;
+}
+
+.table thead .pinKey {
+  z-index: 3;
+}
+
+.table thead .pinTitle {
+  z-index: 2;
+}
+
+.table thead .pinTitle {
+  box-shadow:
+    inset -1px 0 0 var(--color-border),
+    inset 0 -1px 0 var(--color-border);
+}
+
+/* 固定欄有實心底色才蓋得住捲過去的格子；滑過那一列時疊一層和其他格子一樣的淡色。 */
+.table tbody tr:hover > .pinKey,
+.table tbody tr:hover > .pinTitle {
+  background: linear-gradient(var(--color-hover), var(--color-hover)), var(--color-surface);
+}
+
+.numeric {
+  text-align: right;
+}
+
+/* 數字靠右對齊；格子裡的按鈕是 flex，要在這裡推到右邊。 */
+.numeric > * {
+  justify-content: flex-end;
+}
+
+/*
+ * 唯讀、不適用的格子與沒有排序的表頭自己就是停駐點（docs/DESIGN.md 8.3「清單的鍵盤操作」）：
+ * 焦點外框畫在格子裡面，不被隔壁的格子、固定欄與黏住的表頭蓋住。
+ */
+.table td:focus-visible,
+.table th:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 類型沒有的欄位（7.1）：凹下去的淡底，不畫任何符號，一眼看得出這格不用填。 */
+.notApplicable {
+  background: var(--color-canvas);
+}
+
+.table[aria-busy='true'] tbody {
+  opacity: 0.6;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}

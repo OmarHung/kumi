@@ -1,0 +1,14 @@
+{"type":"thread.started","thread_id":"t1"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"reasoning","text":""}}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"想一下"}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"get_blueprint","arguments":{"projectKey":"DEMO"},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"get_blueprint","arguments":{"projectKey":"DEMO"},"status":"completed","result":{"content":[{"type":"text","text":"{\"statuses\":[]}"}]}}}
+{"type":"item.started","item":{"id":"item_2","type":"agent_message","text":""}}
+{"type":"item.updated","item":{"id":"item_2","type":"agent_message","text":"先提出"}}
+{"type":"item.updated","item":{"id":"item_2","type":"agent_message","text":"先提出變更集。"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"先提出變更集。"}}
+{"type":"item.started","item":{"id":"item_3","type":"mcp_tool_call","server":"kumi","tool":"propose_changeset","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"mcp_tool_call","server":"kumi","tool":"propose_changeset","status":"completed","result":{"content":[{"type":"text","text":"{\"number\":7}"}]}}}
+{"type":"item.completed","item":{"id":"item_4","type":"agent_message","text":"已提出 #7。"}}
+{"type":"turn.completed","usage":{"input_tokens":200,"cached_input_tokens":50,"output_tokens":40}}

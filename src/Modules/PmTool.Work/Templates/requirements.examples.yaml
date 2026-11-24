@@ -1,0 +1,66 @@
+# 範例項目：示範需求走過各個狀態；確認與納入排程的需求都填了驗收條件，有一筆已過期的訪談。
+items:
+  - ref: start
+    type: requirement
+    title: 從這裡開始：需求管理怎麼用
+    state: interviewing
+    priority: low
+    description: |
+      每筆需求的流程是：訪談 → 撰寫 → 已確認 → 納入排程；不做的放「不採納」。
+
+      - 先記下來源與提出人，之後有疑問才知道回頭問誰。
+      - 要轉到「已確認」之前，必須先填好「驗收條件」。
+      - 用上方的狀態篩選選「已確認」，就看得到確認了、還沒排程的需求。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+  - type: requirement
+    title: 範例：報表要能匯出成試算表
+    state: interviewing
+    priority: medium
+    startInDays: -9
+    dueInDays: -3
+    fields:
+      source: client
+      requester: 範例客戶的窗口
+      business_value: high
+  - type: requirement
+    title: 範例：訂單狀態變更時通知業務
+    state: writing
+    priority: medium
+    dueInDays: 7
+    fields:
+      source: sales
+      requester: 範例業務
+      business_value: medium
+  - type: requirement
+    title: 範例：登入頁支援記住帳號
+    state: confirmed
+    priority: medium
+    dueInDays: 14
+    fields:
+      source: feedback
+      requester: 使用者意見信箱
+      business_value: medium
+      acceptance_criteria: |
+        - 勾選「記住我」後，30 天內開啟網站不必重新輸入帳號。
+        - 登出時清除已記住的帳號。
+  - type: requirement
+    title: 範例：後台新增操作紀錄頁
+    state: scheduled
+    priority: high
+    fields:
+      source: internal
+      requester: 範例維運
+      business_value: high
+      acceptance_criteria: |
+        - 紀錄頁列出最近 90 天的操作，可依人員與日期篩選。
+        - 只有管理員看得到。
+  - type: requirement
+    title: 範例：首頁要有動態背景影片
+    state: rejected
+    priority: none
+    description: 載入太慢且維護成本高，與提出人討論後不採納。
+    fields:
+      source: sales
+      requester: 範例業務
+      business_value: low

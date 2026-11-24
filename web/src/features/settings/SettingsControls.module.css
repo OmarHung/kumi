@@ -1,0 +1,42 @@
+/*
+ * 設定頁列上的輸入框與下拉（名稱、類別、流程、搬移的目標；Settings.module.css 放版面，這裡放控制項）。
+ * 輸入框和共用的 Field 一樣的外框（--color-control-border，對比 3:1 以上）、滑過與焦點的顏色；高度是列上用的 --control-height-sm。
+ * 焦點和 components/Field 同一個寫法：外框換成 --color-focus、裡面補 1px 同色的內環線（看起來是 2px 的焦點色外框），
+ * 外面一圈 --color-focus-ring 的光暈；outline 留著透明的，強制色彩模式下系統會把它畫出來。
+ * 下拉是 components/Select（size="sm"），長相都是它的，這裡只給列上的寬度。
+ */
+.input {
+  flex: 1 1 10rem;
+  min-width: 8rem;
+  max-width: 20rem;
+  height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.input:hover {
+  border-color: var(--color-text-muted);
+}
+
+.input:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  border-color: var(--color-focus);
+  box-shadow:
+    inset 0 0 0 1px var(--color-focus),
+    0 0 0 3px var(--color-focus-ring);
+}
+
+/*
+ * 有錯：外框是危險色（寫在焦點後面，取得焦點時也是）。取得焦點時裡面的焦點色內環線與光暈照舊（上一條）：
+ * 只靠光暈的話，紅框取得焦點前後幾乎一樣，看不出焦點在這裡。
+ */
+.input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}

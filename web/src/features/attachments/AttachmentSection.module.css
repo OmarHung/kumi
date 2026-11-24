@@ -1,0 +1,105 @@
+.section {
+  /* 拖曳時的外框畫在 ::before，不佔版面、不推動旁邊的內容；isolation 讓 z-index: -1 留在這一塊裡面。 */
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * 檔案拖進來時整區換成強調色的虛線外框（不是裝飾：告訴使用者「放開就會上傳到這裡」）。
+ * 往外多出一個間距，外框不貼著文字；pointer-events: none 讓它不攔截拖曳事件。
+ */
+.section[data-dragging]::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--space-3));
+  z-index: -1;
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  pointer-events: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-sm);
+}
+
+.titleLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.heading {
+  font-size: var(--text-md);
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.rejected {
+  margin: var(--space-1) 0 0;
+  padding-inline-start: var(--space-4);
+}
+
+.fileIcon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+/* 名稱太長用省略號（List 的標題是一行截斷）；焦點外框畫在裡面，不被截斷的容器切掉。 */
+.link {
+  overflow-wrap: anywhere;
+}
+
+.link:focus-visible {
+  outline-offset: -2px;
+}
+
+.progressLine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 自己畫的進度條（第 13 節：控制項不用瀏覽器原生的長相）；寬度由 value 決定，不需要行內樣式。 */
+.progress {
+  appearance: none;
+  width: 8rem;
+  max-width: 100%;
+  height: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-soft);
+  overflow: hidden;
+}
+
+.progress::-webkit-progress-bar {
+  background: var(--color-neutral-soft);
+}
+
+.progress::-webkit-progress-value {
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-solid);
+}
+
+.progress::-moz-progress-bar {
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-solid);
+}
+
+.percent {
+  min-width: 2.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.failure {
+  color: var(--color-danger);
+}

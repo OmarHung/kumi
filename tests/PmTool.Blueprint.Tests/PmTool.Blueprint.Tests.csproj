@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- 覆蓋率只算這個測試專案負責的組件：別的組件由它自己的測試專案負責，混在一起會被沒測到的部分拉低。
+       原始碼產生器的輸出也不算，那不是我們寫的程式。 -->
+  <PropertyGroup>
+    <Include>[PmTool.Blueprint]*</Include>
+    <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.msbuild" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit.Analyzers" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\PmTool.Blueprint\PmTool.Blueprint.csproj" />
+    <Content Include="..\..\schemas\blueprint\v0\examples\*.yaml" Link="Examples\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+</Project>

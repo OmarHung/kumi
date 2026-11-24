@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","tools":[],"mcp_servers":[{"name":"kumi","status":"connected"}]}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_9","name":"mcp__kumi__preview_changeset","input":{}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_9","is_error":true,"content":[{"type":"text","text":"藍圖驗證沒過：狀態 review 不存在。請改用 /Users/someone/project/blueprint.yaml 裡有的狀態，權杖 pmt_abc123 不要外流。"}]}]}}
+{"type":"result","subtype":"success","is_error":false,"result":"","usage":{"input_tokens":5,"output_tokens":2}}

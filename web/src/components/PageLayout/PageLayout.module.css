@@ -1,0 +1,72 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/*
+ * 工具列：一列，高度照 docs/DESIGN.md 第 14 節的預算——寬螢幕剛好 44px（含下面的細線，控制項是 --control-height-sm），
+ * 觸控時控制項變成 44px，上下各留 2px，加細線不超過 56px（NavTabs 的軌道多 4px 也在內）。
+ */
+.toolbar {
+  --toolbar-height: 2.75rem;
+
+  display: flex;
+  align-items: center;
+  min-height: var(--toolbar-height);
+  padding: var(--space-0-5) var(--page-gutter);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.toolbar > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.content {
+  min-width: 0;
+  padding: var(--space-4) var(--page-gutter) var(--space-12);
+}
+
+/*
+ * 工作區：整頁剛好一個畫面高，內容區撐滿剩下的高度、自己不捲，上方不留白（內容緊接工具列，第 14 節的預算）；
+ * 裡面的表格或看板用 flex: 1; min-height: 0; overflow: auto 自己捲，橫向捲軸才一直在畫面裡。
+ */
+.layout[data-variant='workspace'] {
+  height: 100dvh;
+}
+
+.layout[data-variant='workspace'] .content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/*
+ * 清單頁（我的工作、專案、人員、變更集清單）用滿內容區的寬度，和工作區頁一樣不設上限：內容是表格，
+ * 側欄收起來或寬螢幕時設上限只會在右邊留一大塊空白；表格比內容區寬時本來就自己捲（TableScroll）。
+ * 旁邊開著項目面板時面板貼著內容區右緣，清單用掉剩下的寬度（components/SidePanel）。
+ *
+ * 閱讀頁（項目頁、設定頁、變更集預覽）以 --content-max 為限、靠左。
+ */
+.layout[data-variant='reading'] .content {
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--page-gutter));
+}
+
+/*
+ * 閱讀頁旁邊開著項目面板、而且排成右邊一欄（80rem 以上）時，內容區不設上限：面板貼著內容區右緣（和清單頁一樣），
+ * 閱讀的內容用掉面板以外的寬度，中間不留空（長段文字本來就以 --reading-max 為限）。
+ * 不用「上限加上面板的寬度」：面板可以拖拉調整寬度，有空間時加寬面板只會把面板的右緣往右推，把手不跟著指標走。
+ * 也不把內容限在 --content-max、面板貼右緣：寬螢幕時內容與面板中間會空一大塊（1920 寬、側欄收起時約 280px）。
+ */
+@media (min-width: 80rem) {
+  .layout[data-variant='reading'] .content:has(> [data-has-panel='true']) {
+    max-width: none;
+  }
+}

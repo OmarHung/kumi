@@ -1,0 +1,21 @@
+/*
+ * 補填對話框（docs/DESIGN.md 8.3「補填再前進」）：上方的說明、缺的欄位一個一列、按鈕。
+ * 每個欄位的標籤與錯誤是 components/Field 的 FieldShell，編輯器的長相是 Field 的控制項（editors.tsx），這裡只排版面。
+ */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 說明裡的按鈕（「到『成員』調整角色」）照自己的寬度，不撐滿整則提示。 */
+.problemBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.problemBody p {
+  margin: 0;
+}

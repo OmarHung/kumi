@@ -1,0 +1,118 @@
+# 範例項目：示範兩週一個衝刺的 Scrum 專案。
+# - 三個衝刺：上一個已結束、目前的、下一個，連續排開不重疊；一個里程碑在最後一個衝刺結束後。
+# - 項目涵蓋：已完成的故事（在上一個衝刺）、目前衝刺裡進行中與審查中的、下一個衝刺裡已排好的、
+#   還在待辦清單（沒有週期）的；以及一筆已過期的致命缺陷。
+# - 「估計」填故事點數，只填在故事與缺陷上，任務不填，免得同一份工作的點數算兩次。
+# - 日期都是相對於建立專案那天，只是示意。
+cycles:
+  - ref: sprint_prev
+    name: 衝刺 1
+    startInDays: -14
+    endInDays: -1
+  - ref: sprint_now
+    name: 衝刺 2
+    startInDays: 0
+    endInDays: 13
+  - ref: sprint_next
+    name: 衝刺 3
+    startInDays: 14
+    endInDays: 27
+milestones:
+  - ref: v1
+    name: 範例：v1.0 上線
+    dueInDays: 28
+    description: 範例的里程碑，示範把一批故事收在同一個日期之前交付。
+items:
+  - ref: start
+    type: epic
+    title: 從這裡開始：Scrum 衝刺怎麼用
+    state: in_progress
+    priority: low
+    description: |
+      這個專案有四種類型：史詩、故事、任務、缺陷。故事的上層項目是史詩，任務的上層項目是故事，缺陷的上層項目可以是故事或史詩。
+      四種類型共用同一個流程：待辦 → 進行中 → 審查中 → 完成，不做的放「取消」。審查沒過可以從「審查中」退回「進行中」。
+
+      - 到頁列的「規劃」：在那裡看各個衝刺（週期）排了哪些項目，把項目排進衝刺，就是決定這個衝刺要做什麼。
+      - 回到項目清單，篩選的「週期」選「目前的週期」，只看這一個衝刺的項目。
+      - 「估計」填故事點數，一個衝刺排多少點，由團隊過去的速度決定。
+      - 故事的「驗收條件」在動工前先寫好，審查時照它檢查。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+  - ref: member
+    type: epic
+    title: 範例：會員系統
+    state: in_progress
+    priority: high
+    milestone: v1
+  - ref: login
+    type: story
+    title: 範例：會員可以用 Email 登入
+    state: done
+    priority: high
+    parent: member
+    cycle: sprint_prev
+    milestone: v1
+    estimate: 3
+    startInDays: -13
+    dueInDays: -2
+    fields:
+      acceptance_criteria: |
+        - 輸入正確的 Email 與密碼可以登入。
+        - 密碼錯誤時顯示明確的訊息，不透露帳號是否存在。
+        - 連續錯誤五次後暫時鎖定。
+  - ref: profile
+    type: story
+    title: 範例：會員可以編輯個人資料
+    state: in_progress
+    priority: medium
+    parent: member
+    cycle: sprint_now
+    milestone: v1
+    estimate: 5
+    startInDays: 0
+    dueInDays: 10
+    fields:
+      acceptance_criteria: |
+        - 可以修改顯示名稱與大頭貼。
+        - 名稱超過 20 個字時顯示提示，不直接截斷。
+        - 儲存成功後頁面立刻顯示新的資料。
+  - type: task
+    title: 範例：個人資料表單的欄位驗證
+    state: in_review
+    priority: medium
+    parent: profile
+    cycle: sprint_now
+    startInDays: 1
+    dueInDays: 6
+  - type: bug
+    title: 範例：忘記密碼的通知信寄不出去
+    state: in_progress
+    priority: urgent
+    parent: login
+    cycle: sprint_now
+    estimate: 2
+    startInDays: -4
+    dueInDays: -1
+    fields:
+      severity: critical
+  - type: story
+    title: 範例：會員可以重設密碼
+    state: todo
+    priority: medium
+    parent: member
+    cycle: sprint_next
+    milestone: v1
+    estimate: 3
+    fields:
+      acceptance_criteria: |
+        - 輸入 Email 後寄出重設連結，連結 30 分鐘內有效。
+        - 重設成功後，其他裝置上的登入一律失效。
+  - type: story
+    title: 範例：會員可以刪除自己的帳號
+    state: todo
+    priority: low
+    parent: member
+    estimate: 5
+    description: 還在待辦清單，沒有排進任何衝刺。到「規劃」把它排進一個衝刺。
+    fields:
+      acceptance_criteria: 刪除前要再輸入一次密碼確認；刪除後三十天內可以聯絡客服復原。

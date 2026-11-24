@@ -1,0 +1,173 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+
+.control {
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  /* 外框是「這裡可以輸入」的唯一線索：--color-control-border（對比 3:1 以上，第 2.2 節）。 */
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+/* 工具列與表格列上的控制項：矮一號（觸控時一樣是 44px）。 */
+.control[data-size='sm'] {
+  height: var(--control-height-sm);
+}
+
+.control:hover {
+  border-color: var(--color-text-muted);
+}
+
+/*
+ * 取得焦點（docs/DESIGN.md 第 9 節的焦點）：外框換成焦點色，外面一圈 3px 的光暈；只有這一圈，不再加全域的焦點外框。
+ * outline 留著透明的：強制色彩模式會把它畫成系統色，光暈被拿掉時仍然看得到焦點。
+ */
+.control:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  border-color: var(--color-focus);
+  /* 外框裡面再補 1px 同色的環線：看起來是 2px 的焦點色外框（和原本全域的焦點外框一樣粗），光暈只是輔助。 */
+  box-shadow:
+    inset 0 0 0 1px var(--color-focus),
+    0 0 0 3px var(--color-focus-ring);
+}
+
+/*
+ * 輸入框開頭的圖示（TextField 的 leadingIcon，例如搜尋框的放大鏡）：疊在輸入框裡、垂直置中，
+ * 所以 size 是 md 或 sm、觸控時變高都對得上；輸入框的左內距讓出圖示的位置。
+ */
+.leading {
+  --leading-icon-size: 1rem;
+
+  position: relative;
+  display: block;
+}
+
+.leadingIcon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.leading .control {
+  padding-left: calc(var(--space-3) + var(--leading-icon-size) + var(--space-2));
+}
+
+/* 有錯：外框一直是危險色。 */
+.invalid,
+.invalid:hover {
+  border-color: var(--color-danger);
+}
+
+/*
+ * 有錯又取得焦點：外框維持危險色，裡面多一圈 1px 焦點色的內環線，外面照樣是光暈。只靠光暈的話，
+ * 紅框取得焦點前後幾乎一樣，看不出焦點在這裡（docs/DESIGN.md 第 9 節）。
+ */
+.invalid:focus-visible {
+  border-color: var(--color-danger);
+  box-shadow:
+    inset 0 0 0 1px var(--color-focus),
+    0 0 0 3px var(--color-focus-ring);
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.errorIcon {
+  margin-top: var(--space-0-5);
+}
+
+/*
+ * 錯誤畫在框裡（TextField 的 isErrorInside，工具列與表格上方那一列）：外面那一層帶 .control，長相、高度、滑過與錯誤的外框
+ * 都和一般的輸入框一樣；取得焦點的樣子改看 :focus-within（焦點在裡面的輸入框上，不在這一層）。
+ */
+.inside {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: text;
+}
+
+.inside:focus-within {
+  border-color: var(--color-focus);
+  box-shadow:
+    inset 0 0 0 1px var(--color-focus),
+    0 0 0 3px var(--color-focus-ring);
+}
+
+.inside.invalid:focus-within {
+  border-color: var(--color-danger);
+}
+
+/* 裡面的輸入框不畫自己的框：外框與焦點環由外面那一層畫。outline 留透明的，強制色彩模式照樣看得到焦點。 */
+.insideInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.insideInput:focus-visible {
+  outline: 2px solid transparent;
+}
+
+/* 錯誤在右端：一行，放不下用省略號（完整的訊息由 aria-describedby 唸）。 */
+.insideError {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 60%;
+  font-size: var(--text-xs);
+  color: var(--color-danger);
+  white-space: nowrap;
+}
+
+.insideErrorIcon {
+  flex: none;
+}
+
+.insideErrorText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 多行的輸入（fieldControlClassName('textarea')）：高度跟著行數，至少一個控制項高；可以往下拉高。 */
+.multiline {
+  height: auto;
+  min-height: var(--control-height);
+  padding-block: var(--space-2);
+  resize: vertical;
+}

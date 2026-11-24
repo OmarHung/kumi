@@ -1,0 +1,16 @@
+/* 送出、儲存停用時的原因：緊貼在按鈕旁邊，小一號的次要文字（和文字框下面的提示同一種）。 */
+.reason {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.problems {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+/* 「插入圖片或檔案」和藏起來的檔案選擇框包在一起：一個按鈕的大小，不撐開工具列。 */
+.insert {
+  display: flex;
+  flex: none;
+}

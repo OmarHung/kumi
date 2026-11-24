@@ -1,0 +1,369 @@
+/*
+ * 專案的 AI 助理（docs/DESIGN.md 6.2 工作區頁）：整頁剛好一個畫面高，左邊對話清單、右邊對話，
+ * 訊息自己捲、輸入框一直在最下面。沒有裝飾用的色條；強調色只給可以按的東西與目前的那一則對話。
+ */
+.workspace {
+  display: grid;
+  flex: 1;
+  grid-template-columns: var(--assistant-list-width, 16rem) minmax(0, 1fr);
+  gap: var(--space-4);
+  position: relative;
+  min-height: 0;
+  padding-block: var(--space-4);
+}
+
+.workspace[data-compact='true'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/*
+ * 列表與對話之間的分隔線（Window Splitter）：點得到的是 gap 正中間一條 --target-min 寬的帶子，
+ * 看得到的是中間 1px 的細線（滑過換成 --color-border-strong，拖曳中與鍵盤焦點時是 2px 的 --color-focus，和 SidePanel 的把手同一套）。
+ * 放在外框（.workspace）底下、不在 aside 裡：列表自己捲，把手放進去會被裁掉。
+ */
+.listResizer {
+  position: absolute;
+  inset-block: var(--space-4);
+  inset-inline-start: calc(var(--assistant-list-width) + var(--space-2) - var(--target-min) / 2);
+  z-index: 1;
+  width: var(--target-min);
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.listResizer::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc((var(--target-min) - 1px) / 2);
+  width: 1px;
+  background: var(--color-border);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .listResizer:hover::before {
+    background: var(--color-border-strong);
+  }
+}
+
+.listResizer:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.listResizer:focus-visible::before,
+.listResizer[data-dragging='true']::before {
+  inset-inline-start: calc((var(--target-min) - 2px) / 2);
+  width: 2px;
+  background: var(--color-focus);
+}
+
+/* ---- 對話清單 ---- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.conversationList {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.conversationRow {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+}
+
+.conversationRow:hover,
+.conversationRow:has([aria-current='true']) {
+  background: var(--color-hover);
+}
+
+.conversationRow:has([aria-current='true']) {
+  background: var(--color-selected);
+}
+
+.conversationLink {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+  min-height: var(--row-height);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.conversationLink[aria-current='true'] .conversationTitle {
+  color: var(--color-accent);
+}
+
+.conversationTitle {
+  overflow: hidden;
+  font-size: var(--text-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversationMeta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.running {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+.listMessage {
+  margin: 0;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---- 對話 ---- */
+
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 浮動的面板：對話撐滿面板剩下的高度，輸入框才在最下面。 */
+.conversation[data-variant='panel'] {
+  flex: 1;
+}
+
+/* 浮動的面板很窄、也矮：說明不留整頁那麼大的上緣。 */
+.conversation[data-variant='panel'] .intro {
+  margin-top: var(--space-2);
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-block: var(--space-2) var(--space-4);
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-8) 0 0;
+}
+
+.introText {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: var(--leading-relaxed);
+}
+
+.examples {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.userMessage {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-soft);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.assistantMessage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.toolRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.toolRow[data-status='failed'] .toolIcon {
+  color: var(--color-danger);
+}
+
+.toolError {
+  color: var(--color-text-muted);
+}
+
+.spinner {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  animation: spin var(--duration-spin) linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.changeSetCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.changeSetTitle {
+  font-weight: var(--weight-medium);
+}
+
+.messageFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* ---- 輸入框 ---- */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+/*
+ * 自動長高不用 style 屬性：外層的 ::after 放同樣的文字（data-value），把外層撐成文字那麼高，
+ * 文字框疊在同一格裡跟著長；最多約 8 行，再多文字框自己捲。
+ */
+.inputFrame {
+  --input-max-height: calc(var(--text-control) * var(--leading-normal) * 8 + 2 * var(--space-2) + 2px);
+
+  display: grid;
+}
+
+.inputFrame::after,
+.input {
+  grid-area: 1 / 1;
+  max-height: var(--input-max-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: var(--text-control);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.inputFrame::after {
+  content: attr(data-value) ' ';
+  visibility: hidden;
+  overflow: hidden;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  border-color: var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  overflow-y: auto;
+  resize: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input:hover {
+  border-color: var(--color-text-muted);
+}
+
+.input:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  border-color: var(--color-focus);
+  box-shadow:
+    inset 0 0 0 1px var(--color-focus),
+    0 0 0 3px var(--color-focus-ring);
+}
+
+.composerBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pickers {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.noModels {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 使用者的訊息上標的「關於 WEB-12」：小字、獨立一行，連到項目。 */
+.aboutItem {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: normal;
+}

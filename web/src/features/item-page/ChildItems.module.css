@@ -1,0 +1,47 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.heading {
+  font-size: var(--text-md);
+}
+
+.progress {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+/* 清單本身是 components/List（細線分隔的清單列）；「載入更多」接在清單下面，左邊對齊每一筆的內容（清單一筆左右的內距）。 */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.loadError {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+/*
+ * 快速新增的那一列用表格上方快速新增的 class（item-table/QuickAddItem.module.css）。那一列只在寬螢幕出現、不折行；
+ * 這裡手機上也有，類型、標題、按鈕排不下時折到下一行，不把頁面撐寬。
+ */
+.quickAddRow {
+  flex-wrap: wrap;
+}

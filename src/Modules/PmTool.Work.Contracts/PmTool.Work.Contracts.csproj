@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>PmTool.Work</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\PmTool.Abstractions\PmTool.Abstractions.csproj" />
+    <ProjectReference Include="..\PmTool.Blueprint\PmTool.Blueprint.csproj" />
+  </ItemGroup>
+
+</Project>

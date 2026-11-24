@@ -1,0 +1,56 @@
+# 內建模板「簡單任務看板」，格式第 0 版。
+# 只有待辦、進行中、完成三個狀態，沒有列轉換，任何兩個狀態之間都可以互相轉換。
+# 自訂欄位每種型別各放一個，網頁的每一種欄位編輯器都測得到。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: simple_tasks
+  name: 簡單任務看板
+  description: 待辦、進行中、完成三個狀態的任務看板，適合小團隊追蹤日常工作。
+  basedOn: { template: simple_tasks, version: "1.0.0" }
+
+fields:
+  - key: category
+    name: 分類
+    type: single_select
+    options:
+      - { key: feature, name: 新功能, color: blue }
+      - { key: bug,     name: 錯誤,   color: red }
+      - { key: chore,   name: 雜務,   color: gray }
+  - key: tags
+    name: 標籤
+    type: multi_select
+    options:
+      - { key: frontend, name: 前端, color: purple }
+      - { key: backend,  name: 後端, color: green }
+      - { key: docs,     name: 文件, color: yellow }
+  - { key: review_date,   name: 檢查日,   type: date }
+  - { key: story_points,  name: 點數,     type: number }
+  - { key: budget,        name: 預算,     type: currency, currency: TWD }
+  - { key: blocked,       name: 卡住了,   type: checkbox }
+  - { key: reference_url, name: 參考連結, type: url }
+  - { key: reviewer,      name: 審查者,   type: person }
+  - { key: summary,       name: 摘要,     type: text }
+  - { key: notes,         name: 備註,     type: long_text }
+
+workflows:
+  - key: task_flow
+    name: 任務流程
+    states:
+      - { key: todo,  name: 待辦,   category: not_started }
+      - { key: doing, name: 進行中, category: in_progress }
+      - { key: done,  name: 完成,   category: done }
+
+itemTypes:
+  - key: task
+    name: 任務
+    workflow: task_flow
+    fields: [category, tags, review_date, story_points, budget, blocked, reference_url, reviewer, summary, notes]
+
+views:
+  - { key: board, name: 看板, type: board, groupBy: state }
+  - key: all_tasks
+    name: 所有任務
+    type: table
+    columns: [title, state, assignee, category, tags, due_date]
+    sort: [{ field: due_date, direction: asc }]

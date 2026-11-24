@@ -1,0 +1,304 @@
+/*
+ * 表格直接放在紙上（docs/DESIGN.md 第 1、7.1 節）：沒有卡片的外框、圓角與陰影，
+ * 上下各一條細線收邊，列與列之間一條細線。一列 --row-height，表頭黏在上方。
+ */
+.scroll {
+  /* 格子裡給螢幕閱讀器的隱藏文字是絕對定位的。不讓它們以這個容器為基準的話，
+     捲出去的那些會把整頁撐寬，頁面底下多出一條橫向捲軸。 */
+  position: relative;
+  overflow-x: auto;
+  border-block: 1px solid var(--color-border);
+}
+
+/* 不畫外框的變體（frame={false}）：裡面的表格各自收邊（我的工作的分組）。 */
+.scroll[data-frame='false'] {
+  border-block: 0;
+}
+
+/* 容器自己捲動時，焦點外框畫在裡面：外面一圈會被工作區的內容區裁掉。 */
+.scroll:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 工作區（6.2）：撐滿剩下的高度，兩個方向都自己捲；表頭黏在容器上方，橫向捲軸一直在畫面裡。 */
+.scroll[data-layout='fill'] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-bottom: 0;
+  /* 捲到被黏住的表頭蓋住的格子時，留出表頭的高度。 */
+  scroll-padding-top: var(--row-height);
+}
+
+/*
+ * 清單頁（6.2）：整頁捲動、表頭黏在頁列下面。表頭要黏住頁列，這個容器就不能是捲動容器：
+ * 放得下時用 clip（不是捲動容器，sticky 才看得到整頁的捲動），放不下時（data-overflowing）才退回橫向捲動。
+ */
+.scroll[data-layout='page'][data-overflowing='false'] {
+  overflow-x: clip;
+}
+
+.scroll[data-layout='page'][data-overflowing='false'] thead {
+  top: var(--page-bar-height);
+}
+
+/* 用 Tab 走到的格子被捲到黏住的表頭底下時，多讓出表頭的高度（整頁的 scroll-padding 只算了頁列）。 */
+.scroll[data-layout='page'] tbody :is(a, button, input) {
+  scroll-margin-top: var(--row-height);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  height: var(--row-height);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+/*
+ * 黏住的是整個表頭（不是每一格）：表頭自成一層，蓋過底下的格子（包含固定欄 1 與編輯中浮起來的格子 2，
+ * features/item-table/cells/Cells.module.css）；表頭裡固定的欄只要在這一層裡面再高一層（ItemTable 的 z-index: 1）。
+ */
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/*
+ * 表頭是紙底（docs/DESIGN.md 7.1）：和內容同一張紙，靠小一號的灰字與下面那條線分出來，不再是凹下去的一條。
+ * 黏住時要蓋住捲過去的列，所以底色是實心的紙。合併框線的表格，框線不會跟著黏住的表頭走：那條線用環線畫在格子裡。
+ */
+.table thead th {
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--color-border);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* 列標題（每一列的名稱）：和其他格子一樣的字，只是字重 medium（7.1：主要的那一欄）。 */
+.table tbody th {
+  font-weight: var(--weight-medium);
+}
+
+.table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover {
+  background: var(--color-hover);
+}
+
+/*
+ * 選取的那一列（旁邊的面板開著它：列裡連到那個項目的連結標 aria-current="true"，docs/DESIGN.md 7.1）：
+ * 每一格選取的底色（實心的，蓋得住固定欄底下捲過去的格子），連到那個項目的連結是強調色；沒有左邊的色條（第 9 節：
+ * 是哪一筆由 aria-current 與面板的標題說出來，不只靠顏色）。滑過時也維持。「不適用」的格子（data-not-applicable）留著自己的淡底。
+ */
+.table tbody tr:has(a[aria-current='true']) > :not([data-not-applicable]),
+.table tbody tr:has(a[aria-current='true']):hover > :not([data-not-applicable]),
+.table tbody tr[data-selected='true'] > :not([data-not-applicable]),
+.table tbody tr[data-selected='true']:hover > :not([data-not-applicable]) {
+  background: var(--color-selected);
+}
+
+.table tbody a[aria-current='true'] {
+  color: var(--color-accent);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.primaryCell {
+  min-width: 12rem;
+  font-weight: var(--weight-medium);
+}
+
+.rowLink {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.rowLink:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+/*
+ * 欄寬（docs/DESIGN.md 7.1「欄寬」，ColumnResizer.tsx）。可以調寬的表頭是把手的定位基準；
+ * :where() 讓它沒有權重：固定欄的表頭（position: sticky，各表格的 CSS）照樣蓋得過它，sticky 也是定位基準。
+ */
+:where(.resizable) {
+  position: relative;
+}
+
+/*
+ * 排序的表頭（SortButton.tsx，專案的表格與我的工作共用）：整個欄名是按鈕，點擊範圍至少 --target-min（第 5 節），
+ * 方向用圖示（7.1）；沒有排這一欄時圖示淡淡地出現在滑過、取得焦點時，提示可以排序。
+ * 欄比字窄時字用省略號（.headerLabel），圖示留著。
+ */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-height: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  color: var(--color-text);
+}
+
+.sortIcon {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.sortButton:hover .sortIcon,
+.sortButton:focus-visible .sortIcon {
+  opacity: 0.5;
+}
+
+th[aria-sort='ascending'] .sortButton,
+th[aria-sort='descending'] .sortButton {
+  color: var(--color-text);
+}
+
+th[aria-sort] .sortIcon {
+  opacity: 1;
+}
+/* 表頭的字：一行，欄比字窄時用省略號（名稱照舊是完整的欄名，表頭的 aria-label）。 */
+.headerLabel {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 把手：疊在這一欄與下一欄的交界上，點擊範圍 --target-min 寬（觸控 44px）、表頭那麼高；絕對定位，不擠表頭的字。
+ * 層級 1：蓋過右邊那一格的表頭；固定欄的表頭在表頭這一層裡更高（2、3），捲到它底下的把手被蓋住。
+ */
+.resizer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(var(--target-min) / -2);
+  z-index: 1;
+  width: var(--target-min);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* 最後一欄的把手不超出表格的右緣：超出的部分會把捲動區塊撐寬一點。 */
+th:last-child > .resizer {
+  inset-inline-end: 0;
+}
+
+/* 看得到的只有交界上一條 2px 的細線：平常不畫（表格沒有直線，7.1），表頭滑過時是細線的顏色，滑到把手上更深。 */
+.resizer::after {
+  position: absolute;
+  inset-block: var(--space-2);
+  inset-inline-start: calc(50% - 1px);
+  width: 2px;
+  background: transparent;
+  content: '';
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+th:last-child > .resizer::after {
+  inset-inline: auto 0;
+}
+
+/* 選擇器都從 thead 開始，權重一樣，後寫的蓋過先寫的：表頭滑過 → 把手滑過 → 拖曳中、焦點。 */
+@media (hover: hover) {
+  thead:hover .resizer::after {
+    background: var(--color-border);
+  }
+
+  thead .resizer:hover::after {
+    background: var(--color-border-strong);
+  }
+}
+
+/* 觸控沒有滑過：一直畫出細線，看得出交界在哪裡可以拉。 */
+@media (hover: none), (any-pointer: coarse) {
+  .resizer::after {
+    background: var(--color-border);
+  }
+}
+
+/*
+ * 拖曳中，與鍵盤的焦點在這一格表頭時（Shift+←／→ 調的就是這條邊）：焦點色。是功能的指示，不是裝飾的色條（第 9 節）。
+ * 拖曳中整張表格是調寬的游標、不選取文字。
+ */
+thead .resizer[data-dragging='true']::after,
+thead th:focus-visible > .resizer::after,
+thead th:has(> :focus-visible) > .resizer::after {
+  background: var(--color-focus);
+}
+
+.table:has(.resizer[data-dragging='true']) {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* 強制色彩會拿掉背景色：細線改用系統色。 */
+@media (forced-colors: active) {
+  .resizer::after {
+    forced-color-adjust: none;
+  }
+
+  thead .resizer:hover::after {
+    background: CanvasText;
+  }
+
+  thead .resizer[data-dragging='true']::after,
+  thead th:focus-visible > .resizer::after,
+  thead th:has(> :focus-visible) > .resizer::after {
+    background: Highlight;
+  }
+}
+
+/*
+ * 照內容調整欄寬時（columnFit.ts）在這一欄的格子標 data-measuring：格子的內容照自己的寬度排（不被欄寬裁掉、
+ * 不用省略號、拿掉最大寬度），量完就拿掉；同一個工作裡做完，不會畫出來。
+ */
+.table [data-measuring],
+.table [data-measuring] * {
+  max-width: none;
+  text-overflow: clip;
+}
+
+/* 只給報讀軟體的隱藏文字（全域的 .visually-hidden）維持 1px：照自己的寬度排的話，量到的是整段隱藏文字的寬度。 */
+.table [data-measuring] > :not([role='separator'], :global(.visually-hidden)) {
+  width: max-content;
+}

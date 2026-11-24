@@ -1,0 +1,91 @@
+# 內建模板「行銷活動與內容行事曆」，格式第 0 版。
+# 設計理由：
+# - 類型：活動 → 內容兩層。活動是一檔有起訖的檔期（年終檔期、新品上市），內容是檔期裡一篇一篇要發的東西（文章、影片、電子報）。
+#   內容的上層項目是活動，但不強制：平常固定出的內容不屬於任何檔期，可以單獨存在。
+# - 日期的用法：內容的「到期日」是預計發布日，在行事曆上落在發布的那一天；「開始日」是開始製作，
+#   和到期日之間就是製作期間，時間軸上是一段。活動用開始日與到期日表示檔期。這是用法，不是欄位，所以寫在說明與範例裡。
+# - 內容的狀態：企劃 → 製作 → 審稿 → 排程 → 已發布，另有取消（canceled）。排程是稿件已過審、等時間到發出去，
+#   已發布才算做完（done）。審稿沒過退回製作；排程後才發現問題（錯字、素材過期）也退回審稿，不必重做。
+#   還沒發布前都能取消（檔期取消、主題換掉），取消後改變主意放回企劃重新開始；已發布的收不回來，所以不能取消，也不能退回。
+# - 活動的狀態：規劃中 → 進行中 → 已結束，另有取消。結束後不能重開，要延長檔期就改到期日；活動取消時，底下的內容各自決定要不要取消。
+# - 欄位：通路用多選，一篇內容常同時發好幾個地方；內容形式單選，決定要準備什麼素材；稿件連結讓審稿的人一鍵打開。
+#   只有內容用這三個欄位，活動不用。
+# - 看板依狀態，是每天看進度的畫面；表格依到期日排，列出通路與形式，用來檢查發布是否太擠或有空檔。
+#   行事曆與時間軸是專案的版面，不屬於藍圖，每個專案都有。
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata:
+  key: content_calendar
+  name: 行銷活動與內容行事曆
+  description: 給行銷團隊。內容從企劃、製作、審稿到發布，排在行事曆上看檔期。
+  basedOn: { template: content_calendar, version: "1.0.0" }
+
+fields:
+  - key: channels
+    name: 通路
+    type: multi_select
+    options:
+      - { key: website,    name: 官網,      color: blue }
+      - { key: blog,       name: 部落格,    color: purple }
+      - { key: newsletter, name: 電子報,    color: orange }
+      - { key: facebook,   name: Facebook,  color: blue }
+      - { key: instagram,  name: Instagram, color: red }
+      - { key: line,       name: LINE,      color: green }
+  - key: content_format
+    name: 內容形式
+    type: single_select
+    options:
+      - { key: article, name: 文章,   color: gray }
+      - { key: image,   name: 圖片,   color: yellow }
+      - { key: video,   name: 影片,   color: red }
+      - { key: landing, name: 活動頁, color: green }
+  - { key: draft_url, name: 稿件連結, type: url }
+
+workflows:
+  - key: content_flow
+    name: 內容流程
+    states:
+      - { key: planning,  name: 企劃,   category: not_started }
+      - { key: producing, name: 製作,   category: in_progress }
+      - { key: review,    name: 審稿,   category: in_progress }
+      - { key: scheduled, name: 排程,   category: in_progress }
+      - { key: published, name: 已發布, category: done }
+      - { key: canceled,  name: 取消,   category: canceled }
+    transitions:
+      - { from: planning,  to: producing }
+      - { from: producing, to: review }
+      - { from: review,    to: scheduled }
+      - { from: scheduled, to: published }
+      - { from: review,    to: producing }  # 審稿沒過，退回製作
+      - { from: scheduled, to: review }     # 排程後發現問題，退回審稿
+      - { from: producing, to: planning }   # 方向要重想，回到企劃
+      - { from: planning,  to: canceled }
+      - { from: producing, to: canceled }
+      - { from: review,    to: canceled }
+      - { from: scheduled, to: canceled }
+      - { from: canceled,  to: planning }   # 改變主意，重新企劃
+  - key: campaign_flow
+    name: 活動流程
+    states:
+      - { key: planning, name: 規劃中, category: not_started }
+      - { key: running,  name: 進行中, category: in_progress }
+      - { key: ended,    name: 已結束, category: done }
+      - { key: canceled, name: 取消,   category: canceled }
+    transitions:
+      - { from: planning, to: running }
+      - { from: running,  to: ended }
+      - { from: planning, to: canceled }
+      - { from: running,  to: canceled }
+      - { from: canceled, to: planning }  # 改變主意，重新規劃
+
+itemTypes:
+  - { key: campaign, name: 活動, workflow: campaign_flow }
+  - { key: content,  name: 內容, workflow: content_flow, parents: [campaign], fields: [channels, content_format, draft_url] }
+
+views:
+  - { key: board, name: 內容看板, type: board, groupBy: state }
+  - key: schedule
+    name: 發布排程
+    type: table
+    columns: [title, item_type, state, channels, content_format, start_date, due_date]
+    sort: [{ field: due_date, direction: asc }]

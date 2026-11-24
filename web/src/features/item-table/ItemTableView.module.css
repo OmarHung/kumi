@@ -1,0 +1,54 @@
+/*
+ * 表格檢視的內容區（工作區頁，docs/DESIGN.md 6.2）：撐滿頁列與工具列以下的高度。
+ * 快速新增一列、下面的表格（或窄螢幕的清單）自己兩個方向捲，橫向捲軸一直在畫面裡。
+ */
+.view {
+  /* 表格的標題欄寬度看這一塊的寬度（ItemTable.module.css），不看視窗。 */
+  container: item-table / inline-size;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 空白、錯誤：不貼著工具列或快速新增。 */
+.message {
+  padding-top: var(--space-4);
+}
+
+/*
+ * 表格或清單最下面：「已載入 N 個項目」與「載入更多」。在捲動容器裡、接在最後一列後面；
+ * 表格橫向捲過去時黏在左邊，不會跟著被捲走。左右的內距和格子、清單的一筆一樣，字對齊上面每一列的內容。
+ */
+.footer {
+  position: sticky;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4) var(--space-4);
+}
+
+.count {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.loadError {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+/* 第一次載入：表頭的形狀加上幾列，和表格出現的位置一樣。 */
+.skeleton {
+  border-top: 1px solid var(--color-border);
+}
+
+.skeletonHead {
+  height: var(--row-height);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}

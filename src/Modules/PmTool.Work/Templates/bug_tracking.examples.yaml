@@ -1,0 +1,79 @@
+# 範例項目：示範缺陷在各個狀態的樣子，包含一筆已過期還沒修好的致命缺陷。
+items:
+  - ref: start
+    type: bug
+    title: 從這裡開始：缺陷怎麼用
+    state: reported
+    priority: low
+    description: |
+      這個專案只有一種類型「缺陷」，流程是：新回報 → 已確認 → 修正中 → 待驗證 → 已關閉。
+
+      - 回報時填嚴重度、重現步驟、環境與發現版本；「不處理」用來收重複與無法重現的回報。
+      - 驗證沒過可以從「待驗證」退回「修正中」。
+      - 表格裡的「嚴重度」一眼看得出哪些最急，先處理「致命」與「嚴重」。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+  - type: bug
+    title: 範例：結帳頁按下送出沒有反應
+    state: fixing
+    priority: urgent
+    startInDays: -5
+    dueInDays: -2
+    fields:
+      severity: critical
+      repro_steps: |
+        1. 加入任一商品到購物車
+        2. 進入結帳頁，填完收件資料
+        3. 按「送出訂單」，畫面沒有任何變化
+      environment: 範例瀏覽器 126、範例作業系統 14
+      found_in: 2.3.0
+  - type: bug
+    title: 範例：搜尋結果的總筆數少算一筆
+    state: confirmed
+    priority: medium
+    dueInDays: 10
+    fields:
+      severity: major
+      repro_steps: 搜尋「範例」，畫面顯示 9 筆，實際列出 10 筆。
+      environment: 測試環境
+      found_in: 2.3.0
+  - type: bug
+    title: 範例：個人資料頁的標題被截斷
+    state: reported
+    priority: low
+    fields:
+      severity: minor
+      repro_steps: 名稱超過 20 個字時，標題最後一個字被切掉一半。
+      environment: 手機瀏覽器
+      found_in: 2.3.0
+  - type: bug
+    title: 範例：匯出報表的日期格式錯誤
+    state: verifying
+    priority: medium
+    startInDays: -8
+    dueInDays: 2
+    fields:
+      severity: normal
+      repro_steps: 匯出月報，日期欄位顯示成數字而不是年月日。
+      environment: 預備環境
+      found_in: 2.2.1
+      fixed_in: 2.3.1
+  - type: bug
+    title: 範例：登入逾時後沒有導回登入頁
+    state: closed
+    priority: medium
+    startInDays: -20
+    dueInDays: -12
+    fields:
+      severity: major
+      repro_steps: 閒置 30 分鐘後按任何連結，只出現空白頁。
+      environment: 正式環境
+      found_in: 2.2.0
+      fixed_in: 2.2.1
+  - type: bug
+    title: 範例：重複的回報，已合併到結帳頁問題
+    state: wontfix
+    priority: none
+    fields:
+      severity: normal
+      found_in: 2.3.0

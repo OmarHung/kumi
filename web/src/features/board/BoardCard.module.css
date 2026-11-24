@@ -1,0 +1,262 @@
+/*
+ * 看板的卡片（docs/DESIGN.md 7.2）：浮在欄（凹下去的軌道）上的紙——surface-raised、細線、--shadow-raised、--radius-lg。
+ * surface-raised 在淺色就是白紙；深色比內容區的紙亮一階，暗的欄上看得出一張張卡片（陰影在深色幾乎看不到）。
+ * 拿得起來的卡片滑過時浮起來一點（--shadow-raised-hover 加深一點的外框）。
+ * 拖曳中、送出中、被擋下來、剛移好各有自己的樣子；跟著指標走的那一份（overlay）與載入中的骨架也用這裡的樣式。
+ */
+
+.card {
+  /* 「送出中…」前面轉圈的大小：和 12px 的字一樣高。 */
+  --card-spinner-size: 0.75rem;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-3) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raised);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+/* 手指可以捲動（Touch 感應器按住一下才開始拖），只是不要雙擊縮放。 */
+.draggable {
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+.card:focus-within {
+  border-color: var(--color-border-strong);
+}
+
+/*
+ * 滑過拿得起來的卡片：浮起來一點，看得出拿得起來。只給真的能滑過的指標（hover: hover）：
+ * 觸控沒有滑過，點一下之後 :hover 會黏在卡片上。拖走後原位的空位與被擋下來的卡片維持自己的樣子。
+ */
+@media (hover: hover) {
+  .draggable:not(.dragging, .failed):hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-raised-hover);
+  }
+}
+
+/*
+ * 項目面板開著的那一張（docs/DESIGN.md 7.2、8.3）：和表格、清單選取的那一筆同一個長相——選取的底色、標題是強調色，
+ * 外框照一般的卡片（不另外畫強調色的外框）。是哪一張由標題連結的 aria-current 與面板的標題說出來，不只靠顏色。
+ * 被擋下來的卡片照樣是危險色的外框。卡片不是表格或清單（components/Table、List 的選取樣式管不到），所以寫在這裡。
+ */
+.card:has(.cardLink[aria-current='true']):not(.failed) {
+  background: var(--color-selected);
+}
+
+.cardLink[aria-current='true'] {
+  color: var(--color-accent);
+}
+
+/* 拖走之後原位留一個虛線的空位，看得出它從哪裡來。 */
+.dragging {
+  opacity: 0.4;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+/* 拖曳中跟著指標走的那一份：浮得比較高（和選單同一層的陰影）。 */
+.overlay {
+  cursor: grabbing;
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-popover);
+  transform: rotate(1.5deg);
+}
+
+.pending {
+  opacity: 0.75;
+}
+
+.failed {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 1px var(--color-danger);
+}
+
+/* 剛移好的卡片閃一下，看得出落在哪裡。減少動態時 global.css 把動畫縮成一瞬間。 */
+.landed {
+  animation: landed var(--duration-highlight) var(--ease-out);
+}
+
+@keyframes landed {
+  from {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+}
+
+/* 觸控裝置按住卡片是要拖：不要跳出連結預覽或選字。 */
+@media (pointer: coarse) {
+  .draggable {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* 第一列：編號與類型，右上角是「移到…」。一樣高（沒有按鈕的那一份也是），卡片的大小才不會跳。 */
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+}
+
+.cardState {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.cardKey {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/*
+ * 「移到…」：平常看不到，滑鼠滑過卡片、焦點在卡片裡（Tab 走到它也算）、選單開著或送出中才出現；
+ * 用 opacity 藏起來：仍然停得到、唸得到。
+ */
+.moveButton {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.card:hover .moveButton,
+.card:focus-within .moveButton,
+.moveButton[aria-expanded='true'],
+.moveButton[aria-disabled='true'] {
+  opacity: 1;
+}
+
+/*
+ * 能用手指點的裝置一直顯示（any-pointer：觸控螢幕的筆電也算，手指沒有「滑過」這件事，
+ * 只看主要的指標裝置的話，接著滑鼠的觸控筆電會把按鈕藏起來）。
+ */
+@media (hover: none), (any-pointer: coarse) {
+  .moveButton {
+    opacity: 1;
+  }
+}
+
+.cardTitle {
+  display: flex;
+  min-height: var(--target-min);
+  margin: 0;
+  padding-right: var(--space-2);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+}
+
+/* 標題的連結整列都點得到，至少 --target-min 高（觸控時 44px），字在裡面垂直置中。 */
+.cardLink {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.cardLink:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+/* 標題最多三行，完整的標題在項目頁（連結過去）。 */
+.cardTitleText {
+  display: -webkit-box;
+  align-self: center;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 底下一列：優先度、到期日（有值才有），負責人的頭像與名字靠右。一定是一行：空間不夠時名字先縮成省略號，
+ * 優先度與到期日不縮，卡片不會因為名字長而變高。
+ */
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding-right: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.cardFact {
+  flex: none;
+}
+
+.cardFact dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+
+.assignee {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.avatar {
+  display: flex;
+  flex: none;
+}
+
+.assigneeName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.sending::before {
+  content: '';
+  width: var(--card-spinner-size);
+  height: var(--card-spinner-size);
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  animation: spin var(--duration-spin) linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* 載入中的骨架：一張卡片的紙，上下的留白和卡片一樣，裡面是 Skeleton 的灰條。 */
+.skeleton {
+  padding: var(--space-3);
+  cursor: default;
+}

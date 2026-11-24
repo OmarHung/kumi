@@ -1,0 +1,28 @@
+-- 執行用的角色 pmtool_app：能登入，不是超級使用者，不能建資料庫、不能建角色。api 平常用它連資料庫。
+--
+-- scripts/ops/deploy-local.sh 每次部署、啟動 api 之前跑它：全新的資料庫與既有的資料庫都靠這裡建立角色、更新密碼。
+-- 不用 postgres 映像檔的初始化（/docker-entrypoint-initdb.d/）：那要把 repo 的目錄掛進 db，
+-- repo 放在外接碟上的話，Docker 啟動時外接碟還沒接上，就連資料庫都起不來。
+--
+-- 可以重跑：沒有就建立，有就把屬性與密碼設回來，env 檔改了密碼，部署一次就更新。
+-- 呼叫端先送一行 \set app_password <密碼>，再送這個檔案，都經由標準輸入：密碼不出現在指令列上（ps 看得到指令列）。
+-- 沒送的話 :'app_password' 不會被代換，下面的 SELECT 是語法錯誤，整段停下來。
+-- 密碼只用英文字母與數字（呼叫端檢查）：它也會被放進連線字串。
+-- 讀寫資料的權限不在這裡給：api 遷移完自己授予 Database:RuntimeRole。
+\set ON_ERROR_STOP on
+\set app_role pmtool_app
+
+-- 下面的指令帶著密碼：這個連線出錯時不把指令本身寫進資料庫的記錄。兩個都只有超級使用者能設，本機的 pmtool 是。
+SET log_min_error_statement = panic;
+SET log_statement = none;
+
+-- 先建立沒有密碼的角色，密碼只在下面的 ALTER 設一次。
+SELECT format('CREATE ROLE %I', :'app_role')
+WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'app_role')
+\gexec
+
+-- %L 把密碼當成字串常值，%I 把角色名稱當成識別字：值不會被當成 SQL 的一部分。
+SELECT format(
+  'ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD %L',
+  :'app_role', :'app_password')
+\gexec

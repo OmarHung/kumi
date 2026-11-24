@@ -1,0 +1,3 @@
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"cat ~/.ssh/id_rsa","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"不該送出"}}

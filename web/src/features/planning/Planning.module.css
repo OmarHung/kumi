@@ -1,0 +1,158 @@
+/*
+ * 規劃頁：週期與里程碑。清單直接放在紙上，用細線分開，不是浮起來的卡片，也沒有裝飾色條（docs/DESIGN.md 第 1、5 節）；
+ * 進度條有數值（progressbar），旁邊一定寫出數字。
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.intro {
+  max-width: var(--reading-max);
+  color: var(--color-text-muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--text-md);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* 單獨一列的連結（不是內文裡的）：點擊範圍至少 --target-min 高（觸控 44px），實測原本只有字那麼高，ui-audit 算成太小的目標。 */
+.name {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.dates,
+.description,
+.noItems {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.description {
+  max-width: var(--reading-max);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/*
+ * 進度條是原生的 <progress>：外框、底、填滿的部分在三個引擎各有自己的偽元素，樣式要分開寫。
+ * 填滿的長度是 value／max，不用 style 屬性（docs/DESIGN.md 第 13 節）。
+ */
+.track {
+  appearance: none;
+  inline-size: 100%;
+  block-size: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+  overflow: hidden;
+}
+
+.track::-webkit-progress-bar {
+  background: var(--color-canvas);
+}
+
+.track::-webkit-progress-value {
+  background: var(--color-accent-solid);
+}
+
+.track::-moz-progress-bar {
+  background: var(--color-accent-solid);
+}
+
+.menu {
+  justify-self: end;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dateRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+/* 窄螢幕：進度換到名稱下面，更多選單留在右上角。 */
+@media (max-width: 48rem) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .progress,
+  .noItems {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .dateRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,46 @@
+/*
+ * 「分頁的未讀提示」的示意圖（TabBadgePreview）：凹下去的一條像瀏覽器的分頁列，左邊是放大的圖示，
+ * 右邊是一個浮起來的分頁（實際大小的圖示加上帶未讀數的標題）。沒有裝飾的色塊：分頁列與分頁都是真的會看到的東西。
+ * 內容的高度固定（放大的圖示），換選項時版面不跳；窄螢幕時標題截斷，不撐寬。
+ */
+.preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 40rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.large {
+  flex: none;
+  inline-size: var(--space-12);
+  block-size: var(--space-12);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raised);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.tabIcon {
+  flex: none;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+}
+
+.tabTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

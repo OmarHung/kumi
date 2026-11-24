@@ -1,0 +1,141 @@
+/*
+ * 窄螢幕取代表格的清單（docs/DESIGN.md 7.1）：和表格一樣直接放在紙上，上下各一條細線收邊、筆與筆之間一條細線，
+ * 滑過的底色、焦點外框、編號與截斷的規則都和表格一致。
+ */
+.frame {
+  /* 給報讀軟體的隱藏文字是絕對定位的：讓它們以這裡為基準，不把頁面撐寬。 */
+  position: relative;
+}
+
+/* 工作區頁：撐滿剩下的高度、自己直向捲（頁面剛好一個畫面高，6.2）。 */
+.frame[data-layout='fill'] {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--color-border);
+}
+
+.list[aria-busy='true'] {
+  opacity: 0.6;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+/*
+ * 一筆：至少 --row-height（觸控 44px）。有第二行時就是兩行加上下留白，自然超過兩行的高度。
+ * 有 to 時這一層就是連結，點擊範圍是整筆。
+ * 左右的內距和表格的格子一樣：滑過與選取的底色畫到整筆的邊，頭像和右邊的時間不會貼著底色的邊。
+ */
+.content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-text);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.content:hover {
+  background: var(--color-hover);
+}
+
+.link {
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--color-text);
+}
+
+/*
+ * 選取的那一筆（旁邊的面板開著它，aria-current="true"）：選取的底色、標題是強調色（和表格選取的那一列一樣），
+ * 沒有左邊的色條（docs/DESIGN.md 第 9 節：是哪一筆由 aria-current 與面板的標題說出來）。滑過時也維持。
+ */
+.link[aria-current='true'],
+.link[aria-current='true']:hover {
+  background: var(--color-selected);
+}
+
+.link[aria-current='true'] .title {
+  color: var(--color-accent);
+}
+
+/* 焦點外框畫在裡面：清單貼著內容區的邊，外面一圈會被裁掉。 */
+.link:focus-visible {
+  outline-offset: -2px;
+}
+
+.leading,
+.trailing {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.trailing {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+/* 第一行：編號與標題。標題一行、放不下用省略號，完整的文字在 title 與詳細頁（第 3 節的截斷規則）。 */
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第二行：次要的灰字，放不下就換行（不橫向撐開），很長的字（Email）在任何地方都可以斷。 */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}

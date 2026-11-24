@@ -1,0 +1,84 @@
+/*
+ * 按鈕（docs/DESIGN.md 第 7 節 Button）：--radius-md、字重 semibold；按下時往下沉 1px（--duration-fast），
+ * 看得出按到了。primary 是實心的強調色，secondary 是紙底加控制項的外框，ghost 沒有外框，danger 是實心的危險色。
+ */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.button:active:not(:disabled, [aria-disabled='true']) {
+  transform: translateY(1px);
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sm {
+  height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+/* 實心的底用 --color-accent-solid（深色模式不是淡紫：實心的淡紫像糖果，配深色字），字是白色。 */
+.primary {
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+}
+
+.primary:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-accent-solid-hover);
+  color: var(--color-accent-contrast);
+}
+
+/* 外框是「這裡可以按」的線索：用 --color-control-border（對比 3:1 以上），不加陰影（陰影只給浮起來的東西）。 */
+.secondary {
+  background: var(--color-surface);
+  border-color: var(--color-control-border);
+  color: var(--color-text);
+}
+
+.secondary:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+/* 停用（包含 aria-disabled：停得到、說明用 aria-describedby 連過去）時滑過去不變色，看起來就是按不了。 */
+.ghost:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.danger {
+  background: var(--color-danger-solid);
+  color: var(--color-accent-contrast);
+}
+
+.danger:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-danger-solid-hover);
+  color: var(--color-accent-contrast);
+}

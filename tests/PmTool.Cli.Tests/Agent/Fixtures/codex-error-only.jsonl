@@ -1,0 +1,3 @@
+{"type":"turn.started"}
+{"type":"error","message":"Reconnecting... waiting for network (1/5)"}
+{"type":"error","message":"unexpected status 401 Unauthorized"}

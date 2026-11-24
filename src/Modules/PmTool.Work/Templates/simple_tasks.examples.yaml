@@ -1,0 +1,66 @@
+# 範例項目：建立專案時勾了「附上範例項目」才會建立。
+# 想示範：待辦、進行中、完成三個狀態，以及各種欄位（分類、標籤、日期、點數、預算、勾選、連結、文字）怎麼填。
+# 檢查日是相對建立當天的天數；範例不放「審查者」，因為範例裡沒有真的人。
+items:
+  - type: task
+    title: 從這裡開始：認識簡單任務看板
+    state: todo
+    priority: medium
+    description: |
+      這個看板只有三個狀態：待辦、進行中、完成。任何兩個狀態之間都可以互相轉換。
+
+      每個任務可以選分類、貼標籤、設負責人與到期日，也可以填點數、預算、檢查日與參考連結。
+      這些範例項目可以逐筆刪掉。
+    fields:
+      category: chore
+      summary: 先看一遍這幾筆範例，再開始加自己的任務。
+
+  - type: task
+    title: 範例：設計登入頁
+    state: doing
+    priority: high
+    startInDays: -3
+    dueInDays: 4
+    description: 先出一版線框圖，確認欄位與錯誤訊息的寫法。
+    fields:
+      category: feature
+      tags: [frontend, docs]
+      story_points: 5
+      reference_url: https://example.com/spec/login
+      review_date: 3
+
+  - type: task
+    title: 範例：修正匯出的日期格式
+    state: todo
+    priority: urgent
+    dueInDays: -2
+    description: 這一筆的到期日已經過了，清單上會標示過期。
+    fields:
+      category: bug
+      tags: [backend]
+      blocked: true
+      summary: 等資料表欄位定案才能動。
+
+  - type: task
+    title: 範例：更新安裝說明
+    state: done
+    priority: low
+    startInDays: -8
+    dueInDays: -5
+    fields:
+      category: chore
+      tags: [docs]
+      story_points: 2
+
+  - type: task
+    title: 範例：評估第三方報表服務
+    state: todo
+    priority: none
+    dueInDays: 30
+    fields:
+      category: feature
+      tags: [backend]
+      budget: 50000
+      notes: |
+        比較三家的價格與匯出格式。
+        預算先抓一個大概，之後再調整。

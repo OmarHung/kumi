@@ -1,0 +1,17 @@
+/*
+ * 「我的工作」看板自己多的樣式；欄與卡片的樣子照專案的看板（features/board）。
+ * 卡片底下的事實（專案、狀態、優先度、到期日、負責人）比專案的看板多，放不下時換行，卡片多一行而不是截掉狀態名稱。
+ */
+.meta {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+
+.projectName {
+  display: block;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

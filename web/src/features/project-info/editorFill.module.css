@@ -1,0 +1,9 @@
+/*
+ * 填滿畫面高度的 Markdown 編輯器（專案說明、說明格式共用）：高度固定，打字時不長高、不推動版面，
+ * 更長的內容在框裡捲。呼叫端在同一個元素上設 --editor-reserved（編輯器內容區以外占掉的高度，含工具列）
+ * 與 --editor-min-height（最少多高）。對捲動的那一層 [data-editor-scroll] 設高度，工具列在外面不跟著捲。
+ */
+.fill [data-editor-scroll] {
+  height: max(var(--editor-min-height), calc(100dvh - var(--editor-reserved)));
+  max-height: none;
+}

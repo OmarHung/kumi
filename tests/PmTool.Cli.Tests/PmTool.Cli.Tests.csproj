@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- 覆蓋率只算這個測試專案負責的組件（CLI 的組件叫 kumi）。
+       Program.cs 與 ConsoleSecret.cs 只是接上真的終端機與網路，沒有邏輯，也沒辦法在測試裡接真的終端機。 -->
+  <PropertyGroup>
+    <Include>[kumi]*</Include>
+    <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
+    <ExcludeByFile>**/Program.cs;**/ConsoleSecret.cs;**/ConsoleInterrupt.cs</ExcludeByFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.msbuild" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit.Analyzers" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PmTool.Cli\PmTool.Cli.csproj" />
+    <Content Include="Agent\Fixtures\*.jsonl" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\schemas\blueprint\v0\examples\*.yaml" Link="Examples\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+</Project>

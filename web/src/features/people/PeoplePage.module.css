@@ -1,0 +1,44 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-medium);
+}
+
+/* 新增之後的提示：和下面的清單隔開。沒有訊息時 Notice 本身看不見、不佔位置。 */
+.status {
+  margin-bottom: var(--space-4);
+}
+
+/* 停用的人：名稱用灰字，後面的「已停用」標籤才是意思（不只靠顏色）。 */
+.disabledName {
+  color: var(--color-text-muted);
+}
+
+/*
+ * 每一列最後的「更多」：欄寬只夠一顆按鈕、靠右。觸控時按鈕是 44px，和列高一樣，上下不再留內距，
+ * 列才不會被撐高（成員表格的「移除」也是這樣）。
+ */
+.actionCell {
+  width: 1%;
+  padding-block: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/*
+ * 窄螢幕的清單：「更多」排在組織角色後面。沒有按鈕的那一筆（自己、不能動的人）照樣留出一顆按鈕的寬度，
+ * 每一筆的組織角色才對得齊（和表格的「動作」欄一樣）。
+ */
+.listAction {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: var(--control-height-sm);
+}

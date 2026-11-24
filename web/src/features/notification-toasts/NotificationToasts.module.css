@@ -1,0 +1,152 @@
+/* 放在 body 底下的外層（不是畫面的一部分）：只是讓整層帶 data-inert-exempt，不佔版面。 */
+.layer {
+  display: contents;
+}
+
+/*
+ * 新通知的提示：右下角疊成一欄（新的在下面），窄螢幕（48rem 以下）在下方、左右留頁面的邊距。
+ * 外框是 popover="manual"（top layer，和 Floating 一樣）：蓋掉瀏覽器給 [popover] 的預設（置中、inset: 0、外框與底色）。
+ * 外框本身不接滑鼠（提示之間的空隙點得到後面的東西），每一則自己接。
+ */
+.region {
+  --toast-width: 24rem;
+
+  /* 外框自己捲動（矮的視窗放不下一疊提示）時陰影不被切掉：留一圈內距，位置往外挪回去。 */
+  --region-pad: var(--space-3);
+
+  /* 右下角的 AI 助理（features/assistant-panel/）在的時候讓出位置：按鈕（固定在右下角，藏起來時不讓）在時往上，面板展開時往左。 */
+  --reserve-bottom: 0rem;
+  --reserve-inline: 0rem;
+
+  position: fixed;
+  inset: auto calc(var(--page-gutter) - var(--region-pad) + var(--reserve-inline)) calc(var(--space-4) - var(--region-pad) + env(safe-area-inset-bottom) + var(--reserve-bottom)) auto;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: min(calc(var(--toast-width) + 2 * var(--region-pad)), calc(100% - 2 * var(--page-gutter) + 2 * var(--region-pad)));
+  max-height: calc(100% - var(--space-4) - env(safe-area-inset-bottom));
+  height: auto;
+  margin: 0;
+  padding: var(--region-pad);
+  overflow-y: auto;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  pointer-events: none;
+}
+
+@media (max-width: 48rem) {
+  .region {
+    inset: auto calc(var(--page-gutter) - var(--region-pad)) calc(var(--space-4) - var(--region-pad) + env(safe-area-inset-bottom) + var(--reserve-bottom));
+    width: auto;
+  }
+}
+
+:root[data-assistant='button'] .region {
+  --reserve-bottom: calc(var(--assistant-button-size) + var(--space-2));
+}
+
+/*
+ * 面板開著（規則在 docs/design/07-components.md 的 AssistantPanel）：提示讓到面板的左邊（放得下才用）、疊在面板上面、
+ * 或放到畫面上緣（面板很高或全螢幕）。選哪一個由面板算（data-assistant），這裡只負責位置；
+ * 讓的距離用和面板實際畫出來的大小同一個 min()（面板被夾在畫面之內）。
+ */
+:root[data-assistant='panel-left'] .region {
+  --reserve-inline: calc(min(var(--assistant-width), 100vw - 2 * var(--page-gutter)) + var(--space-3));
+}
+
+:root[data-assistant='panel-above'] .region {
+  --reserve-bottom: calc(min(var(--assistant-height), 100dvh - 2 * var(--space-4)) + var(--space-3));
+}
+
+:root[data-assistant='panel-top'] .region {
+  inset-block: calc(var(--space-4) - var(--region-pad) + env(safe-area-inset-top)) auto;
+}
+
+/* 浮起來的紙：細線、--shadow-popover，沒有裝飾色條。從下面滑進來（出現的位置說明它從哪裡來）。 */
+.toast {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-sm);
+  pointer-events: auto;
+  animation: toast-in var(--duration-normal) var(--ease-out);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+/* 整則是一個連結（.content 是設定頁示意圖的同一個排法，不是連結）；右邊留出關閉按鈕的位置，文字不會蓋到它。 */
+.link,
+.content {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3);
+  padding-right: calc(var(--target-min) + var(--space-3));
+  border-radius: inherit;
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--color-hover);
+}
+
+.icon {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.headline {
+  overflow-wrap: anywhere;
+}
+
+.actor {
+  font-weight: var(--weight-semibold);
+}
+
+/* 編號是等寬字；標題一行、放不下用省略號（和收件匣一樣，完整的在項目裡）。 */
+.itemLine {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemKey {
+  font-family: var(--font-mono);
+}
+
+/* 完整時的內容：全部顯示、會換行（伺服器的摘錄最多 200 字）。 */
+.excerpt {
+  overflow-wrap: anywhere;
+  color: var(--color-text-muted);
+}
+
+.close {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}

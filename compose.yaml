@@ -1,0 +1,166 @@
+# 本機執行：資料庫、API 主機（網頁由 API 主機一起提供）與每日備份。
+# 先把 .env.example 複製成 .env 並填上三個密碼，再執行 bash scripts/ops/deploy-local.sh，然後開 http://localhost:8080。
+# 操作手冊：docs/OPERATIONS.md。上雲端的做法另外寫在 docs/DEPLOYMENT.md，不是用這個檔案。
+name: pm-tool
+
+# 每個容器的記錄都輪替：每份 10 MB、留 5 份。沒設的話 json-file 會一直長，直到磁碟滿。
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+# db 與 backup 共用的 PostgreSQL 映像檔，固定到 digest（多平台的 index）：同一個標籤之後可能指向不同的內容。
+# 標籤只是給人看的，拉的是 digest。scripts/ops/restore-drill.sh 也從這一行讀，演練用同一個映像檔。
+# 目前是 PostgreSQL 18.7（2026-11-17 查的）。怎麼更新見 docs/DEPLOYMENT.md 第 7 節；只能換 18 的小版本，換大版本要另外搬資料。
+x-postgres-image: &postgres-image postgres:18@sha256:2ea8630df176ad090ec92136dee850397c5af8781e4bcf2e4162593691c61bbc
+
+services:
+  db:
+    image: *postgres-image
+    environment:
+      POSTGRES_DB: pmtool
+      # 資料表的擁有者（本機也是超級使用者）：遷移、備份、還原用它。
+      POSTGRES_USER: pmtool
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?請先把 .env.example 複製成 .env 並填上 POSTGRES_PASSWORD}
+    volumes:
+      # PostgreSQL 18 的映像檔把資料放在 /var/lib/postgresql/18 底下，資料卷要掛在上一層；掛在舊的 data 路徑會起不來。
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      # 用 TCP 問：第一次初始化時映像檔先起一個只聽 Unix socket 的暫時伺服器，用 socket 問會在它還沒真的起來時就說好了。
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U pmtool -d pmtool"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging: *logging
+    # 不對主機開連接埠：只有 api 與 backup 需要連它。
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    # 讓一個小的 init 程序當 PID 1：程式碼處理不到的崩潰（例如堆疊溢位）會讓程序結束，
+    # Docker 才看得到並依 restart 重啟；沒有它，PID 1 是 .NET 本身，行為比較難預期。
+    init: true
+    ports:
+      # 只綁本機：這是測試用的設定，沒有 HTTPS，不該讓同一個網路上的其他機器連進來。
+      # 連接埠可以換，同一份設定才能另外起一套隔離的環境（測試、演練），不碰到 8080 那一套。
+      - "127.0.0.1:${PMTOOL_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # 平常用執行用的角色：只能讀寫資料，改不了資料表結構。
+      # 執行用的角色 pmtool_app 由 scripts/ops/deploy-local.sh 在啟動 api 之前建立（deploy/postgres/app-role.psql）。
+      ConnectionStrings__Database: Host=db;Port=5432;Database=pmtool;Username=pmtool_app;Password=${POSTGRES_APP_PASSWORD:?請在 .env 加上 POSTGRES_APP_PASSWORD（產生：openssl rand -hex 24），再執行 bash scripts/ops/deploy-local.sh，見 docs/OPERATIONS.md}
+      # 遷移用資料表的擁有者。遷移完把每個模組的 schema 的讀寫權限授予 RuntimeRole。
+      ConnectionStrings__Migrations: Host=db;Port=5432;Database=pmtool;Username=pmtool;Password=${POSTGRES_PASSWORD}
+      Database__RuntimeRole: pmtool_app
+      # 本機只有一個 api 容器，啟動時遷移就好。雲端關掉它，另外跑 migrate（docs/DEPLOYMENT.md）。
+      Database__MigrateOnStartup: "true"
+      # 資料庫裡還沒有任何帳號時，用這組資料建立第一個組織與它的擁有者；之後這些設定就不再有作用。
+      Bootstrap__OrganizationName: ${BOOTSTRAP_ORGANIZATION_NAME:-範例組織}
+      Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-管理員}
+      Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      Bootstrap__AdminPassword: ${BOOTSTRAP_ADMIN_PASSWORD:?請先在 .env 填上 BOOTSTRAP_ADMIN_PASSWORD（至少 10 個字元）}
+      # 工作階段 Cookie 的加密金鑰存在資料庫裡（不再用資料卷）。本機沒有設憑證（DataProtection__CertificatePath），
+      # 金鑰沒有另外加密，啟動時會記一筆 Warning，本機自用可以接受。
+      # 記錄是一行一筆的 JSON（正式環境的預設，寫在 appsettings.Production.json）：scripts/ops/status.sh 與 errors.sh 靠它。
+      # 只影響記錄的時間：程式裡的時間一律用 UTC。
+      TZ: ${TZ:-Asia/Taipei}
+      # 附件的檔案放在主機的資料夾（本機用 local）。api 容器以 UID 1654 執行，資料夾要寫得進去：
+      # scripts/ops/deploy-local.sh 會先建立並確認（見 docs/OPERATIONS.md 第 3 節）。
+      Attachments__Provider: local
+      Attachments__Directory: /data/attachments
+      # AI 的 OpenAI 相容端點能不能連到私有網段與本機（主機上自架的 Ollama 要打開）。預設不行：見 docs/DEPLOYMENT.md 第 1.8 節。
+      Ai__AllowPrivateEndpoints: ${AI_ALLOW_PRIVATE_ENDPOINTS:-false}
+    volumes:
+      # 和資料庫的資料卷一樣不放在 Docker 的資料卷裡：docker compose down -v 刪不到它。
+      - ${ATTACHMENTS_DIR:-./data/attachments}:/data/attachments
+    # ai-worker 只在 ai-worker 這個網路上，連得到 api、連不到 db；api 兩邊都接。
+    networks: [default, ai-worker]
+    restart: unless-stopped
+    logging: *logging
+    # 沒有寫 healthcheck：執行階段的 aspnet 映像檔裡沒有 curl 或 wget。就緒檢查交給外部打 GET /health/ready。
+
+  backup:
+    # 用和資料庫同一個映像檔：pg_dump 的版本和伺服器一致，也不用另外建置。
+    image: *postgres-image
+    depends_on:
+      db:
+        condition: service_healthy
+    # 每小時看一次，最新的排程備份超過 BACKUP_INTERVAL_HOURS 就做一份，所以 Mac 睡著錯過時間也會補上。
+    # 手動備份（scripts/ops/backup-now.sh）也是跑這支腳本，只是帶 --once。
+    entrypoint: ["bash", "/ops/backup-loop.sh"]
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: pmtool
+      # 用資料表的擁有者備份：執行用的角色讀不到全部的東西。
+      PGUSER: pmtool
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # compose 用 -p 或上面的 name: 填這個值。備份目錄裡的 .pmtool-project 要和它一樣，
+      # 兩套環境才不會共用同一個備份目錄（見 docs/OPERATIONS.md 第 9 節）。
+      PMTOOL_PROJECT: ${COMPOSE_PROJECT_NAME}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      # 只有測試要把檢查的間隔調短，平常不用設。
+      BACKUP_CHECK_SECONDS: ${BACKUP_CHECK_SECONDS:-3600}
+      # 備份檔名與記錄的時間用這個時區。
+      TZ: ${TZ:-Asia/Taipei}
+    volumes:
+      - ./scripts/ops:/ops:ro
+      # 備份寫到主機的目錄，不放在 Docker 的資料卷裡：docker compose down -v 刪不到它，也方便複製到別的磁碟。
+      - ${BACKUP_DIR:-./backups}:/backups
+      # 附件的資料夾唯讀掛進來：備份只複製、不改它（增量複製到 /backups/attachments/）。
+      - ${ATTACHMENTS_DIR:-./data/attachments}:/attachments:ro
+    restart: unless-stopped
+    logging: *logging
+
+  # 主機 AI 代理的 worker（internal/HANDOFF-host-agent.md）：kumi host run 加上 Claude Code 與 Codex。
+  # 用 profile 控制：.env 加 COMPOSE_PROFILES=ai-worker 才會跟著 deploy-local.sh 起來（或 docker compose --profile ai-worker up -d）。
+  # 不對外開任何連接埠；憑證與引擎的登入都存在資料卷 ai-worker-home，映像檔裡沒有。
+  # 第一次使用：擁有者在網頁新增主機代理，再 docker compose exec -it ai-worker kumi host pair；登入用 kumi host login。
+  ai-worker:
+    profiles: ["ai-worker"]
+    build:
+      context: .
+      dockerfile: deploy/ai-worker/Dockerfile
+    depends_on:
+      - api
+    init: true
+    restart: unless-stopped
+    # 收到 SIGTERM 後，正在跑的回覆要以「中斷」結束、送出結果，給它時間。
+    stop_grace_period: 40s
+    logging: *logging
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    # 引擎讀的是別人寫的項目內容（提示注入的入口）：隔離的旗標之外再加資源上限，失控的程序吃不光主機。
+    mem_limit: 2g
+    pids_limit: 512
+    # 自己的網路：連得到 api（和外網的供應商），連不到 db。
+    networks: [ai-worker]
+    environment:
+      # worker 連的網址；工作的 MCP 網址也是它加 /mcp。設了 Security:RequireHttps 的部署要換成對外的 https 網址。
+      KUMI_SERVER: ${AI_WORKER_SERVER:-http://api:8080}
+      # compose 內部網路的 http 不是本機：明確放行（機器憑證只在這個內部網路上傳送）。換成 https 網址時用不到。
+      KUMI_ALLOW_INSECURE: "1"
+    volumes:
+      # CLI 的登入（~/.claude、~/.codex）與 kumi 的狀態檔（機器憑證）。docker compose down -v 會刪掉它，之後要重新配對、登入。
+      - ai-worker-home:/home/kumi
+
+# 舊版的 api-keys 資料卷（工作階段的金鑰）不再用，不會自動刪除，見 docs/OPERATIONS.md。
+volumes:
+  db-data:
+  ai-worker-home:
+
+networks:
+  default:
+  ai-worker:

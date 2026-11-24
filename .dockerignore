@@ -1,0 +1,34 @@
+# 建置輸出與本機檔案不進建置內容，避免主機的 obj/ 蓋掉容器裡的還原結果。
+**/bin
+**/obj
+**/TestResults
+artifacts
+.git
+.github
+.vs
+.vscode
+.idea
+**/*.user
+# 密碼與憑證不進建置內容。Dockerfile 只複製 web/、src/、schemas/ 與根目錄的幾個設定檔，用不到這些；
+# .env.example 也不需要在映像檔裡，所以一起排除。
+**/.env
+**/.env.*
+**/*.pfx
+**/*.env.yaml
+
+# 網頁的套件與建置輸出在映像檔裡重新產生，主機上的不能帶進去（平台不同，原生套件會壞）。
+**/node_modules
+web/dist
+web/coverage
+
+# 映像檔不需要測試與文件。
+tests
+docs
+
+# 不公開的開發紀錄（另一個私人的 repo），不送進建置內容。
+internal
+
+# 注意：schemas/ 不能排除，藍圖模組建置時要內嵌裡面的 Schema。
+
+# 本機的資料庫備份是真實資料，不能送進建置內容。
+backups

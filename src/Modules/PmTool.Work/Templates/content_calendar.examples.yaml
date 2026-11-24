@@ -1,0 +1,103 @@
+# 範例項目：示範一檔年終活動底下的幾篇內容，走在不同的狀態。
+# - 內容的到期日是發布日，分散在今天前後約一個月，打開行事曆就有東西；有幾篇有開始日（製作期間），在時間軸上是一段。
+# - 活動用開始日與到期日表示檔期；一個里程碑收在檔期上線那天。
+# - 項目涵蓋：已發布、排程、審稿、製作、企劃、取消各一，其中一篇製作中的已過發布日（過期）。
+# - 不設負責人，網址都是 example.com。日期都是相對於建立專案那天，只是示意。
+milestones:
+  - ref: launch
+    name: 範例：年終檔期上線
+    dueInDays: 14
+    description: 範例的里程碑，示範把檔期上線需要的內容收在同一個日期之前。
+items:
+  - ref: start
+    type: campaign
+    title: 從這裡開始：行銷活動與內容行事曆怎麼用
+    state: running
+    priority: low
+    description: |
+      這個專案有兩種類型：活動與內容。內容的上層項目是活動，一檔活動底下放好幾篇內容。
+      內容的流程是：企劃 → 製作 → 審稿 → 排程 → 已發布。審稿沒過可以退回「製作」，排程後發現問題可以退回「審稿」；不發的內容放「取消」。
+      活動的流程是：規劃中 → 進行中 → 已結束，不做的放「取消」。
+
+      - 內容的「到期日」填預計發布日，「開始日」填開始製作的那天。活動用「開始日」與「到期日」表示檔期。
+      - 在工具列的「版面」選「行事曆」，內容會排在發布的那一天；選「時間軸」，有開始日與到期日的項目是一段，看得出檔期與製作期間。
+      - 內容可以填通路、內容形式與稿件連結，審稿的人從稿件連結直接打開。
+      - 頁列上的「規劃」可以建立里程碑，把一批內容歸到同一個目標日期之前。
+
+      這幾筆是範例，看懂之後可以逐筆刪掉。
+  - ref: yearend
+    type: campaign
+    title: 範例：年終檔期
+    state: running
+    priority: high
+    milestone: launch
+    startInDays: -10
+    dueInDays: 25
+    description: 年終檔期從開始日到到期日，在時間軸上是一段。底下的內容各自有發布日。
+  - type: content
+    title: 範例：年度回顧文章
+    state: published
+    priority: medium
+    parent: yearend
+    startInDays: -20
+    dueInDays: -9
+    fields:
+      channels: [website, blog]
+      content_format: article
+      draft_url: https://example.com/drafts/year-in-review
+  - type: content
+    title: 範例：會員專屬優惠電子報
+    state: scheduled
+    priority: high
+    parent: yearend
+    milestone: launch
+    startInDays: -4
+    dueInDays: 2
+    fields:
+      channels: [newsletter, line]
+      content_format: article
+      draft_url: https://example.com/drafts/member-newsletter
+  - type: content
+    title: 範例：檔期形象短片
+    state: producing
+    priority: urgent
+    parent: yearend
+    milestone: launch
+    startInDays: -12
+    dueInDays: -3
+    description: 剪輯卡在素材授權，已經過了預計發布日，要重新排發布日。
+    fields:
+      channels: [facebook, instagram]
+      content_format: video
+  - type: content
+    title: 範例：優惠倒數圖卡
+    state: review
+    priority: medium
+    parent: yearend
+    startInDays: -2
+    dueInDays: 6
+    fields:
+      channels: [instagram, line]
+      content_format: image
+      draft_url: https://example.com/drafts/countdown-cards
+  - type: content
+    title: 範例：年終活動頁
+    state: planning
+    priority: high
+    parent: yearend
+    milestone: launch
+    startInDays: 3
+    dueInDays: 14
+    fields:
+      channels: [website]
+      content_format: landing
+  - type: content
+    title: 範例：跨年直播預告
+    state: canceled
+    priority: low
+    parent: yearend
+    dueInDays: 20
+    description: 預算不足，這一檔不做直播。取消的內容留著當紀錄。
+    fields:
+      channels: [facebook]
+      content_format: video

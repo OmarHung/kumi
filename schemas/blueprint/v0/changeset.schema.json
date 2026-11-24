@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pm-tool:blueprint:v0:changeset",
+  "title": "變更集請求（第 0 版）",
+  "description": "模板、設定畫面、CLI、AI 四個入口送出的共同單位：想要的藍圖全文，加上資料搬移的指示。差異由伺服器對照 baseVersion 算出來，送出的人不必自己描述改了什麼。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["baseVersion", "blueprint"],
+  "properties": {
+    "baseVersion": {
+      "type": "integer",
+      "description": "這份修改以專案藍圖的第幾版為基準。新專案填 0。伺服器上的目前版本不同時會拒絕，要重新產生。"
+    },
+    "summary": { "type": "string", "description": "給核准者看的一句話說明。" },
+    "blueprint": { "$ref": "urn:pm-tool:blueprint:v0:project-blueprint" },
+    "migrations": { "$ref": "#/$defs/migrations" }
+  },
+  "$defs": {
+    "key": { "type": "string" },
+    "migrations": {
+      "type": "object",
+      "description": "會影響既有資料的修改，必須在這裡寫明怎麼處理；少寫的話，計畫這一步會擋下來並列出缺什麼。",
+      "additionalProperties": false,
+      "properties": {
+        "moveStates": {
+          "type": "array",
+          "description": "被刪除的狀態底下的項目要搬到哪個狀態。",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["workflow", "from", "to"],
+            "properties": {
+              "workflow": { "$ref": "#/$defs/key" },
+              "from": { "$ref": "#/$defs/key" },
+              "to": { "$ref": "#/$defs/key" }
+            }
+          }
+        },
+        "dropFields": {
+          "type": "array",
+          "description": "確認這些被刪除的欄位可以封存。封存後資料保留 30 天。",
+          "items": { "$ref": "#/$defs/key" }
+        },
+        "convertFields": {
+          "type": "array",
+          "description": "欄位改型別時，轉不過去的值怎麼處理。",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "onFailure"],
+            "properties": {
+              "field": { "$ref": "#/$defs/key" },
+              "onFailure": { "enum": ["leave_empty", "abort"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

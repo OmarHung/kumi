@@ -1,0 +1,101 @@
+.trigger {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 頁列的動作區不會縮：按鈕自己有寬度上限，長標題用省略號；窄螢幕更小，留位置給頁列的標題與「對話」。 */
+.trigger[data-size='compact'] {
+  max-width: 12rem;
+}
+
+@media (max-width: 48rem) {
+  .trigger[data-size='compact'] {
+    max-width: 7rem;
+  }
+
+  /* 窄螢幕的頁列只留編號：項目的標題放不下（完整的標題在清單裡與按鈕的 title），位置讓給頁列的標題與「對話」。 */
+  .trigger[data-size='compact'] .itemTitle {
+    display: none;
+  }
+}
+
+.code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.triggerTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(20rem, calc(100vw - 4rem));
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 14rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.option[aria-selected='true'] {
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+}
+
+.option[aria-selected='true'] .code,
+.option[aria-selected='true'] .check {
+  color: inherit;
+}
+
+@media (forced-colors: active) {
+  .option[aria-selected='true'] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+.title {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+}
+
+.check {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--color-accent);
+}
+
+.note {
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

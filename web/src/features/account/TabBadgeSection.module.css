@@ -1,0 +1,40 @@
+/*
+ * 「分頁的未讀提示」的三列控制項：左邊是名稱（小灰字），右邊是控制項。名稱只佔字寬，名稱和控制項之間不空一大段。
+ */
+.controls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3) var(--space-4);
+  align-items: center;
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/*
+ * 取色器裡色碼旁邊的分頁圖示（取色器會蓋住下面的示意圖）：和輸入框一樣高、上緣對齊輸入框——
+ * 欄位上面是標籤一行（--text-sm × --leading-normal）加上 --space-1 的間距（components/Field）。
+ */
+.pickerPreview {
+  flex: none;
+  inline-size: var(--control-height-sm);
+  block-size: var(--control-height-sm);
+  margin-block-start: calc(var(--text-sm) * var(--leading-normal) + var(--space-1));
+}
+
+/*
+ * 窄螢幕：名稱放到控制項上面，控制項用滿一整行。名稱擺在左邊時，320 寬的觸控螢幕只剩約 246px，
+ * 六個 44px 的色票會折成兩行（5＋1）。每一組之間多留一點，看得出名稱屬於下面那一個。
+ */
+@media (max-width: 48rem) {
+  .controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .label:not(:first-child) {
+    margin-block-start: var(--space-2);
+  }
+}
