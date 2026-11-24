@@ -26,7 +26,7 @@ project=src/PmTool.Cli/PmTool.Cli.csproj
 
 version=$(dotnet msbuild "$project" -getProperty:Version -nologo | tr -d '[:space:]')
 if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-  echo "讀不到 kumi 的版本（得到「$version」），伺服器只認三段數字的版本。" >&2
+  echo "讀不到 kumi 的版本（得到「${version}」），伺服器只認三段數字的版本。" >&2
   exit 1
 fi
 
@@ -34,7 +34,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 while read -r rid platform extension; do
-  echo "== kumi $version $platform（$rid）"
+  echo "== kumi ${version} ${platform}（${rid}）"
   # KumiStandalone 讓 kumi update 知道這份可以自己換掉自己；DebugType=none 不產生 .pdb，只留一個檔案。
   # 標準輸入接 /dev/null：迴圈讀的是下面的平台清單，不能被 dotnet 吃掉。
   dotnet publish "$project" -c Release -r "$rid" --self-contained \
