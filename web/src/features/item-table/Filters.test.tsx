@@ -130,8 +130,9 @@ describe('篩選', () => {
     // Arrange / Act
     const { requests, filters } = await openAgy('/projects/AGY?type=task&assignee=unassigned&q=切版&sort=due_date:desc');
 
-    // Assert
-    const sent = lastParams(requests);
+    // Assert：快速新增也會查同一個端點（類型預設成篩選的「任務」，要列出它的上層候選「需求、變更需求」），
+    // 那一筆不帶搜尋字，在慢的機器上會排在清單的查詢後面；所以找帶著搜尋字的那一筆，不是最後一筆。
+    const sent = requests.findLast((url) => url.searchParams.has('q'))?.searchParams ?? new URLSearchParams();
     expect(sent.getAll('type')).toEqual(['task']);
     expect(sent.get('assignee')).toBe('unassigned');
     expect(sent.get('q')).toBe('切版');

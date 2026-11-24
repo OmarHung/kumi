@@ -17,7 +17,7 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,7 +34,11 @@ jobs:
         run: dotnet build -c Release --no-restore
 
       # 身分與工作引擎的測試會用 Testcontainers 起一個 PostgreSQL，執行器上本來就有 Docker。
+      # 覆蓋率的資料是測試程序結束時才寫出來的，測試平台預設只等 100 毫秒就強制結束它：
+      # 執行器比較慢，來不及寫完的那一組覆蓋率會變成 0%（測試全過、門檻卻不過）。所以等久一點。
       - name: 測試與覆蓋率門檻
+        env:
+          VSTEST_TESTHOST_SHUTDOWN_TIMEOUT: 60000
         run: dotnet test -c Release --no-build /p:CollectCoverage=true /p:Threshold=80 /p:ThresholdType=line
 
   web:
