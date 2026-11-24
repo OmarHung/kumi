@@ -1,0 +1,71 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 名單多時自己捲，下面的選人與按鈕一直看得到。 */
+.rows {
+  display: flex;
+  flex-direction: column;
+  max-height: 40dvh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.name {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.self {
+  color: var(--color-text-muted);
+}
+
+.problem {
+  width: 100%;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.count {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

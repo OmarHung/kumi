@@ -1,0 +1,50 @@
+/*
+ * 知識庫的空間外框（docs/DESIGN.md 6.2「知識庫」）：64rem 以上內容區分兩欄，左邊頁面樹、右邊內容；
+ * 頁面樹在紙上、沒有自己的底色（一層就好），黏在頁列下面、自己捲。不到 64rem 只有內容，頁面樹收進工具列上的「頁面」按鈕。
+ */
+.shell {
+  --knowledge-tree-width: 16rem;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.shell[data-has-tree='true'] {
+  grid-template-columns: var(--knowledge-tree-width) minmax(0, 1fr);
+}
+
+.tree {
+  position: sticky;
+  top: calc(var(--page-bar-height) + var(--space-4));
+  max-height: calc(100dvh - var(--page-bar-height) - var(--space-8));
+  overflow-y: auto;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* 窄螢幕：工具列上的「頁面」，樹浮在它下面（蓋在內容上，選了頁面就收起來）。 */
+.compact {
+  position: relative;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--z-drawer);
+  width: min(22rem, calc(100vw - 2 * var(--page-gutter)));
+  max-height: 70dvh;
+  padding: var(--space-2);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-popover);
+}

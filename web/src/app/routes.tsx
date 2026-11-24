@@ -29,6 +29,10 @@ import {
   LazyIntegrationsPage,
   LazyItemImportPage,
   LazyInboxPage,
+  LazyKnowledgeHomePage,
+  LazyKnowledgeSpacePage,
+  LazyKnowledgeSpaceSettingsPage,
+  LazyKnowledgeTrashPage,
   LazyNotificationSettingsPage,
   LazyPlanningPage,
   LazyProjectInfoPage,
@@ -63,6 +67,12 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="/my-work" replace /> },
               { path: 'my-work', element: <MyWorkPage /> },
               { path: 'inbox', element: <LazyInboxPage /> },
+              // 知識庫：頁面編號可有可無（空間首頁與一頁是同一個路由，左邊的頁面樹換頁時不重新掛上）；
+              // trash、settings 是靜態的片段，比 :pageNumber 優先。
+              { path: 'knowledge', element: <LazyKnowledgeHomePage /> },
+              { path: 'knowledge/:spaceKey/trash', element: <LazyKnowledgeTrashPage /> },
+              { path: 'knowledge/:spaceKey/settings', element: <LazyKnowledgeSpaceSettingsPage /> },
+              { path: 'knowledge/:spaceKey/:pageNumber?', element: <LazyKnowledgeSpacePage /> },
               { path: 'projects', element: <ProjectListPage /> },
               { path: 'projects/:projectKey', element: <ProjectPage /> },
               { path: 'projects/:projectKey/items/:itemKey', element: <ItemPage /> },

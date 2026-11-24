@@ -42,6 +42,8 @@ export interface RichTextEditorProps {
   readonly uploads?: EditorUploads;
   /** false：附件不載入（專案說明）。預設 true。 */
   readonly hasAttachments?: boolean;
+  /** 附件編號對應的下載網址；預設是項目的附件。 */
+  readonly attachmentUrl?: (attachmentId: string) => string;
   readonly ref?: Ref<RichTextEditorHandle>;
 }
 

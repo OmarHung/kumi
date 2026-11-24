@@ -9,6 +9,7 @@ import {
   ArrowUpNarrowWide,
   Bell,
   Bold,
+  BookOpen,
   BellRing,
   Calendar,
   Check,
@@ -43,6 +44,7 @@ import {
   KeyRound,
   Link,
   List,
+  Lock,
   ListFilter,
   ListOrdered,
   ListTodo,
@@ -125,6 +127,8 @@ const ICONS = {
   notifications: Bell,
   following: BellRing,
   projects: FolderKanban,
+  // 知識庫（側欄、快速跳轉、專案頁列）。
+  knowledge: BookOpen,
   people: Users,
   // 寄信設定（Email 通知那一輪）：側欄的「寄信設定」。
   mail: Mail,
@@ -142,6 +146,7 @@ const ICONS = {
   enableAccount: UserRoundCheck,
   showPassword: Eye,
   hidePassword: EyeOff,
+  lock: Lock,
   themeSystem: Monitor,
   themeLight: Sun,
   themeDark: Moon,

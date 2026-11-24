@@ -1,5 +1,6 @@
 import { EditorContent } from '@tiptap/react';
-import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { attachmentContentUrl } from '../../api/attachments';
 import { EditorFrame } from './EditorFrame';
 import { dragHandlersOf, MentionOverlay } from './EditorOverlays';
 import { EditorToolbar } from './EditorToolbar';
@@ -65,8 +66,10 @@ function useContentEditor(props: RichTextEditorContentProps, id: string, count: 
  * 存的還是 Markdown：讀寫都走 ./markdown/markdownDoc（沒改回傳原文，見 useMarkdownSync）。
  */
 export function RichTextEditorContent(props: RichTextEditorContentProps) {
-  const { label, isLabelHidden = false, value, maxLength, rows, hint, onSubmit, onCancel, isBusy, error, isCollapsed = false, mentionMembers, uploads, hasAttachments = true, fillsViewport = false, modeControl } = props;
+  const { label, isLabelHidden = false, value, maxLength, rows, hint, onSubmit, onCancel, isBusy, error, isCollapsed = false, mentionMembers, uploads, hasAttachments = true, attachmentUrl = attachmentContentUrl, fillsViewport = false, modeControl } = props;
   const id = useId();
+  // 值要穩定：節點畫面讀這個 Context，每次重畫都換新物件會讓圖片全部重畫。
+  const environment = useMemo(() => ({ hasAttachments, attachmentUrl }), [hasAttachments, attachmentUrl]);
   const frameRef = useRef<HTMLDivElement>(null);
   const count = countNoteOf(value.length, maxLength);
   const { editor, mention, isLinkOpen, setIsLinkOpen } = useContentEditor(props, id, count);
@@ -75,7 +78,7 @@ export function RichTextEditorContent(props: RichTextEditorContentProps) {
     handleToolbarKeyDown({ onSubmit, onCancel }, event);
   };
   return (
-    <EditorEnvironmentContext value={{ hasAttachments }}>
+    <EditorEnvironmentContext value={environment}>
       <EditorFrame
         id={id}
         label={label}

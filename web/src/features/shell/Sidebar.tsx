@@ -151,6 +151,7 @@ export function Sidebar({ ref, id, isOpen, isCollapsed, onClose }: SidebarProps)
         <MainLink to="/inbox" icon="notifications" label="收件匣" describedBy={inboxCountId}>
           <InboxCount id={inboxCountId} />
         </MainLink>
+        <MainLink to="/knowledge" icon="knowledge" label="知識庫" />
         <MainLink to="/projects" icon="projects" label="專案" end />
         <div className={styles.projects}>
           <ProjectLinks />

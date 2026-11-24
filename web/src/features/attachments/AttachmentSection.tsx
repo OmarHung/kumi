@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type ReactNode, type RefObject } from 'react';
-import { ATTACHMENT_MAX_BYTES, type Attachment } from '../../api/attachments';
+import { ATTACHMENT_MAX_BYTES, uploadAttachment, type Attachment } from '../../api/attachments';
 import type { ItemDetail } from '../../api/types';
 import { Button } from '../../components/Button/Button';
 import { CountBadge } from '../../components/CountBadge/CountBadge';
@@ -159,7 +159,7 @@ function useAttachmentModel(itemKey: string) {
   const cache = useAttachmentCache(itemKey);
   const attachments = query.data ?? NO_ATTACHMENTS;
   const queue = useUploadQueue({
-    itemKey,
+    upload: (file, options) => uploadAttachment(itemKey, file, options),
     onUploaded: (attachment, entryId) => {
       focusRef.current?.planReplacement(entryId, attachment.id);
       cache.added(attachment);

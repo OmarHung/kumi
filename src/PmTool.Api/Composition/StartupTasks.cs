@@ -1,6 +1,7 @@
 using PmTool.Abstractions;
 using PmTool.Api.Endpoints;
 using PmTool.Identity;
+using PmTool.Storage;
 using PmTool.Work;
 
 namespace PmTool.Api.Composition;
@@ -21,7 +22,7 @@ internal static partial class StartupTasks
 
         // 附件的儲存空間不管要不要遷移都先確認：設定缺了或資料夾寫不進去，就在這裡讓程序起不來，不等到第一次上傳。
         await app.Services.VerifyAttachmentStorageAsync(app.Lifetime.ApplicationStopping);
-        LogAttachmentStorageReady(logger, app.Configuration[AttachmentSettings.ProviderSetting] ?? string.Empty);
+        LogAttachmentStorageReady(logger, app.Configuration[FileStoreSettings.ProviderSetting] ?? string.Empty);
         if (app.Services.GetRequiredService<DatabaseStartup>().MigrateOnStartup)
         {
             await app.Services.PrepareDatabaseAsync(app.Configuration, logger, app.Lifetime.ApplicationStopping);

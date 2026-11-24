@@ -38,6 +38,7 @@ function optionNames(dialog: HTMLElement): string[] {
 const PERSONAL_HUB_OPTIONS = ['我的帳號 個人設定', '通知 個人設定', 'AI 帳號 個人設定', '命令列與整合 個人設定'];
 const HUB_OPTIONS_OWNER_BEFORE_PROJECT = [
   '我的工作',
+  '知識庫',
   '專案',
   '人員',
   ...PERSONAL_HUB_OPTIONS,
@@ -173,7 +174,7 @@ describe('快速跳轉：combobox', () => {
     expect(input).toHaveAttribute('aria-expanded', 'true');
     expect(input).toHaveAttribute('aria-autocomplete', 'list');
     const groups = within(listbox).getAllByRole('group');
-    expect(groups.map((group) => within(group).getAllByRole('option').length)).toEqual([1, 2, 11]);
+    expect(groups.map((group) => within(group).getAllByRole('option').length)).toEqual([1, 2, 12]);
     expect(within(listbox).getByRole('group', { name: '最近看過' })).toHaveTextContent('AGY-3 首頁設計稿');
     expect(within(listbox).getByRole('group', { name: '專案' })).toBeInTheDocument();
     expect(within(listbox).getByRole('group', { name: '頁面' })).toBeInTheDocument();
@@ -599,7 +600,7 @@ describe('快速跳轉：在專案裡', () => {
       within(pages)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual(['我的工作', '專案', ...PERSONAL_HUB_OPTIONS]);
+    ).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_HUB_OPTIONS]);
   });
 });
 

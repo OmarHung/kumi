@@ -1,4 +1,5 @@
 using PmTool.Abstractions;
+using PmTool.Knowledge;
 using PmTool.Work;
 
 namespace PmTool.Api.Responses;
@@ -14,7 +15,7 @@ internal static class ModuleFailures
 
     // 附件太大是 413，不是一般的驗證失敗（422）：用戶端與代理都用這個狀態碼辨認「內容太大」。
     private static int StatusOf(Failure failure) =>
-        failure.Code == WorkErrorCodes.AttachmentTooLarge ? StatusCodes.Status413PayloadTooLarge : StatusOf(failure.Kind);
+        failure.Code is WorkErrorCodes.AttachmentTooLarge or KnowledgeErrorCodes.AttachmentTooLarge ? StatusCodes.Status413PayloadTooLarge : StatusOf(failure.Kind);
 
     // 不認得的種類是合約加了新值、這裡沒跟上，屬於伺服器的錯，不猜一個看起來像用戶端錯誤的狀態碼。
     private static int StatusOf(FailureKind kind) => kind switch

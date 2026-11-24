@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PmTool.Abstractions;
+using PmTool.Storage;
 using PmTool.Work.Access;
 using PmTool.Work.Blueprints;
 using PmTool.Work.Items;
@@ -14,7 +15,7 @@ namespace PmTool.Work.History;
 /// 項目在這個檔案，留言、附件、查詢各一個檔案。
 /// </summary>
 internal sealed partial class HistoryImportService(
-    IDbContextFactory<WorkDbContext> contexts, BlueprintCache cache, Attachments.IAttachmentStore store, TimeProvider time, ILogger<HistoryImportService> logger)
+    IDbContextFactory<WorkDbContext> contexts, BlueprintCache cache, IFileStore store, TimeProvider time, ILogger<HistoryImportService> logger)
     : IHistoryImportService
 {
     public async Task<Result<HistoryItemsResult>> ImportItemsAsync(

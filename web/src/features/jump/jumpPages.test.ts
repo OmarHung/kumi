@@ -32,14 +32,15 @@ const exampleAdmin: SessionUser = { ...exampleOwner, role: 'admin' };
 const PERSONAL_PAGES = ['我的帳號', '通知', 'AI 帳號', '命令列與整合'];
 
 describe('jumpPages', () => {
-  it('不在專案裡：我的工作、專案，加上個人的設定頁；成員沒有人員與組織的設定頁', () => {
+  it('不在專案裡：我的工作、知識庫、專案，加上個人的設定頁；成員沒有人員與組織的設定頁', () => {
     // Arrange、Act
     const pages = jumpPages({ user: exampleMember, project: null });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '專案', ...PERSONAL_PAGES]);
-    expect(pages.slice(0, 2).map((page) => page.action)).toEqual([
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_PAGES]);
+    expect(pages.slice(0, 3).map((page) => page.action)).toEqual([
       { kind: 'navigate', to: '/my-work' },
+      { kind: 'navigate', to: '/knowledge' },
       { kind: 'navigate', to: '/projects' },
     ]);
   });
@@ -64,7 +65,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleAdmin, project: null });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', 'AI 設定']);
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', 'AI 設定']);
     expect(pages.map((page) => page.action)).toContainEqual({ kind: 'navigate', to: '/people' });
   });
 
@@ -81,7 +82,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleMember, project: agyDetail() });
 
     // Assert
-    expect(pages.slice(2 + PERSONAL_PAGES.length).map((page) => [page.label, page.hint, page.action])).toEqual([
+    expect(pages.slice(3 + PERSONAL_PAGES.length).map((page) => [page.label, page.hint, page.action])).toEqual([
       ['設定', '接案測試', { kind: 'navigate', to: '/projects/AGY/settings' }],
       ['成員', '接案測試', { kind: 'members', projectKey: 'AGY' }],
       ['變更集', '接案測試', { kind: 'navigate', to: '/projects/AGY/changesets' }],
@@ -96,7 +97,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleMember, project });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '專案', ...PERSONAL_PAGES, '成員']);
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_PAGES, '成員']);
   });
 
   it('每一頁都有圖示，鍵在全部頁面裡不重複', () => {

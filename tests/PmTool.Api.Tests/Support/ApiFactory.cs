@@ -16,6 +16,7 @@ using PmTool.Api.Composition;
 using PmTool.Api.Endpoints;
 using PmTool.Blueprint;
 using PmTool.Identity;
+using PmTool.Knowledge;
 using PmTool.Notifications;
 using PmTool.Work;
 using IdentityAuthentication = PmTool.Identity.IAuthenticationService;
@@ -215,6 +216,9 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         services.RemoveAll<IWorkItemService>();
         services.RemoveAll<IItemActivityService>();
         services.RemoveAll<IAttachmentService>();
+        services.RemoveAll<IKnowledgeSpaceService>();
+        services.RemoveAll<IKnowledgePageService>();
+        services.RemoveAll<IKnowledgeAttachmentService>();
         services.RemoveAll<ISavedViewService>();
         services.RemoveAll<IPlanningService>();
         services.RemoveAll<IBlueprintChangeService>();
@@ -257,6 +261,9 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         services.AddSingleton<IHistoryImportService>(Modules.History);
         services.AddSingleton<IItemActivityService>(Modules.Activity);
         services.AddSingleton<IAttachmentService>(Modules.Attachments);
+        services.AddSingleton<IKnowledgeSpaceService>(Modules.KnowledgeSpaces);
+        services.AddSingleton<IKnowledgePageService>(Modules.KnowledgePages);
+        services.AddSingleton<IKnowledgeAttachmentService>(Modules.KnowledgeAttachments);
         services.AddSingleton<ISavedViewService>(Modules.SavedViews);
         services.AddSingleton<IPlanningService>(Modules.Planning);
         services.AddSingleton<IBlueprintChangeService>(Modules.Changes);

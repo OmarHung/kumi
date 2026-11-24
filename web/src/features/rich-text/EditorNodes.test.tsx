@@ -14,6 +14,13 @@ describe('編輯器：附件與圖片', () => {
     expect(image).toHaveAttribute('src', `/v1/attachments/${GUID}/content`);
   });
 
+  it('給了 attachmentUrl 時圖片用它組網址（知識庫的頁面）', async () => {
+    render(<EditorHarness attachmentUrl={(id) => `/v1/knowledge/attachments/${id}/content`} initial={`![截圖.png](attachment:${GUID})`} />);
+    await findEditor('說明');
+    const image = await screen.findByRole('img', { name: '截圖.png' });
+    expect(image).toHaveAttribute('src', `/v1/knowledge/attachments/${GUID}/content`);
+  });
+
   it('載入失敗換成一行字，名稱沿用檔名', async () => {
     render(<EditorHarness initial={`![截圖.png](attachment:${GUID})`} />);
     await findEditor('說明');

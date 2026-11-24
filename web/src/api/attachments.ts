@@ -69,15 +69,16 @@ function abortError(): DOMException {
 }
 
 /**
- * 上傳一個檔案：`POST /v1/items/{itemKey}/attachments`，multipart/form-data，欄位名稱 `file`（一次一個檔案；多個檔案就送多次）。
- * 成功 201，回傳附件。失敗：413 `attachment.too_large`、409 `attachment.limit_reached`、422 `attachment.name_invalid`、
- * 409 `project.archived`、403、404；丟出 ApiError（信封與訊息的規則和 apiRequest 一樣，沒有信封的 413、5xx 也是）。
+ * 上傳一個檔案到 url：multipart/form-data，欄位名稱 `file`（一次一個檔案；多個檔案就送多次）。
+ * 成功 201，回傳伺服器的 JSON（項目與知識庫頁面的附件形狀不同，由呼叫端指定型別）。失敗：413 `attachment.too_large`、
+ * 409 `attachment.limit_reached`、422 `attachment.name_invalid`、409 `project.archived`、403、404；丟出 ApiError
+ * （信封與訊息的規則和 apiRequest 一樣，沒有信封的 413、5xx 也是）。
  * 用 XMLHttpRequest：fetch 拿不到上傳的進度。取消（signal）時丟出 AbortError，和 fetch 一樣，呼叫端分得出不是失敗。
  * 不設 Content-Type：瀏覽器要自己帶 multipart 的 boundary。
  */
-export function uploadAttachment(itemKey: string, file: File, options: UploadOptions = {}): Promise<Attachment> {
+export function uploadFile<T>(url: string, file: File, options: UploadOptions = {}): Promise<T> {
   const { onProgress, signal } = options;
-  return new Promise<Attachment>((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     if (signal?.aborted === true) {
       reject(abortError());
       return;
@@ -95,7 +96,7 @@ export function uploadAttachment(itemKey: string, file: File, options: UploadOpt
     request.addEventListener('load', () => {
       finish();
       try {
-        resolve(unwrapResponse(request.status, request.responseText) as Attachment);
+        resolve(unwrapResponse(request.status, request.responseText) as T);
       } catch (error) {
         reject(explained(error));
       }
@@ -111,10 +112,15 @@ export function uploadAttachment(itemKey: string, file: File, options: UploadOpt
     signal?.addEventListener('abort', cancel, { once: true });
     const body = new FormData();
     body.append('file', file, file.name);
-    request.open('POST', `${itemResourcePath(itemKey)}/attachments`);
+    request.open('POST', url);
     request.responseType = 'text';
     request.setRequestHeader('Accept', 'application/json');
     request.setRequestHeader(CSRF_HEADER, '1');
     request.send(body);
   });
+}
+
+/** 上傳一個檔案到項目：`POST /v1/items/{itemKey}/attachments`。 */
+export function uploadAttachment(itemKey: string, file: File, options: UploadOptions = {}): Promise<Attachment> {
+  return uploadFile<Attachment>(`${itemResourcePath(itemKey)}/attachments`, file, options);
 }

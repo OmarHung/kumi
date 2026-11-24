@@ -13,6 +13,8 @@ import { projectRoleLabel } from '../../domain/labels';
 import { useArrivalNotice } from '../../lib/useArrivalNotice';
 import { UndoableArrival } from '../bulk-edit/UndoableArrival';
 import { useIsCompact } from '../../lib/useMediaQuery';
+import { knowledgeSpaceUrl } from '../knowledge/knowledgeLinks';
+import { useProjectKnowledgeSpace } from '../knowledge/useKnowledgeSpaces';
 import { usePlanning } from '../item-table/usePlanning';
 import { MembersDialog } from '../members/MembersDialog';
 import { StatusPage } from '../../components/StatusPage/StatusPage';
@@ -95,12 +97,17 @@ function CompactProjectActions(props: ProjectActionsProps) {
   const more = useMoreItems(detail, props);
   const canReadSettings = detail.myPermissions.includes('blueprint.read');
   const canUseAssistant = useCanUseAssistant(detail);
+  const space = useProjectKnowledgeSpace(key);
   const items: readonly MenuItem[] = [
     ...(canUseAssistant
       ? [{ key: 'assistant', label: 'AI 助理', icon: 'sparkles', onSelect: () => void navigate(projectAssistantPath(key)) } satisfies MenuItem]
       : []),
     // 資訊（專案說明）：看得到專案的人都有。
     { key: 'info', label: '資訊', icon: 'info', onSelect: () => void navigate(projectInfoPath(key)) },
+    // 知識庫：這個專案有空間才有（空間綁在專案上）。
+    ...(space === undefined
+      ? []
+      : [{ key: 'knowledge', label: '知識庫', icon: 'knowledge', onSelect: () => void navigate(knowledgeSpaceUrl(space.key)) } satisfies MenuItem]),
     ...(canReadSettings
       ? [{ key: 'settings', label: '設定', icon: 'settings', onSelect: () => void navigate(projectSettingsPath(key)) } satisfies MenuItem]
       : []),
@@ -143,6 +150,7 @@ function ProjectActions(props: ProjectActionsProps) {
   // 設定是另一頁（網址記得住、可以分享）；只有看得到藍圖的人才有入口，真正的檢查在後端。
   const canReadSettings = detail.myPermissions.includes('blueprint.read');
   const canUseAssistant = useCanUseAssistant(detail);
+  const space = useProjectKnowledgeSpace(summary.key);
   return (
     <>
       <span className={styles.role}>{`我的角色：${projectRoleLabel(summary.myRole, blueprint.roles)}`}</span>
@@ -159,6 +167,11 @@ function ProjectActions(props: ProjectActionsProps) {
           <Link to={projectInfoPath(summary.key)} className={buttonClassName('secondary')}>
             資訊
           </Link>
+          {space !== undefined && (
+            <Link to={knowledgeSpaceUrl(space.key)} className={buttonClassName('secondary')}>
+              知識庫
+            </Link>
+          )}
           {canReadSettings && (
             <Link to={projectSettingsPath(summary.key)} className={buttonClassName('secondary')}>
               設定

@@ -48,6 +48,52 @@ const ItemImportPage = lazy(() =>
   import('../features/item-import/ItemImportPage').then((module) => ({ default: module.ItemImportPage })),
 );
 
+// 知識庫（空間清單、空間與頁面、垃圾桶、空間設定）整組延後下載：有人打開才需要編輯器與頁面樹。
+const KnowledgeHomePage = lazy(() =>
+  import('../features/knowledge/KnowledgeHomePage').then((module) => ({ default: module.KnowledgeHomePage })),
+);
+const KnowledgeSpacePage = lazy(() =>
+  import('../features/knowledge/space/KnowledgeSpacePage').then((module) => ({ default: module.KnowledgeSpacePage })),
+);
+const KnowledgeTrashPage = lazy(() =>
+  import('../features/knowledge/trash/KnowledgeTrashPage').then((module) => ({ default: module.KnowledgeTrashPage })),
+);
+const KnowledgeSpaceSettingsPage = lazy(() =>
+  import('../features/knowledge/settings/KnowledgeSpaceSettingsPage').then((module) => ({ default: module.KnowledgeSpaceSettingsPage })),
+);
+
+export function LazyKnowledgeHomePage() {
+  return (
+    <Suspense fallback={<StatusPage title="知識庫"><LoadingState label="正在載入知識庫…" /></StatusPage>}>
+      <KnowledgeHomePage />
+    </Suspense>
+  );
+}
+
+export function LazyKnowledgeSpacePage() {
+  return (
+    <Suspense fallback={<StatusPage title="知識庫"><LoadingState label="正在載入知識庫…" /></StatusPage>}>
+      <KnowledgeSpacePage />
+    </Suspense>
+  );
+}
+
+export function LazyKnowledgeTrashPage() {
+  return (
+    <Suspense fallback={<StatusPage title="垃圾桶"><LoadingState label="正在載入垃圾桶…" /></StatusPage>}>
+      <KnowledgeTrashPage />
+    </Suspense>
+  );
+}
+
+export function LazyKnowledgeSpaceSettingsPage() {
+  return (
+    <Suspense fallback={<StatusPage title="空間設定"><LoadingState label="正在載入空間設定…" /></StatusPage>}>
+      <KnowledgeSpaceSettingsPage />
+    </Suspense>
+  );
+}
+
 export function LazyItemImportPage() {
   return (
     <Suspense fallback={<StatusPage title="匯入項目"><LoadingState label="正在載入匯入項目…" /></StatusPage>}>

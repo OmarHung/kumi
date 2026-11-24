@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { Button } from '../../components/Button/Button';
 import { Notice } from '../../components/Notice/Notice';
 
-export const DESCRIPTION_CHANGED_TEXT = '這段說明在你編輯時被別人改過了。';
+/** 預設的對象是項目的「這段說明」；知識庫的頁面傳「這一頁」。 */
+const DEFAULT_SUBJECT = '這段說明';
+
+export const DESCRIPTION_CHANGED_TEXT = `${DEFAULT_SUBJECT}在你編輯時被別人改過了。`;
 
 /**
  * changed：編輯中重抓到的說明版本變了（即時更新或背景重抓帶來的），不打斷編輯，提示並讓使用者選。
@@ -19,6 +22,8 @@ interface DescriptionConflictNoticeProps {
   /** conflict：用現在的版本再送一次，蓋掉別人的修改。 */
   readonly onOverwrite: () => void;
   readonly isBusy: boolean;
+  /** 被別人改過的是什麼：項目說明是「這段說明」（預設），知識庫的頁面是「這一頁」。 */
+  readonly subject?: string;
 }
 
 /** 掛上之後下一輪才是 true：和區域一起出現的文字，報讀軟體常常不唸（和 RestoredDraftNotice 一樣）。 */
@@ -40,7 +45,7 @@ function useFilledLater(): boolean {
  * 出現、消失只多一個提示的高度，推動的只有下面的編輯器。區域先掛著、下一輪才填文字與動作（報讀軟體才唸得到）。
  * 兩種動作：changed 是「看新的內容」「繼續編輯」，conflict 是「看新的內容」「用我的版本覆蓋」。
  */
-export function DescriptionConflictNotice({ conflict, onReload, onKeepEditing, onOverwrite, isBusy }: DescriptionConflictNoticeProps) {
+export function DescriptionConflictNotice({ conflict, onReload, onKeepEditing, onOverwrite, isBusy, subject = DEFAULT_SUBJECT }: DescriptionConflictNoticeProps) {
   const isFilled = useFilledLater();
   // aria-disabled：焦點留在按鈕上，報讀軟體仍唸得到；忙的時候按了不做事（連按不重送）。
   const guard = (action: () => void) => () => {
@@ -64,7 +69,7 @@ export function DescriptionConflictNotice({ conflict, onReload, onKeepEditing, o
   );
   return (
     <Notice tone="warning" role="status" actions={isFilled ? actions : undefined}>
-      {isFilled ? DESCRIPTION_CHANGED_TEXT : ''}
+      {isFilled ? `${subject}在你編輯時被別人改過了。` : ''}
     </Notice>
   );
 }

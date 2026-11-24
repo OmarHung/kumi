@@ -1,0 +1,67 @@
+/* 知識庫的空間清單、垃圾桶、空間設定共用的版面（docs/DESIGN.md 6.2：清單頁與閱讀頁，沒有卡片與裝飾色條）。 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 設定頁：閱讀頁的寬度，分區之間隔開、區塊標題是次要的標題。 */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: var(--reading-max);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionHeading {
+  font-size: var(--text-md);
+}
+
+.sectionText {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--color-text-muted);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* 垃圾桶：某一批復原失敗時，原因寫在那一列的第二行。 */
+.rowError {
+  color: var(--color-danger);
+}
+
+/* 儲存之後的確認：和按鈕同一列，不推動下面的版面。 */
+.saved {
+  align-self: center;
+  color: var(--color-text-muted);
+}

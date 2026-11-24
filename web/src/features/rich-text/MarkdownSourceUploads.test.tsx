@@ -7,7 +7,7 @@ import { createQueryClient } from '../../app/queryClient';
 import { setEditorMode } from '../../lib/editorMode';
 import { aFile, attachment, installFakeUploads, serveAttachments, type FakeUpload } from '../../test/attachments';
 import { smkDetail } from '../../test/fixtures';
-import { useEditorUploads } from '../attachments/useEditorUploads';
+import { useItemEditorUploads } from '../attachments/useItemEditorUploads';
 import { abilitiesOf, ProjectTableProvider } from '../item-table/ProjectTableContext';
 import { RichTextEditor } from './RichTextEditor';
 
@@ -16,7 +16,7 @@ const GUID = attachment(1).id;
 
 function Field({ initial = '' }: { initial?: string }) {
   const [value, setValue] = useState(initial);
-  const uploads = useEditorUploads({ itemKey: 'SMK-7', value, onChange: setValue, maxLength: 1000 });
+  const uploads = useItemEditorUploads({ itemKey: 'SMK-7', value, onChange: setValue, maxLength: 1000 });
   return (
     <RichTextEditor label="留言" value={value} onChange={setValue} maxLength={1000} rows={3} hint="提示" onSubmit={() => undefined} isBusy={false} error={null} uploads={uploads} />
   );

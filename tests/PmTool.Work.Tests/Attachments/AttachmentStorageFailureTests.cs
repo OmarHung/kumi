@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using PmTool.Storage;
 using PmTool.Work.Attachments;
 using static PmTool.Work.Tests.AttachmentSupport;
 
@@ -19,10 +20,10 @@ public sealed class AttachmentStorageFailureTests
         _host = await WorkTestHost.StartAsync(services =>
         {
             services.AddLogging(builder => builder.AddProvider(_logs));
-            services.AddSingleton<IAttachmentStore>(provider =>
-                new HookedAttachmentStore(AttachmentStores.Create(provider.GetRequiredService<AttachmentSettings>())));
+            services.AddSingleton<IFileStore>(provider =>
+                new HookedAttachmentStore(FileStores.Create(provider.GetRequiredService<FileStoreSettings>())));
         });
-        _store = (HookedAttachmentStore)_host.Root.GetRequiredService<IAttachmentStore>();
+        _store = (HookedAttachmentStore)_host.Root.GetRequiredService<IFileStore>();
     }
 
     [OneTimeTearDown]

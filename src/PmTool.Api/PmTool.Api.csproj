@@ -11,6 +11,8 @@
     <ProjectReference Include="..\Modules\PmTool.Blueprint\PmTool.Blueprint.csproj" />
     <ProjectReference Include="..\Modules\PmTool.Identity.Contracts\PmTool.Identity.Contracts.csproj" />
     <ProjectReference Include="..\Modules\PmTool.Identity\PmTool.Identity.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Knowledge.Contracts\PmTool.Knowledge.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\PmTool.Knowledge\PmTool.Knowledge.csproj" />
     <ProjectReference Include="..\Modules\PmTool.Notifications.Contracts\PmTool.Notifications.Contracts.csproj" />
     <ProjectReference Include="..\Modules\PmTool.Notifications\PmTool.Notifications.csproj" />
     <ProjectReference Include="..\Modules\PmTool.Work.Contracts\PmTool.Work.Contracts.csproj" />

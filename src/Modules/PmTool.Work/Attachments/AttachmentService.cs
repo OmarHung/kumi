@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PmTool.Abstractions;
+using PmTool.Storage;
 using PmTool.Work.Activities;
 using PmTool.Work.Blueprints;
 using PmTool.Work.Common;
@@ -13,7 +14,7 @@ namespace PmTool.Work.Attachments;
 internal sealed partial class AttachmentService(
     IDbContextFactory<WorkDbContext> contexts,
     BlueprintCache cache,
-    IAttachmentStore store,
+    IFileStore store,
     TimeProvider time,
     ILogger<AttachmentService> logger) : IAttachmentService
 {

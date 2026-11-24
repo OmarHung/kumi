@@ -1,0 +1,68 @@
+/* 空間首頁：閱讀頁，文字放在紙上，沒有卡片與裝飾色條（docs/DESIGN.md 6.2）。 */
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--reading-max);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.recentMeta {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}

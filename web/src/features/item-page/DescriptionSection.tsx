@@ -4,7 +4,8 @@ import { Button } from '../../components/Button/Button';
 import { Icon } from '../../components/Icon/Icon';
 import { IconButton } from '../../components/IconButton/IconButton';
 import { EditorUploadNotes, UploadAwareSubmit } from '../attachments/EditorUploadControls';
-import { useEditorUploads } from '../attachments/useEditorUploads';
+import type { EditorUploads } from '../attachments/useEditorUploads';
+import { useItemEditorUploads } from '../attachments/useItemEditorUploads';
 import { MAX_DESCRIPTION_LENGTH } from '../item-table/cells/drafts';
 import { useProjectTable } from '../item-table/ProjectTableContext';
 import { CollapsibleText } from './CollapsibleText';
@@ -23,7 +24,7 @@ const DESCRIPTION_ROWS = 10;
  * 送出：還有檔案在上傳時不存（說明裡還有「上傳中」的記號），說原因。從「儲存」送出時先把焦點放回編輯器：
  * 儲存中按鈕會停用，有焦點的按鈕一停用，瀏覽器就把焦點丟回頁面本體；編輯器儲存中是唯讀，焦點留得住（和留言框一樣）。
  */
-function useDescriptionSubmit(editor: DescriptionEditor, uploads: ReturnType<typeof useEditorUploads>, editorRef: RefObject<RichTextEditorHandle | null>) {
+function useDescriptionSubmit(editor: DescriptionEditor, uploads: EditorUploads, editorRef: RefObject<RichTextEditorHandle | null>) {
   const save = () => {
     if (uploads.isUploading) uploads.announceUploading();
     else editor.save();
@@ -39,7 +40,7 @@ function useDescriptionSubmit(editor: DescriptionEditor, uploads: ReturnType<typ
 function DescriptionForm({ editor, draft, itemKey }: { readonly editor: DescriptionEditor; readonly draft: string; readonly itemKey: string }) {
   const candidates = useMentionCandidates();
   const editorRef = useRef<RichTextEditorHandle>(null);
-  const uploads = useEditorUploads({ itemKey, value: draft, onChange: editor.change, maxLength: MAX_DESCRIPTION_LENGTH, isReadOnly: editor.isSaving });
+  const uploads = useItemEditorUploads({ itemKey, value: draft, onChange: editor.change, maxLength: MAX_DESCRIPTION_LENGTH, isReadOnly: editor.isSaving });
   // 還原時就在編輯中：掛上時不搶焦點（使用者剛換到這一頁，焦點在頁面的標題或面板上）；自己進入編輯（「新增說明」、鉛筆）才搶。
   const [shouldAutoFocus] = useState(!editor.isRestored);
   const { save, handleSubmit } = useDescriptionSubmit(editor, uploads, editorRef);

@@ -5,6 +5,7 @@ using PmTool.Abstractions;
 using PmTool.Api.Security;
 using PmTool.Blueprint;
 using PmTool.Identity;
+using PmTool.Knowledge;
 using PmTool.Notifications;
 using PmTool.Work;
 
@@ -39,6 +40,7 @@ internal static class ModuleRegistration
         services.AddIdentityModule(connections);
         services.AddWorkModule(connections, AttachmentConfiguration.Read(configuration));
         services.AddNotificationsModule(connections);
+        services.AddKnowledgeModule(connections, AttachmentConfiguration.Read(configuration));
         services.AddAiModule(connections, new AiModuleOptions(
             AllowPrivateEndpoints: SettingValues.ReadFlag(configuration, AllowPrivateAiEndpointsSetting, defaultValue: false),
             PublicUrl: TransportSecurity.From(configuration).PublicHost is { } host ? $"https://{host}" : null));

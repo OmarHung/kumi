@@ -1,6 +1,6 @@
 import { useRef, type RefObject } from 'react';
 import { EditorUploadNotes } from '../attachments/EditorUploadControls';
-import { useEditorUploads } from '../attachments/useEditorUploads';
+import { useItemEditorUploads } from '../attachments/useItemEditorUploads';
 import { MAX_COMMENT_LENGTH } from '../item-table/cells/drafts';
 import { RichTextEditor, SUBMIT_SHORTCUT } from '../rich-text/RichTextEditor';
 import type { RichTextEditorHandle, RichTextEditorProps } from '../rich-text/types';
@@ -22,7 +22,7 @@ interface EditorPartsInput {
 export function useCommentEditorParts({ itemKey, value, onChange, isBusy }: EditorPartsInput) {
   const candidates = useMentionCandidates();
   const editorRef = useRef<RichTextEditorHandle>(null);
-  const uploads = useEditorUploads({ itemKey, value, onChange, maxLength: MAX_COMMENT_LENGTH, isReadOnly: isBusy });
+  const uploads = useItemEditorUploads({ itemKey, value, onChange, maxLength: MAX_COMMENT_LENGTH, isReadOnly: isBusy });
   return { candidates, editorRef, uploads };
 }
 

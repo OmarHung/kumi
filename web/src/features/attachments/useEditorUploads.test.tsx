@@ -6,7 +6,8 @@ import { createQueryClient } from '../../app/queryClient';
 import { aFile, installFakeUploads, serveAttachments, type FakeUpload } from '../../test/attachments';
 import { smkDetail } from '../../test/fixtures';
 import { abilitiesOf, ProjectTableProvider } from '../item-table/ProjectTableContext';
-import { useEditorUploads, type UploadTarget } from './useEditorUploads';
+import type { UploadTarget } from './useEditorUploads';
+import { useItemEditorUploads } from './useItemEditorUploads';
 
 const detail = smkDetail();
 
@@ -39,7 +40,7 @@ describe('useEditorUploads 沒有註冊目標時', () => {
   it('編輯器還在下載時選的檔案先記著，不改文字也不上傳；目標註冊時才照常加入', async () => {
     // Arrange
     const onChange = vi.fn();
-    const { result } = renderHook(() => useEditorUploads({ itemKey: 'SMK-7', value: '', onChange, maxLength: 1000 }), { wrapper });
+    const { result } = renderHook(() => useItemEditorUploads({ itemKey: 'SMK-7', value: '', onChange, maxLength: 1000 }), { wrapper });
     const { target, insertPlaceholders } = aTarget();
 
     // Act
@@ -67,7 +68,7 @@ describe('useEditorUploads 沒有註冊目標時', () => {
 
   it('註冊之後再註冊（編輯器重掛）不會重複加入先前記著的檔案', () => {
     // Arrange
-    const { result } = renderHook(() => useEditorUploads({ itemKey: 'SMK-7', value: '', onChange: vi.fn(), maxLength: 1000 }), { wrapper });
+    const { result } = renderHook(() => useItemEditorUploads({ itemKey: 'SMK-7', value: '', onChange: vi.fn(), maxLength: 1000 }), { wrapper });
     const first = aTarget();
     const second = aTarget();
     act(() => {

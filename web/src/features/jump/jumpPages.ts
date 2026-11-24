@@ -28,6 +28,7 @@ interface JumpPagesContext {
 
 const GLOBAL_PAGES: readonly JumpOption[] = [
   { key: 'page:my-work', label: '我的工作', icon: 'myWork', action: { kind: 'navigate', to: '/my-work' } },
+  { key: 'page:knowledge', label: '知識庫', icon: 'knowledge', action: { kind: 'navigate', to: '/knowledge' } },
   { key: 'page:projects', label: '專案', icon: 'projects', action: { kind: 'navigate', to: '/projects' } },
 ];
 

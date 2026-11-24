@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
+using PmTool.Storage;
 using PmTool.Work.Attachments;
 
 namespace PmTool.Work.Tests;
@@ -110,7 +111,7 @@ internal static class AttachmentSupport
 }
 
 /// <summary>包著真的儲存空間，讓測試在寫完之後動手腳、或讓刪除失敗。</summary>
-internal sealed class HookedAttachmentStore(IAttachmentStore inner) : IAttachmentStore
+internal sealed class HookedAttachmentStore(IFileStore inner) : IFileStore
 {
     public Func<Task>? AfterWrite { get; set; }
 

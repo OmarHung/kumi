@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PmTool.Abstractions;
+using PmTool.Storage;
 using PmTool.Work.Access;
 using PmTool.Work.Activities;
 using PmTool.Work.Attachments;
@@ -21,7 +22,7 @@ public static class WorkModule
 {
     /// <summary>執行與遷移用同一個連線、不另外授權。本機開發與測試用。</summary>
     public static IServiceCollection AddWorkModule(
-        this IServiceCollection services, string connectionString, AttachmentSettings? attachments = null) =>
+        this IServiceCollection services, string connectionString, FileStoreSettings? attachments = null) =>
         services.AddWorkModule(new DatabaseConnections(connectionString), attachments);
 
     /// <summary>
@@ -31,7 +32,7 @@ public static class WorkModule
     /// </summary>
     /// <exception cref="ArgumentException">連線字串是空的，或執行的角色名稱不合 <see cref="RuntimeRoleGrants.RoleNamePattern"/>。</exception>
     public static IServiceCollection AddWorkModule(
-        this IServiceCollection services, DatabaseConnections connections, AttachmentSettings? attachments = null)
+        this IServiceCollection services, DatabaseConnections connections, FileStoreSettings? attachments = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(connections);
@@ -66,8 +67,8 @@ public static class WorkModule
         services.TryAddScoped<IAttachmentService, AttachmentService>();
 
         // 用工廠建：設定不能用時，migrate 命令（不碰附件）照樣跑得起來，錯誤留到啟動檢查時才丟。
-        services.TryAddSingleton(attachments ?? new AttachmentSettings(null));
-        services.TryAddSingleton<IAttachmentStore>(provider => AttachmentStores.Create(provider.GetRequiredService<AttachmentSettings>()));
+        services.TryAddSingleton(attachments ?? new FileStoreSettings(null));
+        services.TryAddSingleton<IFileStore>(provider => FileStores.Create(provider.GetRequiredService<FileStoreSettings>()));
 
         // 事件流與存取查詢給背景工作用（它們不在請求的範圍裡），只靠單例的資料庫工廠與藍圖快取，所以是單例。
         services.TryAddSingleton<IWorkEventStream, WorkEventStream>();
@@ -91,6 +92,6 @@ public static class WorkModule
     public static Task VerifyAttachmentStorageAsync(this IServiceProvider services, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
-        return services.GetRequiredService<IAttachmentStore>().VerifyAsync(cancellationToken);
+        return services.GetRequiredService<IFileStore>().VerifyAsync(cancellationToken);
     }
 }

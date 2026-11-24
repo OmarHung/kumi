@@ -11,7 +11,7 @@ import { detailOf, serveItem } from '../../test/items';
 import { renderApp } from '../../test/renderApp';
 import { editorText, findEditor, tiptapOf, typeInEditor } from '../../test/richText';
 import { server } from '../../test/server';
-import { NO_UPLOAD_PERMISSION } from '../attachments/useEditorUploads';
+import { NO_UPLOAD_PERMISSION } from '../attachments/useItemEditorUploads';
 
 // 留言框（所見即所得的編輯器）的貼圖與附加檔案。斷言 Markdown 一律看分頁裡存的草稿或送到 API 的內容，不看編輯器的畫面。
 beforeEach(() => {

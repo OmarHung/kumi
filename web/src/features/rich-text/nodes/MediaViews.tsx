@@ -1,6 +1,5 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { useContext, useState } from 'react';
-import { attachmentContentUrl } from '../../../api/attachments';
 import { Icon, type IconName } from '../../../components/Icon/Icon';
 import { attachmentIdOf } from '../../../components/Markdown/markdownUrls';
 import markdownStyles from '../../../components/Markdown/Markdown.module.css';
@@ -31,11 +30,12 @@ function Card({ icon, text, state }: CardProps) {
 function AttachmentImage({ attachmentId, name }: { readonly attachmentId: string; readonly name: string }) {
   const [hasFailed, setHasFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { attachmentUrl } = useContext(EditorEnvironmentContext);
   if (hasFailed) return <span className={markdownStyles.imageGone}>圖片已刪除或無法顯示：{name}</span>;
   return (
     <span className={styles.media}>
       <img
-        src={attachmentContentUrl(attachmentId)}
+        src={attachmentUrl(attachmentId)}
         alt={name}
         loading="lazy"
         draggable={false}

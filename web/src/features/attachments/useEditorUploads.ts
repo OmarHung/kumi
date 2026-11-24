@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { ATTACHMENT_MAX_BYTES } from '../../api/attachments';
-import { useProjectTable } from '../item-table/ProjectTableContext';
+import type { Attachment } from '../../api/attachments';
 import { growthOf, isInlineImageType, nextPlaceholder, pastedFileName, referenceOf, stripPlaceholders } from './editorUploadText';
-import { useAttachmentCache } from './useAttachments';
-import { useUploadQueue, type UploadQueue } from './useUploadQueue';
+import { useUploadQueue, type UploadedFile, type UploadFn, type UploadQueue } from './useUploadQueue';
 import { useUploadReporter, type UploadReporter } from './useUploadReporter';
 
-const MAX_MB = ATTACHMENT_MAX_BYTES / (1024 * 1024);
+const BYTES_PER_MB = 1024 * 1024;
 
-export const NO_UPLOAD_PERMISSION = '你不能在這個項目上傳檔案';
 export const UPLOADING_REASON = '還有檔案在上傳';
 const TEXT_TOO_LONG = '文字太長，放不下檔案的參照。';
 export const STALE_PLACEHOLDERS_REMOVED = '有沒傳完的檔案已經移除，請重新加入。';
@@ -72,8 +69,17 @@ export interface EditorUploads {
   readonly hasAnnouncer: boolean;
 }
 
-export interface EditorUploadsOptions {
-  readonly itemKey: string;
+export interface EditorUploadsOptions<T extends UploadedFile = Attachment> {
+  /** 傳一個檔案：項目的附件或知識庫頁面的附件，由呼叫端決定（編輯器本身不認得兩者的差別）。 */
+  readonly upload: UploadFn<T>;
+  /** 有權限上傳（項目：item.update 而且專案沒封存）。 */
+  readonly canUpload: boolean;
+  /** 一個檔案傳完了：呼叫端把它放進清單的快取、讓清單重抓。 */
+  readonly onUploaded?: (attachment: T) => void;
+  /** 沒有權限時貼上、拖進來、選檔要說的原因。 */
+  readonly noPermissionMessage: string;
+  /** 單一檔案的上限（位元組）：上傳前先擋。 */
+  readonly maxBytes: number;
   readonly value: string;
   readonly onChange: (next: string) => void;
   readonly maxLength: number;
@@ -95,11 +101,11 @@ interface Screened {
   readonly problems: readonly string[];
 }
 
-function screenFiles(files: readonly File[]): Screened {
+function screenFiles(files: readonly File[], maxBytes: number): Screened {
   const unreadable = files.filter(isUnreadable).map((file) => `不是檔案或讀不到：${file.name}`);
-  const oversized = files.filter((file) => !isUnreadable(file) && file.size > ATTACHMENT_MAX_BYTES).map((file) => `超過 ${String(MAX_MB)} MB：${file.name}`);
+  const oversized = files.filter((file) => !isUnreadable(file) && file.size > maxBytes).map((file) => `超過 ${String(maxBytes / BYTES_PER_MB)} MB：${file.name}`);
   return {
-    accepted: files.filter((file) => !isUnreadable(file) && file.size <= ATTACHMENT_MAX_BYTES),
+    accepted: files.filter((file) => !isUnreadable(file) && file.size <= maxBytes),
     problems: [...unreadable, ...oversized],
   };
 }
@@ -155,8 +161,8 @@ interface Tracked {
 }
 
 /** 擋掉不能傳的檔案，其餘的配上「上傳中」的記號（同名的記號加序號，分得開）；放在哪裡由編輯器的游標決定，這裡只估長度（當作加在最後面）。 */
-function planInsertion(files: readonly File[], value: string, isTaken: (placeholder: string) => boolean) {
-  const { accepted, problems } = screenFiles(files);
+function planInsertion(files: readonly File[], value: string, maxBytes: number, isTaken: (placeholder: string) => boolean) {
+  const { accepted, problems } = screenFiles(files, maxBytes);
   const used = new Set<string>();
   const placeholders = new Map<File, Tracked>();
   accepted.forEach((file) => {
@@ -177,15 +183,16 @@ function useLatest<T>(value: T) {
   return ref;
 }
 
-interface PlaceholderQueueOptions {
-  readonly itemKey: string;
+interface PlaceholderQueueOptions<T extends UploadedFile> {
+  readonly upload: UploadFn<T>;
+  readonly onUploaded?: (attachment: T) => void;
   readonly value: string;
   readonly targetRef: RefObject<UploadTarget | null>;
   readonly reporter: UploadReporter;
 }
 
 /** 使用者把「上傳中」的記號刪掉了：那個上傳不必再傳，中止並拿掉記錄（送出不再被它擋住，完成時也不補回）。 */
-function useAbortRemovedPlaceholders(value: string, tracked: RefObject<Map<File, Tracked>>, queueRef: RefObject<UploadQueue | null>) {
+function useAbortRemovedPlaceholders(value: string, tracked: RefObject<Map<File, Tracked>>, queueRef: RefObject<UploadQueue<UploadedFile> | null>) {
   useEffect(() => {
     tracked.current.forEach((item, file) => {
       if (value.includes(item.placeholder)) return;
@@ -200,9 +207,9 @@ function useAbortRemovedPlaceholders(value: string, tracked: RefObject<Map<File,
  * 上傳的佇列加上文字裡的記號：傳完把記號換成參照（附件也放進清單的快取），失敗把記號拿掉並說明。
  * 記號已經被使用者刪掉時不補回去。
  */
-function usePlaceholderQueue({ itemKey, value, targetRef, reporter }: PlaceholderQueueOptions) {
-  const cacheRef = useLatest(useAttachmentCache(itemKey));
-  const queueRef = useRef<UploadQueue | null>(null);
+function usePlaceholderQueue<T extends UploadedFile>({ upload, onUploaded, value, targetRef, reporter }: PlaceholderQueueOptions<T>) {
+  const onUploadedRef = useLatest(onUploaded);
+  const queueRef = useRef<UploadQueue<T> | null>(null);
   /** 每個檔案放進文字裡的記號。 */
   const tracked = useRef(new Map<File, Tracked>());
   const settle = (file: File, entryId: string, replacement: string) => {
@@ -213,9 +220,9 @@ function usePlaceholderQueue({ itemKey, value, targetRef, reporter }: Placeholde
     queueRef.current?.remove(entryId);
   };
   const queue = useUploadQueue({
-    itemKey,
+    upload,
     onUploaded: (attachment, entryId, file) => {
-      cacheRef.current.added(attachment);
+      onUploadedRef.current?.(attachment);
       reporter.sayLater(`上傳完成：${tracked.current.get(file)?.label ?? attachment.fileName}`);
       settle(file, entryId, referenceOf(attachment));
     },
@@ -305,27 +312,26 @@ function useAnnounceUploading(say: (text: string) => void) {
 /**
  * 留言、說明、專案說明的編輯器裡貼圖、附加檔案（PM-7，docs/design/08-interaction.md 8.3「貼圖與附加檔案」）：
  * 貼上、拖進來、「插入圖片或檔案」三條路都走 addFiles。檔案先在游標的位置放一個「上傳中」的記號，
- * 傳完換成 attachment: 的參照，失敗拿掉並說明。上傳是項目的附件（PM-5 的佇列：同時 3 個、25 MB），
+ * 傳完換成 attachment: 的參照，失敗拿掉並說明。上傳的對象由呼叫端決定（項目的附件用 useItemEditorUploads；PM-5 的佇列：同時 3 個、25 MB），
  * 傳完讓附件清單與活動重抓。文字用 ref 拿最新的一份：傳完時使用者可能已經又打了字，不能用舊的值蓋掉。
  */
-export function useEditorUploads({ itemKey, value, onChange, maxLength, isReadOnly = false }: EditorUploadsOptions): EditorUploads {
+export function useEditorUploads<T extends UploadedFile = Attachment>(options: EditorUploadsOptions<T>): EditorUploads {
+  const { upload, canUpload, onUploaded, noPermissionMessage, maxBytes, value, onChange, maxLength, isReadOnly = false } = options;
   const addFilesRef = useRef<(files: readonly File[]) => void>(() => undefined);
   const { targetRef, attach, hold } = useTargetRegistry(addFilesRef);
-  const { detail, can } = useProjectTable();
-  const canUpload = can.update && detail.project.archivedAt === null;
   const reporter = useUploadReporter();
   const { showProblems, say } = reporter;
   const valueRef = useLatest(value);
   const onChangeRef = useLatest(onChange);
-  const { queue, tracked } = usePlaceholderQueue({ itemKey, value, targetRef, reporter });
+  const { queue, tracked } = usePlaceholderQueue({ upload, onUploaded, value, targetRef, reporter });
   useRemoveStalePlaceholders(value, onChangeRef, reporter);
 
   const addFiles = useCallback(
     (files: readonly File[]) => {
       if (files.length === 0 || isReadOnly) return;
       if (!canUpload) {
-        showProblems([NO_UPLOAD_PERMISSION]);
-        say(NO_UPLOAD_PERMISSION);
+        showProblems([noPermissionMessage]);
+        say(noPermissionMessage);
         return;
       }
       const target = targetRef.current;
@@ -333,7 +339,7 @@ export function useEditorUploads({ itemKey, value, onChange, maxLength, isReadOn
         hold(files);
         return;
       }
-      const plan = planInsertion(files, valueRef.current, (candidate) => Array.from(tracked.current.values()).some((item) => item.placeholder === candidate));
+      const plan = planInsertion(files, valueRef.current, maxBytes, (candidate) => Array.from(tracked.current.values()).some((item) => item.placeholder === candidate));
       const { problems, spoken, isStarting } = outcomeOf(plan, tracked.current, maxLength);
       showProblems(problems);
       if (spoken.length > 0) say(spoken.join('。'));
@@ -342,7 +348,7 @@ export function useEditorUploads({ itemKey, value, onChange, maxLength, isReadOn
       target.insertPlaceholders(specsOf(plan.placeholders));
       queue.add(plan.accepted);
     },
-    [canUpload, hold, isReadOnly, maxLength, queue, say, showProblems, targetRef, tracked, valueRef],
+    [canUpload, hold, isReadOnly, maxBytes, maxLength, noPermissionMessage, queue, say, showProblems, targetRef, tracked, valueRef],
   );
   useEffect(() => {
     addFilesRef.current = addFiles;

@@ -24,9 +24,12 @@ internal static class AttachmentUpload
     /// <summary>檔案前面的文字欄位（歷史匯入的來源、外部編號…）每個最多這麼長；都是短的值，超過是壞請求。</summary>
     private const int MaxFieldChars = 1024;
 
-    public static readonly ApiFailure TooLarge = ApiFailure.PayloadLargerThan(0) with
+    public static readonly ApiFailure TooLarge = TooLargeWith(WorkErrorCodes.AttachmentTooLarge);
+
+    /// <summary>項目與頁面的附件上限相同、錯誤代碼各自一個（代碼是對外合約）。</summary>
+    public static ApiFailure TooLargeWith(string code) => ApiFailure.PayloadLargerThan(0) with
     {
-        Code = WorkErrorCodes.AttachmentTooLarge,
+        Code = code,
         Message = $"附件不能超過 {AttachmentRules.MaxBytes / (1024 * 1024)} MB。",
     };
 
@@ -66,8 +69,10 @@ internal static class AttachmentUpload
         HttpRequest request,
         CancellationToken cancellationToken,
         IDictionary<string, string>? fields = null,
-        IReadOnlySet<string>? allowedFields = null)
+        IReadOnlySet<string>? allowedFields = null,
+        string tooLargeCode = WorkErrorCodes.AttachmentTooLarge)
     {
+        var tooLarge = tooLargeCode == WorkErrorCodes.AttachmentTooLarge ? TooLarge : TooLargeWith(tooLargeCode);
         if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var mediaType)
             || !mediaType.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase)
             || HeaderUtilities.RemoveQuotes(mediaType.Boundary).Value is not { Length: > 0 and <= MaxBoundaryLength } boundary)
@@ -78,7 +83,7 @@ internal static class AttachmentUpload
         // 超過上限的請求不必開始讀：Content-Length 是用戶端說的，說錯也沒關係，下面的串流會再算實際收到的量。
         if (request.ContentLength > MaxRequestBytes)
         {
-            return (null, TooLarge);
+            return (null, tooLarge);
         }
 
         var body = new LimitedBodyStream(request.Body, MaxRequestBytes);
@@ -106,12 +111,12 @@ internal static class AttachmentUpload
         }
         catch (RequestTooLargeException)
         {
-            return (null, TooLarge);
+            return (null, tooLarge);
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException or BadHttpRequestException or System.Text.DecoderFallbackException)
         {
             // multipart 的格式錯誤（缺 boundary、標頭太長）或連線中斷：用戶端的錯。
-            return (null, exception is BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } ? TooLarge : NoFile);
+            return (null, exception is BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } ? tooLarge : NoFile);
         }
 
         return (null, NoFile);

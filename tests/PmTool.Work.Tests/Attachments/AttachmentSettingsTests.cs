@@ -1,59 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using PmTool.Abstractions;
 using PmTool.Blueprint;
-using PmTool.Work.Attachments;
+using PmTool.Storage;
 
 namespace PmTool.Work.Tests.Attachments;
 
-/// <summary>附件的儲存設定：缺了或不認得時說得出缺什麼，啟動檢查擋得下來。</summary>
+/// <summary>啟動時的附件儲存檢查：沒設定時只在被問到才失敗（migrate 命令照跑），設定好了就過。</summary>
 [TestFixture]
-public sealed class AttachmentSettingsTests
+public sealed class FileStoreSettingsTests
 {
-    [Test]
-    public void Create_WithoutAProvider_FailsAndNamesTheSetting()
-    {
-        // Act / Assert
-        var failure = Assert.Throws<InvalidOperationException>(() => AttachmentStores.Create(new AttachmentSettings(null)));
-        Assert.That(failure.Message, Does.Contain("Attachments:Provider"));
-    }
-
-    [Test]
-    public void Create_WithAnUnknownProvider_FailsAndShowsTheValue()
-    {
-        // Act / Assert
-        var failure = Assert.Throws<InvalidOperationException>(() => AttachmentStores.Create(new AttachmentSettings("s3")));
-        Assert.That(failure.Message, Does.Contain("Attachments:Provider").And.Contain("s3"));
-    }
-
-    [TestCase(null)]
-    [TestCase("")]
-    [TestCase("   ")]
-    public void Create_LocalWithoutADirectory_FailsAndNamesTheSetting(string? directory)
-    {
-        // Act / Assert
-        var failure = Assert.Throws<InvalidOperationException>(() => AttachmentStores.Create(new AttachmentSettings("local", directory)));
-        Assert.That(failure.Message, Does.Contain("Attachments:Directory"));
-    }
-
-    [TestCase(null)]
-    [TestCase("  ")]
-    public void Create_GcsWithoutABucket_FailsAndNamesTheSetting(string? bucket)
-    {
-        // Act / Assert
-        var failure = Assert.Throws<InvalidOperationException>(() => AttachmentStores.Create(new AttachmentSettings("gcs", Bucket: bucket)));
-        Assert.That(failure.Message, Does.Contain("Attachments:Bucket"));
-    }
-
-    [Test]
-    public void Create_ProviderNameIsNotCaseSensitive()
-    {
-        // Act
-        var store = AttachmentStores.Create(new AttachmentSettings(" Local ", Path.GetTempPath()));
-
-        // Assert
-        Assert.That(store, Is.TypeOf<LocalAttachmentStore>());
-    }
-
     [Test]
     public async Task VerifyAttachmentStorageAsync_WithoutSettings_FailsOnlyWhenAskedSoTheMigrateCommandStillRuns()
     {
@@ -82,7 +37,7 @@ public sealed class AttachmentSettingsTests
         services.AddSingleton<IBlueprintValidator>(BlueprintValidator.CreateDefault());
         services.AddSingleton<IBlueprintPlanner, BlueprintPlanner>();
         services.AddSingleton<IOrganizationClock, FixedOrganizationClock>();
-        services.AddWorkModule("Host=db.invalid;Database=unused;Username=unused", new AttachmentSettings("local", directory));
+        services.AddWorkModule("Host=db.invalid;Database=unused;Username=unused", new FileStoreSettings("local", directory));
         await using var provider = services.BuildServiceProvider();
 
         try

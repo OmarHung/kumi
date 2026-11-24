@@ -1,0 +1,100 @@
+/*
+ * 一頁（docs/DESIGN.md 6.2 的閱讀頁）：標題、一行資訊、內容，文字放在紙上，沒有卡片與裝飾色條。
+ * 編輯器與檢視占同一個位置：標題的輸入框換掉標題，編輯器換掉內容，頁面上方的東西不動。
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--reading-max);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.restriction {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* 沒有內容、能寫的人：整塊虛線框就是「開始寫」的按鈕（和項目的「新增說明」同一個長相）。 */
+.add {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.add:hover {
+  background: var(--color-hover);
+}
+
+.addLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-medium);
+}
+
+.addHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.form {
+  /*
+   * 編輯器內容區的高度（專案說明同一個做法，project-info/editorFill.module.css）：頁列、麵包屑那一列、標題的輸入框、
+   * 編輯器下面的提示與按鈕之外的整個畫面。固定值，打字時不長高；更長的內容在框裡捲。
+   */
+  --editor-reserved: calc(var(--page-bar-height) + 16rem + var(--control-height) + var(--control-height-sm) + 0.5rem + 3px);
+  --editor-min-height: 24rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

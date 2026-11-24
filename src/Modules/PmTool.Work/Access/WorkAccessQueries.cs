@@ -81,14 +81,55 @@ internal sealed class WorkAccessQueries(IDbContextFactory<WorkDbContext> context
         return await ReadableProjects.OwnOnlyIdsAsync(db, cache, actor, cancellationToken);
     }
 
-    // 合約先寫好，實作是工作包 B1 的（internal/HANDOFF-knowledge-base.md 第 7 節）。
-    public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> VisibleProjectsAsync(Actor actor, CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+    public async Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> VisibleProjectsAsync(Actor actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        return await SummariesAsync(db, actor, VisibleProjects.Of(db, actor), cancellationToken);
+    }
 
-    public Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+    public async Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (!ProjectKeys.TryNormalize(projectKey, out var key))
+        {
+            return null;
+        }
 
-    public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> FindVisibleProjectsAsync(
-        Actor actor, IReadOnlyCollection<Guid> projectIds, CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var found = await SummariesAsync(db, actor, VisibleProjects.Of(db, actor).Where(x => x.Project.Key == key), cancellationToken);
+        return found.Values.SingleOrDefault();
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> FindVisibleProjectsAsync(
+        Actor actor, IReadOnlyCollection<Guid> projectIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(projectIds);
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<Guid, ProjectAccessSummary>();
+        }
+
+        var ids = projectIds.ToArray();
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        return await SummariesAsync(db, actor, VisibleProjects.Of(db, actor).Where(x => ids.Contains(x.Project.Id)), cancellationToken);
+    }
+
+    /// <summary>權限用 <see cref="ProjectAccess.For"/> 算，和專案本身的 MyPermissions 同一份；藍圖有快取，通常不會多查資料庫。</summary>
+    private async Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> SummariesAsync(
+        WorkDbContext db, Actor actor, IQueryable<ProjectWithRole> visible, CancellationToken cancellationToken)
+    {
+        var rows = await visible.AsNoTracking().ToListAsync(cancellationToken);
+        var summaries = new Dictionary<Guid, ProjectAccessSummary>(rows.Count);
+        foreach (var row in rows)
+        {
+            var project = row.Project;
+            var schema = await cache.GetAsync(db, actor.OrganizationId, project.Id, project.CurrentBlueprintVersion, cancellationToken);
+            var access = ProjectAccess.For(actor, project, schema, row.Role);
+            summaries[project.Id] = new ProjectAccessSummary(project.Id, project.Key, project.Name, access.IsArchived, access.Permissions);
+        }
+
+        return summaries;
+    }
 }

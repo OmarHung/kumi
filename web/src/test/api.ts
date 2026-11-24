@@ -73,6 +73,8 @@ export function signedInAs(user: SessionUser, options: SignedInOptions = {}): vo
     http.get('/v1/item-types', () =>
       ok(itemTypesOf(listed.flatMap((project) => detailFor(project.key, projects, details) ?? []))),
     ),
+    // 專案頁的頁列問有沒有綁這個專案的知識庫空間；預設一個都沒有，要空間的測試用 serveKnowledge 蓋掉。
+    http.get('/v1/knowledge/spaces', () => ok([])),
     http.get('/v1/my-work/saved-views', () => ok([])),
     // 快速跳轉的跨專案搜尋：預設找不到東西，要結果的測試用 serveSearch 蓋掉。
     http.get('/v1/search/items', () => ok({ items: [] })),

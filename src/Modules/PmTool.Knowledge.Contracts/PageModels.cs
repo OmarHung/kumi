@@ -3,7 +3,7 @@ namespace PmTool.Knowledge;
 /// <summary>樹上的一頁（側欄的頁面樹用）：只有標題與位置，沒有內容。</summary>
 /// <param name="Number">空間裡的編號（從 1 起，不重複使用），網址用它（/knowledge/HR/12）。</param>
 /// <param name="ParentId">上層頁面；最上層是 null。</param>
-/// <param name="Position">同一層裡的順序，從 0 起連續。</param>
+/// <param name="Position">呼叫者看得到的同層頁面裡的順序，從 0 起連續（看不到的頁面不佔位置，所以不會洩漏有隱藏的頁面）。</param>
 /// <param name="IsRestricted">這一頁自己設了限制（不含從上層繼承的）。</param>
 public sealed record PageNode(
     Guid Id,

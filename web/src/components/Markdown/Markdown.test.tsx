@@ -322,6 +322,21 @@ describe('Markdown 的附件', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('給了 attachmentUrl 時，附件的圖片與連結都用它組網址（知識庫的頁面）', async () => {
+    // Arrange
+    const attachmentUrl = (id: string) => `/v1/knowledge/attachments/${id}/content`;
+    const view = render(<Markdown text={`![截圖.png](attachment:${ATTACHMENT_ID}) [報告](attachment:${ATTACHMENT_ID})`} mentionNames={MEMBERS} attachmentUrl={attachmentUrl} />);
+
+    // Act
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-state]')).toHaveAttribute('data-state', 'rendered');
+    });
+
+    // Assert
+    expect(screen.getByRole('img', { name: '截圖.png' })).toHaveAttribute('src', `/v1/knowledge/attachments/${ATTACHMENT_ID}/content`);
+    expect(screen.getByRole('link', { name: '報告' })).toHaveAttribute('href', `/v1/knowledge/attachments/${ATTACHMENT_ID}/content`);
+  });
+
   it('圖片載入失敗：換成一行「圖片已刪除或無法顯示：檔名」', async () => {
     // Arrange
     await renderMarkdown(`![截圖.png](attachment:${ATTACHMENT_ID})`);

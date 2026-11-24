@@ -1,6 +1,7 @@
 import { http } from 'msw';
 import type {
   KnowledgePage,
+  KnowledgePageRestriction,
   KnowledgePageNode,
   KnowledgePagePatch,
   KnowledgeSpace,
@@ -8,6 +9,7 @@ import type {
   NewKnowledgePage,
 } from '../api/knowledgeTypes';
 import { failure, ok } from './api';
+import { adminPerson, memberPerson, ownerPerson } from './people';
 import { server } from './server';
 
 /**
@@ -64,6 +66,8 @@ export interface KnowledgeBackend {
   bodies: Record<string, string>;
   revisions: Record<string, number>;
   trash: Record<string, KnowledgeTrashEntry[]>;
+  /** 依「代號/編號」放的限制名單（人員的編號）；沒放的是沒有設限制。 */
+  restrictions: Record<string, string[]>;
   /** 收到的寫入，測試拿來驗送出的內容。 */
   readonly requests: { method: string; path: string; body: unknown }[];
 }
@@ -123,11 +127,25 @@ export function pageOf(backend: KnowledgeBackend, space: KnowledgeSpace, node: K
   };
 }
 
+const KNOWN_PEOPLE = [ownerPerson, memberPerson, adminPerson];
+
+function restrictionOf(backend: KnowledgeBackend, space: KnowledgeSpace, node: KnowledgePageNode): KnowledgePageRestriction {
+  const ids = backend.restrictions[pageKey(space.key, node.number)];
+  const people =
+    ids === undefined
+      ? null
+      : ids.map((id) => ({ personId: id, displayName: KNOWN_PEOPLE.find((person) => person.personId === id)?.displayName ?? '（已不在組織）' }));
+  const restrictedAncestors = ancestorsOf(backend.trees[space.key] ?? [], node)
+    .filter((ancestor) => ancestor.isRestricted)
+    .map(refOf);
+  return { people, restrictedAncestors };
+}
+
 const notFoundSpace = () => failure(404, 'knowledge.space_not_found', '找不到這個空間。');
 const notFoundPage = () => failure(404, 'knowledge.page_not_found', '找不到這一頁。');
 
 /**
- * 假的知識庫後端：空間清單、樹、讀寫頁面、搬移、刪除與復原、垃圾桶。限制、附件、空間的寫入沒有預設的行為，
+ * 假的知識庫後端：空間清單、樹、讀寫頁面、搬移、刪除與復原、垃圾桶。限制（讀與整份取代）有預設的行為；附件、空間的寫入沒有預設的行為，
  * 要用到的測試自己 server.use。回傳的 backend 是活的狀態（測試可以直接改、也可以拿來驗）。
  */
 export function serveKnowledge(options: ServeKnowledgeOptions = {}): KnowledgeBackend {
@@ -140,6 +158,7 @@ export function serveKnowledge(options: ServeKnowledgeOptions = {}): KnowledgeBa
     bodies: { ...options.bodies },
     revisions: {},
     trash: {},
+    restrictions: {},
     requests: [],
   };
   const spaceOf = (key: unknown) => backend.spaces.find((space) => space.key === String(key));
@@ -204,6 +223,25 @@ export function serveKnowledge(options: ServeKnowledgeOptions = {}): KnowledgeBa
       if (patch.body !== undefined) backend.bodies[key] = patch.body;
       backend.revisions[key] = revision + 1;
       return ok(pageOf(backend, space, updated));
+    }),
+    http.get('/v1/knowledge/spaces/:key/pages/:number/restriction', ({ params }) => {
+      const space = spaceOf(params.key);
+      const node = space === undefined ? undefined : nodeOf(space, params.number);
+      return space === undefined || node === undefined ? notFoundPage() : ok(restrictionOf(backend, space, node));
+    }),
+    http.put('/v1/knowledge/spaces/:key/pages/:number/restriction', async ({ request, params }) => {
+      const space = spaceOf(params.key);
+      const node = space === undefined ? undefined : nodeOf(space, params.number);
+      if (space === undefined || node === undefined) return notFoundPage();
+      const { people } = (await request.clone().json()) as { people: string[] | null };
+      await record(request, `/v1/knowledge/spaces/${space.key}/pages/${String(node.number)}/restriction`);
+      const key = pageKey(space.key, node.number);
+      const isRestricted = people !== null && people.length > 0;
+      backend.restrictions = isRestricted
+        ? { ...backend.restrictions, [key]: people }
+        : Object.fromEntries(Object.entries(backend.restrictions).filter(([entryKey]) => entryKey !== key));
+      backend.trees[space.key] = (backend.trees[space.key] ?? []).map((candidate) => (candidate.id === node.id ? { ...candidate, isRestricted } : candidate));
+      return ok(restrictionOf(backend, space, backend.trees[space.key]?.find((candidate) => candidate.id === node.id) ?? node));
     }),
     http.delete('/v1/knowledge/spaces/:key/pages/:number', async ({ request, params }) => {
       const space = spaceOf(params.key);

@@ -28,5 +28,7 @@ internal sealed class PeopleNames
 
     public string NameOf(Guid personId) => _people.TryGetValue(personId, out var person) ? person.DisplayName : Unknown;
 
+    public PersonReference Reference(Guid personId) => new(personId, NameOf(personId));
+
     public PersonSummary? Find(Guid personId) => _people.GetValueOrDefault(personId);
 }

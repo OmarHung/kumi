@@ -1,4 +1,4 @@
-import { Children, createContext, memo, useContext, useState, type ComponentProps, type ReactNode } from 'react';
+import { Children, createContext, memo, useContext, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -15,6 +15,8 @@ export interface MarkdownProps {
   readonly mentionNames: ReadonlyMap<string, string>;
   /** false：這段文字沒有附件可以對（專案說明）：attachment: 的連結與圖片只留文字，不發出請求。預設 true。 */
   readonly hasAttachments?: boolean;
+  /** 附件編號對應的下載網址；預設是項目的附件（知識庫的頁面傳 knowledgeAttachmentContentUrl）。 */
+  readonly attachmentUrl?: (attachmentId: string) => string;
 }
 
 const REMARK_PLUGINS = [remarkGfm, remarkCjkAutolinks, remarkBreaks, remarkMentions];
@@ -46,15 +48,20 @@ function plainText(children: ReactNode): string {
  */
 const MentionNamesContext = createContext<ReadonlyMap<string, string>>(new Map());
 
-/** 這段文字有沒有附件可以對；沒有時 attachment: 的連結與圖片不載入。 */
-const AttachmentsContext = createContext(true);
+interface AttachmentsValue {
+  /** 這段文字有沒有附件可以對；沒有時 attachment: 的連結與圖片不載入。 */
+  readonly enabled: boolean;
+  readonly urlOf: (attachmentId: string) => string;
+}
+
+const AttachmentsContext = createContext<AttachmentsValue>({ enabled: true, urlOf: attachmentContentUrl });
 
 /** 在連結裡面：裡面的圖片不再自己包一層 <a>（巢狀的連結不合法，輔助科技與點擊都會亂）。 */
 const InsideLinkContext = createContext(false);
 
 function Link({ href, children }: { readonly href?: string; readonly children?: ReactNode }) {
   const mentionNames = useContext(MentionNamesContext);
-  const hasAttachments = useContext(AttachmentsContext);
+  const { enabled: hasAttachments, urlOf } = useContext(AttachmentsContext);
   // 不認的協定：urlTransform 已經把網址拿掉了，只剩文字。
   if (href === undefined) return <span>{children}</span>;
   if (isMentionUrl(href)) {
@@ -71,7 +78,7 @@ function Link({ href, children }: { readonly href?: string; readonly children?: 
   const attachmentId = attachmentIdOf(href);
   if (attachmentId !== null && !hasAttachments) return <span>{children}</span>;
   return (
-    <a href={attachmentId === null ? href : attachmentContentUrl(attachmentId)} target="_blank" rel="noopener noreferrer">
+    <a href={attachmentId === null ? href : urlOf(attachmentId)} target="_blank" rel="noopener noreferrer">
       <InsideLinkContext value>{children}</InsideLinkContext>
     </a>
   );
@@ -85,10 +92,11 @@ function AttachmentImage({ attachmentId, alt }: { readonly attachmentId: string;
   const [hasFailed, setHasFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const isInsideLink = useContext(InsideLinkContext);
+  const { urlOf } = useContext(AttachmentsContext);
   // 沒寫說明文字的圖片（![](…)）：名稱退回「圖片」，不留空的名稱。
   const name = alt.trim() === '' ? '圖片' : alt;
   if (hasFailed) return <span className={styles.imageGone}>圖片已刪除或無法顯示：{name}</span>;
-  const url = attachmentContentUrl(attachmentId);
+  const url = urlOf(attachmentId);
   const image = (
     <img
       src={url}
@@ -117,7 +125,7 @@ function AttachmentImage({ attachmentId, alt }: { readonly attachmentId: string;
 function Image({ src, alt }: { readonly src?: string; readonly alt?: string }) {
   const text = alt ?? '';
   const isInsideLink = useContext(InsideLinkContext);
-  const hasAttachments = useContext(AttachmentsContext);
+  const { enabled: hasAttachments } = useContext(AttachmentsContext);
   const attachmentId = src === undefined ? null : attachmentIdOf(src);
   // key：換成另一個附件時重來，前一張的「載入失敗」不帶過來。
   if (attachmentId !== null && hasAttachments) return <AttachmentImage key={attachmentId} attachmentId={attachmentId} alt={text} />;
@@ -172,10 +180,12 @@ const COMPONENTS: Components = {
  * （既有的內容都是照純文字打的）。安全：不開原始的 HTML（沒有 rehype-raw，照文字顯示）、連結只認 http、https、mailto、
  * mention、自己附件的 attachment:；圖片只載入自己附件的，外部網址的不載入。這個檔案帶著 react-markdown 全家，只經過 Markdown.tsx 延後載入。
  */
-export const MarkdownContent = memo(function MarkdownContent({ text, mentionNames, hasAttachments = true }: MarkdownProps) {
+export const MarkdownContent = memo(function MarkdownContent({ text, mentionNames, hasAttachments = true, attachmentUrl = attachmentContentUrl }: MarkdownProps) {
+  // 值要穩定：memo 的元件重畫時不能每次都換一個新物件，不然 Context 的使用者全部重畫。
+  const attachments = useMemo(() => ({ enabled: hasAttachments, urlOf: attachmentUrl }), [hasAttachments, attachmentUrl]);
   return (
     <MentionNamesContext value={mentionNames}>
-      <AttachmentsContext value={hasAttachments}>
+      <AttachmentsContext value={attachments}>
         <div className={styles.markdown} data-state="rendered">
           <ReactMarkdown remarkPlugins={REMARK_PLUGINS} urlTransform={markdownUrlTransform} components={COMPONENTS}>
             {text}

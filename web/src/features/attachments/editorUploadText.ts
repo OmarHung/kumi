@@ -1,4 +1,4 @@
-import type { Attachment } from '../../api/attachments';
+import type { UploadedFile } from './useUploadQueue';
 
 /** 伺服器會在瀏覽器裡直接顯示的圖片類型（api/attachments.ts 的 attachmentContentUrl）：只有這幾種插成圖片，其他是檔案連結。 */
 const INLINE_IMAGE_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
@@ -88,7 +88,7 @@ export function pastedFileName(file: File, now: Date, taken: ReadonlySet<string>
 }
 
 /** 傳完之後的參照：圖片是 ![檔名](attachment:編號)，其他是 [檔名](attachment:編號)。 */
-export function referenceOf(attachment: Attachment): string {
+export function referenceOf(attachment: UploadedFile): string {
   const link = `[${escapeFileName(attachment.fileName)}](attachment:${attachment.id})`;
   return isInlineImageType(attachment.contentType) ? `!${link}` : link;
 }

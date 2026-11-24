@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PmTool.Abstractions;
 using PmTool.Blueprint;
+using PmTool.Storage;
 
 namespace PmTool.Work.Tests;
 
@@ -83,7 +84,7 @@ internal sealed class WorkTestHost : IAsyncDisposable
         void WithAttachments(IServiceCollection services)
         {
             configure?.Invoke(services);
-            services.TryAddSingleton(new AttachmentSettings(AttachmentSettings.LocalProvider, attachmentDirectory));
+            services.TryAddSingleton(new FileStoreSettings(FileStoreSettings.LocalProvider, attachmentDirectory));
         }
 
         var provider = BuildProvider(connections, clock, WithAttachments);

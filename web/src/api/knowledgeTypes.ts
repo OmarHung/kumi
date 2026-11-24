@@ -43,7 +43,7 @@ export interface KnowledgePageNode {
   readonly number: number;
   /** 上層頁面的 id；最上層是 null。 */
   readonly parentId: string | null;
-  /** 同一層裡的順序，從 0 起連續。 */
+  /** 呼叫者看得到的同層頁面裡的順序，從 0 起連續（看不到的頁面不佔位置）。 */
   readonly position: number;
   readonly title: string;
   /** 這一頁自己設了限制（不含從上層繼承的）。 */

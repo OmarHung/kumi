@@ -7,7 +7,7 @@
 /** 所有草稿的鍵都以這個開頭；登出時照它清。 */
 export const DRAFT_KEY_PREFIX = 'draft.';
 
-export type DraftKind = 'comment' | 'comment-edit' | 'description' | 'project-description';
+export type DraftKind = 'comment' | 'comment-edit' | 'description' | 'project-description' | 'knowledge-page';
 
 /** replyTo 是留言的回覆框要回覆的那一則最上層留言（活動編號）：每一串各存各的，不和最上層的留言框混在一起。
  * 'comment-edit' 借這個位置放正在編輯的那一則留言的編號（每一則各存各的）。 */

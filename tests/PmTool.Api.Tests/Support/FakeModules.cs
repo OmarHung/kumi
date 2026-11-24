@@ -45,6 +45,12 @@ internal sealed class FakeModules
 
     public FakeAttachmentService Attachments { get; } = new();
 
+    public FakeKnowledgeSpaceService KnowledgeSpaces { get; } = new();
+
+    public FakeKnowledgePageService KnowledgePages { get; } = new();
+
+    public FakeKnowledgeAttachmentService KnowledgeAttachments { get; } = new();
+
     public FakeSavedViewService SavedViews { get; } = new();
 
     public FakePlanningService Planning { get; } = new();

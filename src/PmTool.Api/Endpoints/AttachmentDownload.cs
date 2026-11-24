@@ -29,17 +29,21 @@ internal static class AttachmentDownload
     /// <summary>圖片直接在瀏覽器開；其他一律下載。比對的是服務存下來、已經整理過的小寫類型。</summary>
     public static bool IsInline(string contentType) => InlineTypes.Contains(contentType);
 
-    public static void Apply(HttpResponse response, Attachment attachment)
+    public static void Apply(HttpResponse response, Attachment attachment) =>
+        Apply(response, attachment.FileName, attachment.ContentType, attachment.SizeBytes, attachment.Sha256);
+
+    /// <summary>項目與頁面的附件共用：呈現的規則只有這一份。</summary>
+    public static void Apply(HttpResponse response, string fileName, string contentType, long sizeBytes, string sha256)
     {
-        var inline = IsInline(attachment.ContentType);
+        var inline = IsInline(contentType);
         var headers = response.Headers;
         headers.XContentTypeOptions = "nosniff";
         headers.ContentSecurityPolicy = ContentSecurityPolicy;
         headers.CacheControl = CacheControl;
-        headers.ContentDisposition = DispositionOf(inline ? "inline" : "attachment", attachment.FileName);
-        response.ContentType = inline ? attachment.ContentType : OctetStream;
-        response.ContentLength = attachment.SizeBytes;
-        headers[Sha256Header] = attachment.Sha256;
+        headers.ContentDisposition = DispositionOf(inline ? "inline" : "attachment", fileName);
+        response.ContentType = inline ? contentType : OctetStream;
+        response.ContentLength = sizeBytes;
+        headers[Sha256Header] = sha256;
     }
 
     /// <summary>
