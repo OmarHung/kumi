@@ -75,6 +75,28 @@ export const queryKeys = {
   // 變更集放在專案底下：套用之後讓整個專案失效時，清單與每一份的內容也一起重抓。
   changeSets: (projectKey: string) => ['project', projectKey, 'changesets'],
   changeSet: (projectKey: string, number: number) => ['project', projectKey, 'changesets', number],
+  // 知識庫（internal/HANDOFF-knowledge-base.md）：空間清單、一個空間（樹、垃圾桶、頁面都放在它底下，空間失效時一起重抓）。
+  knowledgeSpaces: ['knowledge', 'spaces'],
+  knowledgeSpace: (spaceKey: string) => ['knowledge', 'space', spaceKey],
+  knowledgeTree: (spaceKey: string) => ['knowledge', 'space', spaceKey, 'tree'],
+  knowledgeTrash: (spaceKey: string) => ['knowledge', 'space', spaceKey, 'trash'],
+  knowledgePage: (spaceKey: string, pageNumber: number) => ['knowledge', 'space', spaceKey, 'page', pageNumber],
+  knowledgePageRestriction: (spaceKey: string, pageNumber: number) => [
+    'knowledge',
+    'space',
+    spaceKey,
+    'page',
+    pageNumber,
+    'restriction',
+  ],
+  knowledgePageAttachments: (spaceKey: string, pageNumber: number) => [
+    'knowledge',
+    'space',
+    spaceKey,
+    'page',
+    pageNumber,
+    'attachments',
+  ],
   item: (itemKey: string) => ['item', itemKey],
   // 前綴：讓活動失效、重抓時兩份（留言、全部）一起處理；讀資料用下面那個，各自一份快取（條件換了要從第一頁讀）。
   activity: (itemKey: string) => ['item', itemKey, 'activity'],

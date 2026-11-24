@@ -26,9 +26,12 @@ COPY src/Modules/PmTool.Ai.Contracts/PmTool.Ai.Contracts.csproj src/Modules/PmTo
 COPY src/Modules/PmTool.Ai/PmTool.Ai.csproj src/Modules/PmTool.Ai/
 COPY src/Shared/PmTool.Abstractions/PmTool.Abstractions.csproj src/Shared/PmTool.Abstractions/
 COPY src/Shared/PmTool.Http/PmTool.Http.csproj src/Shared/PmTool.Http/
+COPY src/Shared/PmTool.Storage/PmTool.Storage.csproj src/Shared/PmTool.Storage/
 COPY src/Modules/PmTool.Blueprint/PmTool.Blueprint.csproj src/Modules/PmTool.Blueprint/
 COPY src/Modules/PmTool.Identity.Contracts/PmTool.Identity.Contracts.csproj src/Modules/PmTool.Identity.Contracts/
 COPY src/Modules/PmTool.Identity/PmTool.Identity.csproj src/Modules/PmTool.Identity/
+COPY src/Modules/PmTool.Knowledge.Contracts/PmTool.Knowledge.Contracts.csproj src/Modules/PmTool.Knowledge.Contracts/
+COPY src/Modules/PmTool.Knowledge/PmTool.Knowledge.csproj src/Modules/PmTool.Knowledge/
 COPY src/Modules/PmTool.Notifications.Contracts/PmTool.Notifications.Contracts.csproj src/Modules/PmTool.Notifications.Contracts/
 COPY src/Modules/PmTool.Notifications/PmTool.Notifications.csproj src/Modules/PmTool.Notifications/
 COPY src/Modules/PmTool.Work.Contracts/PmTool.Work.Contracts.csproj src/Modules/PmTool.Work.Contracts/

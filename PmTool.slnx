@@ -9,6 +9,8 @@
     <Project Path="src/Modules/PmTool.Blueprint/PmTool.Blueprint.csproj" />
     <Project Path="src/Modules/PmTool.Identity.Contracts/PmTool.Identity.Contracts.csproj" />
     <Project Path="src/Modules/PmTool.Identity/PmTool.Identity.csproj" />
+    <Project Path="src/Modules/PmTool.Knowledge.Contracts/PmTool.Knowledge.Contracts.csproj" />
+    <Project Path="src/Modules/PmTool.Knowledge/PmTool.Knowledge.csproj" />
     <Project Path="src/Modules/PmTool.Notifications.Contracts/PmTool.Notifications.Contracts.csproj" />
     <Project Path="src/Modules/PmTool.Notifications/PmTool.Notifications.csproj" />
     <Project Path="src/Modules/PmTool.Work.Contracts/PmTool.Work.Contracts.csproj" />
@@ -17,6 +19,7 @@
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/PmTool.Abstractions/PmTool.Abstractions.csproj" />
     <Project Path="src/Shared/PmTool.Http/PmTool.Http.csproj" />
+    <Project Path="src/Shared/PmTool.Storage/PmTool.Storage.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PmTool.Ai.Tests/PmTool.Ai.Tests.csproj" />
@@ -24,7 +27,9 @@
     <Project Path="tests/PmTool.Blueprint.Tests/PmTool.Blueprint.Tests.csproj" />
     <Project Path="tests/PmTool.Cli.Tests/PmTool.Cli.Tests.csproj" />
     <Project Path="tests/PmTool.Identity.Tests/PmTool.Identity.Tests.csproj" />
+    <Project Path="tests/PmTool.Knowledge.Tests/PmTool.Knowledge.Tests.csproj" />
     <Project Path="tests/PmTool.Notifications.Tests/PmTool.Notifications.Tests.csproj" />
+    <Project Path="tests/PmTool.Storage.Tests/PmTool.Storage.Tests.csproj" />
     <Project Path="tests/PmTool.Work.Tests/PmTool.Work.Tests.csproj" />
   </Folder>
 </Solution>

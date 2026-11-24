@@ -80,4 +80,15 @@ internal sealed class WorkAccessQueries(IDbContextFactory<WorkDbContext> context
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         return await ReadableProjects.OwnOnlyIdsAsync(db, cache, actor, cancellationToken);
     }
+
+    // 合約先寫好，實作是工作包 B1 的（internal/HANDOFF-knowledge-base.md 第 7 節）。
+    public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> VisibleProjectsAsync(Actor actor, CancellationToken cancellationToken) =>
+        throw new NotImplementedException();
+
+    public Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
+        throw new NotImplementedException();
+
+    public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> FindVisibleProjectsAsync(
+        Actor actor, IReadOnlyCollection<Guid> projectIds, CancellationToken cancellationToken) =>
+        throw new NotImplementedException();
 }

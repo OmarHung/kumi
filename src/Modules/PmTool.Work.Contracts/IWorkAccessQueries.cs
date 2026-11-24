@@ -34,7 +34,25 @@ public interface IWorkAccessQueries
     /// 只有這些專案的通知才用 <see cref="ReadableItemIdsAsync"/> 確認。
     /// </summary>
     Task<IReadOnlySet<Guid>> OwnOnlyProjectIdsAsync(Actor actor, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 知識庫用：這個人看得到的專案與他在每個專案的權限，和專案清單同一個範圍（<c>VisibleProjects</c>：組織管理員是組織裡全部，
+    /// 其他人是自己是成員的，不論角色，含封存的）。權限和 <see cref="ProjectDetail.MyPermissions"/> 同一份算法
+    /// （組織管理員是全部；封存的專案只剩讀取與 project.manage）。
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> VisibleProjectsAsync(Actor actor, CancellationToken cancellationToken);
+
+    /// <summary>依代號找這個人看得到的專案（範圍同 <see cref="VisibleProjectsAsync"/>）；看不到或不存在是 null。代號不分大小寫。</summary>
+    Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken);
+
+    /// <summary>這些專案裡，這個人現在看得到的（範圍同 <see cref="VisibleProjectsAsync"/>）。給知識庫的搜尋一次過濾用。</summary>
+    Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> FindVisibleProjectsAsync(
+        Actor actor, IReadOnlyCollection<Guid> projectIds, CancellationToken cancellationToken);
 }
+
+/// <summary>看得到的一個專案與呼叫者在裡面的權限（知識庫依它決定專案空間誰能看、能改、能留言）。</summary>
+/// <param name="Permissions">和 <see cref="ProjectDetail.MyPermissions"/> 相同。</param>
+public sealed record ProjectAccessSummary(Guid ProjectId, string Key, string Name, bool IsArchived, IReadOnlyList<string> Permissions);
 
 /// <summary>判斷「只看自己的」要的兩個人：建立的人與現在的負責人。事件裡就有（<see cref="ItemEventData.CreatedBy"/>、<see cref="ItemEventData.AssigneeId"/>）。</summary>
 public sealed record ItemOwnership(Guid CreatedBy, Guid? AssigneeId);

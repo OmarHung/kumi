@@ -106,6 +106,17 @@ internal sealed class FakeWorkAccessQueries : IWorkAccessQueries
     public Task<IReadOnlySet<Guid>> ReadableItemIdsAsync(Actor actor, IReadOnlyCollection<Guid> itemIds, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlySet<Guid>>(itemIds.ToHashSet());
 
+    // 知識庫用的三個查詢（internal/HANDOFF-knowledge-base.md）：這裡的測試用不到，回空的。
+    public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> VisibleProjectsAsync(Actor actor, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, ProjectAccessSummary>>(new Dictionary<Guid, ProjectAccessSummary>());
+
+    public Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
+        Task.FromResult<ProjectAccessSummary?>(null);
+
+    public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> FindVisibleProjectsAsync(
+        Actor actor, IReadOnlyCollection<Guid> projectIds, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, ProjectAccessSummary>>(new Dictionary<Guid, ProjectAccessSummary>());
+
     public Task<IReadOnlySet<Guid>> OwnOnlyProjectIdsAsync(Actor actor, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
 
