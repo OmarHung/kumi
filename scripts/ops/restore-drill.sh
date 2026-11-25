@@ -6,6 +6,8 @@
 #               可以登入看資料，留著直到 --down。沒帶時跑完就清掉。
 #               演練的 api 用自己的一份附件資料夾（暫存目錄，從備份目錄的 attachments/ 複製來的，--down 時刪掉），
 #               不碰正在用的附件資料夾。
+#               要在演練裡試寄信（Mailpit 在演練的網路上，是私有網段）：加 DRILL_EMAIL_ALLOW_PRIVATE_HOSTS=true。
+#               附件的容量上限照 .env 的 ATTACHMENT_QUOTA_*（沒設就是預設值）。
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -158,8 +160,13 @@ prepare_drill_attachments() {
 
 start_api() {
   local port="$1" url
-  local tz
+  local tz allow_private_email quota_organization quota_person
   tz="$(env_get TZ Asia/Taipei)"
+  # 預設不照 .env 的 EMAIL_ALLOW_PRIVATE_HOSTS：演練裡要連內網的寄信主機得另外明講，免得演練的 api 連到真的轉信主機。
+  allow_private_email="$(env_get DRILL_EMAIL_ALLOW_PRIVATE_HOSTS false)"
+  [[ "$allow_private_email" == "true" || "$allow_private_email" == "false" ]] || die "DRILL_EMAIL_ALLOW_PRIVATE_HOSTS 要是 true 或 false，現在是「${allow_private_email}」。"
+  quota_organization="$(env_get ATTACHMENT_QUOTA_ORGANIZATION_GIB 20)"
+  quota_person="$(env_get ATTACHMENT_QUOTA_PERSON_DAILY_GIB 2)"
   # 連線字串裡有密碼，一樣在子 shell 裡用「-e 名稱」帶進去。
   # 兩個連線都用演練資料庫的超級使用者、不設 Database__RuntimeRole：演練的資料庫沒有 pmtool_app，也不需要。
   # 不設第一個擁有者（Bootstrap:*）：備份裡已經有帳號，用原本的帳號登入。
@@ -175,6 +182,9 @@ start_api() {
       -e ConnectionStrings__Migrations \
       -e Database__MigrateOnStartup=true \
       -e Notifications__Email__Worker__Enabled=false \
+      -e "Notifications__Email__AllowPrivateHosts=${allow_private_email}" \
+      -e "Attachments__Quota__OrganizationGiB=${quota_organization}" \
+      -e "Attachments__Quota__PersonDailyGiB=${quota_person}" \
       -e Attachments__Provider=local \
       -e Attachments__Directory=/data/attachments \
       -v "$(drill_attachments_dir):/data/attachments" \

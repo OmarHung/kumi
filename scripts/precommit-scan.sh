@@ -1,6 +1,8 @@
 #!/bin/bash
 # 提交前的掃描：關閉警告的寫法、BOM、看不見的字元、過大的檔案、寫死的密碼、不是 example 的網域，
-# 以及機密與內部資訊的樣式（權杖、私鑰、私有網段的位址、本機的路徑、內部的主機名）。
+# 以及機密與內部資訊的樣式（權杖、私鑰、私有與共享網段的位址、本機的路徑、內部的主機名）。
+# 權杖那幾種（私鑰、各家金鑰、JWT 等）和 src/Shared/PmTool.Abstractions/SecretText.cs 是同一組，改了任何一邊要同步另一邊；
+# 路徑、位址、主機名只有這裡掃。
 # 前面幾項有輸出不一定是錯，逐項看過再決定；最後一項（機密、內部資訊）有命中就以非 0 結束。
 # 結束代碼：0 乾淨、1 有命中、2 掃描本身出錯（沒有 perl、允許清單讀不到或格式錯、git 讀不出內容）。
 # 模式：
@@ -137,11 +139,20 @@ my @pat = (
   ["google-key",     qr/AIza[0-9A-Za-z_-]{35}/],
   ["github-token",   qr/\bgh[opsur]_[A-Za-z0-9]{36,}|\bgithub_pat_[A-Za-z0-9_]{30,}/],
   ["aws-access-key", qr/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/],
-  ["slack-token",    qr/\bxapp-[A-Za-z0-9-]{4,}|\bxox[baprs]-[A-Za-z0-9-]{4,}/],
+  ["slack-token",    qr/\bxapp-[0-9]-[A-Z0-9]{8,}-[0-9]{8,}-[A-Za-z0-9]{20,}|\bxox[baprs]-(?:[0-9]{1,3}-)*[0-9]{8,}-[A-Za-z0-9-]{10,}/],
   ["gitlab-token",   qr/\bglpat-[A-Za-z0-9_-]{20,}/],
+  ["jwt",            qr/(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
+  ["stripe-key",     qr/\b(?:sk|rk)_live_[A-Za-z0-9]{20,}/],
+  ["npm-token",      qr/\bnpm_[A-Za-z0-9]{36}(?![A-Za-z0-9])/],
+  ["sendgrid-key",   qr/\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/],
+  ["azure-storage-key", qr{AccountKey=[A-Za-z0-9+/]{60,}={0,2}}],
   ["url-credential", qr{://[^/\s:\@]+:[^/\s\@]+\@}],
   ["private-ip",     qr/(?<![\d.])(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})(?![\d.]*\d)/],
   ["user-home-path", qr{/Users/[A-Za-z0-9._-]+/}],
+  ["linux-home-path", qr{(?<![A-Za-z0-9_.-])/home/[A-Za-z0-9._-]+/}],
+  ["windows-home-path", qr{\b[A-Za-z]:\\{1,2}Users\\{1,2}(?!(?:Public|Default|Default User|All Users)\\)[A-Za-z0-9._-]+\\}i],
+  ["cgnat-ip",       qr/(?<![\d.])100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}(?![\d.]*\d)/],
+  ["link-local-ip",  qr/(?<![\d.])169\.254\.\d{1,3}\.\d{1,3}(?![\d.]*\d)/],
   ["volumes-path",   qr{/Volumes/}],
   ["internal-host",  qr/\b[a-z0-9][a-z0-9-]*\.(?:local|internal|corp|lan)(?![\w-])(?!\.[A-Za-z0-9])/],
 );

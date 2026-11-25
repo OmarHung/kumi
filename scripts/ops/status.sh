@@ -11,6 +11,9 @@ readonly BACKUP_GRACE_HOURS=2
 readonly SERVICES="db api backup"
 # 附件上傳後超過這麼久還沒進備份目錄，就是備份有問題（排程備份一天一次，一天內還沒備份到是正常的）。
 readonly ATTACHMENT_UNBACKED_MINUTES=1440
+# 附件資料夾所在的磁碟剩餘低於這兩個門檻之一就是問題（KB、百分比）。附件與資料庫、備份在同一顆碟時，滿了整套會一起停。
+readonly ATTACHMENT_DISK_MIN_FREE_KB=$((5 * 1024 * 1024))
+readonly ATTACHMENT_DISK_MIN_FREE_PERCENT=10
 
 PROBLEMS=""
 
@@ -106,6 +109,26 @@ attachment_stats() {
   printf '%s %s' "$count" "$kb"
 }
 
+# 附件資料夾所在磁碟的「總量 剩餘」（KB）。df -P 的格式在 macOS 與 Linux 一樣。
+disk_total_and_free_kb() {
+  df -Pk "$1" | awk 'NR == 2 { print $2, $4 }'
+}
+
+# 剩餘的空間不夠就記成問題：絕對值（GiB）或比例，任何一個低於門檻。
+check_attachment_disk() {
+  local dir="$1" total_kb free_kb percent
+  read -r total_kb free_kb <<<"$(disk_total_and_free_kb "$dir")"
+  if [[ ! "$total_kb" =~ ^[0-9]+$ || ! "$free_kb" =~ ^[0-9]+$ || "$total_kb" -eq 0 ]]; then
+    row "附件資料夾的磁碟剩餘" "讀不到"
+    return
+  fi
+  percent=$((free_kb * 100 / total_kb))
+  row "附件資料夾的磁碟剩餘" "$(human_size $((free_kb * 1024)))（${percent}%）"
+  if ((free_kb < ATTACHMENT_DISK_MIN_FREE_KB || percent < ATTACHMENT_DISK_MIN_FREE_PERCENT)); then
+    problem "附件資料夾所在的磁碟只剩 $(human_size $((free_kb * 1024)))（${percent}%），低於 5 GiB 或 ${ATTACHMENT_DISK_MIN_FREE_PERCENT}%：附件與資料庫、備份在同一顆碟時，滿了整套會一起停。請清出空間或換更大的碟。"
+  fi
+}
+
 # 數有幾個檔案在備份目錄裡還沒有：標準輸入是檔案路徑（一行一個）。
 count_unbacked() {
   local dir="$1" backup="$2" path total=0
@@ -135,6 +158,7 @@ show_attachments() {
   fi
   read -r count kb <<<"$(attachment_stats "$dir")"
   row "附件資料夾" "${count} 個檔案，約 $(human_size $((kb * 1024)))（${dir}）"
+  check_attachment_disk "$dir"
   if [[ -d "$backup" ]]; then
     read -r backed_count _ <<<"$(attachment_stats "$backup")"
   else

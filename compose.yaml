@@ -76,6 +76,11 @@ services:
       Attachments__Directory: /data/attachments
       # AI 的 OpenAI 相容端點能不能連到私有網段與本機（主機上自架的 Ollama 要打開）。預設不行：見 docs/DEPLOYMENT.md 第 1.8 節。
       Ai__AllowPrivateEndpoints: ${AI_ALLOW_PRIVATE_ENDPOINTS:-false}
+      # 寄信的主機能不能在私有網段與本機（公司內網的轉信主機要打開）。預設不行：見 docs/DEPLOYMENT.md 第 1.7 節。
+      Notifications__Email__AllowPrivateHosts: ${EMAIL_ALLOW_PRIVATE_HOSTS:-false}
+      # 附件的容量上限（GiB，0 是不限）：組織的總量、每個人過去 24 小時的上傳量。見 docs/DEPLOYMENT.md 第 1.6 節。
+      Attachments__Quota__OrganizationGiB: ${ATTACHMENT_QUOTA_ORGANIZATION_GIB:-20}
+      Attachments__Quota__PersonDailyGiB: ${ATTACHMENT_QUOTA_PERSON_DAILY_GIB:-2}
     volumes:
       # 和資料庫的資料卷一樣不放在 Docker 的資料卷裡：docker compose down -v 刪不到它。
       - ${ATTACHMENTS_DIR:-./data/attachments}:/data/attachments

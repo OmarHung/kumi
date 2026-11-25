@@ -14,6 +14,24 @@
 *.p12
 *.pfx
 *.dump
+id_rsa
+id_rsa.*
+!id_rsa.pub
+id_ed25519
+id_ecdsa
+id_dsa
+*.jks
+*.keystore
+*.p8
+*.kdbx
+*.ovpn
+*.tfstate
+*.tfstate.*
+credentials.json
+service-account*.json
+*.dump.gz
+*.sqlite
+*.sqlite3
 
 # User-specific files
 *.rsuser

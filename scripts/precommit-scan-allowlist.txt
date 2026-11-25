@@ -38,3 +38,21 @@ tests/**    private-ip       10\.(?:0\.0\.\d{1,3}|1\.2\.3|200\.0\.1|255\.255\.25
 tests/**    internal-host    (?:ollama|db|api)\.internal
 tests/**    user-home-path   /Users/(?:example|someone)/
 tests/**    url-credential   :\/\/(?:user:(?:pw|pass|secret)|admin:hunter2)@
+
+# 容器裡的固定使用者家目錄（名稱是產品自己的 kumi，不是任何人的帳號）
+deploy/ai-worker/Dockerfile                 linux-home-path  [/]home[/]kumi[/]
+deploy/ai-worker/compose.fake-engines.yaml  linux-home-path  [/]home[/]kumi[/]
+docs/CLI.md                                 linux-home-path  [/]home[/]kumi[/]
+
+# 位址檢查：雲端中繼資料服務的固定位址與共享位址網段（CGNAT）的邊界值，是「要擋下」的範例
+src/Shared/PmTool.Http/PublicAddressGuard.cs  link-local-ip  169\.254\.169\.254
+tests/**    link-local-ip    169\.254\.169\.254
+tests/**    cgnat-ip         100\.(?:64\.0\.1|127\.255\.255)
+
+# 測試：假的使用者路徑
+tests/**    windows-home-path  C:[\\]Users[\\]someone[\\]
+tests/PmTool.Knowledge.Tests/Pages/PageBodySecretTests.cs          private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
+tests/PmTool.Notifications.Tests/EmailPrivateHostSettingsTests.cs   private-ip     172\.17\.0\.2|10\.1\.2\.3
+tests/PmTool.Notifications.Tests/EmailPrivateHostSettingsTests.cs   internal-host  (?:relay\.)?corp\.internal
+tests/PmTool.Notifications.Tests/MailKitFailureMessageTests.cs      private-ip     10\.9\.9\.9
+tests/PmTool.Notifications.Tests/MailKitFailureMessageTests.cs      internal-host  (?:gateway\.)?corp\.internal
