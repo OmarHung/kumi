@@ -1,5 +1,6 @@
 import type { Notification } from '../../api/types';
 import { Icon } from '../../components/Icon/Icon';
+import { ACCOUNT_NOTICE_LABEL } from '../inbox/accountNoticeText';
 import { notificationSentence } from '../inbox/notificationText';
 import { toastExcerpt } from './toastText';
 import styles from './NotificationToasts.module.css';
@@ -12,6 +13,17 @@ interface ToastContentProps {
 /** 一則提示裡面的內容：鈴鐺、誰做了什麼、項目、（完整時）內容的摘錄。真的提示與設定頁的示意圖共用，長相只有一份。 */
 export function ToastContent({ notification, mode }: ToastContentProps) {
   const excerpt = toastExcerpt(notification, mode);
+  if (notification.kind === 'account_security') {
+    return (
+      <>
+        <Icon name="lock" className={styles.icon} />
+        <span className={styles.body}>
+          <span className={styles.headline}>{notificationSentence(notification)}</span>
+          <span className={styles.itemLine}>{ACCOUNT_NOTICE_LABEL}</span>
+        </span>
+      </>
+    );
+  }
   const { actor, itemKey, itemTitle } = notification;
   return (
     <>

@@ -10,7 +10,7 @@ import { PRODUCT_NAME } from '../../config/product';
 import { navigateTo } from '../../lib/navigateTo';
 import { AuthorizationForm } from './AuthorizationForm';
 import { ConsentFacts, ConsentHeading, ConsentShell, NoWrap } from './ConsentShell';
-import { requestFromSearch } from './oauthText';
+import { redirectMismatchNote, requestFromSearch } from './oauthText';
 import styles from './OAuthConsentPage.module.css';
 
 function Problem({ error }: { readonly error: unknown }) {
@@ -66,6 +66,12 @@ function Who({ check }: { readonly check: AuthorizationCheck }) {
           <p className={styles.provider}>由 {clientHost} 提供</p>
           {isPunycodeHost(clientHost) && <ConsentFacts>網域含有非英文字元，請確認是你認得的網站</ConsentFacts>}
         </>
+      )}
+      {/* 舊的伺服器沒有這個欄位：沒給就不警告。 */}
+      {check.redirectMatchesClient === false && (
+        <Notice tone="warning" role="none">
+          {redirectMismatchNote(check.redirectHost, clientHost)}
+        </Notice>
       )}
       <ConsentFacts>
         你目前登入的是 <strong>{account.displayName}</strong>（{account.email}）· {account.organizationName}

@@ -13,6 +13,7 @@ import {
   markNotificationsRead,
   setItemSubscription,
 } from './notifications';
+import { listAuditEvents } from './audit';
 import { changeOwnPassword, createAccessToken, listAccessTokens, revokeAccessToken, signOutOtherSessions } from './account';
 import { createPerson, disablePerson, enablePerson, listPeople, resetPersonPassword } from './people';
 import { createProject, getProject, listProjects, removeMember, updateMember } from './projects';
@@ -163,19 +164,19 @@ describe('API 端點', () => {
     ],
     [
       '改自己的密碼',
-      () => changeOwnPassword({ currentPassword: 'example-pass-1', newPassword: 'example-pass-2' }),
+      () => changeOwnPassword({ currentPassword: 'example-pass-1', newPassword: 'example-pass-2', revokeAccessTokens: true }),
       'PUT',
       '/v1/account/password',
-      { currentPassword: 'example-pass-1', newPassword: 'example-pass-2' },
+      { currentPassword: 'example-pass-1', newPassword: 'example-pass-2', revokeAccessTokens: true },
     ],
-    ['登出其他裝置', () => signOutOtherSessions(), 'DELETE', '/v1/account/other-sessions', undefined],
+    ['登出其他裝置', () => signOutOtherSessions({ currentPassword: 'example-pass-1' }), 'POST', '/v1/account/other-sessions/sign-out', { currentPassword: 'example-pass-1' }],
     ['列出存取權杖', () => listAccessTokens(), 'GET', '/v1/account/tokens', undefined],
     [
       '建立存取權杖',
-      () => createAccessToken({ name: '筆電', scopes: ['items:read'], expiresInDays: null }),
+      () => createAccessToken({ name: '筆電', scopes: ['items:read'], expiresInDays: 90 }),
       'POST',
       '/v1/account/tokens',
-      { name: '筆電', scopes: ['items:read'], expiresInDays: null },
+      { name: '筆電', scopes: ['items:read'], expiresInDays: 90 },
     ],
     ['撤銷存取權杖', () => revokeAccessToken('tok-1'), 'DELETE', '/v1/account/tokens/tok-1', undefined],
     ['未讀數', () => getUnreadCount(), 'GET', '/v1/notifications/unread-count', undefined],
@@ -218,6 +219,21 @@ describe('API 端點', () => {
     expect(captured.map((request) => [request.method, request.path, request.search])).toEqual([
       ['GET', '/v1/notifications', ''],
       ['GET', '/v1/notifications', '?unread=true&cursor=c-1&limit=50'],
+    ]);
+  });
+
+  it('稽核紀錄：第一頁只帶 limit，之後帶 cursor（游標原樣交給伺服器）', async () => {
+    // Arrange
+    const captured = captureRequests();
+
+    // Act
+    await listAuditEvents(null);
+    await listAuditEvents('2026-11-25T02:30:00Z|abc');
+
+    // Assert
+    expect(captured.map((request) => [request.method, request.path, request.search])).toEqual([
+      ['GET', '/v1/audit-events', '?limit=50'],
+      ['GET', '/v1/audit-events', '?limit=50&cursor=2026-11-25T02:30:00Z|abc'],
     ]);
   });
 

@@ -12,6 +12,7 @@ export function currentNotificationId(
 ): string | null {
   if (openKey === null) return null;
   const clicked = notifications.find((entry) => entry.notificationId === clickedId);
+  // 帳號通知沒有項目（itemKey 是 null），不會是面板開著的那一則。
   if (clicked?.itemKey === openKey) return clicked.notificationId;
   return notifications.find((entry) => entry.itemKey === openKey)?.notificationId ?? null;
 }

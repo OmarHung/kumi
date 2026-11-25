@@ -199,11 +199,11 @@ src/
 - **基本資料**（`AccountPage.tsx`）：名稱、Email、組織、組織角色，只能看（`dl`），資料來自登入狀態、不另外讀；左欄的說明「名稱與 Email 目前還不能修改。」。這一塊標 `data-content-start`。
 - **密碼**（`PasswordSection.tsx`）：表單（在 region「密碼」裡，表單本身不另外取名），「目前的密碼」「新密碼」兩個 `PasswordField`，primary 的「更新密碼」。送出前先檢查（沒填目前的密碼、新密碼的長度）；伺服器的錯誤依細項路徑（`currentPassword`、`newPassword`）標在欄位上、焦點到第一個有問題的欄位；429 寫「嘗試太多次，請稍後再試。」（和登入共用依 IP 的額度，不用 `apiRequest` 的「請求太頻繁」），和網路錯誤一樣寫在按鈕下面。成功時清空欄位、按鈕下面寫「密碼已更新。其他裝置上的登入都登出了（N 個）。」（N 是 0 時只有「密碼已更新。」）。送出中「更新中…」、`aria-disabled`，再按不重送。
 - **其他裝置**（`OtherSessionsSection.tsx`）：說明一行、secondary 的「登出其他裝置」（不用確認），結果「已登出其他 N 個裝置。」或「沒有其他登入中的裝置。」寫在按鈕下面；送出中「登出中…」、`aria-disabled`。
-- **密碼**那一塊左欄的說明：改密碼不會撤銷存取權杖，懷疑外流請到「命令列與整合」撤銷（連到 `/account/integrations`）。
+- **密碼**那一塊多一個預設勾選的「同時撤銷所有存取權杖」（送出帶 `revokeAccessTokens`），左欄的說明：改密碼會登出其他裝置、存取權杖預設一併撤銷，沒有勾選的話到「命令列與整合」自己管理（連到 `/account/integrations`）；成功訊息寫出登出幾個裝置、撤銷幾把權杖並提醒再執行 `kumi setup`。收到任何 401 時（`auth/session.ts` 的 `handleUnauthorized`）先重問一次 `/v1/session`，還是 401 才登出：改密碼換 Cookie 的瞬間，另一個分頁送出的請求會被 401 打回；同時多個 401 只問一次，問到還登入著就把失敗的查詢重抓。
 - **存取權杖**（`AccessTokensSection.tsx`，給 CLI 與腳本用的個人權杖，`internal/HANDOFF-pat-cli.md` 第 6 節）：清單與「建立存取權杖」按鈕。
-  - 清單（`AccessTokenViews.tsx`，`accessTokenText.ts` 管文字）：寬窄螢幕都是 `List`（設定中心的右欄放不下六欄的表格）：名稱，第二行明文的開頭 `pmt_Ab12…`、範圍、建立、最後使用、到期，「撤銷」在最後。範圍四種都有寫「全部」，否則列名稱（讀取項目、修改項目、讀取設定、修改設定）；最後使用是相對時間或「還沒用過」；到期是日期或「不過期」，過期的後面加「已過期」徽章。「現在」是查詢的 `dataUpdatedAt`（畫的時候不讀時鐘）。沒有權杖時一句「還沒有存取權杖。」，按鈕照舊在清單下面。第一次讀不到是 `ErrorState`（可以重試），背景重抓失敗留著清單加一行提示。
+  - 清單（`AccessTokenViews.tsx`，`accessTokenText.ts` 管文字）：寬窄螢幕都是 `List`（設定中心的右欄放不下六欄的表格）：名稱，第二行明文的開頭 `pmt_Ab12…`、範圍、建立、最後使用、到期，「撤銷」在最後。範圍四種都有寫「全部」，否則列名稱（讀取項目、修改項目、讀取設定、修改設定）；最後使用是相對時間或「還沒用過」；到期是日期（舊的權杖可能是「不過期」），過期的後面加「已過期」徽章；建立它的位址（`createdFrom`）有值時多一項「從 203.0.113.5 建立」。「現在」是查詢的 `dataUpdatedAt`（畫的時候不讀時鐘）。沒有權杖時一句「還沒有存取權杖。」，按鈕照舊在清單下面。第一次讀不到是 `ErrorState`（可以重試），背景重抓失敗留著清單加一行提示。
   - 撤銷（`RevokeAccessTokenDialog.tsx`）：每一列「撤銷」（名稱「撤銷「我的筆電」」），`ConfirmDialog` 的 `danger`，送出中確認鈕只標 `aria-disabled`、焦點留著、Esc 與取消不作用；失敗時對話框留著並重抓清單；成功後那一列不在了，焦點到「建立存取權杖」（`updateThenFocus`）。
-  - 建立（`CreateAccessTokenDialog.tsx`，欄位在 `CreateTokenFields.tsx`，表單狀態與錯誤對應在 `createAccessTokenForm.ts`）：名稱、範圍（`CheckboxGroup` 的 `layout="column"`，預設全勾）、期限（30 天、90 天〔預設〕、1 年、不過期）。送出前檢查名稱（空白、超過 100 字）與範圍（至少一個），伺服器的 422 依細項路徑標在欄位上，409 等寫在表單上方；焦點到第一個有問題的欄位（欄位用 callback ref 登記，畫的時候不碰 `ref.current`）。
+  - 建立（`CreateAccessTokenDialog.tsx`，欄位在 `CreateTokenFields.tsx`，表單狀態與錯誤對應在 `createAccessTokenForm.ts`）：名稱、範圍（`CheckboxGroup` 的 `layout="column"`，預設全勾）、期限（30 天、90 天〔預設〕、1 年；沒有不過期，勾了本機代理只到 90 天）。送出前檢查名稱（空白、超過 100 字）與範圍（至少一個），伺服器的 422 依細項路徑標在欄位上，409 等寫在表單上方；焦點到第一個有問題的欄位（欄位用 callback ref 登記，畫的時候不碰 `ref.current`）。
   - 「只會顯示這一次」（`TokenSecretView.tsx`）：建立成功後**同一個** `Dialog`（標題換成「存取權杖已建立」，關上時焦點才回得到「建立存取權杖」）換成這個畫面：明文在唯讀的 `TextField`（掛上時選取、焦點在欄位）、「複製」（`navigator.clipboard.writeText`，成功說「已複製。」，失敗說「無法自動複製，請選取上面的權杖手動複製。」並選取欄位）、CLI 的用法、「完成」。明文只在這個元件的 props 裡，關上就卸下；測試確認畫面、查詢快取、mutation 快取、`localStorage`、`sessionStorage` 都找不到它。
 
 ## 項目頁

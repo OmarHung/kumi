@@ -67,7 +67,7 @@ interface InboxListProps {
 export function InboxList({ result, filter, onOpen }: InboxListProps) {
   const notifications = useMemo(() => result.data?.pages.flatMap((page) => page.items) ?? [], [result.data]);
   // 清單的順序登記給面板（上一個、下一個走這份）：同一個項目有好幾則通知時只算一次。
-  useItemSequence([...new Set(notifications.map((entry) => entry.itemKey))]);
+  useItemSequence([...new Set(notifications.flatMap((entry) => (entry.itemKey === null ? [] : [entry.itemKey])))]);
   // 面板開的是項目、不是通知：記住點的是哪一則，同一個項目的好幾則只標那一則。
   const [clickedId, setClickedId] = useState<string | null>(null);
   const panel = useItemPanel();

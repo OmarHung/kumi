@@ -1,8 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http } from 'msw';
+import { delay, http } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ok, signedInAs, signedOut } from '../../test/api';
-import { cliLoginCheckOf, failCliLoginApprove, serveCliLogin } from '../../test/cliLogin';
+import { cliLoginCheckOf, confirmationCodeOf, failCliLoginApprove, serveCliLogin } from '../../test/cliLogin';
 import { exampleOwner } from '../../test/fixtures';
 import { currentPath, renderApp } from '../../test/renderApp';
 import { chooseOption, openOptions } from '../../test/select';
@@ -12,9 +12,16 @@ const navigateTo = vi.hoisted(() => vi.fn<(url: string) => void>());
 vi.mock('../../lib/navigateTo', () => ({ navigateTo }));
 
 const STATE = 'st4te_-1';
-const QUERY = `port=45678&state=${STATE}&challenge=ch4llenge&machine=MacBook-Pro&tokens=cli%2Cagent&scope=items%3Aread+items%3Awrite+blueprint%3Aread`;
+const QUERY = `port=45678&state=${STATE}&challenge=ch4llenge&machine=MacBook-Pro&tokens=cli%2Cagent&scope=items%3Aread+items%3Awrite+blueprint%3Aread&confirm=1`;
 const PATH = `/cli/authorize?${QUERY}`;
 const CALLBACK = 'http://127.0.0.1:45678/kumi-login';
+// 終端機上顯示的確認碼（伺服器依 challenge 算出來，網頁自己算不出來）。
+const CODE = confirmationCodeOf('ch4llenge');
+
+/** 照終端機上的數字輸入確認碼（顯示成 ddd ddd 也行）。 */
+async function enterCode(user: Awaited<ReturnType<typeof openConsent>>['user'], code = CODE) {
+  await user.type(screen.getByLabelText('確認碼'), code);
+}
 
 async function openConsent(path = PATH) {
   signedInAs(exampleOwner);
@@ -37,7 +44,8 @@ describe('瀏覽器登入同意頁：顯示', () => {
 
     // Assert
     expect(await screen.findByRole('heading', { level: 1, name: /讓這台電腦上的 kumi 使用你的帳號/ })).toBeInTheDocument();
-    expect(screen.getByText('MacBook-Pro')).toBeInTheDocument();
+    const machine = screen.getByText(/電腦：MacBook-Pro/);
+    expect(machine.querySelector('strong')).toBeNull();
     expect(screen.getByText('帳號？').className).toMatch(/nowrap/);
     expect(screen.getByText('owner@example.com', { exact: false })).toBeInTheDocument();
     expect(screen.getByText(/只有在你剛剛自己在終端機執行 kumi 時才允許/)).toBeInTheDocument();
@@ -166,6 +174,67 @@ describe('瀏覽器登入同意頁：不合格的請求', () => {
   });
 });
 
+describe('瀏覽器登入同意頁：版面順序', () => {
+  it('確認碼欄位在電腦名稱之前，電腦名稱在允許與拒絕按鈕之後；允許附近有不要貼網址列的提醒', async () => {
+    // Arrange
+    serveCliLogin();
+    await openConsent();
+
+    // Act
+    const field = await screen.findByLabelText('確認碼');
+    const allow = screen.getByRole('button', { name: '允許' });
+    const machine = screen.getByText(/電腦：MacBook-Pro/);
+    const account = screen.getByText(/你目前登入的是/);
+    const advice = screen.getByText(/如果有人要你把網址列的內容貼給他，不要給/);
+
+    // Assert
+    const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(account, field)).toBe(true);
+    expect(before(field, machine)).toBe(true);
+    expect(before(allow, machine)).toBe(true);
+    expect(before(advice, allow)).toBe(true);
+  });
+
+  it('電腦名稱帶了確認碼時，檢查回 422 cli_login.request_invalid，顯示請求不對的畫面', async () => {
+    // Arrange
+    serveCliLogin({ check: cliLoginCheckOf() });
+    signedInAs(exampleOwner);
+    const named = QUERY.replace('machine=MacBook-Pro', `machine=pc-${CODE}`);
+
+    // Act
+    renderApp(`/cli/authorize?${named}`);
+
+    // Assert
+    expect(await screen.findByRole('heading', { level: 1, name: '無法登入' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('電腦名稱');
+    expect(screen.queryByRole('button', { name: '允許' })).not.toBeInTheDocument();
+  });
+});
+
+describe('瀏覽器登入同意頁：電腦名稱帶了確認碼', () => {
+  it('核准被伺服器拒絕（422 路徑 machine）時，顯示伺服器的訊息，不導走', async () => {
+    // Arrange
+    const backend = serveCliLogin();
+    signedInAs(exampleOwner);
+    const named = QUERY;
+    server.use(
+      http.post('/v1/cli-login/check', () => ok(cliLoginCheckOf())),
+    );
+    const { user } = renderApp(`/cli/authorize?${named.replace('MacBook-Pro', `pc-${CODE}`)}`);
+    // 檢查那一步已經被擋下來（有的伺服器版本只在核准時擋）：這裡蓋掉檢查，直接驗核准的失敗畫面。
+    await screen.findByRole('button', { name: '允許' });
+
+    // Act
+    await enterCode(user);
+    await user.click(screen.getByRole('button', { name: '允許' }));
+
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('電腦名稱不能帶著確認碼。');
+    expect(backend.approvals).toHaveLength(1);
+    expect(navigateTo).not.toHaveBeenCalled();
+  });
+});
+
 describe('瀏覽器登入同意頁：允許', () => {
   it('送出請求、勾的範圍與期限，導到伺服器給的迴路網址，並說可以回終端機', async () => {
     // Arrange
@@ -174,6 +243,7 @@ describe('瀏覽器登入同意頁：允許', () => {
     await screen.findByRole('button', { name: '允許' });
 
     // Act
+    await enterCode(user);
     await user.click(screen.getByRole('checkbox', { name: /修改設定/ }));
     await user.click(screen.getByRole('button', { name: '允許' }));
 
@@ -191,6 +261,7 @@ describe('瀏覽器登入同意頁：允許', () => {
         scopes: ['items:read', 'items:write', 'blueprint:read'],
         grantedScopes: ['items:read', 'blueprint:read', 'blueprint:write'],
         expiresInDays: 90,
+        confirmationCode: CODE,
       },
     ]);
     expect(screen.getByText('已允許，請回到終端機。')).toBeInTheDocument();
@@ -205,6 +276,7 @@ describe('瀏覽器登入同意頁：允許', () => {
     // Act
     const options = await openOptions(user, screen.getByRole('combobox', { name: '期限' }));
     const names = options.map((option) => option.textContent);
+    await enterCode(user);
     await chooseOption(user, screen.getByRole('combobox', { name: '期限' }), '1 年');
     await user.click(screen.getByRole('button', { name: '允許' }));
 
@@ -222,6 +294,7 @@ describe('瀏覽器登入同意頁：允許', () => {
     await screen.findByRole('button', { name: '允許' });
 
     // Act
+    await enterCode(user);
     await user.click(screen.getByRole('checkbox', { name: /修改項目/ }));
     await user.click(screen.getByRole('button', { name: '允許' }));
 
@@ -258,7 +331,7 @@ describe('瀏覽器登入同意頁：允許', () => {
     await openConsent();
 
     // Assert
-    expect(await screen.findByText('按下允許之後，會把一次性的登入碼送回這台電腦的 127.0.0.1:45678。')).toBeInTheDocument();
+    expect(await screen.findByText(/按下允許之後，會把一次性的登入碼送回這台電腦的 127\.0\.0\.1:45678。/)).toBeInTheDocument();
   });
 
   it('有本機代理的權杖時說明它固定 90 天；只有命令列時不寫', async () => {
@@ -278,6 +351,7 @@ describe('瀏覽器登入同意頁：允許', () => {
     const { user } = await openConsent(PATH.replace('cli%2Cagent', 'agent'));
 
     // Act
+    await enterCode(user);
     await user.click(await screen.findByRole('button', { name: '允許' }));
 
     // Assert
@@ -320,6 +394,7 @@ describe('瀏覽器登入同意頁：允許', () => {
     await screen.findByRole('button', { name: '允許' });
 
     // Act
+    await enterCode(user);
     await user.click(screen.getByRole('button', { name: '允許' }));
 
     // Assert
@@ -368,7 +443,8 @@ describe('瀏覽器登入同意頁：允許', () => {
     serveCliLogin({ check: cliLoginCheckOf({ agentAllowed: false }) });
 
     // Act
-    await openConsent();
+    const { user } = await openConsent();
+    await enterCode(user);
 
     // Assert
     expect(await screen.findByText('組織沒有開放成員使用自己的 AI 帳號，這次不會建立本機代理的權杖。')).toBeInTheDocument();
@@ -383,6 +459,7 @@ describe('瀏覽器登入同意頁：允許', () => {
     await screen.findByRole('button', { name: '允許' });
 
     // Act
+    await enterCode(user);
     await user.click(screen.getByRole('button', { name: '允許' }));
 
     // Assert
@@ -401,11 +478,264 @@ describe('瀏覽器登入同意頁：允許', () => {
     await screen.findByRole('button', { name: '允許' });
 
     // Act
+    await enterCode(user);
     await user.click(screen.getByRole('button', { name: '允許' }));
 
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('組織沒有開放成員使用自己的 AI 帳號。');
     expect(screen.queryByRole('link', { name: '到存取權杖撤銷不用的' })).not.toBeInTheDocument();
+  });
+});
+
+describe('瀏覽器登入同意頁：確認碼', () => {
+  it('有「確認碼」輸入框和說明；沒填滿 6 碼之前「允許」不能按，說明接在 aria-describedby 上，不送出', async () => {
+    // Arrange
+    const backend = serveCliLogin();
+    const { user } = await openConsent();
+    const allow = await screen.findByRole('button', { name: '允許' });
+    const field = screen.getByLabelText('確認碼');
+
+    // Act
+    await user.type(field, '95112');
+    await user.click(allow);
+
+    // Assert
+    expect(field).toHaveAccessibleDescription(
+      '輸入你自己的終端機上顯示的確認碼。確認碼只會出現在你執行 kumi 的那個終端機：這個頁面上的任何數字（包括下面的電腦名稱）、別人用信件、訊息或電話告訴你的數字，都不是。你沒有在自己的終端機執行 kumi 的話，請按拒絕。',
+    );
+    expect(field).toHaveAttribute('autocomplete', 'off');
+    expect(allow).toHaveAttribute('aria-disabled', 'true');
+    expect(allow).toHaveAccessibleDescription('請輸入終端機上的 6 位數確認碼');
+    expect(backend.approvals).toHaveLength(0);
+  });
+
+  it('輸入顯示成「ddd ddd」，貼上帶空白或 - 的也行，只送 6 個數字；填滿之後「允許」可以按', async () => {
+    // Arrange
+    const backend = serveCliLogin();
+    const { user } = await openConsent();
+    const allow = await screen.findByRole('button', { name: '允許' });
+    const field = screen.getByLabelText('確認碼');
+    await user.click(field);
+
+    // Act
+    await user.paste(` ${CODE.slice(0, 3)}-${CODE.slice(3)} `);
+
+    // Assert
+    expect(field).toHaveValue(`${CODE.slice(0, 3)} ${CODE.slice(3)}`);
+    expect(allow).not.toHaveAttribute('aria-disabled');
+    await user.click(allow);
+    await waitFor(() => {
+      expect(backend.approvals[0]?.confirmationCode).toBe(CODE);
+    });
+  });
+
+  it('只收數字：字母、超過 6 位的部分都不留', async () => {
+    // Arrange
+    serveCliLogin();
+    const { user } = await openConsent();
+    const field = await screen.findByLabelText('確認碼');
+
+    // Act
+    await user.type(field, 'ab12cd3456789');
+
+    // Assert
+    expect(field).toHaveValue('123 456');
+  });
+
+  it('不讓瀏覽器、密碼管理員或簡訊自動填入：autocomplete 是 off', async () => {
+    // Arrange
+    serveCliLogin();
+    await openConsent();
+
+    // Act
+    const field = await screen.findByLabelText('確認碼');
+
+    // Assert
+    expect(field).toHaveAttribute('autocomplete', 'off');
+  });
+
+  it('全形數字先轉成半形，不直接丟掉', async () => {
+    // Arrange
+    serveCliLogin();
+    const { user } = await openConsent();
+    const field = await screen.findByLabelText('確認碼');
+    await user.click(field);
+
+    // Act
+    await user.paste('９５１ １２３');
+
+    // Assert
+    expect(field).toHaveValue('951 123');
+  });
+
+  it('游標在中間退格：游標留在刪掉的那一格，不跳到最後', async () => {
+    // Arrange
+    serveCliLogin();
+    const { user } = await openConsent();
+    const field = await screen.findByLabelText<HTMLInputElement>('確認碼');
+    await user.type(field, '123456');
+
+    // Act：游標在「12|3 456」，退格
+    await user.type(field, '{Backspace}', { initialSelectionStart: 2, initialSelectionEnd: 2 });
+
+    // Assert
+    expect(field).toHaveValue('134 56');
+    expect(field.selectionStart).toBe(1);
+    expect(field.selectionEnd).toBe(1);
+  });
+
+  it('游標在中間輸入：游標接在剛輸入的數字後面', async () => {
+    // Arrange
+    serveCliLogin();
+    const { user } = await openConsent();
+    const field = await screen.findByLabelText<HTMLInputElement>('確認碼');
+    await user.type(field, '12345');
+
+    // Act：游標在「1|2 345」，輸入 9
+    await user.type(field, '9', { initialSelectionStart: 1, initialSelectionEnd: 1 });
+
+    // Assert
+    expect(field).toHaveValue('192 345');
+    expect(field.selectionStart).toBe(2);
+  });
+
+  it('在結尾輸入、在結尾退格都照常', async () => {
+    // Arrange
+    serveCliLogin();
+    const { user } = await openConsent();
+    const field = await screen.findByLabelText<HTMLInputElement>('確認碼');
+
+    // Act
+    await user.type(field, '1234');
+    const afterTyping = [field.value, field.selectionStart];
+    await user.keyboard('{Backspace}{Backspace}');
+
+    // Assert
+    expect(afterTyping).toEqual(['123 4', 5]);
+    expect(field).toHaveValue('12');
+    expect(field.selectionStart).toBe(2);
+  });
+
+  it('送出中輸入框唯讀並標 aria-disabled，不用原生 disabled（焦點留得住）', async () => {
+    // Arrange
+    serveCliLogin();
+    server.use(
+      http.post('/v1/cli-login/approve', async () => {
+        await delay(200);
+        return ok({ redirectTo: `${CALLBACK}?code=abc&state=${STATE}` });
+      }),
+    );
+    const { user } = await openConsent();
+    await screen.findByRole('button', { name: '允許' });
+    const field = screen.getByLabelText('確認碼');
+    await enterCode(user);
+    field.focus();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '允許' }));
+
+    // Assert
+    expect(field).toHaveAttribute('aria-disabled', 'true');
+    expect(field).toHaveAttribute('readonly');
+    expect(field).not.toBeDisabled();
+    await waitFor(() => {
+      expect(navigateTo).toHaveBeenCalled();
+    });
+  });
+
+  it('確認碼不對（422 cli_login.confirmation_mismatch）：標在這個欄位上、焦點回去，不導向迴路，打的字留著，改了之後說明消失', async () => {
+    // Arrange
+    const backend = serveCliLogin();
+    const { user } = await openConsent();
+    const wrong = CODE === '000000' ? '111111' : '000000';
+    await screen.findByRole('button', { name: '允許' });
+    const field = screen.getByLabelText('確認碼');
+    await enterCode(user, wrong);
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '允許' }));
+
+    // Assert
+    await waitFor(() => {
+      expect(field).toHaveAccessibleDescription(/確認碼不對，請看終端機上的數字。/);
+    });
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveFocus();
+    expect(field).toHaveValue(`${wrong.slice(0, 3)} ${wrong.slice(3)}`);
+    expect(screen.queryByRole('alert')).toHaveTextContent('');
+    expect(navigateTo).not.toHaveBeenCalled();
+    expect(backend.approvals).toHaveLength(1);
+
+    // Act：改成對的
+    await user.clear(field);
+    await user.type(field, CODE);
+
+    // Assert
+    expect(field).not.toHaveAttribute('aria-invalid', 'true');
+    await user.click(screen.getByRole('button', { name: '允許' }));
+    await waitFor(() => {
+      expect(navigateTo).toHaveBeenCalledWith(`${CALLBACK}?code=abc&state=${STATE}`);
+    });
+  });
+
+  it('檢查的回應不帶正確的碼：畫面上找不到它，網頁也不會自己填', async () => {
+    // Arrange
+    serveCliLogin();
+
+    // Act
+    await openConsent();
+    await screen.findByRole('button', { name: '允許' });
+
+    // Assert
+    expect(screen.getByLabelText('確認碼')).toHaveValue('');
+    expect(document.body).not.toHaveTextContent(CODE);
+    expect(document.body).not.toHaveTextContent(`${CODE.slice(0, 3)} ${CODE.slice(3)}`);
+  });
+
+  it('網址沒有 confirm=1（舊版 kumi）：不畫表單、不問伺服器，說明要更新（kumi update 或下載），有拒絕', async () => {
+    // Arrange
+    const backend = serveCliLogin();
+
+    // Act
+    const { user } = await openConsent(PATH.replace('&confirm=1', ''));
+
+    // Assert
+    expect(await screen.findByRole('heading', { level: 1, name: '這個 kumi 太舊，請先更新' })).toBeInTheDocument();
+    expect(screen.getByText(/kumi update/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '前往「命令列與整合」' })).toHaveAttribute('href', '/account/integrations');
+    expect(screen.queryByLabelText('確認碼')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '允許' })).not.toBeInTheDocument();
+    expect(backend.checks).toHaveLength(0);
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '拒絕' }));
+
+    // Assert
+    expect(navigateTo).toHaveBeenCalledWith(`${CALLBACK}?error=access_denied&state=${STATE}`);
+    expect(screen.getByText('已拒絕，請回到終端機。')).toBeInTheDocument();
+  });
+
+  it('confirm 帶別的值（不是 1）也當作舊版', async () => {
+    // Arrange
+    serveCliLogin();
+
+    // Act
+    await openConsent(PATH.replace('confirm=1', 'confirm=0'));
+
+    // Assert
+    expect(await screen.findByRole('heading', { level: 1, name: '這個 kumi 太舊，請先更新' })).toBeInTheDocument();
+  });
+
+  it('送給伺服器的檢查請求裡沒有 confirm（它只決定畫面）', async () => {
+    // Arrange
+    const backend = serveCliLogin();
+
+    // Act
+    await openConsent();
+    await screen.findByRole('button', { name: '允許' });
+
+    // Assert
+    expect(Object.keys(backend.checks[0] ?? {})).not.toContain('confirm');
   });
 });
 

@@ -86,9 +86,10 @@ function NotificationToast({ notification, mode, onOpen, onDismiss }: Notificati
         onClick={(event) => {
           // 和清單一樣：寬螢幕而且這一頁有項目面板時在旁邊的面板開（帶著留言的 hash，面板的時間軸捲過去）；
           // 窄螢幕、沒有面板的頁面、⌘／Ctrl 點與中鍵照連結換到項目頁。
+          // 帳號通知沒有項目，只換頁到「命令列與整合」。
           const panel = panels?.current() ?? null;
           const { hash } = event.currentTarget;
-          if (panel?.isEnabled === true && isPlainLeftClick(event)) {
+          if (notification.kind !== 'account_security' && panel?.isEnabled === true && isPlainLeftClick(event)) {
             event.preventDefault();
             panel.open(notification.itemKey, hash);
           }

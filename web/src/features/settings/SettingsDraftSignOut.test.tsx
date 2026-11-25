@@ -3,7 +3,7 @@ import { screen, within } from '@testing-library/react';
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { draftFromBlueprint } from '../../domain/settingsDraft';
-import { authRequired, ok, signedInAs } from '../../test/api';
+import { authRequired, ok, sessionEndsAfterFirstCheck, signedInAs } from '../../test/api';
 import { simpleTasksBlueprint } from '../../test/blueprints';
 import { exampleOwner, webProject } from '../../test/fixtures';
 import { renderApp } from '../../test/renderApp';
@@ -51,6 +51,7 @@ describe('登出時清掉設定頁記在記憶體的草稿', () => {
   it('工作階段失效（任何請求收到 401）導回登入頁時也清掉', async () => {
     // Arrange
     signedInAs(exampleOwner, { projects: [webProject] });
+    sessionEndsAfterFirstCheck(exampleOwner);
     server.use(http.get('/v1/my-work', () => authRequired()));
 
     // Act

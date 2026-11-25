@@ -2,7 +2,7 @@ import { useRef, useState, type SubmitEvent } from 'react';
 import type { AccessTokenScope, CreateAccessTokenRequest } from '../../api/types';
 import { firstInvalidField, hasErrors, mapApiErrorToFields, type FieldErrors, type FieldMapping } from '../../lib/formErrors';
 import { useCreateAccessToken } from './accessTokenMutations';
-import { DEFAULT_EXPIRY, DEFAULT_SCOPES, SCOPE_OPTIONS, expiryDays } from './accessTokenText';
+import { AGENT_EXPIRY_MAX_DAYS, DEFAULT_EXPIRY, DEFAULT_SCOPES, SCOPE_OPTIONS, expiryDays, isExpiryAllowed } from './accessTokenText';
 
 export type TokenFieldName = 'name' | 'scopes' | 'expiresInDays';
 
@@ -41,6 +41,29 @@ function validate(draft: TokenDraft): FieldErrors<TokenFieldName> {
     name: nameError,
     scopes: draft.scopes.length === 0 ? '至少選一個範圍。' : undefined,
   };
+}
+
+/**
+ * 範圍與期限互相牽動：本機代理的權杖最長 90 天，勾了它而原本選得更長就換成 90 天並說明（不讓人送出會被退回的組合）；
+ * 使用者自己改期限或取消本機代理，說明就收起來。
+ */
+function useScopeAndExpiry(draft: TokenDraft, change: (next: Partial<TokenDraft>, field: TokenFieldName) => void) {
+  const [expiryNote, setExpiryNote] = useState<string | null>(null);
+
+  function toggleScope(scope: AccessTokenScope, isChecked: boolean) {
+    const kept = draft.scopes.filter((candidate) => candidate !== scope);
+    const scopes = isChecked ? SCOPE_OPTIONS.map((option) => option.scope).filter((s) => s === scope || kept.includes(s)) : kept;
+    const isCapped = !isExpiryAllowed(draft.expiry, scopes);
+    change(isCapped ? { scopes, expiry: DEFAULT_EXPIRY } : { scopes }, 'scopes');
+    setExpiryNote(isCapped ? `本機代理的權杖最長 ${String(AGENT_EXPIRY_MAX_DAYS)} 天，期限已改成 ${String(AGENT_EXPIRY_MAX_DAYS)} 天。` : null);
+  }
+
+  function changeExpiry(expiry: string) {
+    setExpiryNote(null);
+    change({ expiry }, 'expiresInDays');
+  }
+
+  return { expiryNote, toggleScope, changeExpiry };
 }
 
 /**
@@ -93,12 +116,9 @@ export function useCreateTokenForm(onSecret: (secret: string) => void) {
     setErrors((current) => ({ ...current, [field]: undefined }));
   }
 
-  function toggleScope(scope: AccessTokenScope, isChecked: boolean) {
-    const kept = draft.scopes.filter((candidate) => candidate !== scope);
-    change({ scopes: isChecked ? SCOPE_OPTIONS.map((option) => option.scope).filter((s) => s === scope || kept.includes(s)) : kept }, 'scopes');
-  }
+  const { expiryNote, toggleScope, changeExpiry } = useScopeAndExpiry(draft, change);
 
-  return { register, draft, errors, formError, change, toggleScope, handleSubmit, isPending: create.isPending };
+  return { register, draft, errors, formError, expiryNote, change, changeExpiry, toggleScope, handleSubmit, isPending: create.isPending };
 }
 
 export type CreateTokenForm = ReturnType<typeof useCreateTokenForm>;

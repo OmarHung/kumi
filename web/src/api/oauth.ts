@@ -29,6 +29,11 @@ export interface AuthorizationCheck {
   readonly clientHost: string | null;
   readonly redirectHost: string;
   readonly redirectIsLoopback: boolean;
+  /**
+   * 導回的網址和應用（client_id）是不是同一個網站（導回本機算是；同網域或其中一方是另一方的子網域也算）。
+   * false 時同意頁要顯著警告；舊的伺服器沒有這個欄位，不警告。
+   */
+  readonly redirectMatchesClient?: boolean;
   readonly requestedScopes: readonly AccessTokenScope[];
   readonly account: AuthorizationAccount;
 }

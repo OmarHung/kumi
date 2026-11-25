@@ -38,6 +38,8 @@ export interface CliLoginApproval extends CliLoginRequest {
   readonly grantedScopes: readonly AccessTokenScope[];
   /** 一定要有天數：伺服器不收不過期的（422 expiresInDays）。 */
   readonly expiresInDays: number;
+  /** 使用者從終端機抄來的確認碼，只有 6 個數字（不含空白）；網頁自己算不出正確的碼，由伺服器比對。 */
+  readonly confirmationCode: string;
 }
 
 export interface CliLoginRedirect {
@@ -50,7 +52,7 @@ export function checkCliLogin(request: CliLoginRequest, signal?: AbortSignal): P
   return apiRequest<CliLoginCheck>(`${BASE}/check`, { method: 'POST', body: request, signal });
 }
 
-/** 422 cli_login.request_invalid、access_token.expiry_invalid；403 cli_login.agent_not_allowed；409 access_token.limit_reached；429。 */
+/** 422 cli_login.request_invalid、cli_login.confirmation_mismatch（細項路徑 confirmationCode）、access_token.expiry_invalid；403 cli_login.agent_not_allowed；409 access_token.limit_reached；429。 */
 export function approveCliLogin(approval: CliLoginApproval): Promise<CliLoginRedirect> {
   return apiRequest<CliLoginRedirect>(`${BASE}/approve`, { method: 'POST', body: approval });
 }

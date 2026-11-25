@@ -1,10 +1,12 @@
 import type { MouseEvent } from 'react';
-import type { Notification } from '../../api/types';
+import type { AccountSecurityNotification, ItemNotification, Notification } from '../../api/notificationTypes';
 import { Avatar } from '../../components/Avatar/Avatar';
+import { Icon } from '../../components/Icon/Icon';
 import { ListRow } from '../../components/List/List';
 import { formatInstant, formatRelativeTime } from '../../domain/time';
 import { useItemPanelLink } from '../item-page/ItemPanelContext';
 import { useItemPageEntry } from '../work-items/itemLinks';
+import { ACCOUNT_NOTICE_LABEL } from './accountNoticeText';
 import { notificationLink } from './notificationLink';
 import { notificationSentence, plainExcerpt } from './notificationText';
 import styles from './Inbox.module.css';
@@ -24,12 +26,16 @@ interface NotificationRowProps {
   readonly onSelect: (notification: Notification) => void;
 }
 
+interface ItemRowProps extends NotificationRowProps {
+  readonly notification: ItemNotification;
+}
+
 /**
  * 收件匣的一則：[頭像] 名稱 一句話／編號 標題 摘要 [時間]。整則是連到項目頁的連結（名稱就是這一則所有的文字，
  * 前面多一個看不見的「未讀：」）；寬螢幕一般的點擊在旁邊開項目面板（和我的工作一樣），窄螢幕直接進項目頁，
  * 兩種都標成已讀。面板開著的那一則標 aria-current。
  */
-export function NotificationRow({ notification, now, isFirst, isCurrent, onOpen, onSelect }: NotificationRowProps) {
+function ItemNotificationRow({ notification, now, isFirst, isCurrent, onOpen, onSelect }: ItemRowProps) {
   const { actor, itemKey, itemTitle } = notification;
   const entry = useItemPageEntry();
   const panelLink = useItemPanelLink(itemKey);
@@ -79,5 +85,62 @@ export function NotificationRow({ notification, now, isFirst, isCurrent, onOpen,
         </time>
       }
     />
+  );
+}
+
+interface AccountRowProps {
+  readonly notification: AccountSecurityNotification;
+  readonly now: number;
+  readonly isFirst: boolean;
+  readonly onOpen: (notification: Notification) => void;
+}
+
+/**
+ * 帳號通知的一則：[鎖的圖示] 一句話／帳號安全 [時間]。做事的是你自己，所以不放頭像與名字，改用同樣大小的中性圓底圖示；
+ * 整則連到「命令列與整合」（撤銷在那裡），不開項目面板，點了標成已讀。
+ */
+function AccountNotificationRow({ notification, now, isFirst, onOpen }: AccountRowProps) {
+  const isUnread = notification.readAt === null;
+  const sentence = notificationSentence(notification);
+  const handleOpen = () => {
+    onOpen(notification);
+  };
+  return (
+    <ListRow
+      to={notificationLink(notification)}
+      isContentStart={isFirst}
+      onLinkClick={handleOpen}
+      onLinkAuxClick={(event) => {
+        if (event.button === MIDDLE_BUTTON) handleOpen();
+      }}
+      leading={
+        <span className={styles.accountIcon}>
+          <Icon name="lock" />
+        </span>
+      }
+      titleText={sentence}
+      title={
+        <span className={styles.text} data-unread={isUnread}>
+          {isUnread && <span className="visually-hidden">未讀：</span>}
+          {sentence}
+        </span>
+      }
+      meta={[{ key: 'account', content: <span className={styles.clip}>{ACCOUNT_NOTICE_LABEL}</span> }]}
+      trailing={
+        <time className={styles.time} dateTime={notification.createdAt} title={formatInstant(notification.createdAt)}>
+          {formatRelativeTime(notification.createdAt, now)}
+        </time>
+      }
+    />
+  );
+}
+
+/** 收件匣的一則：帳號通知與項目的通知長得不一樣（沒有做事的人與項目）。 */
+export function NotificationRow(props: NotificationRowProps) {
+  const { notification } = props;
+  return notification.kind === 'account_security' ? (
+    <AccountNotificationRow notification={notification} now={props.now} isFirst={props.isFirst} onOpen={props.onOpen} />
+  ) : (
+    <ItemNotificationRow {...props} notification={notification} />
   );
 }

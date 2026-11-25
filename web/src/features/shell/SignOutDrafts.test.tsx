@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { authRequired, ok, signedInAs } from '../../test/api';
+import { authRequired, ok, sessionEndsAfterFirstCheck, signedInAs } from '../../test/api';
 import { exampleOwner, webProject } from '../../test/fixtures';
 import { renderApp } from '../../test/renderApp';
 import { server } from '../../test/server';
@@ -55,6 +55,7 @@ describe('登出時清掉草稿', () => {
     // Arrange
     leaveDrafts();
     signedInAs(exampleOwner, { projects: [webProject] });
+    sessionEndsAfterFirstCheck(exampleOwner);
     server.use(http.get('/v1/my-work', () => authRequired()));
 
     // Act

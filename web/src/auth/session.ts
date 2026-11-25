@@ -60,6 +60,58 @@ export function markSignedOut(queryClient: QueryClient): void {
   queryClient.setQueryData(queryKeys.session, null);
 }
 
+const rechecks = new WeakMap<QueryClient, Promise<void>>();
+
+function isSessionSettled(queryClient: QueryClient): boolean {
+  // 已經標成沒登入、或登入狀態的查詢自己正在問（它的 401 由它自己處理）：不必再問一次。
+  return queryClient.getQueryData(queryKeys.session) === null || queryClient.isFetching({ queryKey: queryKeys.session }) > 0;
+}
+
+function isUnauthorizedFailure(query: Query): boolean {
+  return query.state.status === 'error' && isApiError(query.state.error) && query.state.error.status === HTTP_UNAUTHORIZED;
+}
+
+/** 重抓之後還有查詢是 401（重抓的這段時間裡登入又失效了）。 */
+function hasUnauthorizedQuery(queryClient: QueryClient): boolean {
+  return queryClient.getQueryCache().findAll({ type: 'active', predicate: isUnauthorizedFailure }).length > 0;
+}
+
+// 重抓時又收到 401 之後，最多再問這麼多次；問完還是 401 就登出，不無限重來。
+const MAX_EXTRA_RECHECKS = 1;
+
+async function recheckSession(queryClient: QueryClient, extraChecksLeft = MAX_EXTRA_RECHECKS): Promise<void> {
+  try {
+    const { user } = await getSession();
+    // 問的這段時間裡自己登出了（登出時伺服器回 401 也算成功）：不能把人又標回登入。
+    if (queryClient.getQueryData(queryKeys.session) === null) return;
+    queryClient.setQueryData(queryKeys.session, user);
+    // 只重抓被 401 打掉的查詢（例如另一個分頁改了密碼、Cookie 還沒換）：別的原因失敗的不動。
+    await queryClient.refetchQueries({ type: 'active', predicate: isUnauthorizedFailure });
+  } catch (error) {
+    // 還是 401 才算登出；斷線或伺服器暫時有問題時不能憑一次失敗就把人踢出去。
+    if (isApiError(error) && error.status === HTTP_UNAUTHORIZED) markSignedOut(queryClient);
+    return;
+  }
+  // 重抓的這段時間裡又收到 401：那些 401 當時被「正在重問」吃掉了，這裡補問一次。
+  if (extraChecksLeft > 0 && hasUnauthorizedQuery(queryClient)) await recheckSession(queryClient, extraChecksLeft - 1);
+}
+
+/**
+ * 任何請求收到 401 時先重問一次登入狀態，還是 401 才標成登出。改密碼、登出其他裝置會換掉 Cookie，
+ * 同一個瀏覽器的另一個分頁在那幾十毫秒裡送出的請求會被 401 打回，不是真的登出了。
+ * 同時來好幾個 401 只問一次（同一個 QueryClient 共用同一次重問）。
+ */
+export function handleUnauthorized(queryClient: QueryClient): Promise<void> {
+  const running = rechecks.get(queryClient);
+  if (running !== undefined) return running;
+  if (isSessionSettled(queryClient)) return Promise.resolve();
+  const started = recheckSession(queryClient).finally(() => {
+    rechecks.delete(queryClient);
+  });
+  rechecks.set(queryClient, started);
+  return started;
+}
+
 export function useSignIn() {
   const queryClient = useQueryClient();
   return useMutation({

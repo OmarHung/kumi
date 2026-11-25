@@ -1,9 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import type { SessionUser } from '../../api/types';
 import { rateLimitPasswordChange, serveAccount } from '../../test/account';
 import { failure, ok, signedInAs } from '../../test/api';
+import { queryKeys } from '../../api/queryKeys';
 import { exampleOwner } from '../../test/fixtures';
 import { flushPending } from '../../test/flush';
 import { currentPath, renderApp } from '../../test/renderApp';
@@ -11,9 +12,9 @@ import { server } from '../../test/server';
 
 const CURRENT = 'example-pass-1';
 
-async function openAccount(user: SessionUser = exampleOwner, otherSessions = 0) {
+async function openAccount(user: SessionUser = exampleOwner, otherSessions = 0, accessTokens = 0) {
   signedInAs(user);
-  const backend = serveAccount({ currentPassword: CURRENT, otherSessions });
+  const backend = serveAccount({ currentPassword: CURRENT, otherSessions, accessTokens });
   const view = renderApp('/account');
   const form = await screen.findByRole('region', { name: '密碼' });
   return { ...view, backend, form };
@@ -75,7 +76,7 @@ describe('我的帳號：改密碼', () => {
 
     // Assert
     const section = screen.getByRole('region', { name: '密碼' });
-    expect(within(section).getByText(/改密碼不會撤銷存取權杖/)).toHaveTextContent('到「命令列與整合」撤銷');
+    expect(within(section).getByText(/存取權杖預設一併撤銷/)).toHaveTextContent('到「命令列與整合」自己管理');
     expect(within(section).getByRole('link', { name: '「命令列與整合」' })).toHaveAttribute('href', '/account/integrations');
   });
 
@@ -89,9 +90,83 @@ describe('我的帳號：改密碼', () => {
 
     // Assert
     expect(await within(form).findByText('密碼已更新。其他裝置上的登入都登出了（2 個）。')).toBeInTheDocument();
-    expect(backend.passwordChanges).toEqual([{ currentPassword: CURRENT, newPassword: 'example-pass-2' }]);
+    expect(backend.passwordChanges).toEqual([{ currentPassword: CURRENT, newPassword: 'example-pass-2', revokeAccessTokens: true }]);
     expect(within(form).getByLabelText('目前的密碼')).toHaveValue('');
     expect(within(form).getByLabelText('新密碼')).toHaveValue('');
+  });
+
+  it('成功之後權杖、AI 用戶端授權、本機代理的清單都標成過期，之後打開會重抓（不顯示已撤銷的）', async () => {
+    // Arrange
+    const { user, form, backend, queryClient } = await openAccount(exampleOwner, 1, 2);
+    const keys = [queryKeys.accessTokens, queryKeys.oauthGrants, queryKeys.localAgents];
+    keys.forEach((key) => {
+      queryClient.setQueryData(key, []);
+    });
+    await fillPasswords(user, form, CURRENT, 'example-pass-2');
+
+    // Act
+    await user.click(within(form).getByRole('button', { name: '更新密碼' }));
+
+    // Assert
+    await within(form).findByText(/存取權杖撤銷了 2 把/);
+    expect(backend.passwordChanges).toHaveLength(1);
+    keys.forEach((key) => {
+      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    });
+  });
+
+  it('「同時撤銷所有存取權杖」預設勾著，送出時帶 revokeAccessTokens: true，成功訊息寫出撤銷幾把並提醒重新執行 kumi setup', async () => {
+    // Arrange
+    const { user, form, backend } = await openAccount(exampleOwner, 1, 3);
+    const checkbox = within(form).getByRole('checkbox', { name: '同時撤銷所有存取權杖（命令列、CI、本機代理）' });
+    await fillPasswords(user, form, CURRENT, 'example-pass-2');
+
+    // Act
+    await user.click(within(form).getByRole('button', { name: '更新密碼' }));
+
+    // Assert
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toHaveAccessibleDescription('那些工具之後要重新登入（kumi setup）或重建權杖。');
+    const status = within(form).getByRole('status');
+    await waitFor(() => {
+      expect(status).toHaveTextContent(
+        '密碼已更新。其他裝置上的登入都登出了（1 個）。存取權杖撤銷了 3 把，用到它們的工具要重新登入：請再執行一次 kumi setup。',
+      );
+    });
+    expect(backend.passwordChanges).toEqual([{ currentPassword: CURRENT, newPassword: 'example-pass-2', revokeAccessTokens: true }]);
+  });
+
+  it('取消勾選時送出 revokeAccessTokens: false，成功訊息不提權杖；成功之後勾選的狀態留著', async () => {
+    // Arrange
+    const { user, form, backend } = await openAccount(exampleOwner, 0, 3);
+    const checkbox = within(form).getByRole('checkbox', { name: /同時撤銷所有存取權杖/ });
+    await user.click(checkbox);
+    await fillPasswords(user, form, CURRENT, 'example-pass-2');
+
+    // Act
+    await user.click(within(form).getByRole('button', { name: '更新密碼' }));
+
+    // Assert
+    await waitFor(() => {
+      expect(within(form).getByRole('status')).toHaveTextContent(/^密碼已更新。$/);
+    });
+    expect(backend.passwordChanges).toEqual([{ currentPassword: CURRENT, newPassword: 'example-pass-2', revokeAccessTokens: false }]);
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it('沒有權杖可撤銷時（0 把）不提重新登入', async () => {
+    // Arrange
+    const { user, form } = await openAccount(exampleOwner, 2, 0);
+    await fillPasswords(user, form, CURRENT, 'example-pass-2');
+
+    // Act
+    await user.click(within(form).getByRole('button', { name: '更新密碼' }));
+
+    // Assert
+    const status = within(form).getByRole('status');
+    await waitFor(() => {
+      expect(status).toHaveTextContent(/^密碼已更新。其他裝置上的登入都登出了（2 個）。$/);
+    });
   });
 
   it('沒有其他登入時只說「密碼已更新。」', async () => {
@@ -221,6 +296,26 @@ describe('我的帳號：改密碼', () => {
     expect(await within(form).findByRole('alert')).toHaveTextContent('嘗試太多次，請稍後再試。');
   });
 
+  it('嘗試太多次（429）帶 Retry-After 時寫出要等幾秒', async () => {
+    // Arrange
+    const { user, form } = await openAccount();
+    server.use(
+      http.put('/v1/account/password', () =>
+        HttpResponse.json(
+          { success: false, data: null, error: { code: 'request.rate_limited', message: 'Too many requests.', details: [] } },
+          { status: 429, headers: { 'Retry-After': '30' } },
+        ),
+      ),
+    );
+    await fillPasswords(user, form, CURRENT, 'example-pass-2');
+
+    // Act
+    await user.click(within(form).getByRole('button', { name: '更新密碼' }));
+
+    // Assert
+    expect(await within(form).findByRole('alert')).toHaveTextContent('嘗試太多次，請在 30 秒後再試。');
+  });
+
   it('送出中按鈕寫「更新中…」並標 aria-disabled（焦點留在上面），再按不重送', async () => {
     // Arrange
     const { user, form } = await openAccount();
@@ -233,7 +328,7 @@ describe('我的帳號：改密碼', () => {
       http.put('/v1/account/password', async () => {
         puts += 1;
         await released;
-        return ok({ signedOutSessions: 0 });
+        return ok({ signedOutSessions: 0, revokedAccessTokens: 0 });
       }),
     );
     await fillPasswords(user, form, CURRENT, 'example-pass-2');
@@ -254,9 +349,36 @@ describe('我的帳號：改密碼', () => {
 });
 
 describe('我的帳號：登出其他裝置', () => {
-  it('不用確認，結果寫「已登出其他 N 個裝置。」', async () => {
+  const DESCRIPTION =
+    '在別的電腦或瀏覽器登入過、忘了登出時用。登出其他裝置會結束你在別處的登入，所以要確認是你本人。只登出網頁的登入，不會撤銷存取權杖；權杖到「命令列與整合」撤銷。';
+
+  async function signOutWith(user: ReturnType<typeof renderApp>['user'], section: HTMLElement, password: string) {
+    await user.type(within(section).getByLabelText('目前的密碼'), password);
+    await user.click(within(section).getByRole('button', { name: '登出其他裝置' }));
+  }
+
+  it('輸入目前的密碼之後登出，結果寫「已登出其他 N 個裝置。」並清空欄位，不用確認', async () => {
     // Arrange
     const { user, backend } = await openAccount(exampleOwner, 3);
+    const section = screen.getByRole('region', { name: '其他裝置' });
+    const field = within(section).getByLabelText('目前的密碼');
+
+    // Act
+    await signOutWith(user, section, CURRENT);
+
+    // Assert
+    expect(await within(section).findByText('已登出其他 3 個裝置。')).toBeInTheDocument();
+    expect(backend.signOutOthers()).toBe(1);
+    expect(backend.signOutBodies).toEqual([{ currentPassword: CURRENT }]);
+    expect(field).toHaveValue('');
+    expect(field).toHaveAttribute('autocomplete', 'current-password');
+    expect(within(section).getByRole('button', { name: '登出其他裝置' })).toHaveAccessibleDescription(DESCRIPTION);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('沒填密碼時按鈕用 aria-disabled，按了不送出', async () => {
+    // Arrange
+    const { user, backend } = await openAccount(exampleOwner, 2);
     const section = screen.getByRole('region', { name: '其他裝置' });
     const button = within(section).getByRole('button', { name: '登出其他裝置' });
 
@@ -264,10 +386,26 @@ describe('我的帳號：登出其他裝置', () => {
     await user.click(button);
 
     // Assert
-    expect(await within(section).findByText('已登出其他 3 個裝置。')).toBeInTheDocument();
-    expect(backend.signOutOthers()).toBe(1);
-    expect(button).toHaveAccessibleDescription('在別的電腦或瀏覽器登入過、忘了登出時用。');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    await flushPending();
+    expect(backend.signOutBodies).toEqual([]);
+  });
+
+  it('密碼不對時標在欄位上，不清空，焦點回到欄位', async () => {
+    // Arrange
+    const { user, backend } = await openAccount(exampleOwner, 2);
+    const section = screen.getByRole('region', { name: '其他裝置' });
+
+    // Act
+    await signOutWith(user, section, 'wrong-pass');
+
+    // Assert
+    const field = within(section).getByLabelText('目前的密碼');
+    expect(await within(section).findByText('目前的密碼不正確。')).toBeInTheDocument();
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveValue('wrong-pass');
+    expect(field).toHaveFocus();
+    expect(backend.signOutOthers()).toBe(0);
   });
 
   it('沒有別的登入時寫「沒有其他登入中的裝置。」', async () => {
@@ -276,7 +414,7 @@ describe('我的帳號：登出其他裝置', () => {
     const section = screen.getByRole('region', { name: '其他裝置' });
 
     // Act
-    await user.click(within(section).getByRole('button', { name: '登出其他裝置' }));
+    await signOutWith(user, section, CURRENT);
 
     // Assert
     expect(await within(section).findByText('沒有其他登入中的裝置。')).toBeInTheDocument();
@@ -289,16 +427,16 @@ describe('我的帳號：登出其他裝置', () => {
     const released = new Promise<void>((resolve) => {
       release = resolve;
     });
-    let deletes = 0;
+    let posts = 0;
     server.use(
-      http.delete('/v1/account/other-sessions', async () => {
-        deletes += 1;
+      http.post('/v1/account/other-sessions/sign-out', async () => {
+        posts += 1;
         await released;
         return ok({ signedOutSessions: 1 });
       }),
     );
     const section = screen.getByRole('region', { name: '其他裝置' });
-    await user.click(within(section).getByRole('button', { name: '登出其他裝置' }));
+    await signOutWith(user, section, CURRENT);
 
     // Act
     const pending = await within(section).findByRole('button', { name: '登出中…' });
@@ -308,20 +446,40 @@ describe('我的帳號：登出其他裝置', () => {
     expect(pending).toHaveAttribute('aria-disabled', 'true');
     expect(pending).toHaveFocus();
     await flushPending();
-    expect(deletes).toBe(1);
+    expect(posts).toBe(1);
     expect(backend.signOutOthers()).toBe(0);
     release();
     expect(await within(section).findByText('已登出其他 1 個裝置。')).toBeInTheDocument();
   });
 
-  it('失敗時在按鈕下面說明', async () => {
+  it('嘗試太多次（429）時說明要等幾秒', async () => {
     // Arrange
     const { user } = await openAccount();
-    server.use(http.delete('/v1/account/other-sessions', () => failure(503, 'server.not_ready', '服務正在啟動。')));
+    server.use(
+      http.post('/v1/account/other-sessions/sign-out', () =>
+        HttpResponse.json(
+          { code: 'request.rate_limited', message: 'Too many requests.', issues: [] },
+          { status: 429, headers: { 'Retry-After': '30' } },
+        ),
+      ),
+    );
     const section = screen.getByRole('region', { name: '其他裝置' });
 
     // Act
-    await user.click(within(section).getByRole('button', { name: '登出其他裝置' }));
+    await signOutWith(user, section, CURRENT);
+
+    // Assert
+    expect(await within(section).findByRole('alert')).toHaveTextContent('嘗試太多次，請在 30 秒後再試。');
+  });
+
+  it('失敗時在按鈕下面說明', async () => {
+    // Arrange
+    const { user } = await openAccount();
+    server.use(http.post('/v1/account/other-sessions/sign-out', () => failure(503, 'server.not_ready', '服務正在啟動。')));
+    const section = screen.getByRole('region', { name: '其他裝置' });
+
+    // Act
+    await signOutWith(user, section, CURRENT);
 
     // Assert
     expect(await within(section).findByRole('alert')).toHaveTextContent('伺服器暫時無法處理，請稍後再試。');

@@ -14,6 +14,20 @@
   font-weight: var(--weight-semibold);
 }
 
+/* 帳號通知的圖示：和頭像同樣大小的中性圓底（沒有做事的人可以放頭像；不用顏色分類，也沒有色條）。 */
+.accountIcon {
+  --account-icon-size: 1.75rem; /* 和 Avatar 的 md 一樣大，同一欄的列才對得齊 */
+
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--account-icon-size);
+  height: var(--account-icon-size);
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+}
+
 /* 項目的編號是等寬字；標題與摘要一行、放不下用省略號（和清單的標題一樣，完整的內容在項目裡）。 */
 .itemKey {
   font-family: var(--font-mono);

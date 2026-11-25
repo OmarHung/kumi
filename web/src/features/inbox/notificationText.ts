@@ -1,8 +1,14 @@
 import type { Notification } from '../../api/types';
+import { accountNoticeSentence } from './accountNoticeText';
 
-/** 一則通知的一句話（前面接做的人的名字）：「指派給你」「提及你」「留言了」「把狀態從「待辦」改成「審查中」」。 */
+/**
+ * 一則通知的一句話。項目的通知前面接做的人的名字：「指派給你」「提及你」「留言了」「把狀態從「待辦」改成「審查中」」；
+ * 帳號通知做事的就是你自己，整句自己說完：「建立了存取權杖「CI」（讀取項目），從 203.0.113.5」。
+ */
 export function notificationSentence(notification: Notification): string {
   switch (notification.kind) {
+    case 'account_security':
+      return accountNoticeSentence(notification.account);
     case 'assigned':
       return '指派給你';
     case 'mentioned':
@@ -40,4 +46,10 @@ export function plainExcerpt(excerpt: string | null): string | null {
     .replace(/\s+/g, ' ')
     .trim();
   return text === '' ? null : text;
+}
+
+/** 一句完整的標題（報讀、提示的第一行）：項目的通知前面接做事的人，帳號通知不接。 */
+export function notificationHeadline(notification: Notification): string {
+  const sentence = notificationSentence(notification);
+  return notification.kind === 'account_security' ? sentence : `${notification.actor.displayName} ${sentence}`;
 }

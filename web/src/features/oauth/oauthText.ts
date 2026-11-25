@@ -49,3 +49,9 @@ export function requestFromSearch(params: URLSearchParams): AuthorizationRequest
   });
   return Object.fromEntries(fields);
 }
+
+/** 導回的網址和應用的網域不同（伺服器判斷 redirectMatchesClient 是 false）：警告的內容。應用沒有驗證過的網域時（clientHost 是 null）不寫它。 */
+export function redirectMismatchNote(redirectHost: string, clientHost: string | null): string {
+  const client = clientHost === null ? '這個應用的網域' : `這個應用的網域 ${clientHost} `;
+  return `授權之後會導到 ${redirectHost}，和${client}不同。除非你確定，請按拒絕。`;
+}

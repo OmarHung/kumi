@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react';
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { serveAccount } from '../../test/account';
-import { authRequired, signedInAs } from '../../test/api';
+import { authRequired, sessionEndsAfterFirstCheck, signedInAs } from '../../test/api';
 import { exampleOwner } from '../../test/fixtures';
 import { memberPerson, ownerPerson, servePeopleAdmin } from '../../test/people';
 import { currentPath, renderApp } from '../../test/renderApp';
@@ -19,6 +19,7 @@ async function expectBackAtLogin(router: ReturnType<typeof renderApp>['router'],
 
 async function openPeopleActions(name: string) {
   signedInAs(exampleOwner);
+  sessionEndsAfterFirstCheck(exampleOwner);
   servePeopleAdmin({ actor: exampleOwner, people: [ownerPerson, memberPerson] });
   const view = renderApp('/people');
   await view.user.click(await screen.findByRole('button', { name: `${name} 的動作` }));
@@ -30,6 +31,7 @@ describe('帳號的操作時登入已經失效（401）', () => {
   it('我的帳號改密碼時收到 401：回到登入頁並說明登入已經失效', async () => {
     // Arrange
     signedInAs(exampleOwner);
+    sessionEndsAfterFirstCheck(exampleOwner);
     serveAccount({ currentPassword: 'example-pass-1' });
     server.use(http.put('/v1/account/password', () => authRequired()));
     const { user, router } = renderApp('/account');

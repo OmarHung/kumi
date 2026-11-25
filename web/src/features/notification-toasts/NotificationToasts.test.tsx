@@ -7,13 +7,15 @@ import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../app/queryClient';
+import type { ItemNotification } from '../../api/notificationTypes';
 import type { Notification } from '../../api/types';
 import { memberRef } from '../../test/activity';
 import { flushPending } from '../../test/flush';
-import { notification, serveNotifications } from '../../test/notifications';
+import { accountNotification, notification, serveNotifications } from '../../test/notifications';
 import { createItemPanelRegistry, ItemPanelRegistryContext, type ItemPanelRegistry } from '../item-page/ItemPanelRegistry';
 import type { ItemPanelValue } from '../item-page/ItemPanelContext';
 import { NotificationToasts } from './NotificationToasts';
+import { toastAnnouncement } from './toastText';
 import { TOAST_DISMISS_MS } from './useAutoDismiss';
 import type { ToastMode } from './toastMode';
 import type { ToastAnnouncement } from './useNotificationToasts';
@@ -21,7 +23,7 @@ import type { ToastAnnouncement } from './useNotificationToasts';
 const SPEAK_WAIT_MS = 150;
 const COMMENT_ID = '0190c000-0000-7000-8000-000000000001';
 
-const mention = (overrides: Partial<Notification> = {}) =>
+const mention = (overrides: Partial<ItemNotification> = {}) =>
   notification({
     kind: 'mentioned',
     actor: memberRef,
@@ -526,5 +528,70 @@ describe('新通知的提示：點了怎麼打開', () => {
 
     // Assert
     expect(requests.reads).toEqual([]);
+  });
+});
+
+describe('新通知的提示：帳號通知', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const tokenCreated = () =>
+    accountNotification({
+      event: 'access_token_created',
+      tokens: [{ name: 'CI', scopes: ['items:read', 'items:write'], expiresAt: null }],
+      machineName: null,
+    });
+
+  it('一句話說明做了什麼，第二行是「帳號安全」，連到「命令列與整合」', () => {
+    // Arrange & Act
+    renderToasts({ initial: [tokenCreated()] });
+
+    // Assert
+    const link = within(screen.getByRole('region', { name: '新通知' })).getByRole('link');
+    expect(link).toHaveAttribute('href', '/account/integrations');
+    expect(link).toHaveTextContent('建立了存取權杖「CI」（讀取項目、修改項目），從 203.0.113.5');
+    expect(link).toHaveTextContent('帳號安全');
+  });
+
+  it('點了換到「命令列與整合」，不在旁邊的面板開項目，並且標成已讀、收掉這一則', async () => {
+    // Arrange
+    const requests = serveNotifications([]);
+    const registry = createItemPanelRegistry();
+    const panel = panelStub();
+    registry.register(panel);
+    const entry = tokenCreated();
+    const { user, router } = renderToasts({ initial: [entry], registry });
+
+    // Act
+    await user.click(screen.getByRole('link'));
+    await flushPending();
+
+    // Assert
+    expect(panel.open).not.toHaveBeenCalled();
+    expect(router.state.location.pathname).toBe('/account/integrations');
+    expect(screen.queryByRole('region', { name: '新通知' })).not.toBeInTheDocument();
+    expect(requests.reads).toEqual([[entry.notificationId]]);
+  });
+
+  it('報讀的是同一句話加「帳號安全」，完整與精簡一樣', () => {
+    // Arrange
+    const entry = tokenCreated();
+    const expected = '新通知：建立了存取權杖「CI」（讀取項目、修改項目），從 203.0.113.5，帳號安全';
+
+    // Act
+    renderToasts({ initial: [], announcement: { text: toastAnnouncement(entry, 'full'), seq: 1 } });
+    act(() => {
+      vi.advanceTimersByTime(SPEAK_WAIT_MS);
+    });
+
+    // Assert
+    expect(toastAnnouncement(entry, 'full')).toBe(expected);
+    expect(toastAnnouncement(entry, 'compact')).toBe(expected);
+    expect(screen.getByText(expected)).toHaveAttribute('aria-live', 'polite');
   });
 });

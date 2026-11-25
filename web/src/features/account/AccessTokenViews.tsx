@@ -67,6 +67,8 @@ export function AccessTokenList({ tokens, now, onRevoke }: AccessTokenViewProps)
             // 第二行有兩個日期與一個相對時間：說法直接寫在畫面上（不只給報讀軟體），才分得出建立、使用與到期。
             { key: 'scopes', content: `範圍：${scopesText(token.scopes)}` },
             { key: 'created', content: `${dayText(token.createdAt)} 建立` },
+            // 建立它的電腦或瀏覽器的位址：不是自己建的時候看得出來（舊的權杖沒記，不顯示）。
+            ...(token.createdFrom === null ? [] : [{ key: 'from', content: `從 ${token.createdFrom} 建立` }]),
             { key: 'used', content: lastUsed(token, now) },
             { key: 'expiry', content: <Expiry token={token} now={now} /> },
           ]}

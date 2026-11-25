@@ -1,10 +1,10 @@
 import { CheckboxField, CheckboxGroup } from '../../components/CheckboxField/CheckboxField';
 import { SelectField, TextField } from '../../components/Field/Field';
 import { FormAlert } from '../../components/FormAlert/FormAlert';
-import { EXPIRY_CHOICES, SCOPE_OPTIONS, scopeConflictNote } from './accessTokenText';
+import { AGENT_EXPIRY_MAX_DAYS, SCOPE_OPTIONS, expiryChoicesFor, scopeConflictNote } from './accessTokenText';
 import type { CreateTokenForm } from './createAccessTokenForm';
 
-/** 建立對話框的欄位：名稱、範圍（五個勾選框，預設勾前四個）、期限（預設 90 天）。 */
+/** 建立對話框的欄位：名稱、範圍（五個勾選框，預設勾前四個）、期限（預設 90 天，沒有不過期）。 */
 export function CreateTokenFields({ form }: { readonly form: CreateTokenForm }) {
   const { draft, errors } = form;
   return (
@@ -39,9 +39,10 @@ export function CreateTokenFields({ form }: { readonly form: CreateTokenForm }) 
         ref={form.register('expiresInDays')}
         label="期限"
         value={draft.expiry}
-        options={EXPIRY_CHOICES.map(({ value, label }) => ({ value, label }))}
+        options={expiryChoicesFor(draft.scopes).map(({ value, label }) => ({ value, label }))}
+        hint={form.expiryNote ?? (draft.scopes.includes('agent:run') ? `本機代理的權杖最長 ${String(AGENT_EXPIRY_MAX_DAYS)} 天。` : undefined)}
         error={errors.expiresInDays}
-        onChange={(value) => { form.change({ expiry: value }, 'expiresInDays'); }}
+        onChange={form.changeExpiry}
       />
     </>
   );

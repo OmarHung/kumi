@@ -176,6 +176,62 @@ describe('同意頁：顯示', () => {
   });
 });
 
+describe('同意頁：導回的網站和應用不同', () => {
+  it('redirectMatchesClient 是 false：顯著警告導回的主機和應用的網域不同，並請使用者不確定就拒絕', async () => {
+    // Arrange
+    serveAuthorization({
+      check: authorizationCheckOf({ redirectHost: 'app.other.example', redirectIsLoopback: false, redirectMatchesClient: false }),
+    });
+
+    // Act
+    await openConsent();
+
+    // Assert
+    expect(
+      screen.getByText('授權之後會導到 app.other.example，和這個應用的網域 client.example 不同。除非你確定，請按拒絕。'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '允許' })).toBeEnabled();
+  });
+
+  it('沒有驗證過的網域（clientHost 是 null）時警告不寫應用的網域', async () => {
+    // Arrange
+    serveAuthorization({
+      check: authorizationCheckOf({ clientHost: null, redirectHost: 'app.other.example', redirectIsLoopback: false, redirectMatchesClient: false }),
+    });
+
+    // Act
+    await openConsent();
+
+    // Assert
+    expect(screen.getByText('授權之後會導到 app.other.example，和這個應用的網域不同。除非你確定，請按拒絕。')).toBeInTheDocument();
+  });
+
+  it('redirectMatchesClient 是 true 時沒有這個警告', async () => {
+    // Arrange
+    serveAuthorization();
+
+    // Act
+    await openConsent();
+
+    // Assert
+    expect(screen.queryByText(/和這個應用的網域/)).not.toBeInTheDocument();
+  });
+
+  it('舊的伺服器沒有這個欄位時也不警告', async () => {
+    // Arrange
+    const legacy = Object.fromEntries(Object.entries(authorizationCheckOf()).filter(([key]) => key !== 'redirectMatchesClient'));
+    signedInAs(exampleOwner);
+    server.use(http.post('/v1/oauth/authorization/check', () => ok(legacy)));
+
+    // Act
+    renderApp(PATH);
+    await screen.findByRole('button', { name: '允許' });
+
+    // Assert
+    expect(screen.queryByText(/和這個應用的網域/)).not.toBeInTheDocument();
+  });
+});
+
 describe('同意頁：允許與拒絕', () => {
   it('全部取消時「允許」停用，勾回一個就能按', async () => {
     // Arrange

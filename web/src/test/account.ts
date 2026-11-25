@@ -7,7 +7,9 @@ import { server } from './server';
 export interface AccountBackend {
   /** PUT /v1/account/password 收到的內文（照收到的順序；被擋下來的也算）。 */
   readonly passwordChanges: unknown[];
-  /** DELETE /v1/account/other-sessions 收到幾次。 */
+  /** POST /v1/account/other-sessions/sign-out 收到的內文（密碼不對被擋下來的也算）。 */
+  readonly signOutBodies: unknown[];
+  /** 成功登出其他裝置幾次。 */
   readonly signOutOthers: () => number;
 }
 
@@ -16,6 +18,8 @@ interface AccountOptions {
   readonly currentPassword: string;
   /** 別的裝置上還有幾個登入；改密碼或登出其他裝置之後變成 0。 */
   readonly otherSessions?: number;
+  /** 這個帳號有幾把個人存取權杖；改密碼時 revokeAccessTokens 不是 false 就全部撤銷。 */
+  readonly accessTokens?: number;
 }
 
 // 和後端一樣（src/Modules/PmTool.Identity/AccountService.cs、PersonInput.cs）。
@@ -40,6 +44,7 @@ function newPasswordIssue(password: string): Issue | null {
 interface PasswordBody {
   readonly currentPassword?: unknown;
   readonly newPassword?: unknown;
+  readonly revokeAccessTokens?: unknown;
 }
 
 function stringOf(value: unknown): string {
@@ -49,15 +54,17 @@ function stringOf(value: unknown): string {
 /**
  * 假的「我的帳號」端點，照合約（internal/HANDOFF-security-local-ops.md 第 4 節）：
  * PUT /v1/account/password 檢查目前的密碼（422 account.password_incorrect，細項路徑 currentPassword）與新密碼的長度
- * （422，細項路徑 newPassword），兩個都有問題時一次回兩個細項；成功時回作廢了幾個其他的登入；
- * DELETE /v1/account/other-sessions 也是。
+ * （422，細項路徑 newPassword），兩個都有問題時一次回兩個細項；成功時回 `{ signedOutSessions, revokedAccessTokens }`
+ * （作廢了幾個其他的登入、撤銷了幾把個人存取權杖）；POST /v1/account/other-sessions/sign-out 收 `{ currentPassword }`，密碼不對回 422 account.password_incorrect（細項路徑 currentPassword），成功回 `{ signedOutSessions }`，不動權杖。
  * 改過之後目前的密碼就是新的那一個。429 由個別的測試用 server.use 蓋掉。
  */
-export function serveAccount({ currentPassword, otherSessions = 0 }: AccountOptions): AccountBackend {
+export function serveAccount({ currentPassword, otherSessions = 0, accessTokens = 0 }: AccountOptions): AccountBackend {
   let password = currentPassword;
   let others = otherSessions;
+  let tokens = accessTokens;
   let signOuts = 0;
   const passwordChanges: unknown[] = [];
+  const signOutBodies: unknown[] = [];
 
   function signOutOtherSessions() {
     const signedOut = others;
@@ -80,14 +87,25 @@ export function serveAccount({ currentPassword, otherSessions = 0 }: AccountOpti
       const [first] = issues;
       if (first !== undefined) return failure(422, first.code, first.message, issues);
       password = next;
-      return signOutOtherSessions();
+      // 不給 revokeAccessTokens 當作 true（和後端一樣）。
+      const revoked = body.revokeAccessTokens === false ? 0 : tokens;
+      tokens -= revoked;
+      const signedOut = others;
+      others = 0;
+      return ok({ signedOutSessions: signedOut, revokedAccessTokens: revoked });
     }),
-    http.delete('/v1/account/other-sessions', () => {
+    http.post('/v1/account/other-sessions/sign-out', async ({ request }) => {
+      const body = (await request.json()) as PasswordBody;
+      signOutBodies.push(body);
+      if (stringOf(body.currentPassword) !== password) {
+        const issue = { code: 'account.password_incorrect', path: 'currentPassword', message: PASSWORD_INCORRECT };
+        return failure(422, issue.code, issue.message, [issue]);
+      }
       signOuts += 1;
       return signOutOtherSessions();
     }),
   );
-  return { passwordChanges, signOutOthers: () => signOuts };
+  return { passwordChanges, signOutBodies, signOutOthers: () => signOuts };
 }
 
 /** 和登入共用依來源 IP 的額度用完了（429 request.rate_limited）。 */
@@ -102,6 +120,10 @@ const DEFAULT_SCOPES: readonly AccessTokenScope[] = ['items:read', 'items:write'
 // 和後端一樣（AccessTokenRules）。
 export const TOKEN_NAME_MAX = 100;
 export const TOKEN_EXPIRY_MAX_DAYS = 365;
+/** 勾了本機代理（agent:run）的權杖最長幾天（和後端一樣）。 */
+export const AGENT_TOKEN_EXPIRY_MAX_DAYS = 90;
+/** 假後端替網頁建立的權杖記的「從哪裡建立」。 */
+export const CREATED_FROM = '203.0.113.5';
 export const TOKEN_ACTIVE_MAX = 20;
 const NOT_FOUND = '找不到這把存取權杖。';
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -117,6 +139,7 @@ export function tokenOf(overrides: Partial<AccessToken> = {}): AccessToken {
     lastUsedAt: null,
     expiresAt: null,
     machineName: null,
+    createdFrom: null,
     ...overrides,
   };
 }
@@ -155,14 +178,16 @@ function tokenIssue(body: CreateBody): Issue | null {
       message: 'agent:run 是給本機代理的權杖用的，不能和 items:write 放在同一把；請分成兩把。',
     };
   }
-  const isBadDays = days !== null && (typeof days !== 'number' || days < 1 || days > TOKEN_EXPIRY_MAX_DAYS);
+  // 一定要有天數（不收 null、不給）；本機代理的最長 90 天，其他最長 365 天。
+  const maxDays = body.scopes.includes('agent:run') ? AGENT_TOKEN_EXPIRY_MAX_DAYS : TOKEN_EXPIRY_MAX_DAYS;
+  const isBadDays = typeof days !== 'number' || days < 1 || days > maxDays;
   return isBadDays
-    ? { code: 'access_token.expiry_invalid', path: 'expiresInDays', message: `期限要在 1 到 ${String(TOKEN_EXPIRY_MAX_DAYS)} 天之間，或選不過期。` }
+    ? { code: 'access_token.expiry_invalid', path: 'expiresInDays', message: `期限要在 1 到 ${String(maxDays)} 天之間。` }
     : null;
 }
 
 /**
- * 假的存取權杖端點，照合約：GET 回清單（新的在前）；POST 檢查名稱、範圍、期限（422，細項路徑 name、scopes、expiresInDays；
+ * 假的存取權杖端點，照合約：GET 回清單（新的在前）；POST 檢查名稱、範圍、期限（一定要有天數：null 與超過 365 天、勾了 agent:run 超過 90 天都是 422；422 的細項路徑 name、scopes、expiresInDays；
  * 不認得的範圍名稱是 400）與上限（還能用的最多 20 把，409 access_token.limit_reached），成功回 201 `{ token, secret }`；
  * DELETE 回撤銷的那一把（不是 GUID、不存在、已撤銷都是 404 access_token.not_found），撤銷之後不在清單裡。
  */
@@ -191,14 +216,15 @@ export function serveAccessTokens(initial: readonly AccessToken[] = []): AccessT
       }
       counter += 1;
       secret = `pmt_Zz${String(counter).padStart(2, '0')}example-secret-value-never-shown-again`;
-      const days = body.expiresInDays as number | null;
+      const days = body.expiresInDays as number;
       const token = tokenOf({
         tokenId: `00000000-0000-4000-8000-${String(counter).padStart(12, '0')}`,
         name: (body.name as string).trim(),
         displayPrefix: secret.slice(0, 8),
         scopes: scopes as readonly AccessTokenScope[],
         createdAt: new Date(now).toISOString(),
-        expiresAt: days === null ? null : new Date(now + days * 86_400_000).toISOString(),
+        expiresAt: new Date(now + days * 86_400_000).toISOString(),
+        createdFrom: CREATED_FROM,
       });
       tokens = [token, ...tokens];
       return ok({ token, secret }, 201);

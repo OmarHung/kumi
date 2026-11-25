@@ -43,6 +43,8 @@ export const queryKeys = {
   // 組織的寄信設定（管理員）與自己的 Email 通知開關（我的帳號）。
   // 授權過的 AI 代理（OAuth 授權）：我的帳號的清單。
   oauthGrants: ['account', 'oauth-grants'],
+  // 稽核紀錄（只有擁有者）：組織層級的，不跟著專案。
+  auditEvents: ['audit-events'],
   emailSettings: ['email-settings'],
   emailPreference: ['account', 'email-notifications'],
   // 組織的 AI 設定（管理員）與成員能選的 AI；存了設定之後兩個都要失效（ai 前綴）。

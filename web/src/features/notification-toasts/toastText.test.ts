@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ownerRef } from '../../test/activity';
-import { notification } from '../../test/notifications';
+import { accountNotification, notification } from '../../test/notifications';
 import { layoutToasts, toastAnnouncement, toastExcerpt, toastHeadline } from './toastText';
 
 const mention = () =>
@@ -28,6 +28,24 @@ describe('提示的文字', () => {
   it('沒有內容的通知（指派）完整時也沒有第三段', () => {
     expect(toastExcerpt(notification({ kind: 'assigned', excerpt: null }), 'full')).toBeNull();
     expect(toastExcerpt(mention(), 'compact')).toBeNull();
+  });
+});
+
+describe('提示的文字：帳號通知', () => {
+  const issued = () => accountNotification({ event: 'cli_login_tokens_issued', machineName: 'MacBook-Pro', sourceAddress: null });
+
+  it('第一行是整句話，不接做事的人的名字（做事的就是你）', () => {
+    expect(toastHeadline(issued())).toBe('命令列在「MacBook-Pro」登入，建立了 2 把存取權杖');
+  });
+
+  it('報讀唸整句話與「帳號安全」，精簡與完整一樣（沒有內容可以唸）', () => {
+    // Arrange
+    const entry = issued();
+
+    // Act & Assert
+    expect(toastAnnouncement(entry, 'full')).toBe('新通知：命令列在「MacBook-Pro」登入，建立了 2 把存取權杖，帳號安全');
+    expect(toastAnnouncement(entry, 'compact')).toBe(toastAnnouncement(entry, 'full'));
+    expect(toastExcerpt(entry, 'full')).toBeNull();
   });
 });
 

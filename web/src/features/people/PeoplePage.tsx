@@ -16,6 +16,7 @@ import { TableScroll, tableStyles } from '../../components/Table/Table';
 import { ORGANIZATION_ROLE_LABELS } from '../../domain/labels';
 import { useIsCompact } from '../../lib/useMediaQuery';
 import { EmptyValue } from '../work-items/ItemCells';
+import { AuditLogSection } from './AuditLogSection';
 import { ChangeRoleDialog } from './ChangeRoleDialog';
 import { DisablePersonDialog } from './DisablePersonDialog';
 import { NewPersonDialog } from './NewPersonDialog';
@@ -167,6 +168,8 @@ export function PeoplePage() {
         </div>
       )}
       <PeopleContent renderActions={renderActions} enablingIds={admin.handlers.pendingPersonIds} />
+      {/* 稽核紀錄只有擁有者看得到（管理員也不行）：其他角色不掛這個區塊，也就不發請求。 */}
+      {user.role === 'owner' && <AuditLogSection />}
       {isCreating && (
         <NewPersonDialog
           onClose={() => {

@@ -1,4 +1,5 @@
 import { http } from 'msw';
+import type { AccountNotice, AccountSecurityNotification, ItemNotification } from '../api/notificationTypes';
 import type { ItemSubscription, Notification, NotificationPage } from '../api/types';
 import { failure, ok } from './api';
 import { ownerRef } from './activity';
@@ -7,7 +8,7 @@ import { server } from './server';
 let sequence = 0;
 
 /** 和合約一樣的形狀：預設是 owner 把 SMK-7 指派給你，還沒讀。 */
-export function notification(overrides: Partial<Notification> = {}): Notification {
+export function notification(overrides: Partial<ItemNotification> = {}): ItemNotification {
   sequence += 1;
   return {
     notificationId: `0190b000-0000-7000-8000-${String(sequence).padStart(12, '0')}`,
@@ -22,6 +23,43 @@ export function notification(overrides: Partial<Notification> = {}): Notificatio
     commentId: null,
     createdAt: '2026-11-18T08:00:00Z',
     readAt: null,
+    ...overrides,
+  };
+}
+
+/** 預設是命令列在「MacBook-Pro」登入、建立了兩把權杖（來源 203.0.113.5），還沒讀；做事的人是本人。 */
+export function accountNotification(
+  account: Partial<AccountNotice> = {},
+  overrides: Partial<AccountSecurityNotification> = {},
+): AccountSecurityNotification {
+  sequence += 1;
+  return {
+    notificationId: `0190b100-0000-7000-8000-${String(sequence).padStart(12, '0')}`,
+    kind: 'account_security',
+    projectKey: null,
+    itemKey: null,
+    itemTitle: null,
+    actor: ownerRef,
+    fromStateName: null,
+    toStateName: null,
+    excerpt: null,
+    commentId: null,
+    createdAt: '2026-11-18T08:00:00Z',
+    readAt: null,
+    account: {
+      event: 'cli_login_tokens_issued',
+      tokens: [
+        { name: 'kumi（MacBook-Pro）', scopes: ['items:read', 'items:write'], expiresAt: null },
+        { name: 'kumi 本機代理（MacBook-Pro）', scopes: ['agent:run'], expiresAt: '2027-02-23T00:00:00Z' },
+      ],
+      scopes: [],
+      sourceAddress: '203.0.113.5',
+      machineName: 'MacBook-Pro',
+      clientName: null,
+      clientHost: null,
+      revokedTokens: 0,
+      ...account,
+    },
     ...overrides,
   };
 }

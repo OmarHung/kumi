@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { server } from '../test/server';
-import { ApiError, apiRequest, onAuthRequired } from './http';
+import { ApiError, apiRequest, onAuthRequired, tooManyAttemptsMessage } from './http';
 
 function fail(status: number, code: string, message: string, details?: unknown) {
   return HttpResponse.json(
@@ -191,6 +191,44 @@ describe('apiRequest', () => {
     // Assert
     expect(error).toMatchObject({ status: 429, code: 'request.rate_limited' });
     expect(error.message).toBe('請求太頻繁，請等幾秒再試。');
+  });
+
+  it.each([
+    ['12', 12],
+    [' 30 ', 30],
+    ['0', 0],
+    ['Wed, 21 Oct 2026 07:28:00 GMT', null],
+    ['-5', null],
+    ['1.5', null],
+    ['', null],
+  ])('429 的 Retry-After「%s」讀成 %s 秒（不是幾秒的寫法就當作沒有）', async (header, seconds) => {
+    // Arrange
+    server.use(
+      http.get('/v1/projects', () =>
+        HttpResponse.json(
+          { success: false, data: null, error: { code: 'request.rate_limited', message: 'Too many requests', details: [] } },
+          { status: 429, headers: { 'Retry-After': header } },
+        ),
+      ),
+    );
+
+    // Act
+    const error = await catchApiError(apiRequest('/v1/projects'));
+
+    // Assert
+    expect(error.retryAfterSeconds).toBe(seconds);
+    expect(tooManyAttemptsMessage(error)).toBe(seconds === null ? '嘗試太多次，請稍後再試。' : `嘗試太多次，請在 ${String(seconds)} 秒後再試。`);
+  });
+
+  it('沒有 Retry-After 標頭時 retryAfterSeconds 是 null', async () => {
+    // Arrange
+    server.use(http.get('/v1/projects', () => fail(429, 'request.rate_limited', 'Too many requests')));
+
+    // Act
+    const error = await catchApiError(apiRequest('/v1/projects'));
+
+    // Assert
+    expect(error.retryAfterSeconds).toBeNull();
   });
 
   it('伺服器錯誤而且內文不是信封時，仍然給看得懂的訊息', async () => {

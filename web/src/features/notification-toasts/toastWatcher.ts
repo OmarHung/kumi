@@ -71,7 +71,7 @@ export function createToastWatcher(options: ToastWatcherOptions): ToastWatcher {
     const selection = selectNewNotifications(current, fetched);
     seed = selection.seed;
     if (!canShow()) return;
-    const shown = selection.fresh.filter((entry) => !isItemOpen(entry.itemKey));
+    const shown = selection.fresh.filter((entry) => entry.itemKey === null || !isItemOpen(entry.itemKey));
     if (shown.length > 0) onFresh(shown);
   }
 

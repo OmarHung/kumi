@@ -1,6 +1,6 @@
 import { useId, useState, type SubmitEvent } from 'react';
 import { Navigate, useLocation, useSearchParams } from 'react-router';
-import { errorMessage } from '../api/http';
+import { errorMessage, isApiError, tooManyAttemptsMessage } from '../api/http';
 import type { SignInRequest } from '../api/types';
 import { Button } from '../components/Button/Button';
 import { DocumentTitle } from '../components/DocumentTitle';
@@ -63,6 +63,13 @@ function LoginForm({ message, isPending, onSubmit }: LoginFormProps) {
   );
 }
 
+const HTTP_TOO_MANY_REQUESTS = 429;
+
+/** 登入失敗的說明：429 寫出要等幾秒（Retry-After），其他照伺服器的訊息。 */
+function signInMessage(error: unknown): string {
+  return isApiError(error) && error.status === HTTP_TOO_MANY_REQUESTS ? tooManyAttemptsMessage(error) : errorMessage(error);
+}
+
 export function LoginPage() {
   const session = useSession();
   const signIn = useSignIn();
@@ -91,7 +98,7 @@ export function LoginPage() {
     }
   }
 
-  const message = validationError ?? (signIn.isError ? errorMessage(signIn.error) : null);
+  const message = validationError ?? (signIn.isError ? signInMessage(signIn.error) : null);
   // 沒有外框的獨立頁面：桌面（--color-canvas）上放一張紙（docs/DESIGN.md 6.1）。
   return (
     <main className={styles.page}>

@@ -14,6 +14,7 @@ export function authorizationCheckOf(overrides: Partial<AuthorizationCheck> = {}
     clientHost: 'client.example',
     redirectHost: '127.0.0.1',
     redirectIsLoopback: true,
+    redirectMatchesClient: true,
     requestedScopes: ALL_SCOPES,
     account: { displayName: '範例使用者', email: 'owner@example.com', organizationName: '範例組織' },
     ...overrides,

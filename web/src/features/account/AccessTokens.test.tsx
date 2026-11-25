@@ -2,12 +2,12 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { delay, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMPACT_QUERY } from '../../lib/useMediaQuery';
-import { serveAccessTokens, tokenOf } from '../../test/account';
+import { CREATED_FROM, serveAccessTokens, tokenOf } from '../../test/account';
 import { failure, ok, signedInAs } from '../../test/api';
 import { exampleOwner } from '../../test/fixtures';
 import { flushPending } from '../../test/flush';
 import { renderApp } from '../../test/renderApp';
-import { chooseOption } from '../../test/select';
+import { chooseOption, openOptions } from '../../test/select';
 import { server } from '../../test/server';
 
 const LAPTOP = tokenOf({ tokenId: '11111111-1111-4111-8111-111111111111', name: '我的筆電', displayPrefix: 'pmt_Ab12' });
@@ -91,6 +91,21 @@ describe('我的帳號：存取權杖的清單', () => {
     expect(rows[2]).toHaveTextContent('範圍：修改項目');
     expect(rows[2]).toHaveTextContent('2020/06/01 到期 已過期');
     expect(within(rows[0] as HTMLElement).getByRole('button', { name: '撤銷「我的筆電」（pmt_Ab12…）' })).toBeInTheDocument();
+  });
+
+  it('有 createdFrom 的寫「從 203.0.113.5 建立」；null（舊的權杖）不顯示', async () => {
+    // Arrange
+    const { section } = await openTokens([
+      tokenOf({ tokenId: '66666666-6666-4666-8666-666666666666', name: '有位址', createdFrom: '203.0.113.5' }),
+      tokenOf({ tokenId: '77777777-7777-4777-8777-777777777777', name: '舊的沒位址', createdFrom: null }),
+    ]);
+
+    // Act
+    const rows = await within(section).findAllByRole('listitem');
+
+    // Assert
+    expect(rows[0]).toHaveTextContent('從 203.0.113.5 建立');
+    expect(rows[1]).not.toHaveTextContent(/從 .* 建立/);
   });
 
   it('讀不到清單時說明原因，可以重試', async () => {
@@ -354,14 +369,14 @@ describe('我的帳號：建立存取權杖', () => {
     const opened = await openCreate([]);
     const { user, dialog, backend } = opened;
     await user.click(within(dialog).getByRole('checkbox', { name: /修改設定/ }));
-    await chooseOption(user, within(dialog).getByRole('combobox', { name: '期限' }), '不過期');
+    await chooseOption(user, within(dialog).getByRole('combobox', { name: '期限' }), '1 年');
 
     // Act
     const created = await createWithName(opened, '  我的筆電的 CLI ');
 
     // Assert
     expect(backend.creates).toEqual([
-      { name: '我的筆電的 CLI', scopes: ['items:read', 'items:write', 'blueprint:read'], expiresInDays: null },
+      { name: '我的筆電的 CLI', scopes: ['items:read', 'items:write', 'blueprint:read'], expiresInDays: 365 },
     ]);
     const secret = backend.lastSecret() ?? '';
     const field = within(created).getByLabelText('存取權杖');
@@ -373,6 +388,69 @@ describe('我的帳號：建立存取權杖', () => {
     expect(created).toHaveTextContent('只會顯示這一次');
     expect(created).toHaveTextContent('kumi auth login');
     expect(screen.queryByRole('dialog', { name: '建立存取權杖' })).not.toBeInTheDocument();
+  });
+
+  it('期限的選項沒有「不過期」', async () => {
+    // Arrange
+    const { user, dialog } = await openCreate([]);
+
+    // Act
+    const options = await openOptions(user, within(dialog).getByRole('combobox', { name: '期限' }));
+
+    // Assert
+    expect(options.map((option) => option.textContent)).toEqual(['30 天', '90 天', '1 年']);
+  });
+
+  it('建立的權杖帶「從哪裡建立」，清單馬上顯示', async () => {
+    // Arrange
+    const opened = await openCreate([]);
+
+    // Act
+    await createWithName(opened, '筆電');
+    await opened.user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '完成' }));
+
+    // Assert
+    expect(await within(opened.section).findByText(`從 ${CREATED_FROM} 建立`)).toBeInTheDocument();
+  });
+
+  it('勾了「本機代理」時期限只到 90 天；原本選的 1 年自動換成 90 天並說明，取消勾選後選項回來', async () => {
+    // Arrange
+    const { user, dialog } = await openCreate([]);
+    const expiry = within(dialog).getByRole('combobox', { name: '期限' });
+    await chooseOption(user, expiry, '1 年');
+    await user.click(within(dialog).getByRole('checkbox', { name: /修改項目/ }));
+
+    // Act
+    await user.click(within(dialog).getByRole('checkbox', { name: /本機代理/ }));
+
+    // Assert
+    expect(expiry).toHaveTextContent('90 天');
+    expect(expiry).toHaveAccessibleDescription('本機代理的權杖最長 90 天，期限已改成 90 天。');
+    const options = await openOptions(user, expiry);
+    expect(options.map((option) => option.textContent)).toEqual(['30 天', '90 天']);
+    await user.keyboard('{Escape}');
+
+    // Act：取消勾選
+    await user.click(within(dialog).getByRole('checkbox', { name: /本機代理/ }));
+
+    // Assert
+    const restored = await openOptions(user, expiry);
+    expect(restored.map((option) => option.textContent)).toEqual(['30 天', '90 天', '1 年']);
+  });
+
+  it('假後端：不給天數（null）與本機代理超過 90 天都是 422 expiresInDays', async () => {
+    // Arrange
+    serveAccessTokens([]);
+    const post = (body: object) =>
+      fetch('/v1/account/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+    // Act
+    const neverExpires = await post({ name: 'x', scopes: ['items:read'], expiresInDays: null });
+    const agentTooLong = await post({ name: 'x', scopes: ['agent:run'], expiresInDays: 91 });
+    const agentOk = await post({ name: 'x', scopes: ['agent:run'], expiresInDays: 90 });
+
+    // Assert
+    expect([neverExpires.status, agentTooLong.status, agentOk.status]).toEqual([422, 422, 201]);
   });
 
   it('「複製」把明文放進剪貼簿並說明；剪貼簿不給時說明可以手動選取', async () => {

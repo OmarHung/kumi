@@ -1,16 +1,17 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { Link } from 'react-router';
 import { useApproveCliLogin, type CliLoginCheck, type CliLoginRequest } from '../../api/cliLogin';
 import { errorMessage, isApiError } from '../../api/http';
 import type { AccessTokenScope } from '../../api/types';
 import { Button, buttonClassName } from '../../components/Button/Button';
-import { SelectField } from '../../components/Field/Field';
+import { SelectField, TextField } from '../../components/Field/Field';
 import { Notice } from '../../components/Notice/Notice';
 import { navigateTo } from '../../lib/navigateTo';
-import { DEFAULT_EXPIRY } from '../account/accessTokenText';
-import { ConsentActions, ConsentHint } from '../oauth/ConsentShell';
+import { DEFAULT_EXPIRY, EXPIRY_CHOICES, expiryDays } from '../account/accessTokenText';
+import { ConsentActions, ConsentFacts, ConsentHint } from '../oauth/ConsentShell';
 import { ScopeChecklist } from '../oauth/ScopeChecklist';
 import {
+  ADDRESS_BAR_NOTE,
   AGENT_BLOCKED_NOTE,
   AGENT_EXPIRY_DAYS,
   AGENT_EXPIRY_NOTE,
@@ -18,19 +19,28 @@ import {
   AGENT_SKIPPED_NOTE,
   APPROVED_NOTE,
   BAD_REDIRECT_NOTE,
-  CLI_EXPIRY_CHOICES,
+  CONFIRMATION_HINT,
+  CONFIRMATION_LABEL,
+  CONFIRMATION_LENGTH,
+  CONFIRMATION_MISMATCH_CODE,
+  CONFIRMATION_MISMATCH_NOTE,
+  CONFIRMATION_MISSING_HINT,
   CLI_SCOPE_OPTIONS,
-  cliExpiryDays,
+  caretAfterDigits,
   DENIED_NOTE,
   denyRedirectUrl,
+  digitsBefore,
+  digitsOf,
+  formatConfirmationCode,
   isExpectedRedirect,
   orderedScopes,
   preselectedScopes,
+  redirectNote,
   scopeLabel,
 } from './cliLoginText';
 import styles from './CliAuthorize.module.css';
 
-const EXPIRY_OPTIONS = CLI_EXPIRY_CHOICES.map(({ value, label }) => ({ value, label }));
+const EXPIRY_OPTIONS = EXPIRY_CHOICES.map(({ value, label }) => ({ value, label }));
 
 type Outcome = 'approved' | 'denied' | null;
 
@@ -57,13 +67,17 @@ function useDecision(request: CliLoginRequest) {
     redirectProblem,
     isPending: approve.isPending,
     isBusy: approve.isPending || outcome !== null,
-    approve: (grantedScopes: readonly AccessTokenScope[], expiresIn: number) => {
+    // 改了確認碼就收起「不對」的說明。
+    clearFailure: () => {
+      if (approve.isError) approve.reset();
+    },
+    approve: (grantedScopes: readonly AccessTokenScope[], expiresIn: number, confirmationCode: string) => {
       if (isLocked.current) return;
       isLocked.current = true;
       setRedirectProblem(false);
       approve.reset();
       approve.mutate(
-        { ...request, grantedScopes, expiresInDays: expiresIn },
+        { ...request, grantedScopes, expiresInDays: expiresIn, confirmationCode },
         {
           onSuccess: ({ redirectTo }) => {
             if (!isExpectedRedirect(redirectTo, request.port)) {
@@ -89,8 +103,14 @@ function useDecision(request: CliLoginRequest) {
   };
 }
 
+function isConfirmationMismatch(failed: unknown): boolean {
+  return isApiError(failed) && failed.code === CONFIRMATION_MISMATCH_CODE;
+}
+
 /** 失敗的提示：固定存在的 alert（沒有失敗時看不見、不佔位）。額度滿了給「到存取權杖撤銷不用的」（另開分頁，這一頁的請求還在）。 */
 function FailureNotice({ failed, hasRedirectProblem }: { readonly failed: unknown; readonly hasRedirectProblem: boolean }) {
+  // 確認碼不對標在確認碼的欄位上，這裡不重複。
+  const shown = isConfirmationMismatch(failed) ? null : failed;
   const isLimit = isApiError(failed) && failed.code === LIMIT_REACHED;
   return (
     <Notice
@@ -104,7 +124,7 @@ function FailureNotice({ failed, hasRedirectProblem }: { readonly failed: unknow
         ) : undefined
       }
     >
-      {hasRedirectProblem ? BAD_REDIRECT_NOTE : failed === null ? null : errorMessage(failed)}
+      {hasRedirectProblem ? BAD_REDIRECT_NOTE : shown === null ? null : errorMessage(shown)}
     </Notice>
   );
 }
@@ -148,8 +168,51 @@ function ApprovedStatus({ outcome }: { readonly outcome: Outcome }) {
 }
 
 /** 「允許」停用的一行說明（在永遠掛著的提示裡）；只要本機代理又不允許的原因在那一塊自己的說明裡，不重複寫。 */
-function blockingHint(check: CliLoginCheck, selected: readonly AccessTokenScope[]): string | null {
-  return check.tokens.includes('cli') && selected.length === 0 ? '至少要勾一項' : null;
+function blockingHint(check: CliLoginCheck, selected: readonly AccessTokenScope[], code: string): string | null {
+  if (check.tokens.includes('cli') && selected.length === 0) return '至少要勾一項';
+  return code.length < CONFIRMATION_LENGTH ? CONFIRMATION_MISSING_HINT : null;
+}
+
+interface ConfirmationFieldProps {
+  readonly code: string;
+  readonly onChange: (digits: string) => void;
+  readonly isBusy: boolean;
+  readonly hasMismatch: boolean;
+  readonly inputRef: RefObject<HTMLInputElement | null>;
+}
+
+/**
+ * 確認碼：使用者從終端機抄過來，證明這個請求是從他自己的終端機發起的。網頁不知道正確的碼（伺服器的檢查回應不帶），
+ * 只負責把輸入整理成 6 個數字（顯示成 ddd ddd，可以貼上帶空白或 - 的、全形數字也行）；對不對由伺服器比對。
+ * autoComplete 關掉：這個碼要使用者自己看著終端機輸入，不讓瀏覽器、密碼管理員或簡訊的建議自動填入。
+ * 重新排版會讓瀏覽器把游標丟到最後：輸入之後把游標放回同一個數字後面（在中間輸入或退格也留在原處）。
+ * 送出中用唯讀加 aria-disabled，不用原生 disabled（有焦點的輸入框一停用，焦點就掉回頁面本體）。
+ */
+function ConfirmationField({ code, onChange, isBusy, hasMismatch, inputRef }: ConfirmationFieldProps) {
+  // 每次輸入都換成新的物件，即使文字沒變（例如打了字母被濾掉）也會重畫，游標才會被放回去。
+  const [caret, setCaret] = useState<{ readonly position: number } | null>(null);
+  useLayoutEffect(() => {
+    if (caret !== null) inputRef.current?.setSelectionRange(caret.position, caret.position);
+  }, [caret, inputRef]);
+  return (
+    <TextField
+      ref={inputRef}
+      label={CONFIRMATION_LABEL}
+      value={formatConfirmationCode(code)}
+      hint={CONFIRMATION_HINT}
+      error={hasMismatch ? CONFIRMATION_MISMATCH_NOTE : undefined}
+      inputMode="numeric"
+      autoComplete="off"
+      spellCheck={false}
+      readOnly={isBusy}
+      aria-disabled={isBusy || undefined}
+      onChange={(event) => {
+        const { value, selectionStart } = event.target;
+        onChange(digitsOf(value));
+        setCaret({ position: caretAfterDigits(digitsBefore(value, selectionStart ?? value.length)) });
+      }}
+    />
+  );
 }
 
 /** 只要本機代理、組織又不允許：沒有任何權杖可建。 */
@@ -181,6 +244,42 @@ function ConsentFields({ check, selected, onSelect, expiry, onExpiry, isBusy, no
   );
 }
 
+/** 確認碼不對：焦點回到欄位，打的字留著讓人改。 */
+function useFocusWhen(isNeeded: boolean, ref: RefObject<HTMLInputElement | null>): void {
+  useEffect(() => {
+    if (isNeeded) ref.current?.focus();
+  }, [isNeeded, ref]);
+}
+
+interface DecisionButtonsProps {
+  readonly decision: ReturnType<typeof useDecision>;
+  /** 還有東西沒填（確認碼、範圍）或沒有東西可建：「允許」用 aria-disabled 停用，焦點留得住。 */
+  readonly isBlocked: boolean;
+  readonly describedBy: string;
+  readonly onApprove: () => void;
+}
+
+function DecisionButtons({ decision, isBlocked, describedBy, onApprove }: DecisionButtonsProps) {
+  return (
+    <ConsentActions>
+      <Button
+        variant="primary"
+        aria-disabled={isBlocked || decision.isBusy || undefined}
+        aria-describedby={describedBy}
+        onClick={() => {
+          if (isBlocked || decision.isBusy) return;
+          onApprove();
+        }}
+      >
+        {decision.isPending ? '授權中…' : '允許'}
+      </Button>
+      <Button disabled={decision.isBusy} onClick={decision.deny}>
+        拒絕
+      </Button>
+    </ConsentActions>
+  );
+}
+
 /**
  * 命令列的範圍與期限、本機代理的說明，以及「允許」「拒絕」（internal/HANDOFF-setup-wizard.md 第 5.1 節）。
  * 「允許」停用的原因（一個都沒勾、只要本機代理又不允許）寫在永遠掛著的一行說明裡，接到按鈕的 aria-describedby；
@@ -190,17 +289,31 @@ export function CliAuthorizeForm({ check, request }: FormProps) {
   const wantsCli = check.tokens.includes('cli');
   const [selected, setSelected] = useState<readonly AccessTokenScope[]>(() => preselectedScopes(check.scopes));
   const [expiry, setExpiry] = useState(DEFAULT_EXPIRY);
-  const hintId = useId();
-  const agentNoteId = useId();
+  const [code, setCode] = useState('');
+  const codeRef = useRef<HTMLInputElement>(null);
+  const [hintId, agentNoteId] = [useId(), useId()];
   const decision = useDecision(request);
 
-  const hint = blockingHint(check, selected);
+  const hint = blockingHint(check, selected, code);
   const isAgentBlocked = isAgentOnlyBlocked(check);
   const isBlocked = hint !== null || isAgentBlocked;
   const describedBy = isAgentBlocked ? `${hintId} ${agentNoteId}` : hintId;
 
+  const hasMismatch = isConfirmationMismatch(decision.failed);
+  useFocusWhen(hasMismatch, codeRef);
+
   return (
     <>
+      <ConfirmationField
+        code={code}
+        isBusy={decision.isBusy}
+        hasMismatch={hasMismatch}
+        inputRef={codeRef}
+        onChange={(digits) => {
+          decision.clearFailure();
+          setCode(digits);
+        }}
+      />
       <ConsentFields
         check={check}
         selected={selected}
@@ -211,22 +324,15 @@ export function CliAuthorizeForm({ check, request }: FormProps) {
         noteId={agentNoteId}
       />
       <ConsentHint id={hintId}>{hint}</ConsentHint>
-      <ConsentActions>
-        <Button
-          variant="primary"
-          aria-disabled={isBlocked || decision.isBusy || undefined}
-          aria-describedby={describedBy}
-          onClick={() => {
-            if (isBlocked || decision.isBusy) return;
-            decision.approve(wantsCli ? orderedScopes(selected) : [], wantsCli ? cliExpiryDays(expiry) : AGENT_EXPIRY_DAYS);
-          }}
-        >
-          {decision.isPending ? '授權中…' : '允許'}
-        </Button>
-        <Button disabled={decision.isBusy} onClick={decision.deny}>
-          拒絕
-        </Button>
-      </ConsentActions>
+      <ConsentFacts>{`${redirectNote(request.port)}${ADDRESS_BAR_NOTE}`}</ConsentFacts>
+      <DecisionButtons
+        decision={decision}
+        isBlocked={isBlocked}
+        describedBy={describedBy}
+        onApprove={() => {
+          decision.approve(wantsCli ? orderedScopes(selected) : [], wantsCli ? expiryDays(expiry) : AGENT_EXPIRY_DAYS, code);
+        }}
+      />
       <FailureNotice failed={decision.failed} hasRedirectProblem={decision.redirectProblem} />
       <ApprovedStatus outcome={decision.outcome} />
     </>

@@ -311,9 +311,19 @@ export interface Person {
   readonly disabled: boolean;
 }
 
-/** 改自己的密碼、登出其他裝置的回應：因此作廢的其他工作階段數（0 是沒有別的登入）。 */
+/** 登出其他裝置的回應：因此作廢的其他工作階段數（0 是沒有別的登入）。 */
 export interface SignedOutSessions {
   readonly signedOutSessions: number;
+}
+
+/** 登出其他裝置的請求：目前的密碼（確認是本人）。 */
+export interface SignOutOtherSessionsRequest {
+  readonly currentPassword: string;
+}
+
+/** 改自己的密碼的回應：作廢了幾個其他的登入、撤銷了幾把個人存取權杖（沒有勾撤銷時是 0）。 */
+export interface PasswordChanged extends SignedOutSessions {
+  readonly revokedAccessTokens: number;
 }
 
 /** 個人存取權杖的範圍（internal/HANDOFF-pat-cli.md 第 4 節）：對外的名稱是合約，不能改。 */
@@ -332,13 +342,15 @@ export interface AccessToken {
   readonly expiresAt: Instant | null;
   /** 從那台電腦的 kumi 瀏覽器登入建立的（internal/HANDOFF-setup-wizard.md 第 3 節）才有電腦名稱；網頁上自己建的是 null。 */
   readonly machineName: string | null;
+  /** 建立它的那台電腦或瀏覽器的位址（伺服器看到的）；舊的權杖是 null。 */
+  readonly createdFrom: string | null;
 }
 
-/** 建立存取權杖：期限 1～365 天，null 是不過期。 */
+/** 建立存取權杖：期限 1～365 天（本機代理的最長 90 天），一定要有天數；伺服器不收不過期的。 */
 export interface CreateAccessTokenRequest {
   readonly name: string;
   readonly scopes: readonly AccessTokenScope[];
-  readonly expiresInDays: number | null;
+  readonly expiresInDays: number;
 }
 
 /** 建立的回應：明文只有這一次拿得到，不存進任何快取。 */
@@ -351,6 +363,8 @@ export interface CreatedAccessToken {
 export interface ChangePasswordRequest {
   readonly currentPassword: string;
   readonly newPassword: string;
+  /** 同時撤銷所有個人存取權杖；不給當作 true（網頁一律明確送出）。 */
+  readonly revokeAccessTokens?: boolean;
 }
 
 /** 組織的擁有者或管理員替別人設一組新密碼（自己的不行，要用 ChangePasswordRequest）。 */

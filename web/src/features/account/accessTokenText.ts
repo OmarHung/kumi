@@ -47,21 +47,36 @@ export function scopesText(scopes: readonly AccessTokenScope[]): string {
 export interface ExpiryChoice {
   readonly value: string;
   readonly label: string;
-  readonly days: number | null;
+  readonly days: number;
 }
 
-/** 期限的選項；網頁預設 90 天（internal/HANDOFF-pat-cli.md 第 2 節第 3 點）。 */
+/** 期限的選項；網頁預設 90 天。伺服器不收不過期的權杖，所以沒有「不過期」。 */
 export const EXPIRY_CHOICES: readonly ExpiryChoice[] = [
   { value: '30', label: '30 天', days: 30 },
   { value: '90', label: '90 天', days: 90 },
   { value: '365', label: '1 年', days: 365 },
-  { value: 'never', label: '不過期', days: null },
 ];
 
 export const DEFAULT_EXPIRY = '90';
 
-export function expiryDays(value: string): number | null {
-  return EXPIRY_CHOICES.find((choice) => choice.value === value)?.days ?? null;
+/** 本機代理（agent:run）的權杖最長幾天：伺服器擋超過的（422 expiresInDays），選單先只給到這裡。 */
+export const AGENT_EXPIRY_MAX_DAYS = 90;
+
+const DEFAULT_EXPIRY_DAYS = Number(DEFAULT_EXPIRY);
+
+/** 選項的天數；對不到（不該發生）時用預設的 90 天，不送出伺服器會退回的值。 */
+export function expiryDays(value: string): number {
+  return EXPIRY_CHOICES.find((choice) => choice.value === value)?.days ?? DEFAULT_EXPIRY_DAYS;
+}
+
+/** 勾了本機代理時期限的選項只到 90 天；其他是全部。 */
+export function expiryChoicesFor(scopes: readonly AccessTokenScope[]): readonly ExpiryChoice[] {
+  return scopes.includes('agent:run') ? EXPIRY_CHOICES.filter((choice) => choice.days <= AGENT_EXPIRY_MAX_DAYS) : EXPIRY_CHOICES;
+}
+
+/** 目前選的期限在這些範圍下還能不能選。 */
+export function isExpiryAllowed(value: string, scopes: readonly AccessTokenScope[]): boolean {
+  return expiryChoicesFor(scopes).some((choice) => choice.value === value);
 }
 
 export function isExpired(token: AccessToken, now: number): boolean {
@@ -78,7 +93,7 @@ export function lastUsedText(token: AccessToken, now: number): string {
   return token.lastUsedAt === null ? '還沒用過' : formatRelativeTime(token.lastUsedAt, now);
 }
 
-/** 到期的字：不過期、日期；已過期的另外標（AccessTokenExpiry）。 */
+/** 到期的字：不過期（舊的權杖才有）、日期；已過期的另外標（AccessTokenExpiry）。 */
 export function expiryText(token: AccessToken): string {
   return token.expiresAt === null ? '不過期' : dayText(token.expiresAt);
 }

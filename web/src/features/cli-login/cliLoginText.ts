@@ -1,7 +1,7 @@
 import type { CliLoginRequest } from '../../api/cliLogin';
 import type { AccessTokenScope } from '../../api/types';
 import { COMMAND_NAME } from '../../config/product';
-import { DEFAULT_EXPIRY, EXPIRY_CHOICES, SCOPE_OPTIONS } from '../account/accessTokenText';
+import { SCOPE_OPTIONS } from '../account/accessTokenText';
 
 // 只收系統分配給暫時連線的範圍（32768 起）：低一點的埠常有別的服務佔著，不該是 kumi 開的暫時迴路。
 export const MIN_PORT = 32768;
@@ -12,7 +12,13 @@ const PORT_PATTERN = /^\d{1,5}$/;
 const LOOPBACK_HOST = 'http://127.0.0.1';
 const CALLBACK_PATH = '/kumi-login';
 
-export type CliLoginParse = { readonly request: CliLoginRequest } | { readonly problem: string };
+export type CliLoginParse =
+  | {
+      readonly request: CliLoginRequest;
+      /** 網址帶了 confirm=1：這個 kumi 會在終端機顯示確認碼。只決定畫面，伺服器一律要求確認碼。 */
+      readonly showsConfirmation: boolean;
+    }
+  | { readonly problem: string };
 
 /**
  * 網址列的參數（kumi 自己組的）轉成 API 的請求。連接埠與 state 不對就直接說有問題、不呼叫伺服器：
@@ -27,6 +33,7 @@ export function requestFromSearch(params: URLSearchParams): CliLoginParse {
   const challenge = params.get('challenge') ?? '';
   if (challenge === '') return { problem: '缺少驗證用的資料。' };
   return {
+    showsConfirmation: params.get('confirm') === '1',
     request: {
       port,
       state,
@@ -83,16 +90,6 @@ export function preselectedScopes(requested: readonly AccessTokenScope[]): reado
   return CLI_SCOPE_OPTIONS.map((option) => option.scope).filter((scope) => READ_SCOPES.includes(scope) && requested.includes(scope));
 }
 
-const DEFAULT_EXPIRY_DAYS = Number(DEFAULT_EXPIRY);
-
-/** 這一頁的期限一定要有天數，不給「不過期」。 */
-export const CLI_EXPIRY_CHOICES = EXPIRY_CHOICES.filter((choice) => choice.days !== null);
-
-/** 選項的天數；對不到（不該發生）時用預設的 90 天，不送 null 讓伺服器退回。 */
-export function cliExpiryDays(value: string): number {
-  return CLI_EXPIRY_CHOICES.find((choice) => choice.value === value)?.days ?? DEFAULT_EXPIRY_DAYS;
-}
-
 /** 本機代理的權杖由伺服器固定發 90 天。 */
 export const AGENT_EXPIRY_DAYS = 90;
 /** 只要本機代理時沒有期限的選單可以調，直接說固定 90 天。 */
@@ -113,3 +110,48 @@ export const WARNING_NOTE = `只有在你剛剛自己在終端機執行 ${COMMAN
 export const APPROVED_NOTE = '已允許，請回到終端機。';
 export const DENIED_NOTE = '已拒絕，請回到終端機。';
 export const BAD_REDIRECT_NOTE = '伺服器給的導回網址不對，沒有導回終端機。請回到終端機重新執行。';
+
+export const CONFIRMATION_LENGTH = 6;
+const CONFIRMATION_GROUP = 3;
+
+const FULLWIDTH_DIGIT = /[０-９]/g;
+const FULLWIDTH_OFFSET = 0xfee0;
+
+/** 全形數字（輸入法開著時打的）換成半形，其他字不動。 */
+function toHalfwidthDigits(text: string): string {
+  return text.replace(FULLWIDTH_DIGIT, (digit) => String.fromCharCode(digit.charCodeAt(0) - FULLWIDTH_OFFSET));
+}
+
+/** 輸入或貼上的文字只留數字（全形的先轉半形、帶空白或 - 的也行），最多 6 個。 */
+export function digitsOf(text: string): string {
+  return toHalfwidthDigits(text).replace(/\D/g, '').slice(0, CONFIRMATION_LENGTH);
+}
+
+/** 游標前面有幾個數字（算法和 digitsOf 一樣，但不截斷）：重新排版之後游標要放回同一個數字後面。 */
+export function digitsBefore(text: string, caret: number): number {
+  return toHalfwidthDigits(text.slice(0, caret)).replace(/\D/g, '').length;
+}
+
+/** 在「ddd ddd」裡，第 n 個數字後面的游標位置（跳過中間那個空白）。 */
+export function caretAfterDigits(count: number): number {
+  const digits = Math.min(count, CONFIRMATION_LENGTH);
+  return digits > CONFIRMATION_GROUP ? digits + 1 : digits;
+}
+
+/** 顯示成 ddd ddd，和終端機上的一樣。 */
+export function formatConfirmationCode(digits: string): string {
+  return digits.length > CONFIRMATION_GROUP ? `${digits.slice(0, CONFIRMATION_GROUP)} ${digits.slice(CONFIRMATION_GROUP)}` : digits;
+}
+
+export const CONFIRMATION_LABEL = '確認碼';
+export const CONFIRMATION_HINT = `輸入你自己的終端機上顯示的確認碼。確認碼只會出現在你執行 ${COMMAND_NAME} 的那個終端機：這個頁面上的任何數字（包括下面的電腦名稱）、別人用信件、訊息或電話告訴你的數字，都不是。你沒有在自己的終端機執行 ${COMMAND_NAME} 的話，請按拒絕。`;
+/** 按下允許之後網址列會帶著一次性的登入碼：不要交給任何人。 */
+export const ADDRESS_BAR_NOTE = '按下允許之後，如果有人要你把網址列的內容貼給他，不要給。';
+/** 沒填滿 6 碼時「允許」停用的原因。 */
+export const CONFIRMATION_MISSING_HINT = `請輸入終端機上的 ${String(CONFIRMATION_LENGTH)} 位數確認碼`;
+export const CONFIRMATION_MISMATCH_NOTE = '確認碼不對，請看終端機上的數字。';
+export const CONFIRMATION_MISMATCH_CODE = 'cli_login.confirmation_mismatch';
+
+/** 網址沒有 confirm=1：這個 kumi 不會顯示確認碼，伺服器一律要求，所以只能先更新。 */
+export const OUTDATED_TITLE = `這個 ${COMMAND_NAME} 太舊，請先更新`;
+export const OUTDATED_NOTE = `這個版本的 ${COMMAND_NAME} 不會顯示確認碼，沒辦法在這裡允許登入。請回到終端機執行 ${COMMAND_NAME} update，或到「設定 → 命令列與整合」下載新版，再重新登入。不是你自己剛執行的登入，請按拒絕。`;

@@ -1,0 +1,44 @@
+/* 人員頁下面的稽核紀錄：標題、說明、表格（寬螢幕）或清單（窄螢幕）、載入更多。沒有卡片與色條，和上面的人員清單同一張紙。 */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.address {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 紀錄裡的人已經不在組織：次要的文字顏色，和沒有值的欄位一樣退一步。 */
+.gone {
+  color: var(--color-text-muted);
+}

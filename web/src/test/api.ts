@@ -102,10 +102,26 @@ export function signedInAs(user: SessionUser, options: SignedInOptions = {}): vo
     // 「命令列與整合」的設定精靈與存取權杖、已授權的 AI 代理：預設都沒有，要內容的測試用 serveAccessTokens、serveOAuthGrants 蓋掉。
     http.get('/v1/account/tokens', () => ok([])),
     http.get('/v1/account/oauth-grants', () => ok([])),
+    // 人員頁下面的稽核紀錄（只有擁有者）：預設還沒有紀錄，要內容的測試用 serveAudit 蓋掉。
+    http.get('/v1/audit-events', () => ok({ items: [], nextCursor: null })),
     http.get('/v1/items/:itemKey/subscription', () => ok({ following: false, reason: null, canFollow: true })),
   );
 }
 
 export function signedOut(): void {
   server.use(http.get('/v1/session', () => authRequired()));
+}
+
+/**
+ * 登入狀態只在第一次檢查時有效，之後的檢查都是 401：真的失效的工作階段是這樣的。
+ * 網頁收到任何 401 會先重問一次 /v1/session，還是 401 才登出，所以要測「登出」的測試用這個。
+ */
+export function sessionEndsAfterFirstCheck(user: SessionUser): void {
+  let checks = 0;
+  server.use(
+    http.get('/v1/session', () => {
+      checks += 1;
+      return checks === 1 ? ok({ user, scopes: null }) : authRequired();
+    }),
+  );
 }

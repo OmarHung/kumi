@@ -1,7 +1,7 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useEffect, type ReactNode } from 'react';
 import { onAuthRequired } from '../api/http';
-import { markSignedOut } from '../auth/session';
+import { handleUnauthorized } from '../auth/session';
 import { LiveConnectionFactoryContext } from '../features/live/LiveUpdates';
 import type { LiveConnectionFactory } from '../features/live/liveTypes';
 
@@ -13,9 +13,9 @@ interface AppProvidersProps {
 }
 
 export function AppProviders({ queryClient, liveConnection, children }: AppProvidersProps) {
-  // 任何請求發現工作階段失效，就把登入狀態標成「沒登入」；登入檢查會接手導到登入頁。
+  // 任何請求收到 401：先重問一次登入狀態，還是 401 才標成「沒登入」；登入檢查會接手導到登入頁。
   useEffect(() => onAuthRequired(() => {
-    markSignedOut(queryClient);
+    void handleUnauthorized(queryClient);
   }), [queryClient]);
 
   return (
