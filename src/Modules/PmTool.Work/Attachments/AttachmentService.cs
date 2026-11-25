@@ -15,6 +15,7 @@ internal sealed partial class AttachmentService(
     IDbContextFactory<WorkDbContext> contexts,
     BlueprintCache cache,
     IFileStore store,
+    IStorageQuota quota,
     TimeProvider time,
     ILogger<AttachmentService> logger) : IAttachmentService
 {
@@ -153,9 +154,14 @@ internal sealed partial class AttachmentService(
             return invalidName;
         }
 
-        return await CountAsync(db, actor, target.Value.Item.Id, cancellationToken) >= AttachmentRules.MaxPerItem
-            ? WorkFailures.AttachmentLimitReached(ItemKeys.Format(target.Value.Access.Project.Key, target.Value.Item.Number))
-            : null;
+        if (await CountAsync(db, actor, target.Value.Item.Id, cancellationToken) >= AttachmentRules.MaxPerItem)
+        {
+            return WorkFailures.AttachmentLimitReached(ItemKeys.Format(target.Value.Access.Project.Key, target.Value.Item.Number));
+        }
+
+        // 已經用滿就不必讀內容；沒滿的話寫完之後還會在交易裡用實際的大小再確認一次。
+        var room = await quota.CheckAsync(actor.OrganizationId, actor.PersonId, incomingBytes: 0, cancellationToken);
+        return room.IsAllowed ? null : WorkFailures.AttachmentQuota(room);
     }
 
     private async Task<Result<Attachment>> RecordAsync(
@@ -176,6 +182,14 @@ internal sealed partial class AttachmentService(
         if (await CountAsync(db, actor, item.Id, cancellationToken) >= AttachmentRules.MaxPerItem)
         {
             return WorkFailures.AttachmentLimitReached(key);
+        }
+
+        // 儲存空間的鎖是最後一把：和知識庫的上傳排在同一個隊伍，加總到的是已經提交的量。
+        await StorageLocks.OrganizationAsync(db, actor.OrganizationId, cancellationToken);
+        var room = await quota.CheckAsync(actor.OrganizationId, actor.PersonId, stored.SizeBytes, cancellationToken);
+        if (!room.IsAllowed)
+        {
+            return WorkFailures.AttachmentQuota(room);
         }
 
         var now = WorkClock.Now(time);

@@ -62,6 +62,26 @@ public sealed class HiddenChildrenCountTests
         AssertTwoNamedAndOneMerged(failure, hidden);
     }
 
+    [Test]
+    public async Task ChangeType_HiddenChildrenAllowedOrNotUnderTheNewType_GiveTheSameFailure()
+    {
+        // Arrange：看不到的任務可以掛在需求變更單底下，卻不能掛在任務底下；兩種改法的失敗不能讓人分辨出下層的類型。
+        var (requirement, actor, _) = await RequirementWithChildrenAsync(visible: 0, hidden: 2);
+
+        // Act
+        var allowed = (await _host.Items.ChangeTypeAsync(actor, requirement.Key, "change_request", CancellationToken.None)).Failure;
+        var notAllowed = (await _host.Items.ChangeTypeAsync(actor, requirement.Key, "task", CancellationToken.None)).Failure;
+
+        // Assert
+        AssertSameShape(allowed, notAllowed);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(allowed!.Code, Is.EqualTo(notAllowed!.Code));
+            Assert.That(allowed.Details[0].Path, Is.EqualTo(notAllowed.Details[0].Path));
+            Assert.That(allowed.Details[0].Code, Is.EqualTo(notAllowed.Details[0].Code));
+        }
+    }
+
     private static void AssertTwoNamedAndOneMerged(Failure? failure, WorkItem[] hidden)
     {
         Assert.That(failure, Is.Not.Null);

@@ -102,9 +102,14 @@ internal sealed partial class HistoryImportService
             return invalid;
         }
 
-        return await AttachmentService.CountAsync(db, actor, item.Id, cancellationToken) >= AttachmentRules.MaxPerItem
-            ? WorkFailures.AttachmentLimitReached(ItemKeys.Format(access.Project.Key, item.Number))
-            : (HistoryAttachmentResult?)null;
+        if (await AttachmentService.CountAsync(db, actor, item.Id, cancellationToken) >= AttachmentRules.MaxPerItem)
+        {
+            return WorkFailures.AttachmentLimitReached(ItemKeys.Format(access.Project.Key, item.Number));
+        }
+
+        // 匯入不算每人每日（上傳的人是原本的人、時間是過去），只看組織的總量。
+        var room = await quota.CheckAsync(actor.OrganizationId, personId: null, incomingBytes: 0, cancellationToken);
+        return room.IsAllowed ? (HistoryAttachmentResult?)null : WorkFailures.AttachmentQuota(room);
     }
 
     private async Task<Result<HistoryAttachmentResult>> RecordAttachmentAsync(
@@ -146,6 +151,14 @@ internal sealed partial class HistoryImportService
         if (await AttachmentService.CountAsync(db, actor, item.Id, cancellationToken) >= AttachmentRules.MaxPerItem)
         {
             return WorkFailures.AttachmentLimitReached(key);
+        }
+
+        // 順序：匯入的鎖 → 項目那一列 → 儲存空間的鎖（最後一把）。
+        await StorageLocks.OrganizationAsync(db, actor.OrganizationId, cancellationToken);
+        var room = await quota.CheckAsync(actor.OrganizationId, personId: null, stored.SizeBytes, cancellationToken);
+        if (!room.IsAllowed)
+        {
+            return WorkFailures.AttachmentQuota(room);
         }
 
         var at = HistoryRules.Normalize(upload.UploadedAt);

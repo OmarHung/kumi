@@ -6,6 +6,7 @@ using PmTool.Work.Access;
 using PmTool.Work.Blueprints;
 using PmTool.Work.ChangeSets;
 using PmTool.Work.Common;
+using PmTool.Work.Items;
 using PmTool.Work.Persistence;
 using PmTool.Work.Templates;
 
@@ -19,6 +20,7 @@ internal sealed partial class ProjectService(
     IBlueprintPlanner planner,
     ChangeSetLimits limits,
     IOrganizationClock organizationClock,
+    IOrganizationMembers organizationMembers,
     TimeProvider time) : IProjectService
 {
     private const long FirstVersion = 1;
@@ -96,9 +98,19 @@ internal sealed partial class ProjectService(
             return WorkFailures.ProjectNotFound(projectKey);
         }
 
-        var members = await db.ProjectMembers
+        var roster = db.ProjectMembers
             .AsNoTracking()
-            .Where(m => m.OrganizationId == actor.OrganizationId && m.ProjectId == access.Project.Id)
+            .Where(m => m.OrganizationId == actor.OrganizationId && m.ProjectId == access.Project.Id);
+        if (!access.Can(WorkPermissions.BlueprintRead))
+        {
+            // 看不到藍圖的角色（例如客戶）不需要整份成員名單：只留自己與看得到的項目的負責人，畫面上的名字照樣對得上。
+            var assignees = access.Items.Apply(ItemStore.Live(db))
+                .Where(i => i.OrganizationId == actor.OrganizationId && i.ProjectId == access.Project.Id && i.AssigneeId != null)
+                .Select(i => i.AssigneeId!.Value);
+            roster = roster.Where(m => m.PersonId == actor.PersonId || assignees.Contains(m.PersonId));
+        }
+
+        var members = await roster
             .OrderBy(m => m.CreatedAt)
             .ThenBy(m => m.Id)
             .Select(m => new ProjectMember(m.PersonId, m.Role))
@@ -110,6 +122,13 @@ internal sealed partial class ProjectService(
         Actor actor, string projectKey, Guid personId, string role, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+
+        // 人不會換組織，所以在開交易之前問就夠了：跨模組的查詢不放在等鎖的時候。
+        if (!await organizationMembers.ContainsAsync(actor.OrganizationId, personId, cancellationToken))
+        {
+            return new Failure(FailureKind.NotFound, WorkErrorCodes.PersonNotFound, "找不到這位成員。");
+        }
+
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
 
         // 讀藍圖之前先對專案取共用鎖：套用中的變更集可能拿掉這個角色，要等它做完再照新的藍圖檢查；

@@ -78,7 +78,7 @@ internal static class TransitionGuard
     /// 核心欄位看它本身有沒有值（優先順序「無」算沒填、空白的說明算沒填）；自訂欄位看鍵在不在，空值本來就不存。
     /// 說明與上層項目是保留的名字，藍圖不允許自訂欄位用，所以不會和自訂欄位混淆。
     /// </summary>
-    private static IReadOnlyList<string> MissingFields(ItemEntity item, IReadOnlyList<string> required)
+    internal static IReadOnlyList<string> MissingFields(ItemEntity item, IReadOnlyList<string> required)
     {
         if (required.Count == 0)
         {

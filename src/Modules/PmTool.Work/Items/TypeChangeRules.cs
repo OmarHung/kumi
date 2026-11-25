@@ -45,16 +45,9 @@ internal static class TypeChangeRules
         var hiddenReported = false;
         foreach (var child in children)
         {
-            // 下層的類型一定在藍圖裡：套用變更集時已經擋下被刪除類型底下還有沒刪除的項目。
-            var childType = access.Schema.ItemTypes[child.Type];
-            if (childType.Parents.Contains(next.Key))
-            {
-                continue;
-            }
-
             if (child.Hidden)
             {
-                // 看不到的下層合併成一筆：筆數也是資訊。
+                // 看不到的下層不論類型一律合併成同一筆：允許與否不同的話，換幾種類型試就推得出它是什麼類型。
                 if (hiddenReported)
                 {
                     continue;
@@ -63,16 +56,22 @@ internal static class TypeChangeRules
                 hiddenReported = true;
                 yield return ChildItems.HiddenDetail(
                     WorkErrorCodes.ItemChildrenNotAllowed,
-                    $"有你看不到的下層項目不能掛在{Quote(next.Name)}底下；要請能看到的人先把它移開，才能改成這個類型。");
+                    "有你看不到的下層項目掛在這個項目底下，要請看得到全部的人來改類型。");
+                continue;
             }
-            else
+
+            // 下層的類型一定在藍圖裡：套用變更集時已經擋下被刪除類型底下還有沒刪除的項目。
+            var childType = access.Schema.ItemTypes[child.Type];
+            if (childType.Parents.Contains(next.Key))
             {
-                yield return ChildItems.Detail(
-                    WorkErrorCodes.ItemChildrenNotAllowed,
-                    projectKey,
-                    child,
-                    $"{ChildItems.Describe(projectKey, child)}是{Quote(childType.Name)}，不能掛在{Quote(next.Name)}底下；要先把它移開，才能改成這個類型。");
+                continue;
             }
+
+            yield return ChildItems.Detail(
+                WorkErrorCodes.ItemChildrenNotAllowed,
+                projectKey,
+                child,
+                $"{ChildItems.Describe(projectKey, child)}是{Quote(childType.Name)}，不能掛在{Quote(next.Name)}底下；要先把它移開，才能改成這個類型。");
         }
     }
 }

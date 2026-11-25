@@ -134,6 +134,320 @@ public sealed class ItemTypeChangeStateTests
         }
     }
 
+    [Test]
+    public async Task ChangeTypeAsync_ScrumTaskInDoneToABug_KeepsTheStateBecauseTheFlowIsTheSame()
+    {
+        // Arrange：scrum 的故事、任務、缺陷共用有轉換限制的 sprint_flow。
+        var scenario = new Scenario(_host);
+        await scenario.CreateProjectAsync("SCR", "scrum");
+        var story = await scenario.CreateItemAsync("SCR", new NewWorkItem { Type = "story", Title = "登入" });
+        var task = await scenario.CreateItemAsync("SCR", new NewWorkItem { Type = "task", Title = "做登入", ParentKey = story.Key });
+        await TransitionAsync(scenario.Admin, task.Key, "in_progress", "in_review", "done");
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(scenario.Admin, task.Key, "bug", CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, () => result.Failure!.Message);
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("bug", "done")));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_RequirementClosedByThePmToAChangeRequestAndBack_KeepsClosedForAnyoneBecauseTheFlowIsTheSame()
+    {
+        // Arrange：需求與需求變更單共用 delivery；進「結案」只有專案經理、要先填客戶驗收日。
+        var scenario = await AgencyAsync();
+        var manager = await scenario.MemberAsync("WEB", "project_manager");
+        var editor = await scenario.MemberAsync("WEB", "editor");
+        var item = await scenario.CreateItemAsync(
+            "WEB", new NewWorkItem { Type = "requirement", Title = "會員登入", Fields = Scenario.Fields(("client_signoff_date", "2026-01-01")) });
+        await TransitionAsync(manager, item.Key, "quoting", "designing", "developing", "internal_qa", "client_qa", "closed");
+
+        // Act
+        var toChange = await _host.Items.ChangeTypeAsync(editor, item.Key, "change_request", CancellationToken.None);
+        var back = await _host.Items.ChangeTypeAsync(editor, item.Key, "requirement", CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(toChange.Succeeded, Is.True, () => toChange.Failure!.Message);
+            Assert.That((toChange.Value.Type, toChange.Value.State), Is.EqualTo(("change_request", "closed")));
+            Assert.That((back.Value.Type, back.Value.State), Is.EqualTo(("requirement", "closed")));
+        }
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_ContentCalendarCampaignAndContentCanceled_KeepsTheStateBothWays()
+    {
+        // Arrange：活動與內容的流程不同，但共用的狀態只有圖形上的限制，沒有角色與欄位的要求。
+        var scenario = new Scenario(_host);
+        await scenario.CreateProjectAsync("CAL", "content_calendar");
+        var item = await scenario.CreateItemAsync("CAL", new NewWorkItem { Type = "campaign", Title = "年中慶" });
+        await TransitionAsync(scenario.Admin, item.Key, "canceled");
+
+        // Act
+        var asContent = await _host.Items.ChangeTypeAsync(scenario.Admin, item.Key, "content", CancellationToken.None);
+        var backToCampaign = await _host.Items.ChangeTypeAsync(scenario.Admin, item.Key, "campaign", CancellationToken.None);
+
+        // Assert
+        Assert.That(asContent.Succeeded, Is.True, () => asContent.Failure!.Message);
+        Assert.That(backToCampaign.Succeeded, Is.True, () => backToCampaign.Failure!.Message);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((asContent.Value.Type, asContent.Value.State), Is.EqualTo(("content", "canceled")));
+            Assert.That((backToCampaign.Value.Type, backToCampaign.Value.State), Is.EqualTo(("campaign", "canceled")));
+        }
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_ExecutorMovesADoneItemIntoAFlowWhoseDoneNeedsAManager_StartsOver()
+    {
+        // Arrange
+        var scenario = await SharedDoneAsync();
+        var editor = await scenario.MemberAsync("WEB", "editor");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(editor, item.Key, "item_b", CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, () => result.Failure!.Message);
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_b", "intake")));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_ManagerWithTheRequiredFieldFilled_KeepsTheDoneState()
+    {
+        // Arrange
+        var scenario = await SharedDoneAsync();
+        var manager = await scenario.MemberAsync("WEB", "project_manager");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(manager, item.Key, "item_b", CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, () => result.Failure!.Message);
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_b", "done")));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_ManagerWithoutTheRequiredField_StartsOver()
+    {
+        // Arrange
+        var scenario = await SharedDoneAsync();
+        var manager = await scenario.MemberAsync("WEB", "project_manager");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: false);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(manager, item.Key, "item_b", CancellationToken.None);
+
+        // Assert
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_b", "intake")));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_ExecutorThereAndBackAgain_CannotReachADoneStateTheFlowDoesNotAllow()
+    {
+        // Arrange：執行者把 A 的完成項目改成 B（回起點），再改回 A，不能留在 B 才走得到的位置。
+        var scenario = await SharedDoneAsync();
+        var editor = await scenario.MemberAsync("WEB", "editor");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var toB = await _host.Items.ChangeTypeAsync(editor, item.Key, "item_b", CancellationToken.None);
+        var skip = await _host.Items.TransitionAsync(editor, item.Key, "done", CancellationToken.None);
+
+        // Assert
+        Assert.That(toB.Value.State, Is.EqualTo("intake"));
+        ItemAssert.Invalid(skip, WorkErrorCodes.TransitionNotAllowed, "state");
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_KeptStateHasAnotherEntryOnlyForManagers_ButTheCallerCanWalkThereAnyway_KeepsIt()
+    {
+        // Arrange：C 流程進 done 有兩條轉換，一條限定專案經理，另一條（wip → done）誰都能走；執行者從起點照轉換走得到 done。
+        var scenario = await SharedDoneAsync();
+        var editor = await scenario.MemberAsync("WEB", "editor");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(editor, item.Key, "item_c", CancellationToken.None);
+
+        // Assert
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_c", "done")));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_EarlierStepOfTheNewFlowIsRestrictedToManagers_ExecutorStartsOver()
+    {
+        // Arrange：G 流程的最後一步不限，但前一步只有專案經理能走；執行者走不到 done。
+        var scenario = await SharedDoneAsync();
+        var editor = await scenario.MemberAsync("WEB", "editor");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(editor, item.Key, "item_g", CancellationToken.None);
+
+        // Assert
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_g", "start")));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_EarlierStepOfTheNewFlowIsRestrictedToManagers_ManagerKeepsTheState()
+    {
+        // Arrange
+        var scenario = await SharedDoneAsync();
+        var manager = await scenario.MemberAsync("WEB", "project_manager");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(manager, item.Key, "item_g", CancellationToken.None);
+
+        // Assert
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_g", "done")));
+    }
+
+    [TestCase(false, "start", TestName = "ChangeTypeAsync_EarlierStepNeedsAFieldTheItemLacks_StartsOver")]
+    [TestCase(true, "done", TestName = "ChangeTypeAsync_EarlierStepNeedsAFieldTheItemHas_KeepsTheState")]
+    public async Task ChangeTypeAsync_EarlierStepRequiresAField_DecidesByTheItemsFields(bool withSignoff, string expected)
+    {
+        // Arrange：H 流程的第一步要先填客戶驗收日，最後一步不限。
+        var scenario = await SharedDoneAsync();
+        var editor = await scenario.MemberAsync("WEB", "editor");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(editor, item.Key, "item_h", CancellationToken.None);
+
+        // Assert
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_h", expected)));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_NewFlowHasACycle_StillFindsTheKeptState()
+    {
+        // Arrange：L 流程有 wip → start 的回頭路。
+        var scenario = await SharedDoneAsync();
+        var editor = await scenario.MemberAsync("WEB", "editor");
+        var item = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var result = await _host.Items.ChangeTypeAsync(editor, item.Key, "item_l", CancellationToken.None);
+
+        // Assert
+        Assert.That((result.Value.Type, result.Value.State), Is.EqualTo(("item_l", "done")));
+    }
+
+    [Test]
+    public async Task ChangeTypeAsync_RoleWithoutItemTransitionNotMeetingTheEntryRule_StartsOverAndNeverLandsElsewhere()
+    {
+        // Arrange：沒有 item.transition 的自訂角色，符合條件時保留、不符合時回起點。
+        var scenario = await SharedDoneAsync();
+        var proposed = await ChangeSetDrafts.ProposeAsync(scenario, "WEB", b => b with
+        {
+            Roles = [.. b.Roles, new RoleDefinition { Key = "editor_only", Name = "只能改", Permissions = [WorkPermissions.ItemRead, WorkPermissions.ItemUpdate] }],
+        });
+        await ChangeSetDrafts.ApplyAsync(scenario, "WEB", proposed.ChangeSet.Number);
+        var actor = await scenario.MemberAsync("WEB", "editor_only");
+        var toB = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+        var toC = await DoneItemOfFlowAAsync(scenario, withSignoff: true);
+
+        // Act
+        var b = await _host.Items.ChangeTypeAsync(actor, toB.Key, "item_b", CancellationToken.None);
+        var c = await _host.Items.ChangeTypeAsync(actor, toC.Key, "item_c", CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(b.Value.State, Is.EqualTo("intake"));
+            Assert.That(c.Value.State, Is.EqualTo("start"));
+        }
+    }
+
+    // 自訂藍圖：item_a 與 item_b 兩個流程共用 done；B 進 done 只有專案經理、要先填客戶驗收日；item_c 的 done 有兩條轉換進得去，其中一條限定專案經理。
+    private async Task<Scenario> SharedDoneAsync()
+    {
+        var scenario = await AgencyAsync();
+        var proposed = await ChangeSetDrafts.ProposeAsync(scenario, "WEB", b => b with
+        {
+            Workflows =
+            [
+                .. b.Workflows,
+                Flow("flow_a", "start", "wip", null),
+                Flow("flow_b", "intake", "waiting", new WorkflowTransition { From = "waiting", To = "done", AllowedRoles = ["project_manager"], RequireFields = ["client_signoff_date"] }),
+                Walk("flow_g", new WorkflowTransition { From = "start", To = "wip", AllowedRoles = ["project_manager"] }, new WorkflowTransition { From = "wip", To = "done" }),
+                Walk("flow_h", new WorkflowTransition { From = "start", To = "wip", RequireFields = ["client_signoff_date"] }, new WorkflowTransition { From = "wip", To = "done" }),
+                Walk(
+                    "flow_l",
+                    new WorkflowTransition { From = "start", To = "wip" },
+                    new WorkflowTransition { From = "wip", To = "start" },
+                    new WorkflowTransition { From = "wip", To = "done" }),
+                Flow(
+                    "flow_c",
+                    "start",
+                    "wip",
+                    new WorkflowTransition { From = "wip", To = "done" },
+                    new WorkflowTransition { From = "start", To = "done", AllowedRoles = ["project_manager"] }),
+            ],
+            ItemTypes =
+            [
+                .. b.ItemTypes,
+                new ItemType { Key = "item_a", Name = "甲", Workflow = "flow_a", Fields = ["client_signoff_date"] },
+                new ItemType { Key = "item_b", Name = "乙", Workflow = "flow_b", Fields = ["client_signoff_date"] },
+                new ItemType { Key = "item_c", Name = "丙", Workflow = "flow_c", Fields = ["client_signoff_date"] },
+                new ItemType { Key = "item_g", Name = "庚", Workflow = "flow_g", Fields = ["client_signoff_date"] },
+                new ItemType { Key = "item_h", Name = "辛", Workflow = "flow_h", Fields = ["client_signoff_date"] },
+                new ItemType { Key = "item_l", Name = "壬", Workflow = "flow_l", Fields = ["client_signoff_date"] },
+            ],
+        });
+        await ChangeSetDrafts.ApplyAsync(scenario, "WEB", proposed.ChangeSet.Number);
+        return scenario;
+    }
+
+    // start、wip、done 三個狀態，轉換照給的列。
+    private static Workflow Walk(string key, params WorkflowTransition[] transitions) => new()
+    {
+        Key = key,
+        Name = key,
+        States =
+        [
+            new WorkflowState { Key = "start", Name = "start", Category = StateCategory.NotStarted },
+            new WorkflowState { Key = "wip", Name = "wip", Category = StateCategory.InProgress },
+            new WorkflowState { Key = "done", Name = "完成", Category = StateCategory.Done },
+        ],
+        Transitions = transitions,
+    };
+
+    private static Workflow Flow(string key, string first, string middle, WorkflowTransition? intoDone, WorkflowTransition? extra = null) => new()
+    {
+        Key = key,
+        Name = key,
+        States =
+        [
+            new WorkflowState { Key = first, Name = first, Category = StateCategory.NotStarted },
+            new WorkflowState { Key = middle, Name = middle, Category = StateCategory.InProgress },
+            new WorkflowState { Key = "done", Name = "完成", Category = StateCategory.Done },
+        ],
+        Transitions = intoDone is null
+            ? null
+            : [new WorkflowTransition { From = first, To = middle }, intoDone, .. extra is null ? Array.Empty<WorkflowTransition>() : [extra]],
+    };
+
+    private async Task<WorkItem> DoneItemOfFlowAAsync(Scenario scenario, bool withSignoff)
+    {
+        var item = await scenario.CreateItemAsync(
+            "WEB",
+            new NewWorkItem
+            {
+                Type = "item_a",
+                Title = "共用完成",
+                Fields = withSignoff ? Scenario.Fields(("client_signoff_date", "2026-01-01")) : Scenario.Fields(),
+            });
+        await TransitionAsync(scenario.Admin, item.Key, "done");
+        return item;
+    }
+
     private async Task TransitionAsync(Actor actor, string itemKey, params string[] states)
     {
         foreach (var state in states)

@@ -79,6 +79,12 @@ internal sealed partial class ItemActivityService
             return access.Missing(WorkPermissions.CommentCreate);
         }
 
+        // 匯入的留言署的是被歸屬的人：作者本人也不是真正寫它的人，所以誰都不能編輯。
+        if (row.ImportedFrom is not null)
+        {
+            return new Failure(FailureKind.Conflict, WorkErrorCodes.CommentImported, "從其他系統匯入的留言不能編輯。");
+        }
+
         return row.ActorId == actor.PersonId ? null : CommentNotAuthor("只能編輯自己的留言。");
     }
 
@@ -233,6 +239,11 @@ internal sealed partial class ItemActivityService
 
     private static Failure? CheckDeleteAccess(ProjectAccess access, Actor actor, ItemActivityEntity row)
     {
+        if (row.ImportedFrom is not null)
+        {
+            return access.Can(WorkPermissions.ProjectManage) ? null : CommentNotAuthor("匯入的留言只有管理專案的人能刪除。");
+        }
+
         if (row.ActorId == actor.PersonId)
         {
             return access.Can(WorkPermissions.CommentCreate) ? null : access.Missing(WorkPermissions.CommentCreate);
@@ -248,6 +259,11 @@ internal sealed partial class ItemActivityService
         if (access.Can(WorkPermissions.ProjectManage))
         {
             return null;
+        }
+
+        if (row.ImportedFrom is not null)
+        {
+            return CommentNotAuthor("匯入的留言只有管理專案的人能復原。");
         }
 
         var deletedByAuthor = row.DeletedBy == row.ActorId;

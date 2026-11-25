@@ -230,7 +230,7 @@ internal sealed partial class WorkItemService(
             return WorkFailures.Invalid(problems);
         }
 
-        var change = TypeChange.Plan(access.Schema, current, next, item, access.Can(WorkPermissions.ItemTransition), WorkClock.Now(time));
+        var change = TypeChange.Plan(access.Schema, current, next, item, access.Role, access.Can(WorkPermissions.ItemTransition), WorkClock.Now(time));
         await ItemStore.WriteTypeAsync(db, change.After, cancellationToken);
         await RecordTypeChangeAsync(db, actor, access, change, cancellationToken);
         await transaction.CommitAsync(cancellationToken);

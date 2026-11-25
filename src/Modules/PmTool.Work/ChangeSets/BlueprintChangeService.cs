@@ -62,9 +62,14 @@ internal sealed class BlueprintChangeService(
         // 發流水號的 UPDATE 會鎖住專案那一列直到提交，同一個專案的新增項目（也要在那一列發號）都得等它；
         // 所以影響（可能要逐一看很多項目）先算好，發號與寫入放在最後。
         var evaluation = await reader.EvaluateAsync(db, ChangeSetReader.Scope(access.Project, access.Schema, request, plan), cancellationToken);
-        var entity = await InsertAsync(db, actor, access, request, stored, origin, cancellationToken);
+        var inserted = await InsertAsync(db, actor, access, request, stored, origin, cancellationToken);
+        if (inserted.Failure is { } tooMany)
+        {
+            return tooMany;
+        }
+
         await transaction.CommitAsync(cancellationToken);
-        return ChangeSetReader.Compose(access, entity, access.Schema, request, plan, evaluation);
+        return ChangeSetReader.Compose(access, inserted.Value, access.Schema, request, plan, evaluation);
     }
 
     public async Task<Result<ChangeSetPreview>> PreviewAsync(
@@ -218,7 +223,7 @@ internal sealed class BlueprintChangeService(
         return (request, stored, reader.Plan(access.Schema, access.Project.CurrentBlueprintVersion, request));
     }
 
-    private async Task<ChangeSetEntity> InsertAsync(
+    private async Task<Result<ChangeSetEntity>> InsertAsync(
         WorkDbContext db,
         Actor actor,
         ProjectAccess access,
@@ -227,12 +232,20 @@ internal sealed class BlueprintChangeService(
         ChangeSetOrigin origin,
         CancellationToken cancellationToken)
     {
+        // 發號的 UPDATE 鎖住專案那一列：同一個專案同時送出的會在這裡排隊，數出來的數量不會被同時送出的人繞過。
+        var number = await ChangeSetStore.NextNumberAsync(db, access.Project, cancellationToken);
+        var pending = await ChangeSetStore.CountPendingAsync(db, access.Project, cancellationToken);
+        if (pending >= WorkRules.MaxPendingChangeSetsPerProject)
+        {
+            return ChangeSetFailures.TooManyPending();
+        }
+
         var entity = new ChangeSetEntity
         {
             Id = WorkClock.NewId(time),
             OrganizationId = actor.OrganizationId,
             ProjectId = access.Project.Id,
-            Number = await ChangeSetStore.NextNumberAsync(db, access.Project, cancellationToken),
+            Number = number,
             Status = ChangeSetRecords.Pending,
             BaseVersion = request.BaseVersion,
             Summary = request.Summary,

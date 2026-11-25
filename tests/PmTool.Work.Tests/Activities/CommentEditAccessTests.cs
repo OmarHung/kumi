@@ -1,5 +1,4 @@
 using PmTool.Abstractions;
-using static PmTool.Work.Tests.History.HistorySupport;
 
 namespace PmTool.Work.Tests.Activities;
 
@@ -55,29 +54,6 @@ public sealed class CommentEditAccessTests
             Assert.That(result.Succeeded, Is.True, () => result.Failure!.Message);
             Assert.That(result.Value.Comment, Is.EqualTo("改過"));
             Assert.That(revisions.Value.Select(r => r.Body), Is.EqualTo(new[] { "改過", "我的留言" }));
-        }
-    }
-
-    [Test]
-    public async Task EditCommentAsync_ImportedComment_OnlyTheOriginalAuthorCanEditIt()
-    {
-        // Arrange
-        var (scenario, manager, member) = await ProjectWithMembersAsync(_host);
-        await _host.History.ImportItemsAsync(manager, "WEB", Batch(Row("m-1", member.PersonId)), CancellationToken.None);
-        var imported = (await _host.History.ImportCommentsAsync(manager, "WEB", Comments(Comment("u-1", "m-1", member.PersonId)), CancellationToken.None)).Value.Created[0];
-        var other = await scenario.MemberAsync("WEB", "editor");
-
-        // Act
-        var byOther = await _host.Activity.EditCommentAsync(other, "WEB-1", imported.ActivityId, "別人改", CancellationToken.None);
-        var byManager = await _host.Activity.EditCommentAsync(manager, "WEB-1", imported.ActivityId, "管理者改", CancellationToken.None);
-        var byAuthor = await _host.Activity.EditCommentAsync(member, "WEB-1", imported.ActivityId, "原作者改", CancellationToken.None);
-
-        // Assert
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(byOther.Failure?.Code, Is.EqualTo(WorkErrorCodes.CommentNotAuthor));
-            Assert.That(byManager.Failure?.Code, Is.EqualTo(WorkErrorCodes.CommentNotAuthor));
-            Assert.That((byAuthor.Value.Comment, byAuthor.Value.ImportedFrom), Is.EqualTo(("原作者改", "monday")));
         }
     }
 

@@ -15,25 +15,29 @@ internal sealed record TypeChange(ItemEntity Before, ItemEntity After, IReadOnly
     /// <summary>狀態的 key 或類別有變：同 key 不同類別也算，活動要記下前後的狀態。</summary>
     public bool StateMoved => Before.State != After.State || Before.StateCategory != After.StateCategory;
 
+    /// <param name="role">呼叫者在專案裡被指派的角色；不是成員時是 null。</param>
     /// <param name="canTransition">呼叫者有沒有 item.transition。</param>
     /// <param name="now">改類型的時刻，項目新的 updatedAt。</param>
     public static TypeChange Plan(
-        ProjectSchema schema, ItemType current, ItemType next, ItemEntity item, bool canTransition, DateTimeOffset now)
+        ProjectSchema schema, ItemType current, ItemType next, ItemEntity item, string? role, bool canTransition, DateTimeOffset now)
     {
-        var state = TargetState(schema.WorkflowOf(next), item, canTransition);
         var values = FieldValues.Parse(item.Fields);
         var detached = DetachedFields(current, next, values)
             .Select(key => ItemMigrator.Detach(Definition(schema, item, key), values[key]))
             .ToArray();
         var removed = detached.Select(d => d.Archived.Field).ToHashSet(StringComparer.Ordinal);
-        var after = item with
+        var withoutRemoved = item with
+        {
+            Fields = removed.Count == 0
+                ? item.Fields
+                : FieldValues.Serialize(values.Where(pair => !removed.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal)),
+        };
+        var state = TargetState(schema.WorkflowOf(current), schema.WorkflowOf(next), withoutRemoved, role, canTransition);
+        var after = withoutRemoved with
         {
             Type = next.Key,
             State = state.Key,
             StateCategory = StateCategoryText.ToText(state.Category),
-            Fields = removed.Count == 0
-                ? item.Fields
-                : FieldValues.Serialize(values.Where(pair => !removed.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal)),
             UpdatedAt = now,
         };
         var typeChange = new FieldChange(CoreFields.ItemType, JsonSerializer.SerializeToElement(current.Key), JsonSerializer.SerializeToElement(next.Key));
@@ -41,23 +45,66 @@ internal sealed record TypeChange(ItemEntity Before, ItemEntity After, IReadOnly
     }
 
     /// <summary>
-    /// 新流程有同 key、同類別的狀態就留著；否則新流程不限制轉換、呼叫者也能改狀態時，搬到第一個同類別的狀態（沒有就是第一個）；
-    /// 其他情況回到新流程的第一個狀態，也就是新項目的起點。
-    /// 改類型不經過轉換的規則：有限制的流程只能從起點照轉換走，停在中途或終點就跳過了轉換的角色限制與要先填的欄位，
-    /// 來回改兩次類型也能走出流程沒有的轉換；不能改狀態的人，本來就不該借改類型挪動狀態。
+    /// 同一個流程照舊留著：限制相同，沒有跳過的東西。換流程時，新流程有同 key、同類別的狀態，而且新流程不限制轉換、
+    /// 或呼叫者照這個項目現在的欄位值，能從新流程的起點只走自己符合的轉換（角色與要先填的欄位）走到那個狀態才留著；
+    /// 沒有 item.transition 的人另外要符合「進入這個狀態的每一條轉換」，不比以前寬。
+    /// 其他情況沒有同 key 的狀態時，新流程不限制轉換、呼叫者也能改狀態就搬到第一個同類別的狀態，不然回到新流程的第一個狀態，
+    /// 也就是新項目的起點。改類型不能是跳過轉換限制的捷徑：有限制的流程只能從起點照轉換走，
+    /// 停在中途或終點就跳過了前面步驟的角色限制與要先填的欄位；不能改狀態的人，本來就不該借改類型挪動狀態。
     /// </summary>
-    private static WorkflowState TargetState(Workflow workflow, ItemEntity item, bool canTransition)
+    private static WorkflowState TargetState(Workflow from, Workflow to, ItemEntity item, string? role, bool canTransition)
     {
         var category = StateCategoryText.Parse(item.StateCategory);
-        var kept = workflow.States.FirstOrDefault(s => s.Key == item.State && s.Category == category);
-        if (kept is not null)
+        var kept = to.States.FirstOrDefault(s => s.Key == item.State && s.Category == category);
+        if (kept is not null && (from.Key == to.Key || CanKeep(to, kept, item, role, canTransition)))
         {
             return kept;
         }
 
-        var movesFreely = workflow.Transitions is null && canTransition;
-        return (movesFreely ? workflow.States.FirstOrDefault(s => s.Category == category) : null) ?? workflow.States[0];
+        var movesFreely = kept is null && to.Transitions is null && canTransition;
+        return (movesFreely ? to.States.FirstOrDefault(s => s.Category == category) : null) ?? to.States[0];
     }
+
+    private static bool CanKeep(Workflow to, WorkflowState kept, ItemEntity item, string? role, bool canTransition)
+    {
+        if (to.Transitions is not { } transitions || to.States[0].Key == kept.Key)
+        {
+            return true;
+        }
+
+        return Reachable(to.States[0].Key, transitions, item, role).Contains(kept.Key)
+            && (canTransition || EveryEntryAllowed(transitions, kept, item, role));
+    }
+
+    /// <summary>從起點出發，只走呼叫者符合的轉換，走得到的狀態；流程可以有環，走過的不再走。</summary>
+    private static HashSet<string> Reachable(string start, IReadOnlyList<WorkflowTransition> transitions, ItemEntity item, string? role)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal) { start };
+        var pending = new Queue<string>([start]);
+        while (pending.TryDequeue(out var state))
+        {
+            foreach (var transition in transitions.Where(t => t.From == state && IsAllowed(t, item, role)))
+            {
+                if (seen.Add(transition.To))
+                {
+                    pending.Enqueue(transition.To);
+                }
+            }
+        }
+
+        return seen;
+    }
+
+    /// <summary>進入這個狀態的轉換至少要有一條，而且每一條都要呼叫者符合。</summary>
+    private static bool EveryEntryAllowed(IReadOnlyList<WorkflowTransition> transitions, WorkflowState kept, ItemEntity item, string? role)
+    {
+        var entries = transitions.Where(t => t.To == kept.Key).ToArray();
+        return entries.Length > 0 && entries.All(t => IsAllowed(t, item, role));
+    }
+
+    private static bool IsAllowed(WorkflowTransition transition, ItemEntity item, string? role) =>
+        (transition.AllowedRoles.Count == 0 || (role is not null && transition.AllowedRoles.Contains(role)))
+        && TransitionGuard.MissingFields(item, transition.RequireFields).Count == 0;
 
     /// <summary>新類型沒有、項目上卻有值的欄位，依舊類型裡欄位的順序，和畫面上看到的順序一樣。</summary>
     private static IEnumerable<string> DetachedFields(ItemType current, ItemType next, IReadOnlyDictionary<string, JsonElement> values)

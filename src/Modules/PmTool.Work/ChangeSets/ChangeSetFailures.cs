@@ -38,6 +38,12 @@ internal static class ChangeSetFailures
             WorkErrorCodes.ChangeSetBusy,
             $"專案的項目正有人在修改，變更集 #{Plain(number)} 等不到它們做完；這次什麼都沒有改，請稍後再試。");
 
+    public static Failure TooManyPending() =>
+        new(
+            FailureKind.Conflict,
+            WorkErrorCodes.ChangeSetTooManyPending,
+            $"這個專案已經有 {Count(WorkRules.MaxPendingChangeSetsPerProject)} 份等待核准的變更集，請先套用或拒絕一些。");
+
     public static Failure CannotReject() =>
         WorkFailures.Forbidden("只有提出這份變更集的人，或有核准套用權限的人，可以拒絕它。");
 

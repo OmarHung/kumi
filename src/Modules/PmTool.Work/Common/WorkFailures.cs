@@ -1,4 +1,5 @@
 using PmTool.Abstractions;
+using PmTool.Storage;
 using static PmTool.Work.Common.TextRules;
 
 namespace PmTool.Work.Common;
@@ -43,6 +44,12 @@ internal static class WorkFailures
     public static Failure AttachmentLimitReached(string itemKey) =>
         new(FailureKind.Conflict, WorkErrorCodes.AttachmentLimitReached,
             $"項目{Quote(itemKey)}已經有 {AttachmentRules.MaxPerItem} 個附件，是上限；請先刪掉不用的。");
+
+    /// <summary>超過的是組織的總量還是這個人的每日量，代碼不同、說的話也不同。</summary>
+    public static Failure AttachmentQuota(StorageQuotaCheck check) =>
+        check.Verdict == StorageQuotaVerdict.PersonDailyFull
+            ? new(FailureKind.Conflict, WorkErrorCodes.AttachmentDailyQuotaExceeded, StorageQuotaMessages.PersonDailyFull(check))
+            : new(FailureKind.Conflict, WorkErrorCodes.AttachmentQuotaExceeded, StorageQuotaMessages.OrganizationFull(check));
 
     public static Failure ProjectKeyTaken(string projectKey) =>
         new(FailureKind.Conflict, WorkErrorCodes.ProjectKeyTaken, $"專案代號{Quote(projectKey)}已經有專案在用了，請換一個。");

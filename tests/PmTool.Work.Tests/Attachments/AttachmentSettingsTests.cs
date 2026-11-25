@@ -18,6 +18,7 @@ public sealed class FileStoreSettingsTests
         services.AddSingleton<IBlueprintValidator>(BlueprintValidator.CreateDefault());
         services.AddSingleton<IBlueprintPlanner, BlueprintPlanner>();
         services.AddSingleton<IOrganizationClock, FixedOrganizationClock>();
+        services.AddSingleton<IOrganizationMembers, FakeOrganizationMembers>();
         services.AddWorkModule(new DatabaseConnections("Host=db.invalid;Database=unused;Username=unused"));
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
 
@@ -37,6 +38,7 @@ public sealed class FileStoreSettingsTests
         services.AddSingleton<IBlueprintValidator>(BlueprintValidator.CreateDefault());
         services.AddSingleton<IBlueprintPlanner, BlueprintPlanner>();
         services.AddSingleton<IOrganizationClock, FixedOrganizationClock>();
+        services.AddSingleton<IOrganizationMembers, FakeOrganizationMembers>();
         services.AddWorkModule("Host=db.invalid;Database=unused;Username=unused", new FileStoreSettings("local", directory));
         await using var provider = services.BuildServiceProvider();
 

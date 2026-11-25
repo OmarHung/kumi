@@ -61,6 +61,18 @@ internal static class ChangeSetStore
     }
 
     /// <summary>
+    /// 還在等待核准、基準版本也是目前版本的數量。基準過期的雖然還標著等待中，下一次讀取就會標成過期，不算進上限。
+    /// 呼叫端已經在發號時鎖住專案那一列。
+    /// </summary>
+    public static Task<int> CountPendingAsync(WorkDbContext db, ProjectEntity project, CancellationToken cancellationToken) =>
+        db.ChangeSets.CountAsync(
+            c => c.OrganizationId == project.OrganizationId
+                && c.ProjectId == project.Id
+                && c.Status == ChangeSetRecords.Pending
+                && c.BaseVersion == project.CurrentBlueprintVersion,
+            cancellationToken);
+
+    /// <summary>
     /// 基準版本比 <paramref name="currentVersion"/> 舊的等待核准變更集標成過期。版本只會往上加，
     /// 所以比一個已經提交的版本舊，就一定過期了；讀到的版本稍舊也不會把剛送出的新變更集誤標。
     /// </summary>
