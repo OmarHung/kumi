@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using PmTool.Abstractions;
 using PmTool.Api.Json;
+using PmTool.Api.RateLimiting;
 using PmTool.Api.Responses;
 using PmTool.Api.Security;
 using PmTool.Identity;
@@ -28,10 +29,12 @@ internal static class HistoryImportEndpoints
         v1.MapPost("/projects/{projectKey}/history/items", ImportItemsAsync)
             .WithName("ImportHistoryItems")
             .RequireTokenScope(AccessTokenScope.ItemsWrite)
+            .RequireRateLimiting(ApiRateLimiting.ImportPolicy)
             .WithJsonBodyLimit(ApiLimits.MaxImportBodyBytes);
         v1.MapPost("/projects/{projectKey}/history/comments", ImportCommentsAsync)
             .WithName("ImportHistoryComments")
             .RequireTokenScope(AccessTokenScope.ItemsWrite)
+            .RequireRateLimiting(ApiRateLimiting.ImportPolicy)
             .WithJsonBodyLimit(ApiLimits.MaxImportBodyBytes);
         v1.MapPost("/items/{itemKey}/history/attachments", ImportAttachmentAsync)
             .WithName("ImportHistoryAttachment")
@@ -44,11 +47,17 @@ internal static class HistoryImportEndpoints
 
     private static async Task<IResult> ImportItemsAsync(
         string projectKey,
-        JsonBody<HistoryItemsRequest> body,
-        ClaimsPrincipal principal,
+        HttpContext context,
         [FromServices] IHistoryImportService history,
         CancellationToken cancellationToken)
     {
+        if (await ImportAccessGate.CheckAsync(context, projectKey, WorkPermissions.ProjectManage, rejectArchived: false) is { } denied)
+        {
+            return denied;
+        }
+
+        var body = (await JsonBody<HistoryItemsRequest>.BindAsync(context))!;
+        var principal = context.User;
         if (!body.TryGetValue(out var request, out var bodyFailure))
         {
             return ItemRequestPaths.UseModuleNames(bodyFailure).ToResult();
@@ -61,11 +70,17 @@ internal static class HistoryImportEndpoints
 
     private static async Task<IResult> ImportCommentsAsync(
         string projectKey,
-        JsonBody<HistoryCommentsRequest> body,
-        ClaimsPrincipal principal,
+        HttpContext context,
         [FromServices] IHistoryImportService history,
         CancellationToken cancellationToken)
     {
+        if (await ImportAccessGate.CheckAsync(context, projectKey, WorkPermissions.ProjectManage, rejectArchived: false) is { } denied)
+        {
+            return denied;
+        }
+
+        var body = (await JsonBody<HistoryCommentsRequest>.BindAsync(context))!;
+        var principal = context.User;
         if (!body.TryGetValue(out var request, out var bodyFailure))
         {
             return bodyFailure.ToResult();

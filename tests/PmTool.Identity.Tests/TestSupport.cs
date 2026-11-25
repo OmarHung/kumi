@@ -15,6 +15,18 @@ internal sealed class FakeRequestSource : IRequestSource
     public void Clear() => _current = null;
 }
 
+/// <summary>測試設定的目前工作階段；預設沒有（模組不做「發出要求的工作階段還有效」的檢查）。</summary>
+internal sealed class FakeCurrentSession : ICurrentSession
+{
+    private volatile string? _token;
+
+    public string? Token => _token;
+
+    public void Set(string? token) => _token = token;
+
+    public void Clear() => _token = null;
+}
+
 /// <summary>記下收到的帳號事件，測試看得出模組發了什麼。</summary>
 internal sealed class RecordingAccountEventSink : IAccountEventSink
 {

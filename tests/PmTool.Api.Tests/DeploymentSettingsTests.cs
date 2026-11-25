@@ -204,6 +204,127 @@ public sealed class DeploymentSettingsTests
     }
 
     [Test]
+    public void Startup_RequireCertificateWithoutACertificatePath_Fails()
+    {
+        // Arrange：要求憑證卻沒給，金鑰會以明文存進資料庫；與其帶著上線，不如啟動就失敗。
+        var settings = new Dictionary<string, string?> { ["DataProtection:RequireCertificate"] = "true" };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { Settings = settings });
+
+        // Act
+        TestDelegate start = () => factory.CreateClient().Dispose();
+
+        // Assert
+        Assert.That(start, Throws.InvalidOperationException
+            .With.Message.Contains("DataProtection:RequireCertificate")
+            .And.Message.Contains("DataProtection:CertificatePath"));
+    }
+
+    [Test]
+    public void Startup_RequireCertificateNotABoolean_Fails()
+    {
+        // Arrange
+        var settings = new Dictionary<string, string?> { ["DataProtection:RequireCertificate"] = "sure" };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { Settings = settings });
+
+        // Act
+        TestDelegate start = () => factory.CreateClient().Dispose();
+
+        // Assert
+        Assert.That(start, Throws.InvalidOperationException.With.Message.Contains("DataProtection:RequireCertificate"));
+    }
+
+    [Test]
+    public void Startup_RequireCertificateWithACertificate_Starts()
+    {
+        // Arrange
+        using var certificates = new TestCertificates();
+        var settings = new Dictionary<string, string?>
+        {
+            ["DataProtection:RequireCertificate"] = "true",
+            ["DataProtection:CertificatePath"] = certificates.Create("example-keys"),
+            ["DataProtection:CertificatePassword"] = TestCertificates.Password,
+        };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { Settings = settings });
+
+        // Act
+        TestDelegate start = () => factory.CreateClient().Dispose();
+
+        // Assert
+        Assert.That(start, Throws.Nothing);
+    }
+
+    [Test]
+    public void Startup_ProductionRequireHttpsWithoutAPublicHost_Fails()
+    {
+        // Arrange：一律走 HTTPS 的正式環境沒有對外的主機名稱，OAuth 的 issuer 與轉址只能信請求的 Host 標頭。
+        var settings = new Dictionary<string, string?> { ["Security:RequireHttps"] = "true" };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { Settings = settings });
+
+        // Act
+        TestDelegate start = () => factory.CreateClient().Dispose();
+
+        // Assert
+        Assert.That(start, Throws.InvalidOperationException
+            .With.Message.Contains("Security:PublicHost")
+            .And.Message.Contains("Security:RequireHttps"));
+    }
+
+    [TestCase("Staging", null, TestName = "Startup_StagingRequireHttpsWithoutAPublicHost_Starts")]
+    [TestCase("Development", null, TestName = "Startup_DevelopmentRequireHttpsWithoutAPublicHost_Starts")]
+    [TestCase("Production", "pm.example.com", TestName = "Startup_ProductionRequireHttpsWithAPublicHost_Starts")]
+    public void Startup_RequireHttps_OnlyNeedsAPublicHostInProduction(string environment, string? publicHost)
+    {
+        // Arrange
+        var settings = new Dictionary<string, string?> { ["Security:RequireHttps"] = "true" };
+        if (publicHost is not null)
+        {
+            settings["Security:PublicHost"] = publicHost;
+        }
+
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { Environment = environment, Settings = settings });
+
+        // Act
+        TestDelegate start = () => factory.CreateClient().Dispose();
+
+        // Assert
+        Assert.That(start, Throws.Nothing);
+    }
+
+    [Test]
+    public void Startup_ProductionWithoutRequireHttps_StartsWithoutAPublicHost()
+    {
+        // Arrange：本機的 8080 沒有設 RequireHttps，不能被新的檢查擋下來。
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+
+        // Act
+        TestDelegate start = () => factory.CreateClient().Dispose();
+
+        // Assert
+        Assert.That(start, Throws.Nothing);
+    }
+
+    [Test]
+    public void Startup_ProductionWithoutACertificate_WarnsHowToFixIt()
+    {
+        // Arrange
+        var logs = new CapturingLoggerProvider();
+        var options = new ApiFactoryOptions { ConfigureServices = services => services.AddSingleton<ILoggerProvider>(logs) };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), options);
+
+        // Act
+        factory.CreateClient().Dispose();
+        var warning = logs.Entries.Single(entry => entry.Category == KeysNotEncryptedCategory && entry.Level == LogLevel.Warning).Message;
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning, Does.Contain("DataProtection:CertificatePath"));
+            Assert.That(warning, Does.Contain("DataProtection:RequireCertificate"));
+            Assert.That(warning, Does.Contain("AI 供應商的金鑰與寄信密碼"));
+        }
+    }
+
+    [Test]
     public void Startup_CertificatePasswordWrong_FailsWithoutLoggingThePassword()
     {
         // Arrange

@@ -131,4 +131,24 @@ public static class ApiLimits
     // 同一個來源（IPv6 以 /64 計）每個視窗最多幾次 Bearer 權杖驗證失敗，超過就在查資料庫之前回 429。
     // 正常使用的人不會一分鐘失敗幾十次；CI 設錯權杖時會連續失敗，擋它幾十秒也比一直查資料庫好。有效的權杖不計。
     public const int BearerFailuresPerWindow = 30;
+
+    // 記憶體裡最多記幾個來源的權杖失敗次數：來源（尤其是 IPv6 的 /64）是用戶端可以任意換的。
+    // 滿了之後沒記過的來源不記也不擋，已經記過的照舊。
+    public const int BearerFailureMaxTrackedSources = 10_000;
+
+    // 匯入（試算表與歷史）每個人同時最多幾個：每一個都可能是 MaxImportBodyBytes 的內文加上整批寫入。
+    public const int MaxConcurrentImportsPerPerson = 2;
+
+    // kumi 執行檔的下載，每個人每個視窗最多幾次：一個檔案是幾十 MiB，正常的人一分鐘不會下載超過幾次。
+    public const int CliDownloadPermitsPerWindow = 10;
+
+    // 附件的下載（項目與知識庫共用一份額度）。說明裡內嵌的圖片也是從這裡下載，一頁可以有幾十張，
+    // 所以比一般的限制寬；仍然低於已登入的全域額度（SignedInPermitsPerWindow）。
+    public const int AttachmentDownloadPermitsPerWindow = 300;
+
+    // 網頁回報的錯誤：同一個人、同一種類加訊息，這段時間內只記一次。
+    public const int ClientErrorDedupeWindowSeconds = 60;
+
+    // 去重器最多記幾個鍵；滿了先清掉過期的，還是滿的話就不再記新的（寧可多記一筆，不讓記憶體長大）。
+    public const int ClientErrorDedupeMaxKeys = 10_000;
 }

@@ -187,4 +187,87 @@ public sealed class ItemImportEndpointTests
             Assert.That(factory.Modules.Import.Calls, Is.Empty);
         }
     }
+
+    private const string ImportRoute = "/v1/projects/WEB/items/import";
+
+    [Test]
+    public async Task Import_WithoutItemCreate_Returns403AndReadsNoBodyBytes()
+    {
+        // Arrange
+        CountingStream? counter = null;
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { WrapRequestBody = body => counter = new CountingStream(body) });
+        factory.Modules.Access.OnFindVisible = (_, key) => Visible(key, isArchived: false, WorkPermissions.ItemRead);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(ImportRoute, ApiRequests.Json(new { rows = new[] { new { type = "task", title = "一個" } } }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Forbidden, WorkErrorCodes.Forbidden);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(counter?.BytesRead ?? 0, Is.Zero, "沒權限的請求，內文一個位元組都不讀");
+            Assert.That(factory.Modules.Import.Calls, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Import_ArchivedProject_Returns409AndReadsNoBodyBytes()
+    {
+        // Arrange
+        CountingStream? counter = null;
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { WrapRequestBody = body => counter = new CountingStream(body) });
+        factory.Modules.Access.OnFindVisible = (_, key) => Visible(key, isArchived: true, WorkPermissions.ItemRead);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(ImportRoute, ApiRequests.Json(new { rows = Array.Empty<object>() }));
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+        Assert.That(counter?.BytesRead ?? 0, Is.Zero);
+    }
+
+    [Test]
+    public async Task Import_ProjectNotVisible_Returns404ProjectNotFoundAndReadsNoBodyBytes()
+    {
+        // Arrange
+        CountingStream? counter = null;
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { WrapRequestBody = body => counter = new CountingStream(body) });
+        factory.Modules.Access.OnFindVisible = (_, _) => null;
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(ImportRoute, ApiRequests.Json(new { rows = Array.Empty<object>() }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.NotFound, WorkErrorCodes.ProjectNotFound);
+        Assert.That(counter?.BytesRead ?? 0, Is.Zero);
+    }
+
+    [Test]
+    public async Task Import_ThirdConcurrentImportFromOnePerson_Returns429()
+    {
+        // Arrange：兩個匯入卡在讀內文。
+        var stalled = new StalledBodies();
+        var stall = false;
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { WrapRequestBody = body => Volatile.Read(ref stall) ? stalled.CreateStream() : body });
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+        Volatile.Write(ref stall, true);
+        var first = client.PostAsync(ImportRoute, ApiRequests.Json(new { rows = Array.Empty<object>() }));
+        var second = client.PostAsync(ImportRoute, ApiRequests.Json(new { rows = Array.Empty<object>() }));
+        await stalled.WaitForStalledRequestsAsync(2, TimeSpan.FromSeconds(20));
+
+        // Act
+        using var third = await client.PostAsync(ImportRoute, ApiRequests.Json(new { rows = Array.Empty<object>() }));
+        stalled.Open();
+        using var firstResponse = await first.WaitAsync(TimeSpan.FromSeconds(20));
+        using var secondResponse = await second.WaitAsync(TimeSpan.FromSeconds(20));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(third, HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+    }
+
+    private static ProjectAccessSummary Visible(string key, bool isArchived, params string[] permissions) =>
+        new(FakeWorkAccessQueries.ProjectId, key.ToUpperInvariant(), "範例專案", isArchived, permissions);
 }

@@ -251,7 +251,7 @@ public sealed class CliLoginRedemptionTests
     }
 
     [Test]
-    public async Task Redeem_TheSameCodeTwice_FailsTheSecondTimeAndCreatesNothingMore()
+    public async Task Redeem_TheSameCodeTwice_FailsTheSecondTimeAndTheFirstTokensAreRevoked()
     {
         // Arrange
         var user = await _host.AddUserAsync(_owner.ToActor());
@@ -263,7 +263,7 @@ public sealed class CliLoginRedemptionTests
 
         // Assert
         AssertCodeInvalid(second);
-        Assert.That(await _host.AccessTokens.ListAsync(user.ToActor(), CancellationToken.None), Has.Count.EqualTo(2));
+        Assert.That(await _host.AccessTokens.ListAsync(user.ToActor(), CancellationToken.None), Is.Empty);
     }
 
     [Test]
@@ -278,7 +278,7 @@ public sealed class CliLoginRedemptionTests
 
         // Assert
         Assert.That(results.Count(r => r.Succeeded), Is.EqualTo(1));
-        Assert.That(await _host.AccessTokens.ListAsync(user.ToActor(), CancellationToken.None), Has.Count.EqualTo(2));
+        Assert.That(await _host.AccessTokens.ListAsync(user.ToActor(), CancellationToken.None), Has.Count.LessThanOrEqualTo(2));
     }
 
     [Test]
@@ -518,7 +518,7 @@ public sealed class CliLoginRedemptionTests
     private async Task<CreatedAccessToken> CreateAsync(AuthenticatedUser user, string name)
     {
         var created = await _host.AccessTokens.CreateAsync(
-            user.ToActor(), new NewAccessToken(name, [AccessTokenScope.ItemsRead], null), CancellationToken.None);
+            user.ToActor(), new NewAccessToken(name, [AccessTokenScope.ItemsRead], 30), CancellationToken.None);
         Assert.That(created.Succeeded, Is.True, created.Failure?.Message);
         return created.Value;
     }

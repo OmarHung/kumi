@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -87,7 +88,7 @@ public sealed class MigrationTests
     [Test]
     public async Task Migrate_EmailsThatCollideAfterNormalizing_FailsAndChangesNothing()
     {
-        // Arrange：改寫之後會變成同一個 Email 的兩個帳號
+        // Arrange：改寫之後會變成同一個 Email 的兩個帳號，另外還有一個本來就會被改寫的
         var database = await PostgresServer.CreateDatabaseAsync();
         await MigrateToAsync(database, BeforeAccountSecurity);
         var first = await AddAccountAsync(database, "ｕｓｅｒ＠ｅｘａｍｐｌｅ．ｃｏｍ");
@@ -95,20 +96,128 @@ public sealed class MigrationTests
         var untouched = await AddAccountAsync(database, "Other@Example.com");
 
         // Act
-        var failure = Assert.CatchAsync<PostgresException>(async () => await (await IdentityTestHost.StartAsync(database, configure: null)).DisposeAsync());
+        var failure = Assert.CatchAsync<InvalidOperationException>(async () => await (await IdentityTestHost.StartAsync(database, configure: null)).DisposeAsync());
 
-        // Assert：訊息要說得出是人工處理的事，而且不帶任何人的 Email
+        // Assert：訊息要說得出是人工處理的事，而且不帶任何人的 Email；一個都不改
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(failure?.MessageText, Does.Contain("人工").And.Not.Contain("example.com"));
+            Assert.That(failure?.Message, Does.Contain("人工").And.Not.Contain("example.com"));
             Assert.That(await EmailOfAsync(database, first), Is.EqualTo("ｕｓｅｒ＠ｅｘａｍｐｌｅ．ｃｏｍ"));
             Assert.That(await EmailOfAsync(database, second), Is.EqualTo("USER@example.com"));
             Assert.That(await EmailOfAsync(database, untouched), Is.EqualTo("Other@Example.com"));
-            Assert.That(await MigrationAppliedAsync(database), Is.False, "失敗的遷移不能留下一半的結構");
         }
     }
 
-    private static async Task MigrateToAsync(string connectionString, string migration)
+    [Test]
+    public async Task Migrate_EmailThatCollidesWithAnUnchangedOne_FailsAndChangesNothing()
+    {
+        // Arrange：改寫後的值和另一個本來就不用改的撞在一起
+        var database = await PostgresServer.CreateDatabaseAsync();
+        await MigrateToAsync(database, BeforeAccountSecurity);
+        var changing = await AddAccountAsync(database, "Same@Example.com");
+        var unchanged = await AddAccountAsync(database, "same@example.com");
+
+        // Act
+        var failure = Assert.CatchAsync<InvalidOperationException>(async () => await (await IdentityTestHost.StartAsync(database, configure: null)).DisposeAsync());
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(failure?.Message, Does.Contain("人工"));
+            Assert.That(await EmailOfAsync(database, changing), Is.EqualTo("Same@Example.com"));
+            Assert.That(await EmailOfAsync(database, unchanged), Is.EqualTo("same@example.com"));
+        }
+    }
+
+    [Test]
+    public async Task Migrate_EmailWithADottedCapitalI_CanStillSignInWithTheSpellingTheUserTypes()
+    {
+        // Arrange：資料庫的 lower 和 .NET 對這個字元的結果不一樣；改寫要用登入時同一套規則，本人才登得進去
+        var database = await PostgresServer.CreateDatabaseAsync();
+        await MigrateToAsync(database, BeforeAccountSecurity);
+        var typed = "\u0130stanbul@example.com";
+        await AddAccountAsync(database, typed, new PasswordHasher<PasswordCredential>().HashPassword(PasswordCredential.Instance, TestData.Password));
+
+        // Act
+        await using var host = await IdentityTestHost.StartAsync(database, configure: null);
+        var user = await host.Authentication.SignInAsync(typed, TestData.Password, CancellationToken.None);
+
+        // Assert
+        Assert.That(user, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task Migrate_EmailThatTheCurrentRulesRejectEverywhere_IsLeftAloneAndStartupContinues()
+    {
+        // Arrange：帶零寬字元的舊 Email 在新規則下不合格；不改它，也不擋啟動
+        var database = await PostgresServer.CreateDatabaseAsync();
+        await MigrateToAsync(database, BeforeAccountSecurity);
+        var stored = "zero\u200Bwidth@Example.com";
+        var rejected = await AddAccountAsync(database, stored);
+        var normal = await AddAccountAsync(database, "Normal@Example.com");
+
+        // Act
+        await using var host = await IdentityTestHost.StartAsync(database, configure: null);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(await EmailOfAsync(database, rejected), Is.EqualTo(stored));
+            Assert.That(await EmailOfAsync(database, normal), Is.EqualTo("normal@example.com"));
+        }
+    }
+
+    [Test]
+    public async Task Migrate_EmailsAlreadyNormalized_AreNotTouchedAndRunningAgainChangesNothing()
+    {
+        // Arrange
+        var database = await PostgresServer.CreateDatabaseAsync();
+        await using var host = await IdentityTestHost.StartAsync(database, configure: null);
+        var user = await host.StartWithOwnerAsync();
+
+        // Act：每次啟動都跑
+        foreach (var initializer in host.Services.GetServices<IModuleInitializer>())
+        {
+            await initializer.InitializeAsync(CancellationToken.None);
+        }
+
+        // Assert
+        Assert.That(await EmailOfAsync(database, user.AccountId), Is.EqualTo(user.Email));
+    }
+
+    [Test]
+    public async Task Migrate_WithASeparateRuntimeRole_RewritesEmailsThroughTheOwnersConnection()
+    {
+        // Arrange：執行的角色在授權之前什麼權限都沒有，改寫只能用擁有者的連線
+        var database = await PostgresServer.CreateDatabaseAsync();
+        await MigrateToAsync(database, BeforeAccountSecurity);
+        var id = await AddAccountAsync(database, "Mixed@Example.com");
+        var (role, runtimeConnection) = await PostgresServer.CreateRuntimeRoleAsync(database);
+
+        // Act
+        await using var host = await IdentityTestHost.StartAsync(new DatabaseConnections(runtimeConnection, database, role), configure: null);
+
+        // Assert
+        Assert.That(await EmailOfAsync(database, id), Is.EqualTo("mixed@example.com"));
+        NpgsqlConnection.ClearAllPools();
+    }
+
+    [Test]
+    public async Task Migration_AddAccountSecurity_NoLongerRewritesEmails()
+    {
+        // Arrange：只遷移到這一版（不經過模組的啟動），資料不能被 SQL 改寫
+        var database = await PostgresServer.CreateDatabaseAsync();
+        await MigrateToAsync(database, BeforeAccountSecurity);
+        var id = await AddAccountAsync(database, "Mixed@Example.com");
+
+        // Act
+        await MigrateToAsync(database, null);
+
+        // Assert
+        Assert.That(await EmailOfAsync(database, id), Is.EqualTo("Mixed@Example.com"));
+    }
+
+    private static async Task MigrateToAsync(string connectionString, string? migration)
     {
         await using var db = NewContext(connectionString);
         await db.GetService<IMigrator>().MigrateAsync(migration);
@@ -122,7 +231,7 @@ public sealed class MigrationTests
     }
 
     /// <summary>在舊的結構上直接新增一個組織、一個人與一個帳號（舊版會存成這樣的 Email），回傳帳號的編號。</summary>
-    private static async Task<Guid> AddAccountAsync(string connectionString, string email)
+    private static async Task<Guid> AddAccountAsync(string connectionString, string email, string passwordHash = "not-a-real-hash")
     {
         await using var db = NewContext(connectionString);
         var organization = new OrganizationRow { Id = Guid.CreateVersion7(), Name = "範例組織", CreatedAt = DateTimeOffset.UtcNow };
@@ -140,7 +249,7 @@ public sealed class MigrationTests
             OrganizationId = organization.Id,
             PersonId = person.Id,
             Email = email,
-            PasswordHash = "not-a-real-hash",
+            PasswordHash = passwordHash,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Organizations.Add(organization);
@@ -157,14 +266,5 @@ public sealed class MigrationTests
         await using var command = new NpgsqlCommand("SELECT email FROM identity.accounts WHERE id = @id", connection);
         command.Parameters.AddWithValue("id", accountId);
         return (string?)await command.ExecuteScalarAsync();
-    }
-
-    private static async Task<bool> MigrationAppliedAsync(string connectionString)
-    {
-        await using var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync();
-        await using var command = new NpgsqlCommand(
-            "SELECT count(*) FROM identity.__ef_migrations_history WHERE migration_id LIKE '%_AddAccountSecurity'", connection);
-        return (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
     }
 }

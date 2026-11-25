@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using PmTool.Api.Tests.Support;
+using PmTool.Identity;
 
 namespace PmTool.Api.Tests.RealStack;
 
@@ -33,5 +34,6 @@ internal static class CliLoginRequests
     {
         port = 53682, state = "abcdefghijklmnopqrstuv", challenge, machine = "MacBook-Pro", tokens = new[] { "cli" },
         scopes = new[] { "items:read" }, grantedScopes = new[] { "items:read" }, expiresInDays = 30,
+        confirmationCode = CliLoginRules.ConfirmationCodeOf(challenge),
     };
 }

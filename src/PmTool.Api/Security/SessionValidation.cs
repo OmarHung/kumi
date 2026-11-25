@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using PmTool.Identity;
 
@@ -41,9 +40,14 @@ internal static class SessionValidation
         }
     }
 
+    /// <summary>
+    /// 只拒絕，不順便刪 Cookie：換發（登出其他裝置、改密碼）之後，瀏覽器可能還有請求帶著舊的 Cookie 在路上，
+    /// 它的回應如果帶著刪 Cookie 的標頭，會把剛換上的新 Cookie 一起刪掉，所有分頁都被登出。
+    /// 無效的 Cookie 留著沒有害處（每次都被拒絕，結果由身分模組快取）；明確的登出端點才刪。
+    /// </summary>
     private static Task RejectAsync(CookieValidatePrincipalContext context)
     {
         context.RejectPrincipal();
-        return context.HttpContext.SignOutAsync(SessionPrincipal.Scheme);
+        return Task.CompletedTask;
     }
 }

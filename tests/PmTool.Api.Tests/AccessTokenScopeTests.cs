@@ -93,7 +93,7 @@ public sealed class AccessTokenScopeTests
     public static IEnumerable<TestCaseData> WebOnlyEndpoints()
     {
         yield return new TestCaseData("PUT", "/v1/account/password").SetArgDisplayNames("改密碼");
-        yield return new TestCaseData("DELETE", "/v1/account/other-sessions").SetArgDisplayNames("登出其他裝置");
+        yield return new TestCaseData("POST", "/v1/account/other-sessions/sign-out").SetArgDisplayNames("登出其他裝置");
         yield return new TestCaseData("POST", "/v1/people").SetArgDisplayNames("新增人員");
         yield return new TestCaseData("POST", "/v1/people/00000000-0000-0000-0000-000000000001/disable").SetArgDisplayNames("停用人員");
         yield return new TestCaseData("POST", "/v1/people/00000000-0000-0000-0000-000000000001/enable").SetArgDisplayNames("重新啟用人員");

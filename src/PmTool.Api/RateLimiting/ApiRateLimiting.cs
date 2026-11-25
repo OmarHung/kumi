@@ -59,6 +59,15 @@ internal static class ApiRateLimiting
     /// <summary>命令列瀏覽器登入的兌換，不用登入，依來源 IP 計算（<see cref="ApiLimits.CliLoginTokenPermitsPerWindow"/>）：擋住猜碼。</summary>
     public const string CliLoginTokenPolicy = "cli-login-token";
 
+    /// <summary>匯入（試算表與歷史）：每人同時最多 <see cref="ApiLimits.MaxConcurrentImportsPerPerson"/> 個，在讀內文之前就擋。</summary>
+    public const string ImportPolicy = "import";
+
+    /// <summary>kumi 執行檔的下載，依人計算（<see cref="ApiLimits.CliDownloadPermitsPerWindow"/>）。</summary>
+    public const string CliDownloadPolicy = "cli-download";
+
+    /// <summary>附件的下載，項目與知識庫共用一份，依人計算（<see cref="ApiLimits.AttachmentDownloadPermitsPerWindow"/>）。</summary>
+    public const string AttachmentDownloadPolicy = "attachment-download";
+
     private static readonly TimeSpan OAuthRegisterWindow = TimeSpan.FromHours(1);
 
     /// <summary>
@@ -112,6 +121,9 @@ internal static class ApiRateLimiting
             options.AddPolicy(CliLoginCheckPolicy, CliLoginChecksPerCaller);
             options.AddPolicy(CliLoginApprovePolicy, CliLoginApprovesPerCaller);
             options.AddPolicy(CliLoginTokenPolicy, CliLoginTokenPerAddress);
+            options.AddPolicy(ImportPolicy, ImportsPerCaller);
+            options.AddPolicy(CliDownloadPolicy, CliDownloadsPerCaller);
+            options.AddPolicy(AttachmentDownloadPolicy, AttachmentDownloadsPerCaller);
             options.OnRejected = WriteRejectionAsync;
         });
     }
@@ -222,6 +234,17 @@ internal static class ApiRateLimiting
     private static RateLimitPartition<string> CliLoginTokenPerAddress(HttpContext context) =>
         RateLimitPartition.GetFixedWindowLimiter(
             "cli-login-token:" + AddressKeyOf(context.Connection.RemoteIpAddress), _ => FixedWindow(ApiLimits.CliLoginTokenPermitsPerWindow));
+
+    private static RateLimitPartition<string> ImportsPerCaller(HttpContext context) =>
+        Concurrency("import:" + Identify(context).Key, ApiLimits.MaxConcurrentImportsPerPerson);
+
+    private static RateLimitPartition<string> CliDownloadsPerCaller(HttpContext context) =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            "cli-download:" + Identify(context).Key, _ => FixedWindow(ApiLimits.CliDownloadPermitsPerWindow));
+
+    private static RateLimitPartition<string> AttachmentDownloadsPerCaller(HttpContext context) =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            "attachment-download:" + Identify(context).Key, _ => FixedWindow(ApiLimits.AttachmentDownloadPermitsPerWindow));
 
     private static RateLimitPartition<string> Concurrency(string key, int permits) =>
         RateLimitPartition.GetConcurrencyLimiter(key, _ => new ConcurrencyLimiterOptions { PermitLimit = permits, QueueLimit = 0 });

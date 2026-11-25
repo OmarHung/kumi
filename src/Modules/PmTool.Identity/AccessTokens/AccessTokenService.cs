@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
+using PmTool.Identity.Audit;
 using PmTool.Identity.Persistence;
 using PmTool.Identity.Sessions;
 
@@ -8,6 +9,10 @@ namespace PmTool.Identity.AccessTokens;
 internal sealed class AccessTokenService(
     IDbContextFactory<IdentityDbContext> contexts,
     SessionCache cache,
+    AuditTrail audit,
+    AccountEvents events,
+    IRequestSource requestSource,
+    ICurrentSession currentSession,
     TimeProvider time) : IAccessTokenService
 {
     private static readonly Failure SessionEnded =
@@ -34,12 +39,14 @@ internal sealed class AccessTokenService(
         var now = time.GetUtcNow();
         var accountId = await AccountIdOfAsync(actor, cancellationToken);
         var (row, secret) = AccessTokenWriter.NewRow(
-            actor.OrganizationId, accountId, checkedName.Value, token.Scopes, token.ExpiresInDays, null, now);
+            actor.OrganizationId, accountId, checkedName.Value, token.Scopes, token.ExpiresInDays, null, requestSource.Current?.Address, now);
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        if (!await AccessTokenWriter.LockAccountAsync(db, row.OrganizationId, row.AccountId, cancellationToken))
+        // 拿到帳號的鎖之後才確認呼叫的工作階段：改密碼已經提交的話，這裡一定看得到它作廢了這個工作階段。
+        if (!await AccessTokenWriter.LockAccountAsync(db, row.OrganizationId, row.AccountId, cancellationToken)
+            || !await SessionStore.IsCallerSessionActiveAsync(db, row.OrganizationId, row.AccountId, currentSession.Token, now, cancellationToken))
         {
             return SessionEnded;
         }
@@ -52,9 +59,31 @@ internal sealed class AccessTokenService(
         }
 
         db.AccessTokens.Add(row);
-        await db.SaveChangesAsync(cancellationToken);
+        var eventId = await audit.AddAsync(
+            db,
+            new AuditRecord(row.OrganizationId, AuditActions.AccessTokenCreated)
+            {
+                ActorPersonId = actor.PersonId,
+                TargetPersonId = actor.PersonId,
+                Details = new Dictionary<string, string>
+                {
+                    ["tokenName"] = row.Name,
+                    ["scopes"] = string.Join(' ', row.Scopes),
+                    ["expiresAt"] = row.ExpiresAt?.ToString("O") ?? string.Empty,
+                    ["via"] = "web",
+                },
+            },
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new CreatedAccessToken(Summarize(row), secret);
+
+        // 提交之後才通知：回復的操作不該發出通知；通知失敗也不影響已經建好的權杖。
+        var summary = Summarize(row);
+        await events.PublishAsync(new AccountEvent(eventId, row.OrganizationId, actor.PersonId, AccountEventKind.AccessTokenCreated, now)
+        {
+            Tokens = [new AccountEventToken(row.Name, summary.Scopes, row.ExpiresAt)],
+            SourceAddress = row.CreatedFrom,
+        });
+        return new CreatedAccessToken(summary, secret);
     }
 
     public async Task<IReadOnlyList<AccessTokenSummary>> ListAsync(Actor actor, CancellationToken cancellationToken)
@@ -87,6 +116,7 @@ internal sealed class AccessTokenService(
             return NotFound;
         }
 
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var revoked = await db.AccessTokens
             .Where(t => t.Id == row.Id && t.OrganizationId == row.OrganizationId && t.GrantId == null && t.RevokedAt == null)
             .ExecuteUpdateAsync(
@@ -99,6 +129,16 @@ internal sealed class AccessTokenService(
             return NotFound;
         }
 
+        await audit.AddAsync(
+            db,
+            new AuditRecord(row.OrganizationId, AuditActions.AccessTokenRevoked)
+            {
+                ActorPersonId = actor.PersonId,
+                TargetPersonId = actor.PersonId,
+                Details = new Dictionary<string, string> { ["tokenName"] = row.Name },
+            },
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         cache.Forget(accountId);
         return Summarize(row);
     }

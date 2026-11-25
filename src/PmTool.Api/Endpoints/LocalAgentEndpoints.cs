@@ -68,6 +68,11 @@ internal static class LocalAgentEndpoints
             });
         }
 
+        if (request.FindNullElement() is { } nullElement)
+        {
+            return EndpointResults.Fail(nullElement);
+        }
+
         // 長輪詢：呼叫端斷線時（RequestAborted）模組立刻回，什麼都不領。
         var result = await agents.CheckInAsync(
             SessionPrincipal.Read(principal).ToActor(), request.ToCheckIn(), request.Capacity, cancellationToken);
@@ -88,18 +93,13 @@ internal static class LocalAgentEndpoints
             return bodyFailure.ToResult();
         }
 
-        var events = new List<LocalAgentEvent>(request.Events.Count);
-        foreach (var raw in request.Events)
+        var converted = LocalAgentEventRequest.ConvertAll(request.Events);
+        if (converted.Failure is { } invalid)
         {
-            var converted = raw.ToEvent(events.Count);
-            if (converted.Failure is { } invalid)
-            {
-                return EndpointResults.Fail(invalid);
-            }
-
-            events.Add(converted.Value);
+            return EndpointResults.Fail(invalid);
         }
 
+        var events = converted.Value;
         var result = await agents.ReportAsync(SessionPrincipal.Read(principal).ToActor(), jobId, events, cancellationToken);
         return result.Failure is { } failure
             ? EndpointResults.Fail(failure)

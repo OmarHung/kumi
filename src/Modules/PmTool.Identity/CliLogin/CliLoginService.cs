@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Identity.AccessTokens;
+using PmTool.Identity.Audit;
 using PmTool.Identity.Persistence;
 using PmTool.Identity.Sessions;
 
@@ -13,10 +14,15 @@ namespace PmTool.Identity.CliLogin;
 internal sealed class CliLoginService(
     IDbContextFactory<IdentityDbContext> contexts,
     CliLoginRedeemer redeemer,
+    AuditTrail audit,
+    ICurrentSession currentSession,
     TimeProvider time) : ICliLoginService
 {
     /// <summary>過期超過這麼久的碼才刪：用過、過期的留一下，同一個碼再出現時看得出來。</summary>
     private static readonly TimeSpan ExpiredRetention = TimeSpan.FromDays(1);
+
+    /// <summary>細項的路徑用 HTTP 內文的屬性名稱。</summary>
+    public const string ConfirmationCodePath = "confirmationCode";
 
     private static readonly Failure SessionEnded =
         new(FailureKind.Forbidden, IdentityErrorCodes.SessionEnded, "工作階段已經失效，請重新登入。");
@@ -52,12 +58,40 @@ internal sealed class CliLoginService(
             return denied;
         }
 
-        var includeAgent = wantsAgent && grant.IncludeAgent;
+        if (!CliLoginRules.ConfirmationCodeMatches(parameters.CodeChallenge, grant.ConfirmationCode))
+        {
+            await RecordMismatchAsync(actor, request.Value.MachineName, cancellationToken);
+            return Detailed(
+                IdentityErrorCodes.CliLoginConfirmationMismatch, ConfirmationCodePath,
+                "確認碼不對。請輸入終端機上顯示的確認碼；如果你沒有在自己的終端機執行 kumi，請按「拒絕」。");
+        }
+
         var (code, hash) = SessionToken.Create();
+        var stored = await StoreCodeAsync(actor, parameters, request.Value, grant, hash, cancellationToken);
+        return stored is { } failure
+            ? failure
+            : new CliLoginApproval(RedirectUriOf(parameters.Port, code, parameters.State));
+    }
+
+    /// <summary>存下登入碼；失敗回 <see cref="Failure"/>，成功回 null。整個在一個交易裡，先鎖帳號、再確認呼叫的工作階段。</summary>
+    private async Task<Failure?> StoreCodeAsync(
+        Actor actor, CliLoginParameters parameters, CliLoginRequest request, CliLoginGrant grant, byte[] codeHash, CancellationToken cancellationToken)
+    {
+        var wantsCli = request.Tokens.Contains(CliLoginTokenKind.Cli);
+        var includeAgent = request.Tokens.Contains(CliLoginTokenKind.Agent) && grant.IncludeAgent;
         var now = time.GetUtcNow();
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var accountId = await ActiveAccountIdOfAsync(db, actor, cancellationToken);
         if (accountId is null)
+        {
+            return SessionEnded;
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        // 先對帳號那一列加共享鎖、再確認呼叫的工作階段：改密碼與停用先提交的話，這裡一定看得到，不會替已經作廢的工作階段存下登入碼。
+        if (!await AccessTokenWriter.LockAccountSharedAsync(db, actor.OrganizationId, accountId.Value, cancellationToken)
+            || !await SessionStore.IsCallerSessionActiveAsync(db, actor.OrganizationId, accountId.Value, currentSession.Token, now, cancellationToken))
         {
             return SessionEnded;
         }
@@ -74,24 +108,61 @@ internal sealed class CliLoginService(
             return LimitReached;
         }
 
-        db.CliLoginCodes.Add(new CliLoginCodeRow
+        db.CliLoginCodes.Add(NewCodeRow(actor, accountId.Value, parameters, request, grant, includeAgent, codeHash, now));
+        await audit.AddAsync(db, ApprovedRecord(actor, request, grant), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return null;
+    }
+
+    private static CliLoginCodeRow NewCodeRow(
+        Actor actor, Guid accountId, CliLoginParameters parameters, CliLoginRequest request, CliLoginGrant grant,
+        bool includeAgent, byte[] codeHash, DateTimeOffset now)
+    {
+        var wantsCli = request.Tokens.Contains(CliLoginTokenKind.Cli);
+        return new CliLoginCodeRow
         {
             Id = Guid.CreateVersion7(),
             OrganizationId = actor.OrganizationId,
-            AccountId = accountId.Value,
-            CodeHash = hash,
+            AccountId = accountId,
+            CodeHash = codeHash,
             CodeChallenge = parameters.CodeChallenge,
-            MachineName = request.Value.MachineName,
+            MachineName = request.MachineName,
             CliScopes = wantsCli ? [.. grant.CliScopes.Select(AccessTokenScopes.NameOf)] : [],
             IncludeAgent = includeAgent,
-            AgentSkipped = wantsAgent && !includeAgent,
+            AgentSkipped = request.Tokens.Contains(CliLoginTokenKind.Agent) && !includeAgent,
             ExpiresInDays = grant.ExpiresInDays,
             OriginKey = grant.Origin,
             CreatedAt = now,
             ExpiresAt = now + CliLoginRules.CodeLifetime,
-        });
-        await db.SaveChangesAsync(cancellationToken);
-        return new CliLoginApproval(RedirectUriOf(parameters.Port, code, parameters.State));
+        };
+    }
+
+    private static AuditRecord ApprovedRecord(Actor actor, CliLoginRequest request, CliLoginGrant grant) =>
+        new(actor.OrganizationId, AuditActions.CliLoginApproved)
+        {
+            ActorPersonId = actor.PersonId,
+            TargetPersonId = actor.PersonId,
+            Details = new Dictionary<string, string>
+            {
+                ["machine"] = request.MachineName,
+                ["tokens"] = string.Join(' ', request.Tokens.Select(kind => kind.ToString().ToLowerInvariant())),
+                ["scopes"] = string.Join(' ', grant.CliScopes.Select(AccessTokenScopes.NameOf)),
+            },
+        };
+
+    /// <summary>確認碼不符也留一筆：有人拿著別人的網址一直試，本人在稽核紀錄裡看得到。</summary>
+    private async Task RecordMismatchAsync(Actor actor, string machineName, CancellationToken cancellationToken)
+    {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        await audit.AddAsync(
+            db,
+            new AuditRecord(actor.OrganizationId, AuditActions.CliLoginApproved, AuditOutcomes.Failed)
+            {
+                ActorPersonId = actor.PersonId,
+                TargetPersonId = actor.PersonId,
+                Details = new Dictionary<string, string> { ["reason"] = "confirmation_mismatch", ["machine"] = machineName },
+            },
+            cancellationToken);
     }
 
     public Task<Result<CliLoginTokens>> RedeemAsync(CliLoginRedemption redemption, CancellationToken cancellationToken) =>
@@ -118,12 +189,7 @@ internal sealed class CliLoginService(
         return !wantsCli && wantsAgent && !grant.IncludeAgent ? AgentNotAllowed : null;
     }
 
-    /// <summary>這條路發的權杖一定有期限，所以不收 null；不改手動建立權杖的規則（它允許不過期）。</summary>
-    private static FailureDetail? CheckExpiry(int? days) =>
-        days is >= 1 and <= AccessTokenRules.MaxExpiresInDays
-            ? null
-            : new(IdentityErrorCodes.AccessTokenExpiryInvalid, AccessTokenInput.ExpiresInDaysPath,
-                $"瀏覽器登入發的權杖要有期限：1 到 {AccessTokenRules.MaxExpiresInDays} 天。");
+    private static FailureDetail? CheckExpiry(int? days) => AccessTokenInput.CheckExpiry(days);
 
     private static Failure Detailed(string code, string path, string message) =>
         new(FailureKind.Invalid, code, message) { Details = [new FailureDetail(code, path, message)] };

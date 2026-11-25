@@ -62,9 +62,11 @@ x-api: &api
     ForwardedHeaders__Enabled: "true"
     ForwardedHeaders__KnownProxies__0: 172.30.0.10
     Security__RequireHttps: "true"
-    # 設了才會把 308 轉到固定的網域，不用請求的 Host。
+    # 打開 RequireHttps 的正式環境一定要設：308 轉到這個網域，OAuth 的 issuer 與 MCP 的網址也由它組成，不用請求的 Host。
     Security__PublicHost: pm.example.com
     DataProtection__CertificatePath: /run/secrets/dataprotection.pfx
+    # 忘了掛憑證時啟動直接失敗，不會悄悄用明文存金鑰。
+    DataProtection__RequireCertificate: "true"
     TZ: Asia/Taipei
   volumes:
     - ./secrets/dataprotection.pfx:/run/secrets/dataprotection.pfx:ro
@@ -184,6 +186,9 @@ pm.example.com {
 - 憑證用 certbot 取得，驗證走 80 埠的 webroot：80 埠先放行 `/.well-known/acme-challenge/`，其他才轉到 https。
 - 映像檔固定版本：這裡用 `nginx:1.28-alpine`（1.28.3，2026-11-18 查的），固定到 digest。
 - **不開 HTTP/2**（理由見上面 Caddy 的那一段）：新版不寫 `http2 on;`，舊版（例如 Ubuntu 22.04 的 1.18）是 `listen 443 ssl;` 後面不加 `http2`。nginx 的 HTTP/2 是開在整個「位址:連接埠」上的：同一個 443 只要有一個 `server` 開了，這個連接埠上的每個網站都是開的。主機上還有別的網站時，先 `nginx -T | grep -E 'listen|http2'` 看全部，再用上面的 `openssl s_client` 確認是 `http/1.1`。
+- **沒有網域名稱的請求一律拒絕**：直接用 IP 或別的網域名稱連進來的請求，不該落到 Kumi 的 `server`。下面的範例在 80 與 443 各加一個 `default_server`（80 回 444 直接斷線，443 用 `ssl_reject_handshake on;` 在握手就拒絕，不需要憑證；要 nginx 1.19.4 以上）。`ssl_reject_handshake` 是掛在「同一個位址:連接埠的預設 `server`」上的：主機上還有別的網站時，先用 `nginx -T | grep -E 'listen|default_server'` 看 80 與 443 現在誰是預設，不要有兩個 `default_server`。主機有監聽 IPv6 時（`listen [::]:80;`、`listen [::]:443 ssl;`），`[::]:80` 與 `[::]:443` 也要各有一個 `default_server`（範例已經寫了；沒有 IPv6 的主機把這兩行拿掉）：沒有的話，直接用 IPv6 位址連進來的請求會落到 Kumi 的 `server`。
+- `http` 區塊的 `server_tokens off;` 讓錯誤頁與回應標頭不帶 nginx 的版本號（範例的檔案掛在 `conf.d/`，本來就在 `http` 裡，直接寫在檔案最上面）。
+- `AllowedHosts` 維持預設的 `*`：平台的健康檢查常走內部的 IP，限制了會被擋；擋掉陌生網域名稱的是上面的預設 `server`。
 - `proxy_http_version 1.1;` 不能省（見下面 `nginx.conf` 裡的註解）。2026-11-21 第一次在 VM 上照做時，就是少了這一行，沒有內文的 POST 一律 400。
 - 即時更新（`/v1/live`）用 WebSocket：nginx 預設不轉升級的標頭，要照下面的 `map` 與兩行 `Upgrade`、`Connection` 寫。少了的話網頁還能用（SignalR 會退回長輪詢），但每個開著的分頁一直佔住一條連線，只用 HTTP/1.1 時分頁一多整個網站就卡住（見上面 Caddy 的那一段）；瀏覽器的 Network 裡 `/v1/live` 沒有變成 101 就是少了。
 - compose 裡的 `proxy` 服務換成下面這一段（`ipv4_address` 與 Caddy 的一樣，api 的 `KnownProxies__0` 不用改）：
@@ -213,8 +218,28 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+# 不顯示 nginx 的版本號。
+server_tokens off;
+
+# 沒有對上網域名稱的請求（直接用 IP 連、別的網域指到這台）：80 直接斷線，443 在 TLS 握手就拒絕。
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    # 同 443 的其他 server：不寫 http2。
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+    ssl_reject_handshake on;
+}
+
 server {
     listen 80;
+    listen [::]:80;
     server_name pm.example.com;
 
     # certbot 驗證網域用，必須是 http、不能轉址。
@@ -230,6 +255,7 @@ server {
 server {
     # 不寫 http2 on;：只用 HTTP/1.1。
     listen 443 ssl;
+    listen [::]:443 ssl;
     server_name pm.example.com;
     ssl_certificate     /etc/letsencrypt/live/pm.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/pm.example.com/privkey.pem;
@@ -256,7 +282,7 @@ server {
 
 **第一次取得憑證**（雞生蛋：443 的區塊要憑證才起得來）：
 
-1. 先把 `nginx.conf` 的第二個 `server`（443）整段註解掉，`sudo mkdir -p /var/www/certbot`，`docker compose up -d proxy`。
+1. 先把 `nginx.conf` 裡 `server_name pm.example.com;` 的那個 443 `server` 整段註解掉（預設的 443 `server` 不需要憑證，留著），`sudo mkdir -p /var/www/certbot`，`docker compose up -d proxy`。
 2. 在 VM 上裝 certbot（例如 `sudo apt install certbot`），取得憑證：
 
    ```

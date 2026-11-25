@@ -1,7 +1,7 @@
-using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using PmTool.Api.Json;
+using PmTool.Api.RateLimiting;
 using PmTool.Api.Security;
 using PmTool.Identity;
 using PmTool.Work;
@@ -43,23 +43,30 @@ internal static class ItemImportEndpoints
         v1.MapPost("/projects/{projectKey}/items/import", ImportAsync)
             .WithName("ImportItems")
             .RequireTokenScope(AccessTokenScope.ItemsWrite)
+            .RequireRateLimiting(ApiRateLimiting.ImportPolicy)
             .WithJsonBodyLimit(ApiLimits.MaxImportBodyBytes);
         return v1;
     }
 
     private static async Task<IResult> ImportAsync(
         string projectKey,
-        JsonBody<ImportItemsRequest> body,
-        ClaimsPrincipal principal,
+        HttpContext context,
         [FromServices] IItemImportService import,
         CancellationToken cancellationToken)
     {
+        // JsonBody 當參數會在進 handler 之前就把整個內文讀完；先檢查權限，再自己繫結。
+        if (await ImportAccessGate.CheckAsync(context, projectKey, WorkPermissions.ItemCreate, rejectArchived: true) is { } denied)
+        {
+            return denied;
+        }
+
+        var body = (await JsonBody<ImportItemsRequest>.BindAsync(context))!;
         if (!body.TryGetValue(out var request, out var bodyFailure))
         {
             return ItemRequestPaths.UseModuleNames(bodyFailure).ToResult();
         }
 
-        var actor = SessionPrincipal.Read(principal).ToActor();
+        var actor = SessionPrincipal.Read(context.User).ToActor();
         var result = await import.ImportAsync(actor, projectKey, request.ToImport(), cancellationToken);
         return result.Failure is { } failure
             ? EndpointResults.Fail(failure)

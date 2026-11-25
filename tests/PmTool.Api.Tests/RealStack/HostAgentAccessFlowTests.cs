@@ -141,7 +141,7 @@ public sealed class HostAgentAccessFlowTests : HostAgentFlowBase
     {
         // Arrange
         using var created = await Owner.Client.PostAsync(
-            "/v1/account/tokens", ApiRequests.Json(new { name = "e2e", scopes = new[] { "items:read" }, expiresInDays = (int?)null }));
+            "/v1/account/tokens", ApiRequests.Json(new { name = "e2e", scopes = new[] { "items:read" }, expiresInDays = 30 }));
         var token = await ApiRequests.AssertSuccessEnvelopeAsync(created, HttpStatusCode.Created);
         using var client = Factory.CreateClient();
         client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {token!["secret"]!.GetValue<string>()}");

@@ -18,11 +18,12 @@ internal sealed record AccessTokenData(
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastUsedAt,
     DateTimeOffset? ExpiresAt,
-    string? MachineName)
+    string? MachineName,
+    string? CreatedFrom)
 {
     public static AccessTokenData From(AccessTokenSummary token) => new(
         token.TokenId, token.Name, token.DisplayPrefix, [.. token.Scopes.Select(AccessTokenScopes.NameOf)],
-        token.CreatedAt, token.LastUsedAt, token.ExpiresAt, token.MachineName);
+        token.CreatedAt, token.LastUsedAt, token.ExpiresAt, token.MachineName, token.CreatedFrom);
 }
 
 /// <param name="Secret">權杖的明文，只在建立的這個回應裡出現一次。</param>
@@ -78,9 +79,14 @@ internal static class AccessTokenEndpoints
         DisableCaching(context);
         var actor = SessionPrincipal.Read(principal).ToActor();
         var result = await tokens.CreateAsync(actor, new NewAccessToken(request.Name, scopes, request.ExpiresInDays), cancellationToken);
-        return result.Failure is { } failure
-            ? EndpointResults.Fail(failure)
-            : EndpointResults.Created(null, new CreatedAccessTokenData(AccessTokenData.From(result.Value.Token), result.Value.Secret));
+
+        // 確認登入之後，發出要求的工作階段被作廢了（改密碼、別的程序登出）：和沒登入一樣回 401。
+        return result.Failure switch
+        {
+            null => EndpointResults.Created(null, new CreatedAccessTokenData(AccessTokenData.From(result.Value.Token), result.Value.Secret)),
+            { Code: IdentityErrorCodes.SessionEnded } => ApiFailure.AuthRequired.ToResult(),
+            var failure => EndpointResults.Fail(failure),
+        };
     }
 
     private static async Task<IResult> RevokeAsync(

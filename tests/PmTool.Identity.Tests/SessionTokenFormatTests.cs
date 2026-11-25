@@ -28,13 +28,13 @@ public sealed class SessionTokenFormatTests
     }
 
     [TestCaseSource(nameof(MalformedTokens))]
-    public async Task EndOthersAsync_MalformedToken_ReturnsZeroWithoutTheDatabase(string token)
+    public async Task EndOthersAsync_MalformedToken_IsRejectedWithoutTheDatabase(string token)
     {
         // Act
-        var ended = await _host.Sessions.EndOthersAsync(token, CancellationToken.None);
+        var ended = await _host.Sessions.EndOthersAsync(token, TestData.Password, CancellationToken.None);
 
         // Assert
-        Assert.That(ended, Is.Zero);
+        Assert.That(ended.Failure?.Code, Is.EqualTo(IdentityErrorCodes.SessionEnded));
     }
 
     [TestCaseSource(nameof(MalformedTokens))]

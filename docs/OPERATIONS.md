@@ -246,7 +246,7 @@ bash scripts/ops/errors.sh               # 過去 24 小時的 Warning 以上
 bash scripts/ops/errors.sh --since 2h    # 也可以寫 30m、2026-11-17T09:00
 ```
 
-每一筆有時間、等級、類別、訊息、例外的第一行、請求的路徑。網頁回報的錯誤也在裡面：標著「網頁回報」，改列種類、網頁的訊息與網頁的路徑。`status.sh` 的錯誤筆數也算它們，另外寫出其中網頁回報幾筆。
+每一筆有時間、等級、類別、訊息、例外的第一行、請求的路徑。網頁回報的錯誤也在裡面：標著「網頁回報」，改列種類、網頁的訊息與網頁的路徑。網頁回報的記成 Warning（網頁的例外不是伺服器出錯），同一個人、同一則訊息一分鐘只記一次。`status.sh` 的「錯誤」只數伺服器自己的 Error 與 Critical，網頁回報的 Warning 另外寫一個筆數，不算進去。
 
 - api 的記錄是一行一筆的 JSON。看原始的記錄：`docker compose logs --since 1h api`。
 - 每個容器的記錄每份 10 MB、留 5 份，更早的會被輪替掉。部署換掉 api 的容器之後，舊容器的記錄也跟著不見。要留證據，先存下來：`docker compose logs api > api.log`。

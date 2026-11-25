@@ -244,13 +244,13 @@ public sealed class SessionServiceTests
         Assert.That(await _host.FindAsync(second), Is.Not.Null, "先進快取，作廢時要立刻清掉");
 
         // Act
-        var ended = await _host.Sessions.EndOthersAsync(current.Token, CancellationToken.None);
+        var ended = (await _host.Sessions.EndOthersAsync(current.Token, TestData.Password, CancellationToken.None)).Value;
 
-        // Assert：閒置失效的那一個不算在「登出了幾個」裡。
-        Assert.That(ended, Is.EqualTo(2));
+        // Assert：閒置失效的那一個不算在「登出了幾個」裡；這一個換成新的，舊的權杖也失效。
+        Assert.That(ended.SignedOutSessions, Is.EqualTo(2));
         Assert.That(
-            await _host.AreActiveAsync(current, second, third, idle, someoneElse),
-            Is.EqualTo(new[] { true, false, false, false, true }));
+            await _host.AreActiveAsync(current, second, third, idle, someoneElse, ended.Session),
+            Is.EqualTo(new[] { false, false, false, false, true, true }));
     }
 
     [Test]
@@ -261,15 +261,15 @@ public sealed class SessionServiceTests
         var session = await _host.StartSessionAsync(user);
 
         // Act
-        var ended = await _host.Sessions.EndOthersAsync(session.Token, CancellationToken.None);
+        var ended = (await _host.Sessions.EndOthersAsync(session.Token, TestData.Password, CancellationToken.None)).Value;
 
         // Assert
-        Assert.That(ended, Is.Zero);
-        Assert.That(await _host.FindAsync(session), Is.Not.Null);
+        Assert.That(ended.SignedOutSessions, Is.Zero);
+        Assert.That(await _host.AreActiveAsync(session, ended.Session), Is.EqualTo(new[] { false, true }));
     }
 
     [Test]
-    public async Task EndOthersAsync_FromAnEndedSession_ReturnsZeroAndEndsNothing()
+    public async Task EndOthersAsync_FromAnEndedSession_IsRejectedAndEndsNothing()
     {
         // Arrange：已經登出的工作階段不能拿來把別人登出。
         var user = await _host.AddUserAsync(_owner.ToActor());
@@ -278,21 +278,21 @@ public sealed class SessionServiceTests
         await _host.Sessions.EndAsync(ended.Token, CancellationToken.None);
 
         // Act
-        var count = await _host.Sessions.EndOthersAsync(ended.Token, CancellationToken.None);
+        var result = await _host.Sessions.EndOthersAsync(ended.Token, TestData.Password, CancellationToken.None);
 
         // Assert
-        Assert.That(count, Is.Zero);
+        Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.SessionEnded));
         Assert.That(await _host.FindAsync(other), Is.Not.Null);
     }
 
     [TestCase("not-a-token")]
     [TestCase("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")]
-    public async Task EndOthersAsync_MalformedOrUnknownToken_ReturnsZero(string token)
+    public async Task EndOthersAsync_MalformedOrUnknownToken_IsRejected(string token)
     {
         // Act
-        var ended = await _host.Sessions.EndOthersAsync(token, CancellationToken.None);
+        var ended = await _host.Sessions.EndOthersAsync(token, TestData.Password, CancellationToken.None);
 
         // Assert
-        Assert.That(ended, Is.Zero);
+        Assert.That(ended.Failure?.Code, Is.EqualTo(IdentityErrorCodes.SessionEnded));
     }
 }

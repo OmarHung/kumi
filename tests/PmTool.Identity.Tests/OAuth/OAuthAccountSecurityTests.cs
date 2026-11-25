@@ -53,7 +53,7 @@ public sealed class OAuthAccountSecurityTests
         Assert.That(await _host.AccessTokens.FindAsync(tokens.AccessToken, CancellationToken.None), Is.Not.Null);
 
         // Act
-        var changed = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, NewPassword, CancellationToken.None);
+        var changed = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, NewPassword, false, CancellationToken.None);
 
         // Assert
         Assert.That(changed.Succeeded, Is.True, changed.Failure?.Message);

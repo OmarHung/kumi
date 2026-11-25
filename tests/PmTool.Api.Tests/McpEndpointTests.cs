@@ -134,6 +134,39 @@ public sealed class McpEndpointTests
         }
     }
 
+    [TestCase("evil.example:8080", "http://evil.example:8080", TestName = "Post_NoPublicHostAndAnOriginThatMatchesAForeignHost_Is403")]
+    [TestCase("evil.example", "http://evil.example", TestName = "Post_NoPublicHostAndAForeignOriginOnThePlainPort_Is403")]
+    [TestCase("localhost:8080", "http://evil.example:8080", TestName = "Post_NoPublicHostAndALoopbackHostWithAForeignOrigin_Is403")]
+    [TestCase("localhost:8080", "http://localhost:9090", TestName = "Post_NoPublicHostAndALoopbackOriginOnAnotherPort_Is403")]
+    [TestCase("localhost:8080", "http://localhost:8080", TestName = "Post_NoPublicHostAndTheSameLoopbackOrigin_IsLetThrough")]
+    [TestCase("127.0.0.1:8080", "http://127.0.0.1:8080", TestName = "Post_NoPublicHostAndTheSameIPv4LoopbackOrigin_IsLetThrough")]
+    [TestCase("[::1]:8080", "http://[::1]:8080", TestName = "Post_NoPublicHostAndTheSameIPv6LoopbackOrigin_IsLetThrough")]
+    public async Task Post_NoPublicHost_OnlyAcceptsALoopbackOriginThatMatchesTheRequest(string host, string origin)
+    {
+        // Arrange：沒設 PublicHost 時 Host 標頭是用戶端填的，只和它比對的話，換了網域名稱的頁面就能把請求送進來。
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var http = factory.CreateClient();
+        var secret = McpTesting.GrantToken(factory, TestUsers.Member, McpTesting.AllScopes);
+        using var request = new HttpRequestMessage(HttpMethod.Post, McpTesting.Route)
+        {
+            Content = new StringContent("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}", System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Host = host;
+        request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", secret);
+        request.Headers.Add("Origin", origin);
+
+        // Act
+        using var response = await http.SendAsync(request);
+
+        // Assert
+        var expected = origin.Contains("evil", StringComparison.Ordinal) || origin.EndsWith(":9090", StringComparison.Ordinal)
+            ? HttpStatusCode.Forbidden
+            : HttpStatusCode.OK;
+        Assert.That(response.StatusCode, Is.EqualTo(expected));
+    }
+
     [Test]
     public async Task Post_BodyOverTwoMegabytes_Is413_ButTheLimitItselfIsAccepted()
     {

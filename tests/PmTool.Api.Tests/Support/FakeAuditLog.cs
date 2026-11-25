@@ -13,6 +13,9 @@ internal sealed class FakeAuditLog : IAuditLog
     /// <summary>每次 <see cref="ListAsync"/> 怎麼回答。預設是空的一頁。</summary>
     public Func<Actor, AuditQuery, Result<AuditPage>> OnList { get; set; } = (_, _) => new AuditPage([], null);
 
+    /// <summary>記下登入結果之後再做的事，例如丟例外，模擬寫稽核失敗。</summary>
+    public Action<SignInAttempt>? OnSignIn { get; set; }
+
     public IReadOnlyList<(Actor Actor, AuditQuery Query)> ListCalls => [.. _lists];
 
     /// <summary>端點在回應送完之後記下的登入結果。</summary>
@@ -27,6 +30,7 @@ internal sealed class FakeAuditLog : IAuditLog
     public Task RecordSignInAsync(SignInAttempt attempt, CancellationToken cancellationToken)
     {
         _signIns.Enqueue(attempt);
+        OnSignIn?.Invoke(attempt);
         return Task.CompletedTask;
     }
 }

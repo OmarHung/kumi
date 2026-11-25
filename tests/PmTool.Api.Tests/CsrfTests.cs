@@ -91,7 +91,7 @@ public sealed class CsrfTests
     [TestCase("PUT", "/v1/people/0190a000-0000-7000-8000-0000000000b2/password")]
     [TestCase("PUT", "/v1/people/0190a000-0000-7000-8000-0000000000b2/role")]
     [TestCase("PUT", "/v1/account/password")]
-    [TestCase("DELETE", "/v1/account/other-sessions")]
+    [TestCase("POST", "/v1/account/other-sessions/sign-out")]
     [TestCase("POST", "/v1/client-errors")]
     public async Task AccountWrite_SignedInWithoutCsrfHeader_Returns403WithoutCallingTheModule(string method, string route)
     {

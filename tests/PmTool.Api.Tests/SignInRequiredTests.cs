@@ -44,7 +44,7 @@ public sealed class SignInRequiredTests
         new object[] { "PUT", $"/v1/people/{TestUsers.Member.PersonId}/password" },
         new object[] { "PUT", $"/v1/people/{TestUsers.Member.PersonId}/role" },
         new object[] { "PUT", "/v1/account/password" },
-        new object[] { "DELETE", "/v1/account/other-sessions" },
+        new object[] { "POST", "/v1/account/other-sessions/sign-out" },
         new object[] { "GET", "/v1/email-settings" },
         new object[] { "PUT", "/v1/email-settings" },
         new object[] { "POST", "/v1/email-settings/test" },

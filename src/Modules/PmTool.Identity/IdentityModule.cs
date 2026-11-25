@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PmTool.Abstractions;
@@ -45,8 +46,27 @@ public static class IdentityModule
         // 次數只在這裡定：新的雜湊用它，舊的雜湊在登入時比對成功之後換新（見 AuthenticationService）。
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = IdentityRules.PasswordHashIterations);
         services.TryAddSingleton<IRequestSource>(NullRequestSource.Instance);
+        services.TryAddSingleton<ICurrentSession>(NullCurrentSession.Instance);
         services.TryAddSingleton<AuditTrail>();
-        services.TryAddSingleton<IAuditLog, AuditLog>();
+        services.TryAddSingleton(provider => new SignInAuditQueue(
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetService<ILogger<SignInAuditQueue>>() ?? NullLogger<SignInAuditQueue>.Instance));
+        services.TryAddSingleton<IAuditLog>(provider => new AuditLog(
+            provider.GetRequiredService<IDbContextFactory<IdentityDbContext>>(),
+            provider.GetRequiredService<SignInAuditQueue>()));
+        services.TryAddSingleton(provider => new SignInAuditWriter(
+            provider.GetRequiredService<IDbContextFactory<IdentityDbContext>>(),
+            provider.GetRequiredService<AuditTrail>(),
+            new SignInFailureBudget(
+                provider.GetRequiredService<TimeProvider>(),
+                provider.GetService<ILogger<SignInAuditWriter>>() ?? NullLogger<SignInAuditWriter>.Instance),
+            provider.GetService<ILogger<SignInAuditWriter>>() ?? NullLogger<SignInAuditWriter>.Instance));
+
+        // 登入的稽核在背景寫；migrate 命令不啟動主機，所以不會跑。
+        services.AddSingleton<IHostedService>(provider => new SignInAuditWorker(
+            provider.GetRequiredService<SignInAuditQueue>(),
+            provider.GetRequiredService<SignInAuditWriter>(),
+            provider.GetService<ILogger<SignInAuditWorker>>() ?? NullLogger<SignInAuditWorker>.Instance));
         services.TryAddSingleton(provider => new AccountEvents(
             provider.GetServices<IAccountEventSink>(),
             provider.GetService<ILogger<AccountEvents>>() ?? NullLogger<AccountEvents>.Instance,

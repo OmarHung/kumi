@@ -34,12 +34,29 @@ public sealed class AccessTokenEndpointTests
             Assert.That(data?["token"]?["scopes"]?.AsArray().Select(n => n!.GetValue<string>()), Is.EqualTo(new[] { "items:read", "blueprint:write" }));
             Assert.That(data?["token"]?["lastUsedAt"], Is.Null);
             Assert.That(data?["token"]?.AsObject().ContainsKey("machineName") == true && data["token"]!["machineName"] is null, Is.True, "machineName 要寫出 null");
+            Assert.That(data?["token"]?.AsObject().ContainsKey("createdFrom") == true && data["token"]!["createdFrom"] is null, Is.True, "createdFrom 要寫出 null");
             Assert.That(data?["token"]?["expiresAt"]?.GetValue<string>(), Does.EndWith("Z"));
             Assert.That(created.Headers.Location, Is.Null);
             Assert.That(list?.ToJsonString(), Does.Not.Contain("secret").And.Not.Contain(secret));
             Assert.That(list?.AsArray(), Has.Count.EqualTo(1));
             Assert.That(list?[0]?["tokenId"]?.GetValue<Guid>(), Is.EqualTo(data?["token"]?["tokenId"]?.GetValue<Guid>()));
         }
+    }
+
+    [Test]
+    public async Task List_CarriesTheAddressTheTokenWasCreatedFrom()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.AccessTokens.IssueCreatedFrom(TestUsers.Member, "203.0.113.5", AccessTokenScope.ItemsRead);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var listed = await client.GetAsync(Route);
+        var list = await ApiRequests.AssertSuccessEnvelopeAsync(listed, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(list?[0]?["createdFrom"]?.GetValue<string>(), Is.EqualTo("203.0.113.5"));
     }
 
     [Test]
@@ -75,7 +92,7 @@ public sealed class AccessTokenEndpointTests
     }
 
     [Test]
-    public async Task Create_NullExpiry_NeverExpires()
+    public async Task Create_NullExpiry_Is422WithThePathOfTheField()
     {
         // Arrange
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
@@ -83,10 +100,10 @@ public sealed class AccessTokenEndpointTests
 
         // Act
         using var response = await client.PostAsync(Route, ApiRequests.Json(new { name = "x", scopes = new[] { "items:read" }, expiresInDays = (int?)null }));
-        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.Created);
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, IdentityErrorCodes.AccessTokenExpiryInvalid);
 
         // Assert
-        Assert.That(JsonNode.DeepEquals(data?["token"]?["expiresAt"], null), Is.True);
+        Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { $"{IdentityErrorCodes.AccessTokenExpiryInvalid}|expiresInDays" }));
     }
 
     [Test]
@@ -109,6 +126,7 @@ public sealed class AccessTokenEndpointTests
     [TestCase("""{"name":"","scopes":["items:read"],"expiresInDays":30}""", IdentityErrorCodes.AccessTokenNameRequired, "name")]
     [TestCase("""{"name":"x","scopes":[],"expiresInDays":30}""", IdentityErrorCodes.AccessTokenScopesRequired, "scopes")]
     [TestCase("""{"name":"x","scopes":["items:read"],"expiresInDays":0}""", IdentityErrorCodes.AccessTokenExpiryInvalid, "expiresInDays")]
+    [TestCase("""{"name":"x","scopes":["agent:run"],"expiresInDays":91}""", IdentityErrorCodes.AccessTokenExpiryInvalid, "expiresInDays")]
     public async Task Create_ModuleRejects_Returns422WithTheCodeAndTheFieldPath(string body, string code, string path)
     {
         // Arrange

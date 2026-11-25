@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using PmTool.Abstractions;
+using PmTool.Api.RateLimiting;
 using PmTool.Api.Responses;
 using PmTool.Api.Security;
 using PmTool.Identity;
@@ -18,7 +19,8 @@ internal static class KnowledgeAttachmentEndpoints
     {
         v1.MapGet("/knowledge/spaces/{spaceKey}/pages/{number}/attachments", ListAsync).WithName("ListKnowledgePageAttachments");
         v1.MapPost("/knowledge/spaces/{spaceKey}/pages/{number}/attachments", UploadAsync).WithName("UploadKnowledgePageAttachment");
-        v1.MapGet("/knowledge/attachments/{id}/content", DownloadAsync).WithName("DownloadKnowledgePageAttachment");
+        v1.MapGet("/knowledge/attachments/{id}/content", DownloadAsync).WithName("DownloadKnowledgePageAttachment")
+            .RequireRateLimiting(ApiRateLimiting.AttachmentDownloadPolicy);
         return v1;
     }
 

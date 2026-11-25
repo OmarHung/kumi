@@ -113,15 +113,22 @@ public static class AccessTokenRules
     /// <summary>一個帳號同時最多幾把還沒撤銷、還沒過期的權杖。</summary>
     public const int MaxActiveTokensPerAccount = 20;
 
-    /// <summary>期限最長幾天；不給期限（永不過期）也可以。</summary>
+    /// <summary>期限最長幾天；新建的權杖一定要有期限，不收不過期的。</summary>
     public const int MaxExpiresInDays = 365;
+
+    /// <summary>範圍含 <see cref="AccessTokenScope.AgentRun"/>（本機代理）的權杖期限最長幾天，和瀏覽器登入發的本機代理權杖一致。</summary>
+    public const int MaxAgentExpiresInDays = 90;
 }
 
 /// <param name="Scopes">
 /// 範圍；<see cref="AccessTokenScope.AgentRun"/> 不能和 <see cref="AccessTokenScope.ItemsWrite"/> 放在同一把
 /// （<see cref="IdentityErrorCodes.AccessTokenScopesConflict"/>），本機代理的權杖會交給使用者電腦上的引擎。
 /// </param>
-/// <param name="ExpiresInDays">幾天後過期，1～<see cref="AccessTokenRules.MaxExpiresInDays"/>；null 表示不過期。</param>
+/// <param name="ExpiresInDays">
+/// 幾天後過期，1～<see cref="AccessTokenRules.MaxExpiresInDays"/>（含 <see cref="AccessTokenScope.AgentRun"/> 時最長
+/// <see cref="AccessTokenRules.MaxAgentExpiresInDays"/>）。型別是可為 null，null 會被拒絕
+/// （<see cref="IdentityErrorCodes.AccessTokenExpiryInvalid"/>，路徑 <c>expiresInDays</c>），這樣 JSON 的 null 是有路徑的 422，不是 400。
+/// </param>
 public sealed record NewAccessToken(string Name, IReadOnlyList<AccessTokenScope> Scopes, int? ExpiresInDays);
 
 /// <param name="DisplayPrefix">明文的開頭幾個字（含 <c>pmt_</c>），畫面上認得出是哪一把，不足以拿來用。</param>

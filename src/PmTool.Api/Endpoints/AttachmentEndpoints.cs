@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using PmTool.Abstractions;
+using PmTool.Api.RateLimiting;
 using PmTool.Api.Responses;
 using PmTool.Api.Security;
 using PmTool.Identity;
@@ -21,7 +22,8 @@ internal static class AttachmentEndpoints
             .RequireTokenScope(AccessTokenScope.ItemsWrite);
         v1.MapGet("/attachments/{id}/content", DownloadAttachmentAsync)
             .WithName("DownloadAttachment")
-            .RequireTokenScope(AccessTokenScope.ItemsRead);
+            .RequireTokenScope(AccessTokenScope.ItemsRead)
+            .RequireRateLimiting(ApiRateLimiting.AttachmentDownloadPolicy);
         v1.MapDelete("/attachments/{id}", DeleteAttachmentAsync)
             .WithName("DeleteAttachment")
             .RequireTokenScope(AccessTokenScope.ItemsWrite);

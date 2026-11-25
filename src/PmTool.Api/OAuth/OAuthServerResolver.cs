@@ -20,6 +20,9 @@ internal sealed class OAuthServerResolver(TransportSecurity transport)
     /// </summary>
     public string MetadataCacheControl => transport.PublicHost is null ? "no-store" : "public, max-age=300";
 
+    /// <summary>有設 <c>Security:PublicHost</c>：issuer 是設定的值，不是請求的 Host 標頭。</summary>
+    public bool HasPublicHost => transport.PublicHost is not null;
+
     public OAuthServer Resolve(HttpRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

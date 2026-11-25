@@ -39,6 +39,10 @@ internal static class HostCredentials
     public static HostToolGrant? TryGetGrant(HttpContext context) =>
         context.Items.TryGetValue(GrantItem, out var value) ? value as HostToolGrant : null;
 
+    /// <summary>機器憑證（含配對）失敗額度的鍵：自己的桶，不和人的權杖（同一個 IP）共用。</summary>
+    public static string AgentFailureSource(HttpContext context) =>
+        "kha:" + ApiRateLimiting.AddressKeyOf(context.Connection.RemoteIpAddress);
+
     public static IApplicationBuilder UseHostCredentials(this IApplicationBuilder app) => app.Use(AuthenticateAsync);
 
     /// <summary>端點的過濾器：萬一中介軟體沒排進去，也不會讓沒驗證過的請求通過。</summary>
@@ -70,7 +74,8 @@ internal static class HostCredentials
     private static async Task<bool> TryAuthenticateAgentAsync(HttpContext context, string? secret)
     {
         var failures = context.RequestServices.GetRequiredService<BearerFailureLimiter>();
-        var source = ApiRateLimiting.AddressKeyOf(context.Connection.RemoteIpAddress);
+        // 自己的失敗額度桶（和 kjt: 一樣）：同一個 IP 上 worker 的憑證打錯，不能把那個 IP 上的人的權杖一起擋掉。
+        var source = AgentFailureSource(context);
         if (secret is not null && await RejectIfBlockedAsync(context, failures, source))
         {
             return false;

@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Identity.AccessTokens;
+using PmTool.Identity.Audit;
+using PmTool.Identity.CliLogin;
 using PmTool.Identity.OAuth;
 using PmTool.Identity.Persistence;
 using PmTool.Identity.Sessions;
@@ -14,6 +16,7 @@ internal sealed class AccountAdministration(
     IDbContextFactory<IdentityDbContext> contexts,
     IPasswordHasher<PasswordCredential> hasher,
     SessionCache cache,
+    AuditTrail audit,
     TimeProvider time)
 {
     /// <summary>
@@ -60,6 +63,7 @@ internal sealed class AccountAdministration(
             .ExecuteUpdateAsync(setters => setters.SetProperty(a => a.DisabledAt, disabled ? now : null), cancellationToken);
         if (disabled)
         {
+            await CliLoginCodeStore.InvalidateForAccountAsync(db, actor.OrganizationId, account.Id, now, cancellationToken);
             await SessionStore.RevokeAsync(
                 db, actor.OrganizationId, account.Id, null, SessionEndReasons.AccountDisabled, now, cancellationToken);
             await AccessTokenStore.RevokeAllAsync(
@@ -68,6 +72,14 @@ internal sealed class AccountAdministration(
                 db, actor.OrganizationId, account.Id, SessionEndReasons.OAuthAccountDisabled, now, cancellationToken);
         }
 
+        await audit.AddAsync(
+            db,
+            new AuditRecord(actor.OrganizationId, disabled ? AuditActions.AccountDisabled : AuditActions.AccountEnabled)
+            {
+                ActorPersonId = actor.PersonId,
+                TargetPersonId = person.Id,
+            },
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         // 重新啟用不必清快取：停用時工作階段、權杖與 OAuth 授權（含更新權杖）都作廢了，它們不會因為重新啟用而變回有效。
@@ -112,6 +124,19 @@ internal sealed class AccountAdministration(
             await db.People
                 .Where(p => p.Id == person.Id && p.OrganizationId == actor.OrganizationId)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.Role, role), cancellationToken);
+            await audit.AddAsync(
+                db,
+                new AuditRecord(actor.OrganizationId, AuditActions.RoleChanged)
+                {
+                    ActorPersonId = actor.PersonId,
+                    TargetPersonId = person.Id,
+                    Details = new Dictionary<string, string>
+                    {
+                        ["from"] = person.Role.ToString().ToLowerInvariant(),
+                        ["to"] = role.ToString().ToLowerInvariant(),
+                    },
+                },
+                cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -159,12 +184,17 @@ internal sealed class AccountAdministration(
         await db.Accounts
             .Where(a => a.Id == account.Id && a.OrganizationId == actor.OrganizationId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(a => a.PasswordHash, passwordHash), cancellationToken);
+        await CliLoginCodeStore.InvalidateForAccountAsync(db, actor.OrganizationId, account.Id, now, cancellationToken);
         await SessionStore.RevokeAsync(
             db, actor.OrganizationId, account.Id, null, SessionEndReasons.PasswordReset, now, cancellationToken);
         await AccessTokenStore.RevokeAllAsync(
             db, actor.OrganizationId, account.Id, SessionEndReasons.PasswordReset, now, cancellationToken);
         await OAuthGrantStore.RevokeAllForAccountAsync(
             db, actor.OrganizationId, account.Id, SessionEndReasons.OAuthPasswordReset, now, cancellationToken);
+        await audit.AddAsync(
+            db,
+            new AuditRecord(actor.OrganizationId, AuditActions.PasswordReset) { ActorPersonId = actor.PersonId, TargetPersonId = person.Id },
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         cache.Forget(account.Id);
         return Summary(person, account, account.DisabledAt is not null);
@@ -193,8 +223,7 @@ internal sealed class AccountAdministration(
 
         if (lockOrganization)
         {
-            await db.Database.ExecuteSqlAsync(
-                $"SELECT pg_advisory_xact_lock({AccountAdministrationLock}, {LockKeyOf(actor.OrganizationId)})", cancellationToken);
+            await LockOrganizationAsync(db, actor.OrganizationId, cancellationToken);
         }
 
         var people = await db.People
@@ -233,6 +262,11 @@ internal sealed class AccountAdministration(
             ? new Failure(FailureKind.Conflict, IdentityErrorCodes.NoAccount, "這個人沒有登入帳號。")
             : (person, account);
     }
+
+    /// <summary>拿組織層級的鎖（交易結束時放掉）。新增人員也排在這裡，才不會和停用、改角色同時進行。</summary>
+    internal static Task LockOrganizationAsync(IdentityDbContext db, Guid organizationId, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock({AccountAdministrationLock}, {LockKeyOf(organizationId)})", cancellationToken);
 
     /// <summary>鎖的第二個鍵只有 32 位元，把組織編號折成一個整數。撞在一起只是多排一點隊，不影響正確性。</summary>
     internal static int LockKeyOf(Guid organizationId)

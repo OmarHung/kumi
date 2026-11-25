@@ -34,7 +34,7 @@ public sealed class PasswordChangeFlowTests : RealStackTestBase
 
         // Act
         using var response = await first.Client.PutAsync(
-            "/v1/account/password", ApiRequests.Json(new { currentPassword = RealStackSteps.MemberPassword, newPassword = NewPassword }));
+            "/v1/account/password", ApiRequests.Json(new { currentPassword = RealStackSteps.MemberPassword, newPassword = NewPassword, revokeAccessTokens = false }));
         var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
 
         // Assert
@@ -42,10 +42,41 @@ public sealed class PasswordChangeFlowTests : RealStackTestBase
         using (Assert.EnterMultipleScope())
         {
             Assert.That(data?["signedOutSessions"]?.GetValue<int>(), Is.EqualTo(1));
+            Assert.That(data?["revokedAccessTokens"]?.GetValue<int>(), Is.Zero);
             Assert.That(await RealStackSteps.StatusOfAsync(second.Client, Sessions.Route), Is.EqualTo(HttpStatusCode.Unauthorized));
             Assert.That(await RealStackSteps.StatusOfAsync(first.Client, Sessions.Route), Is.EqualTo(HttpStatusCode.OK));
             Assert.That(await RealStackSteps.TrySignInAsync(anonymous, email, RealStackSteps.MemberPassword), Is.EqualTo(HttpStatusCode.Unauthorized));
             Assert.That(await RealStackSteps.TrySignInAsync(anonymous, email, NewPassword), Is.EqualTo(HttpStatusCode.OK));
+        }
+    }
+
+    [Test]
+    public async Task ChangePassword_ByDefault_RevokesThePersonalAccessTokensAndSwapsTheCookie()
+    {
+        // Arrange：不自動記 Cookie 的用戶端，看得到舊的與新的；一把自己建的權杖
+        var email = RealStackSteps.UniqueEmail("tokens");
+        await RealStackSteps.CreateMemberAsync(_owner.Client, "Tokens Example", email);
+        using var member = await SignInAsAsync(email, RealStackSteps.MemberPassword);
+        using var created = await member.Client.PostAsync(
+            "/v1/account/tokens", ApiRequests.Json(new { name = "CI", scopes = new[] { "items:read" }, expiresInDays = 30 }));
+        var secret = (await ApiRequests.AssertSuccessEnvelopeAsync(created, HttpStatusCode.Created))!["secret"]!.GetValue<string>();
+        using var cli = Factory.CreateClient();
+        using var before = await cli.SendAsync(AccessTokenAuthenticationTests.Bearer(HttpMethod.Get, "/v1/session", secret));
+
+        // Act
+        using var response = await member.Client.PutAsync(
+            "/v1/account/password", ApiRequests.Json(new { currentPassword = RealStackSteps.MemberPassword, newPassword = NewPassword }));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+        using var after = await cli.SendAsync(AccessTokenAuthenticationTests.Bearer(HttpMethod.Get, "/v1/session", secret));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(before.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(data?["revokedAccessTokens"]?.GetValue<int>(), Is.EqualTo(1));
+            Assert.That(Sessions.SetCookieLineOf(response), Is.Not.Null, "換了新的工作階段，要發新的 Cookie");
+            Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(await RealStackSteps.StatusOfAsync(member.Client, Sessions.Route), Is.EqualTo(HttpStatusCode.OK));
         }
     }
 

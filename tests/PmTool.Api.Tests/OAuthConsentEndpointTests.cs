@@ -46,6 +46,7 @@ public sealed class OAuthConsentEndpointTests
             Assert.That(data?["clientHost"]?.GetValue<string>(), Is.EqualTo("app.example.com"));
             Assert.That(data?["redirectHost"]?.GetValue<string>(), Is.EqualTo("127.0.0.1:5000"));
             Assert.That(data?["redirectIsLoopback"]?.GetValue<bool>(), Is.True);
+            Assert.That(data?["redirectMatchesClient"]?.GetValue<bool>(), Is.True);
             Assert.That(
                 data?["requestedScopes"]?.AsArray().Select(n => n!.GetValue<string>()),
                 Is.EqualTo(new[] { "items:read", "items:write", "blueprint:read", "blueprint:write" }));
@@ -56,6 +57,31 @@ public sealed class OAuthConsentEndpointTests
             Assert.That(sent.CodeChallenge, Is.EqualTo("challenge"));
             Assert.That(sent.Resource, Is.EqualTo("http://localhost/mcp"));
             Assert.That(factory.Modules.OAuth.Servers.Single(), Is.EqualTo(new OAuthServer("http://localhost", "http://localhost/mcp")));
+        }
+    }
+
+    [Test]
+    public async Task Check_RedirectOnAnotherSite_ReportsRedirectMatchesClientFalseWithBothHosts()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.OAuth.OnCheck = _ => new OAuthAuthorizationRequest(
+            "https://app.example.com/client.json", "範例代理", "app.example.com", "other.example.net", false, AccessTokenScopes.Grantable)
+        {
+            RedirectMatchesClient = false,
+        };
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PostAsync(Check, ApiRequests.Json(Parameters));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(data?["redirectMatchesClient"]?.GetValue<bool>(), Is.False);
+            Assert.That(data?["redirectHost"]?.GetValue<string>(), Is.EqualTo("other.example.net"));
+            Assert.That(data?["clientHost"]?.GetValue<string>(), Is.EqualTo("app.example.com"));
         }
     }
 

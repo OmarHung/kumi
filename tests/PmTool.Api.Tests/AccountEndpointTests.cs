@@ -11,7 +11,7 @@ namespace PmTool.Api.Tests;
 public sealed class AccountEndpointTests
 {
     private const string PasswordRoute = "/v1/account/password";
-    private const string OtherSessionsRoute = "/v1/account/other-sessions";
+    private const string OtherSessionsRoute = "/v1/account/other-sessions/sign-out";
     private const string NewPassword = "brand-new-password";
 
     [Test]
@@ -34,11 +34,72 @@ public sealed class AccountEndpointTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(JsonNode.DeepEquals(data, new JsonObject { ["signedOutSessions"] = 1 }), Is.True, data?.ToJsonString());
-            Assert.That(factory.Modules.Accounts.Calls, Is.EqualTo(new[] { new ChangePasswordCall(token, TestUsers.Password, NewPassword) }));
-            Assert.That(currentAfterwards.StatusCode, Is.EqualTo(HttpStatusCode.OK), "改密碼的這一個留著");
+            Assert.That(
+                JsonNode.DeepEquals(data, new JsonObject { ["signedOutSessions"] = 1, ["revokedAccessTokens"] = 0 }), Is.True, data?.ToJsonString());
+            Assert.That(factory.Modules.Accounts.Calls, Is.EqualTo(new[] { new ChangePasswordCall(token, TestUsers.Password, NewPassword, true) }));
+            Assert.That(currentAfterwards.StatusCode, Is.EqualTo(HttpStatusCode.OK), "改密碼的這一個換成新的 Cookie，照樣登入著");
             Assert.That(otherAfterwards.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
         }
+    }
+
+    [Test]
+    public async Task ChangePassword_Accepted_IssuesANewCookieAndTheOldOneIsRejected()
+    {
+        // Arrange：用不自動記 Cookie 的用戶端，才看得到舊的與新的
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = Sessions.CreateReplayClient(factory);
+        var oldCookie = await Sessions.SignInForCookieAsync(client, TestUsers.Member);
+
+        // Act
+        using var request = Sessions.WithCookie(HttpMethod.Put, PasswordRoute, oldCookie);
+        request.Content = ChangeBody(TestUsers.Password, NewPassword);
+        using var response = await client.SendAsync(request);
+        var newCookie = Sessions.SessionCookieOf(response);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(newCookie, Is.Not.Null.And.Not.EqualTo(oldCookie));
+            Assert.That(await Sessions.SendWithCookieAsync(client, Sessions.Route, oldCookie), Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(await Sessions.SendWithCookieAsync(client, Sessions.Route, newCookie!), Is.EqualTo(HttpStatusCode.OK));
+        }
+    }
+
+    [TestCase("""{"currentPassword":"example-password","newPassword":"brand-new-password"}""", true)]
+    [TestCase("""{"currentPassword":"example-password","newPassword":"brand-new-password","revokeAccessTokens":null}""", true)]
+    [TestCase("""{"currentPassword":"example-password","newPassword":"brand-new-password","revokeAccessTokens":true}""", true)]
+    [TestCase("""{"currentPassword":"example-password","newPassword":"brand-new-password","revokeAccessTokens":false}""", false)]
+    public async Task ChangePassword_RevokeAccessTokens_DefaultsToTrueWhenOmittedOrNull(string body, bool expected)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Accounts.OnChange = call => new PasswordChanged(0, 4, new StartedSession(Guid.NewGuid(), "fake-session-" + Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow.AddDays(7)));
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PutAsync(PasswordRoute, ApiRequests.Document(body));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(factory.Modules.Accounts.Calls.Single().RevokeAccessTokens, Is.EqualTo(expected));
+        Assert.That(data?["revokedAccessTokens"]?.GetValue<int>(), Is.EqualTo(4));
+    }
+
+    [Test]
+    public async Task ChangePassword_SessionEndedMeanwhile_Is401AndNoCookieIsIssued()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Accounts.OnChange = _ => new Failure(FailureKind.Forbidden, IdentityErrorCodes.SessionEnded, "工作階段已經失效。");
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PutAsync(PasswordRoute, ChangeBody(TestUsers.Password, NewPassword));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Unauthorized, "auth.required");
+        Assert.That(Sessions.SetCookieLineOf(response), Is.Null);
     }
 
     [TestCase(IdentityErrorCodes.PasswordIncorrect, "currentPassword")]
@@ -141,7 +202,7 @@ public sealed class AccountEndpointTests
         }
 
         // Act
-        using var response = await current.DeleteAsync(OtherSessionsRoute);
+        using var response = await current.PostAsync(OtherSessionsRoute, EndBody(TestUsers.Password));
         var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
         var statuses = new List<HttpStatusCode>();
         foreach (var client in new[] { current, second, third })
@@ -156,6 +217,46 @@ public sealed class AccountEndpointTests
     }
 
     [Test]
+    public async Task EndOtherSessions_IssuesANewCookieAndTheOldOneIsRejected()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = Sessions.CreateReplayClient(factory);
+        var oldCookie = await Sessions.SignInForCookieAsync(client, TestUsers.Member);
+
+        // Act
+        using var request = Sessions.WithCookie(HttpMethod.Post, OtherSessionsRoute, oldCookie);
+        request.Content = EndBody(TestUsers.Password);
+        using var response = await client.SendAsync(request);
+        var newCookie = Sessions.SessionCookieOf(response);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(newCookie, Is.Not.Null.And.Not.EqualTo(oldCookie));
+            Assert.That(await Sessions.SendWithCookieAsync(client, Sessions.Route, oldCookie), Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(await Sessions.SendWithCookieAsync(client, Sessions.Route, newCookie!), Is.EqualTo(HttpStatusCode.OK));
+        }
+    }
+
+    [Test]
+    public async Task EndOtherSessions_SessionEndedMeanwhile_Is401AndNoCookieIsIssued()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Sessions.OnEndOthers = _ => FakeSessionService.SessionEnded;
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(OtherSessionsRoute, EndBody(TestUsers.Password));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Unauthorized, "auth.required");
+        Assert.That(Sessions.SetCookieLineOf(response), Is.Null);
+    }
+
+    [Test]
     public async Task EndOtherSessions_NoOtherSessions_ReturnsZero()
     {
         // Arrange
@@ -163,13 +264,85 @@ public sealed class AccountEndpointTests
         using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
 
         // Act
-        using var response = await client.DeleteAsync(OtherSessionsRoute);
+        using var response = await client.PostAsync(OtherSessionsRoute, EndBody(TestUsers.Password));
         var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
 
         // Assert
         Assert.That(data?["signedOutSessions"]?.GetValue<int>(), Is.Zero);
         Assert.That(factory.Modules.Sessions.EndOthersCalls, Has.Count.EqualTo(1));
     }
+
+    [Test]
+    public async Task EndOtherSessions_WrongPassword_Is422WithThePathAndSignsNobodyOut()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var current = factory.CreateApiClient();
+        using var other = factory.CreateApiClient();
+        await Sessions.SignInAsync(current, TestUsers.Member);
+        await Sessions.SignInAsync(other, TestUsers.Member);
+
+        // Act
+        using var response = await current.PostAsync(OtherSessionsRoute, EndBody("wrong-password"));
+        using var currentAfterwards = await current.GetAsync(Sessions.Route);
+        using var otherAfterwards = await other.GetAsync(Sessions.Route);
+
+        // Assert
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, "account.password_incorrect");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { "account.password_incorrect|currentPassword" }));
+            Assert.That(Sessions.SetCookieLineOf(response), Is.Null);
+            Assert.That(currentAfterwards.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(otherAfterwards.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        }
+    }
+
+    [Test]
+    public async Task EndOtherSessions_PassesTheCurrentPasswordToTheModule()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(OtherSessionsRoute, EndBody(TestUsers.Password));
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(factory.Modules.Sessions.EndOthersPasswords, Is.EqualTo(new[] { TestUsers.Password }));
+    }
+
+    [Test]
+    public async Task EndOtherSessions_OldDeleteRoute_NoLongerExists()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.DeleteAsync("/v1/account/other-sessions");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.AnyOf(HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed));
+        Assert.That(factory.Modules.Sessions.EndOthersCalls, Is.Empty);
+    }
+
+    [Test]
+    public async Task EndOtherSessions_MissingPassword_IsRejectedLikeAWrongOneAndSignsNobodyOut()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(OtherSessionsRoute, ApiRequests.Json(new { }));
+
+        // Assert
+        Assert.That((int)response.StatusCode, Is.AnyOf(400, 422));
+    }
+
+    private static HttpContent EndBody(string currentPassword) => ApiRequests.Json(new { currentPassword });
 
     private static HttpContent ChangeBody(string currentPassword, string newPassword) =>
         ApiRequests.Json(new { currentPassword, newPassword });

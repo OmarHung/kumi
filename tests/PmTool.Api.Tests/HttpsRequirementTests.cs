@@ -134,6 +134,79 @@ public sealed class HttpsRequirementTests
     }
 
     [Test]
+    public async Task Cookie_RequireHttps_IsNamedWithTheHostPrefixAndCarriesItsRequirements()
+    {
+        // Arrange：__Host- 前綴要求 Secure、Path=/、不帶 Domain：別的子網域與明文的連線都設不了、蓋不掉這個 Cookie。
+        using var factory = CreateFactory(RequireHttps);
+        using var client = CreateHttpsClient(factory);
+
+        // Act
+        using var response = await client.PostAsync(Sessions.Route, Sessions.Credentials(TestUsers.Member.Email, TestUsers.Password));
+        var line = Sessions.SetCookieLineOf(response)?.ToLowerInvariant();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(line, Does.StartWith("__host-pmtool_session="));
+            Assert.That(line, Does.Contain("; secure"));
+            Assert.That(line, Does.Contain("; path=/"));
+            Assert.That(line, Does.Not.Contain("domain="));
+            Assert.That(CookieOptionsOf(factory).Cookie.Name, Is.EqualTo(Sessions.HostCookieName));
+        }
+    }
+
+    [Test]
+    public async Task Cookie_RequireHttps_SignsInAndStaysSignedInWithThePrefixedName()
+    {
+        // Arrange
+        using var factory = CreateFactory(RequireHttps);
+        using var client = CreateHttpsClient(factory);
+        await Sessions.SignInAsync(client, TestUsers.Member);
+
+        // Act
+        using var response = await client.GetAsync("/v1/projects");
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    [Test]
+    public async Task Cookie_RequireHttps_IgnoresTheSameValueUnderTheOldName()
+    {
+        // Arrange：升級之前發的 Cookie 沒有前綴，伺服器不再認那個名稱。
+        using var factory = CreateFactory(RequireHttps);
+        using var client = CreateHttpsClient(factory);
+        var prefixed = await Sessions.SignInForCookieAsync(client, TestUsers.Member);
+        var value = prefixed[(Sessions.HostCookieName.Length + 1)..];
+        using var replay = factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false, BaseAddress = new Uri("https://localhost") });
+
+        // Act
+        var underOldName = await Sessions.SendWithCookieAsync(replay, "/v1/projects", $"{Sessions.CookieName}={value}");
+        var underNewName = await Sessions.SendWithCookieAsync(replay, "/v1/projects", prefixed);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(underOldName, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(underNewName, Is.EqualTo(HttpStatusCode.OK));
+        }
+    }
+
+    [Test]
+    public void Cookie_Default_KeepsTheUnprefixedName()
+    {
+        // Arrange：本機是 http，__Host- 前綴的 Cookie 瀏覽器不收。
+        using var factory = CreateFactory(new Dictionary<string, string?>());
+
+        // Act
+        var cookie = CookieOptionsOf(factory);
+
+        // Assert
+        Assert.That(cookie.Cookie.Name, Is.EqualTo(Sessions.CookieName));
+    }
+
+    [Test]
     public void Cookie_RequireHttps_IsAlwaysSecure()
     {
         // Arrange：不跟著請求走：就算有請求沒被轉走（例如代理忘了帶 X-Forwarded-Proto），Cookie 也不會以明文送出。
@@ -219,8 +292,9 @@ public sealed class HttpsRequirementTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.PermanentRedirect));
     }
 
+    // Staging：正式環境開了 RequireHttps 就一定要有 PublicHost，這裡有些測試正是要看沒設的時候；有設的測試自己帶。
     private static ApiFactory CreateFactory(IReadOnlyDictionary<string, string?> settings) =>
-        new(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { UseTestRemoteIpHeader = true, Settings = settings });
+        new(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { Environment = "Staging", UseTestRemoteIpHeader = true, Settings = settings });
 
     private static HttpClient CreateHttpsClient(ApiFactory factory)
     {

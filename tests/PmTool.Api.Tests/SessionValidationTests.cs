@@ -36,7 +36,7 @@ public sealed class SessionValidationTests
     }
 
     [Test]
-    public async Task SessionEndedElsewhere_TheNextRequest_Returns401AndClearsTheCookie()
+    public async Task SessionEndedElsewhere_TheNextRequest_Returns401AndDoesNotTouchTheCookie()
     {
         // Arrange：例如另一個裝置改了密碼或按了「登出其他裝置」。
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
@@ -49,8 +49,53 @@ public sealed class SessionValidationTests
 
         // Assert
         await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Unauthorized, ApiErrorCodes.AuthRequired);
+        using (Assert.EnterMultipleScope())
+        {
+            // 只拒絕、不刪 Cookie：換發之後帶舊 Cookie 的請求，不能順便把剛換上的新 Cookie 刪掉。
+            Assert.That(Sessions.SetCookieLineOf(response), Is.Null);
+            Assert.That(response.Headers.Contains("Set-Cookie"), Is.False);
+            Assert.That(factory.Modules.Projects.ListCalls, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task StaleCookieAfterARotation_Returns401WithoutDeletingTheNewCookie()
+    {
+        // Arrange：兩個分頁共用一個瀏覽器的 Cookie 罐；一個分頁換發了新的，另一個還帶著舊的在路上
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = Sessions.CreateReplayClient(factory);
+        var oldCookie = await Sessions.SignInForCookieAsync(client, TestUsers.Member);
+        using var rotate = Sessions.WithCookie(HttpMethod.Post, "/v1/account/other-sessions/sign-out", oldCookie);
+        rotate.Content = ApiRequests.Json(new { currentPassword = TestUsers.Password });
+        using var rotated = await client.SendAsync(rotate);
+        var newCookie = Sessions.SessionCookieOf(rotated)!;
+
+        // Act
+        using var stale = Sessions.WithCookie(HttpMethod.Get, Sessions.Route, oldCookie);
+        using var staleResponse = await client.SendAsync(stale);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(staleResponse.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(Sessions.SetCookieLineOf(staleResponse), Is.Null);
+            Assert.That(await Sessions.SendWithCookieAsync(client, Sessions.Route, newCookie), Is.EqualTo(HttpStatusCode.OK));
+        }
+    }
+
+    [Test]
+    public async Task SignOut_StillClearsTheCookie()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateApiClient();
+        await Sessions.SignInAsync(client, TestUsers.Member);
+
+        // Act
+        using var response = await client.DeleteAsync(Sessions.Route);
+
+        // Assert
         Assert.That(Sessions.SetCookieLineOf(response), Does.Contain("expires=Thu, 01 Jan 1970"));
-        Assert.That(factory.Modules.Projects.ListCalls, Is.Empty);
     }
 
     [Test]

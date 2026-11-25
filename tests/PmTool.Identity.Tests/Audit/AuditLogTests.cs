@@ -51,7 +51,7 @@ public sealed class AuditLogTests
         var page = await host.Audit.ListAsync(OwnerActor(owner), new AuditQuery(), NoCancel);
 
         // Assert
-        var entry = page.Value.Items.Single();
+        var entry = page.Value.Items.Single(e => e.Action == AuditActions.AccessTokenCreated);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entry.Action, Is.EqualTo(AuditActions.AccessTokenCreated));
@@ -94,6 +94,22 @@ public sealed class AuditLogTests
         // Assert
         Assert.That(page.Failure?.Kind, Is.EqualTo(FailureKind.Forbidden));
         Assert.That(page.Failure?.Code, Is.EqualTo(IdentityErrorCodes.Forbidden));
+    }
+
+    [Test]
+    public async Task ListAsync_NotAnOwnerWithBadParameters_IsForbiddenNotInvalid()
+    {
+        // Arrange
+        await using var host = await StartHostAsync();
+        var owner = await host.StartWithOwnerAsync();
+        var member = await host.AddUserAsync(OwnerActor(owner), OrganizationRole.Member);
+
+        // Act
+        var page = await host.Audit.ListAsync(
+            new Actor(member.OrganizationId, member.PersonId, IsOrganizationAdmin: false), new AuditQuery("garbage", 0), NoCancel);
+
+        // Assert
+        Assert.That(page.Failure?.Kind, Is.EqualTo(FailureKind.Forbidden));
     }
 
     [Test]
@@ -247,7 +263,9 @@ public sealed class AuditLogTests
         var page = await host.Audit.ListAsync(OwnerActor(owner), new AuditQuery(PersonId: member.PersonId), NoCancel);
 
         // Assert
-        Assert.That(page.Value.Items.Select(e => e.EventId), Is.EquivalentTo(new[] { byMember, toMember }));
+        Assert.That(
+            page.Value.Items.Where(e => e.Action != AuditActions.PersonCreated).Select(e => e.EventId),
+            Is.EquivalentTo(new[] { byMember, toMember }));
     }
 
     [TestCase(0, null, "limit", TestName = "ListAsync_LimitZero_IsInvalid")]

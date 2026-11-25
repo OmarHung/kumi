@@ -9,26 +9,29 @@ namespace PmTool.Api.Endpoints;
 /// <c>capacity</c> 是這台電腦現在還能同時多跑幾件，0 時只登記、不領。
 /// </summary>
 internal sealed record LocalAgentCheckInRequest(
-    string MachineKey, string MachineName, string AgentVersion, IReadOnlyList<LocalEngineRequest> Engines, int Capacity)
+    string MachineKey, string MachineName, string AgentVersion, IReadOnlyList<LocalEngineRequest?> Engines, int Capacity)
 {
     /// <summary>一次最多領幾件的上限：本機代理同時最多跑 2 件，給寬一點，只是擋掉不合理的數字。</summary>
     public const int MaxCapacity = 16;
 
+    /// <summary>陣列裡有 null 的元素時的失敗（要在 <see cref="ToCheckIn"/> 之前檢查）；沒有就是 null。</summary>
+    public Failure? FindNullElement() => NullElementChecks.InEngines(Engines, engine => engine.Models, AiErrorCodes.AgentInvalid);
+
     public LocalAgentCheckIn ToCheckIn() => new(
-        MachineKey, MachineName, AgentVersion, [.. Engines.Select(engine => engine.ToInfo())]);
+        MachineKey, MachineName, AgentVersion, [.. Engines.Select(engine => engine!.ToInfo())]);
 }
 
 /// <param name="Kind">snake_case：claude_code、codex。</param>
-internal sealed record LocalEngineRequest(AiProviderKind Kind, string Version, IReadOnlyList<LocalModelRequest> Models)
+internal sealed record LocalEngineRequest(AiProviderKind Kind, string Version, IReadOnlyList<LocalModelRequest?> Models)
 {
-    public LocalEngineInfo ToInfo() => new(Kind, Version, [.. Models.Select(model => model.ToOption())]);
+    public LocalEngineInfo ToInfo() => new(Kind, Version, [.. Models.Select(model => model!.ToOption())]);
 }
 
 /// <param name="Efforts">snake_case：none、low、medium、high、xhigh、max。</param>
 /// <param name="DefaultEffort">引擎回報的預設；用字串接，不認得的當 null（不為了它整個請求 400）。</param>
-internal sealed record LocalModelRequest(string Id, string DisplayName, IReadOnlyList<AiEffort> Efforts, string? DefaultEffort = null)
+internal sealed record LocalModelRequest(string Id, string DisplayName, IReadOnlyList<AiEffort?> Efforts, string? DefaultEffort = null)
 {
-    public AiModelOption ToOption() => new(Id, DisplayName, Efforts)
+    public AiModelOption ToOption() => new(Id, DisplayName, [.. Efforts.Select(effort => effort!.Value)])
     {
         DefaultEffort = DefaultEffort is not null && SnakeCaseEnums.TryParse<AiEffort>(DefaultEffort, out var effort) ? effort : null,
     };
@@ -60,7 +63,7 @@ internal sealed record LocalAgentJobData(
 /// 回報進度的內文。<c>type</c> 是 <c>text</c>（要有 <c>delta</c>）或 <c>tool</c>（要有 <c>callId</c>、<c>name</c>、<c>status</c>）。
 /// 用一個形狀而不用多型：屬性的順序不同的內文也收得下，兩種之間不該有的欄位一律拒絕。
 /// </summary>
-internal sealed record LocalAgentEventsRequest(IReadOnlyList<LocalAgentEventRequest> Events);
+internal sealed record LocalAgentEventsRequest(IReadOnlyList<LocalAgentEventRequest?> Events);
 
 /// <param name="Status">snake_case：running、done、failed。</param>
 internal sealed record LocalAgentEventRequest(
@@ -73,6 +76,33 @@ internal sealed record LocalAgentEventRequest(
     string? Error = null,
     Guid? ItemProposalId = null)
 {
+    /// <summary>
+    /// 把一批進度全部轉換；有 null 的元素或內容不合規定時回第一個失敗，路徑是 <c>events[序號]</c>。
+    /// 失敗代碼是 <see cref="AiErrorCodes.AgentInvalid"/>，主機代理的端點再換成自己的。
+    /// </summary>
+    public static Result<IReadOnlyList<LocalAgentEvent>> ConvertAll(IReadOnlyList<LocalAgentEventRequest?> raws)
+    {
+        var events = new List<LocalAgentEvent>(raws.Count);
+        foreach (var raw in raws)
+        {
+            var path = $"events[{events.Count}]";
+            if (raw is null)
+            {
+                return NullElementChecks.NullAt(path, AiErrorCodes.AgentInvalid);
+            }
+
+            var converted = raw.ToEvent(events.Count);
+            if (converted.Failure is { } invalid)
+            {
+                return invalid;
+            }
+
+            events.Add(converted.Value);
+        }
+
+        return events;
+    }
+
     /// <summary>內容不合 <c>type</c> 的規定時是失敗，路徑是 <c>events[序號]</c> 之下的欄位。</summary>
     public Result<LocalAgentEvent> ToEvent(int index)
     {
@@ -128,3 +158,50 @@ internal sealed record LocalAgentMachineData(
 }
 
 internal sealed record LocalAgentEngineData(AiProviderKind Kind, string Version);
+
+/// <summary>
+/// 陣列裡的元素是 null 時，轉換會丟 NullReferenceException 變成 500；先找出來，回和其他欄位一樣的 422，路徑指到那個元素。
+/// </summary>
+internal static class NullElementChecks
+{
+    public static Failure NullAt(string path, string code) =>
+        new(FailureKind.Invalid, code, $"{path} 不能是 null。")
+        {
+            Details = [new FailureDetail(AiErrorCodes.FieldInvalid, path, "不能是 null。")],
+        };
+
+    /// <summary>檢查 engines、每個引擎的 models、每個模型的 efforts；回第一個 null 的位置。</summary>
+    public static Failure? InEngines<TEngine>(
+        IReadOnlyList<TEngine?> engines, Func<TEngine, IReadOnlyList<LocalModelRequest?>> modelsOf, string code)
+        where TEngine : class
+    {
+        for (var e = 0; e < engines.Count; e++)
+        {
+            var enginePath = $"engines[{e}]";
+            if (engines[e] is not { } engine)
+            {
+                return NullAt(enginePath, code);
+            }
+
+            var models = modelsOf(engine);
+            for (var m = 0; m < models.Count; m++)
+            {
+                var modelPath = $"{enginePath}.models[{m}]";
+                if (models[m] is not { } model)
+                {
+                    return NullAt(modelPath, code);
+                }
+
+                for (var f = 0; f < model.Efforts.Count; f++)
+                {
+                    if (model.Efforts[f] is null)
+                    {
+                        return NullAt($"{modelPath}.efforts[{f}]", code);
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Globalization;
 using System.Text;
 
 namespace PmTool.Identity;
@@ -20,6 +21,48 @@ internal static class InputText
             }
 
             rest = rest[consumed..];
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 填充字：不是 Format 類，畫面上卻是空白，可以拿來做出看起來一樣的名稱。
+    /// </summary>
+    private static readonly HashSet<int> FillerCodePoints = [0x115F, 0x1160, 0x3164, 0xFFA0, 0x2800, 0x034F];
+
+    /// <summary>
+    /// 變體選擇符：附在前一個字元後面、改變它的字形，本身看不見。U+FE0F（emoji 的圖形樣式）要留給 emoji，不算在內。
+    /// </summary>
+    private static bool IsVariationSelector(Rune rune) =>
+        rune.Value is >= 0xFE00 and <= 0xFE0E or >= 0xE0100 and <= 0xE01EF;
+
+    /// <summary>
+    /// 看不見的格式字元：雙向控制與零寬字元（Format）、行與段落分隔、填充字、變體選擇符。
+    /// 名稱欄位（人、電腦、權杖、OAuth 應用）和 Email 共用同一份定義，兩邊才不會一邊擋、一邊放。
+    /// </summary>
+    public static bool IsInvisibleFormatting(Rune rune) =>
+        Rune.GetUnicodeCategory(rune) is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator
+        || FillerCodePoints.Contains(rune.Value)
+        || IsVariationSelector(rune);
+
+    /// <summary>
+    /// 看不見或會改變旁邊字元顯示的字元：雙向控制與零寬字元（Format）、行與段落分隔、填充字，
+    /// 變體選擇符，以及開頭的組合字元（它會黏到前一個欄位或標籤上）。用在 Email、顯示名稱、電腦名稱與權杖名稱。
+    /// </summary>
+    public static bool HasInvisibleCharacters(string text)
+    {
+        var first = true;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var category = Rune.GetUnicodeCategory(rune);
+            if (IsInvisibleFormatting(rune)
+                || (first && category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark))
+            {
+                return true;
+            }
+
+            first = false;
         }
 
         return false;

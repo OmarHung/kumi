@@ -10,6 +10,12 @@ internal static class SessionAuthentication
 {
     public const string CookieName = "pmtool_session";
 
+    /// <summary>
+    /// 一律走 HTTPS 時的名稱。<c>__Host-</c> 前綴要求 Secure、Path=/、不帶 Domain，瀏覽器才肯收：
+    /// 同網域底下的別的子網域或明文的連線，設不了也蓋不掉它。
+    /// </summary>
+    public const string HostCookieName = "__Host-pmtool_session";
+
     /// <summary>不是訪客的組織成員。訪客是客戶或外包，不該看到整個組織的人員與 Email。</summary>
     public const string OrganizationMembersPolicy = "organization-members";
 
@@ -39,8 +45,12 @@ internal static class SessionAuthentication
 
     private static void ConfigureCookie(CookieAuthenticationOptions options, bool requireHttps)
     {
-        options.Cookie.Name = CookieName;
+        options.Cookie.Name = requireHttps ? HostCookieName : CookieName;
         options.Cookie.HttpOnly = true;
+
+        // __Host- 的條件之一：Path=/、不設 Domain（預設就是，明寫出來避免之後被改掉）。
+        options.Cookie.Path = "/";
+        options.Cookie.Domain = null;
 
         // Strict：從別的網站連過來的請求不帶 Cookie。防偽標頭是第二道防線。
         options.Cookie.SameSite = SameSiteMode.Strict;

@@ -88,7 +88,7 @@ public sealed class SessionLifetimeTests
 
         // Assert
         await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Unauthorized, ApiErrorCodes.AuthRequired);
-        Assert.That(Sessions.SetCookieLineOf(response), Does.Contain("expires=Thu, 01 Jan 1970"));
+        Assert.That(Sessions.SetCookieLineOf(response), Is.Null, "只拒絕，不刪 Cookie");
         Assert.That(factory.Modules.Sessions.FindCalls, Is.Empty, "不必問身分模組就知道要拒絕");
     }
 

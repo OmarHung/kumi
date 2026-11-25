@@ -1,3 +1,5 @@
+using PmTool.Abstractions;
+
 namespace PmTool.Identity;
 
 /// <summary>
@@ -33,8 +35,16 @@ public interface ISessionService
     /// <summary>登出：作廢這個工作階段。權杖不對或已經作廢都當作成功，結果一樣是登出了。</summary>
     Task EndAsync(string token, CancellationToken cancellationToken);
 
-    /// <summary>作廢同一個帳號的其他工作階段，這一個留著。回傳作廢了幾個；權杖無效時是 0。</summary>
-    Task<int> EndOthersAsync(string token, CancellationToken cancellationToken);
+    /// <summary>
+    /// 作廢同一個帳號的其他工作階段，並把這一個換成新的（<see cref="SessionRotation.Session"/>）：
+    /// 舊的權杖一起作廢，萬一也外流過，這個按鈕一併把它收掉。新的沿用舊的絕對期限，不讓這個按鈕延長它。
+    /// 要目前的密碼：只有 Cookie 的人不能一直把本人踢出去。密碼不對是 <see cref="IdentityErrorCodes.PasswordIncorrect"/>
+    /// （細項路徑 <c>currentPassword</c>），並寫一筆失敗的稽核。
+    /// 權杖無效、或換的同時它被作廢（別的裝置改了密碼、同時按了這個按鈕）時是 <see cref="IdentityErrorCodes.SessionEnded"/>，這時沒有多出任何工作階段。
+    /// 同一個帳號同時換發的請求排隊做，先到的成功，後到的看到自己的工作階段已經被作廢。
+    /// 只動工作階段，不撤銷存取權杖與 OAuth 授權。
+    /// </summary>
+    Task<Result<SessionRotation>> EndOthersAsync(string token, string currentPassword, CancellationToken cancellationToken);
 }
 
 /// <summary>剛登入的帳號與替它開的工作階段。</summary>
@@ -42,6 +52,10 @@ public sealed record SignedIn(AuthenticatedUser User, StartedSession Session);
 
 /// <summary>剛開的工作階段。<paramref name="Token"/> 是明文，只在這裡出現一次。</summary>
 public sealed record StartedSession(Guid SessionId, string Token, DateTimeOffset ExpiresAt);
+
+/// <param name="SignedOutSessions">作廢了幾個其他的工作階段（不含這一個）。</param>
+/// <param name="Session">換上的新工作階段，取代呼叫時用的那一個。</param>
+public sealed record SessionRotation(int SignedOutSessions, StartedSession Session);
 
 /// <summary>還有效的工作階段與帳號現在的資料。</summary>
 public sealed record ActiveSession(Guid SessionId, AuthenticatedUser User, DateTimeOffset ExpiresAt);

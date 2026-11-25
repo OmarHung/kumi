@@ -106,7 +106,14 @@ public sealed record OAuthAuthorizationRequest(
     string? ClientHost,
     string RedirectHost,
     bool RedirectIsLoopback,
-    IReadOnlyList<AccessTokenScope> RequestedScopes);
+    IReadOnlyList<AccessTokenScope> RequestedScopes)
+{
+    /// <summary>
+    /// 導回的網站和用戶端是不是同一個（導回本機算是；主機相同、或其中一方是另一方的子網域也算）。
+    /// false 時同意頁要顯著警告，但不擋：不同網站的導回有正常的用法。
+    /// </summary>
+    public bool RedirectMatchesClient { get; init; } = true;
+}
 
 /// <param name="RedirectUri">要和授權請求時一模一樣。</param>
 public sealed record OAuthCodeExchange(string? Code, string? RedirectUri, string? ClientId, string? CodeVerifier, string? Resource);
@@ -253,4 +260,10 @@ public static class OAuthRules
 
     /// <summary>一個人同時最多幾筆還沒撤銷的授權。</summary>
     public const int MaxGrantsPerAccount = 20;
+
+    /// <summary>動態註冊不用登入，全站每天最多收這麼多筆；到了上限回暫時不可用，已經授權過的用戶端不受影響。</summary>
+    public const int MaxRegistrationsPerDay = 1000;
+
+    /// <summary>動態註冊之後一直沒有人拿它授權過，超過這段時間就刪掉。</summary>
+    public static readonly TimeSpan UnauthorizedRegistrationRetention = TimeSpan.FromHours(24);
 }

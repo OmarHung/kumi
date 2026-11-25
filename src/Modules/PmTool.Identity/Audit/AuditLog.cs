@@ -2,12 +2,13 @@ using System.Buffers.Text;
 using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PmTool.Abstractions;
 using PmTool.Identity.Persistence;
 
 namespace PmTool.Identity.Audit;
 
-internal sealed class AuditLog(IDbContextFactory<IdentityDbContext> contexts) : IAuditLog
+internal sealed class AuditLog(IDbContextFactory<IdentityDbContext> contexts, SignInAuditQueue signIns) : IAuditLog
 {
     private const string CursorPath = "cursor";
 
@@ -45,10 +46,14 @@ internal sealed class AuditLog(IDbContextFactory<IdentityDbContext> contexts) : 
         return new AuditPage(items, nextCursor);
     }
 
-    // 登入的紀錄之後才接上；先不寫，介面已經固定下來讓別的包可以照著呼叫。
+    /// <summary>
+    /// 只放進背景的佇列就回來：不碰資料庫、不丟例外，請求的連線上不會多出一次寫入。
+    /// 實際的查帳號與寫入在 <see cref="SignInAuditWorker"/>；佇列滿了丟掉這一筆。
+    /// </summary>
     public Task RecordSignInAsync(SignInAttempt attempt, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(attempt);
+        signIns.TryEnqueue(attempt);
         return Task.CompletedTask;
     }
 

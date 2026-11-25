@@ -475,4 +475,67 @@ public sealed class HistoryImportEndpointTests
         part.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         return part;
     }
+
+    [TestCase("/v1/projects/WEB/history/items", TestName = "ImportHistory_Items_WithoutProjectManage_Returns403AndReadsNoBodyBytes")]
+    [TestCase("/v1/projects/WEB/history/comments", TestName = "ImportHistory_Comments_WithoutProjectManage_Returns403AndReadsNoBodyBytes")]
+    public async Task ImportHistory_WithoutProjectManage_Returns403AndReadsNoBodyBytes(string route)
+    {
+        // Arrange
+        CountingStream? counter = null;
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { WrapRequestBody = body => counter = new CountingStream(body) });
+        factory.Modules.Access.OnFindVisible = (_, key) =>
+            new ProjectAccessSummary(FakeWorkAccessQueries.ProjectId, key.ToUpperInvariant(), "範例專案", false, [WorkPermissions.ItemRead, WorkPermissions.ItemCreate]);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(route, ApiRequests.Json(new { source = "example", rows = Array.Empty<object>() }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Forbidden, WorkErrorCodes.Forbidden);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(counter?.BytesRead ?? 0, Is.Zero);
+            Assert.That(factory.Modules.History.ItemCalls, Is.Empty);
+        }
+    }
+
+    [TestCase("/v1/projects/WEB/history/items")]
+    [TestCase("/v1/projects/WEB/history/comments")]
+    public async Task ImportHistory_ProjectNotVisible_Returns404ProjectNotFound(string route)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Access.OnFindVisible = (_, _) => null;
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(route, ApiRequests.Json(new { source = "example", rows = Array.Empty<object>() }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.NotFound, WorkErrorCodes.ProjectNotFound);
+    }
+
+    [Test]
+    public async Task ImportHistory_ThirdConcurrentImportFromOnePerson_Returns429()
+    {
+        // Arrange
+        var stalled = new StalledBodies();
+        var stall = false;
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { WrapRequestBody = body => Volatile.Read(ref stall) ? stalled.CreateStream() : body });
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+        Volatile.Write(ref stall, true);
+        const string route = "/v1/projects/WEB/history/items";
+        var first = client.PostAsync(route, ApiRequests.Json(new { source = "example", rows = Array.Empty<object>() }));
+        var second = client.PostAsync(route, ApiRequests.Json(new { source = "example", rows = Array.Empty<object>() }));
+        await stalled.WaitForStalledRequestsAsync(2, TimeSpan.FromSeconds(20));
+
+        // Act
+        using var third = await client.PostAsync("/v1/projects/WEB/history/comments", ApiRequests.Json(new { source = "example", rows = Array.Empty<object>() }));
+        stalled.Open();
+        using var firstResponse = await first.WaitAsync(TimeSpan.FromSeconds(20));
+        using var secondResponse = await second.WaitAsync(TimeSpan.FromSeconds(20));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(third, HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
+    }
 }

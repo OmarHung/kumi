@@ -363,7 +363,8 @@ random_secret() {
 }
 
 # 從 api 的 JSON 記錄挑出 Warning 以上的事件。
-#   count  只數 Error 與 Critical，印「全部 其中網頁回報的」兩個數字
+#   count  印兩個數字「伺服器自己的 Error 與 Critical」「網頁回報的」：網頁回報的是 Warning（網頁的例外不是伺服器出錯），
+#          另外算，不併進前一個數字；舊版記成 Error 的網頁回報也算在後者
 #   list   列出每一筆的細節；網頁回報的另外帶出 Kind、ErrorMessage、Path
 # 空的資料庫第一次啟動時，EF Core 會在確認遷移紀錄表還不存在時記兩筆 Error，那是預期中的，不算。
 # 網頁回報的錯誤的類別與屬性名稱來自 src/PmTool.Api/Endpoints/ClientErrorEndpoints.cs。
@@ -373,7 +374,7 @@ import json, sys
 
 mode = sys.argv[1]
 client_category = sys.argv[2]
-wanted = {"Error", "Critical"} if mode == "count" else {"Warning", "Error", "Critical"}
+wanted = {"Warning", "Error", "Critical"}
 
 def expected(entry):
     return entry.get("EventId") == 20102 and "__ef_migrations_history" in (entry.get("Message") or "")
@@ -420,8 +421,11 @@ for raw in sys.stdin:
         continue
     if entry.get("LogLevel") not in wanted or expected(entry):
         continue
-    count += 1
     from_web = entry.get("Category") == client_category
+    if mode == "count" and not from_web and entry.get("LogLevel") == "Warning":
+        continue
+    if mode == "list" or not from_web:
+        count += 1
     if from_web:
         client += 1
     if mode != "list":
@@ -455,16 +459,18 @@ has_python() {
 
 # 讀 api 的記錄（標準輸入）做 count 或 list。沒有 python3 時退回 grep：count 一樣準，list 印原始的行。
 api_log_report() {
-  local mode="$1" errors
+  local mode="$1" errors web server
   if has_python; then
     python3 -I -c "$API_LOG_PROGRAM" "$mode" "$CLIENT_ERROR_CATEGORY"
     return
   fi
   if [[ "$mode" == count ]]; then
-    errors="$({ grep -E '"LogLevel":"(Error|Critical)"|Unhandled exception' || true; } | { grep -v '__ef_migrations_history' || true; })"
+    errors="$({ grep -E '"LogLevel":"(Warning|Error|Critical)"|Unhandled exception' || true; } | { grep -v '__ef_migrations_history' || true; })"
+    web="$(printf '%s' "$errors" | { grep "\"Category\":\"${CLIENT_ERROR_CATEGORY}\"" || true; })"
+    server="$(printf '%s' "$errors" | { grep -E '"LogLevel":"(Error|Critical)"|Unhandled exception' || true; } | { grep -v "\"Category\":\"${CLIENT_ERROR_CATEGORY}\"" || true; })"
     printf '%s %s\n' \
-      "$(printf '%s' "$errors" | { grep -c . || true; })" \
-      "$(printf '%s' "$errors" | { grep -c "\"Category\":\"${CLIENT_ERROR_CATEGORY}\"" || true; })"
+      "$(printf '%s' "$server" | { grep -c . || true; })" \
+      "$(printf '%s' "$web" | { grep -c . || true; })"
   else
     info "（找不到 python3，下面是原始的記錄行）"
     { grep -E '"LogLevel":"(Warning|Error|Critical)"|Unhandled exception' || true; } | { grep -v '__ef_migrations_history' || true; }

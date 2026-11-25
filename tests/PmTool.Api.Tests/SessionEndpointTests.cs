@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using PmTool.Api.Tests.Support;
+using PmTool.Identity;
 
 namespace PmTool.Api.Tests;
 
@@ -211,5 +212,68 @@ public sealed class SessionEndpointTests
         // Assert
         Assert.That(await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK), Is.Null);
         Assert.That(factory.Modules.Sessions.EndCalls, Is.Empty, "沒有工作階段就沒有東西要作廢");
+    }
+
+    [Test]
+    public async Task SignIn_WrongPassword_RecordsAFailedAttemptAfterTheResponse()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { UseTestRemoteIpHeader = true });
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, Sessions.Route) { Content = Sessions.Credentials(TestUsers.Owner.Email, "wrong-password-0000") };
+        request.Headers.Add(ApiFactory.RemoteIpHeader, "203.0.113.20");
+        request.Headers.UserAgent.ParseAdd("example-agent/1.0");
+
+        // Act
+        using var response = await client.SendAsync(request);
+        var attempt = await WaitForSignInAsync(factory);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+        Assert.That(attempt, Is.EqualTo(new SignInAttempt(TestUsers.Owner.Email, false, "203.0.113.20", "example-agent/1.0")));
+    }
+
+    [Test]
+    public async Task SignIn_Success_RecordsASucceededAttempt()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateApiClient();
+
+        // Act
+        await Sessions.SignInAsync(client, TestUsers.Owner);
+        var attempt = await WaitForSignInAsync(factory);
+
+        // Assert
+        Assert.That(attempt.Succeeded, Is.True);
+        Assert.That(attempt.Email, Is.EqualTo(TestUsers.Owner.Email));
+    }
+
+    [Test]
+    public async Task SignIn_AnAuditModuleThatThrows_DoesNotChangeTheResponse()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Audit.OnSignIn = _ => throw new InvalidOperationException("寫不進去");
+        using var client = factory.CreateApiClient();
+
+        // Act
+        using var response = await client.PostAsync(Sessions.Route, Sessions.Credentials(TestUsers.Owner.Email, TestUsers.Password));
+        await WaitForSignInAsync(factory);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+    }
+
+    /// <summary>稽核在回應送完之後才寫，測試要等它。</summary>
+    private static async Task<SignInAttempt> WaitForSignInAsync(ApiFactory factory)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (factory.Modules.Audit.SignIns.Count == 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
+        return factory.Modules.Audit.SignIns.Single();
     }
 }

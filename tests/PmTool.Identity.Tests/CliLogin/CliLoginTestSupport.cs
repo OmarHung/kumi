@@ -25,8 +25,16 @@ internal static class CliLoginTestSupport
         return new CliLoginParameters(Port, State, challenge, machine, kinds, scopes ?? (kinds.Contains(CliLoginTokenKind.Cli) ? CliScopes : []));
     }
 
-    public static CliLoginGrant Grant(bool includeAgent = true, int? expiresInDays = 90, IReadOnlyList<AccessTokenScope>? cliScopes = null, string origin = Origin) =>
-        new(cliScopes ?? CliScopes, includeAgent, expiresInDays, origin);
+    public static CliLoginGrant Grant(
+        bool includeAgent = true,
+        int? expiresInDays = 90,
+        IReadOnlyList<AccessTokenScope>? cliScopes = null,
+        string origin = Origin,
+        string? challenge = null) =>
+        new(cliScopes ?? CliScopes, includeAgent, expiresInDays, origin)
+        {
+            ConfirmationCode = challenge is null ? null : CliLoginRules.ConfirmationCodeOf(challenge),
+        };
 
     /// <summary>核准一次，回傳碼與 PKCE 的 verifier。</summary>
     public static async Task<(string Code, string Verifier)> ApproveAsync(
@@ -40,7 +48,10 @@ internal static class CliLoginTestSupport
         var kinds = tokens ?? [CliLoginTokenKind.Cli, CliLoginTokenKind.Agent];
         var effectiveGrant = grant ?? (kinds.Contains(CliLoginTokenKind.Cli) ? Grant() : Grant(cliScopes: []));
         var result = await host.CliLogin.ApproveAsync(
-            user.ToActor(), Parameters(challenge, machine, kinds), effectiveGrant, CancellationToken.None);
+            user.ToActor(),
+            Parameters(challenge, machine, kinds),
+            effectiveGrant.ConfirmationCode is null ? effectiveGrant with { ConfirmationCode = CliLoginRules.ConfirmationCodeOf(challenge) } : effectiveGrant,
+            CancellationToken.None);
         Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
         return (QueryOf(result.Value.RedirectUri)["code"]!, verifier);
     }

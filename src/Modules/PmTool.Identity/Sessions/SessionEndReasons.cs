@@ -20,6 +20,12 @@ internal static class SessionEndReasons
     /// <summary>用過的授權碼或更新權杖又出現，當作外流，撤銷它發出的權杖。</summary>
     public const string OAuthReuseDetected = "oauth_reuse_detected";
 
+    /// <summary>改密碼或「登出其他裝置」時，目前這一個也換成新的工作階段；舊的記這個原因（人沒有被登出，只是換了權杖）。</summary>
+    public const string Rotated = "session_rotated";
+
+    /// <summary>瀏覽器登入的一次性碼又被拿來兌換，當作外流，撤銷它發出的權杖。</summary>
+    public const string CliLoginCodeReused = "cli_login_code_reused";
+
     public const string AccountDisabled = "account_disabled";
 
     /// <summary>改密碼、停用、管理員重設密碼時，這個帳號所有的 OAuth 授權一起結束（授權上記的原因）。</summary>

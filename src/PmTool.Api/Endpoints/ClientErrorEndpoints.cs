@@ -20,7 +20,7 @@ internal enum ClientErrorKind
 internal sealed record ClientErrorReport(ClientErrorKind Kind, string Message, string Path, string? Stack = null);
 
 /// <summary>
-/// 網頁的例外記到伺服器，和伺服器自己的錯誤在同一個地方（Error 等級、固定的類別）。不存資料庫。
+/// 網頁的例外記到伺服器，和伺服器自己的記錄在同一個地方（Warning 等級、固定的類別：網頁的錯誤不是伺服器的錯，不該讓維運把它當成伺服器出錯）。不存資料庫。
 /// 只記人員編號，不記名稱與 Email：記錄會被複製、轉寄，裡面不該有個人資料。
 /// </summary>
 internal static partial class ClientErrorEndpoints
@@ -33,6 +33,7 @@ internal static partial class ClientErrorEndpoints
     {
         services.AddSingleton(new ClientErrorLimits());
         services.AddSingleton<ClientErrorBudget>();
+        services.AddSingleton<ClientErrorDeduplicator>();
         return services;
     }
 
@@ -49,6 +50,7 @@ internal static partial class ClientErrorEndpoints
         ClaimsPrincipal principal,
         HttpContext context,
         [FromServices] ClientErrorBudget budget,
+        [FromServices] ClientErrorDeduplicator deduplicator,
         [FromServices] ILoggerFactory loggers)
     {
         if (!body.TryGetValue(out var report, out var bodyFailure))
@@ -62,6 +64,15 @@ internal static partial class ClientErrorEndpoints
             return (ApiFailure.BadRequest with { Details = problems }).ToResult();
         }
 
+        // 重複的和成功的回應一樣，但不記、也不占全站的額度。
+        var kind = SnakeCaseEnums.NameOf(report.Kind);
+        var message = Clean(report.Message);
+        var personId = SessionPrincipal.Read(principal).PersonId;
+        if (!deduplicator.ShouldLog(personId, kind, message))
+        {
+            return EndpointResults.Ok<object?>(null);
+        }
+
         // 驗證之後才拿全站的額度：格式不對的請求不必占掉別人的額度。
         if (!budget.TryTake(out var retryAfter))
         {
@@ -71,10 +82,10 @@ internal static partial class ClientErrorEndpoints
 
         LogClientError(
             loggers.CreateLogger(LogCategory),
-            SnakeCaseEnums.NameOf(report.Kind),
-            Clean(report.Message),
+            kind,
+            message,
             Clean(WithoutQuery(report.Path)),
-            SessionPrincipal.Read(principal).PersonId,
+            personId,
             report.Stack is null ? null : Clean(report.Stack));
         return EndpointResults.Ok<object?>(null);
     }
@@ -123,6 +134,6 @@ internal static partial class ClientErrorEndpoints
             is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 
     // 屬性名稱不用 Message：JSON 格式的記錄已經有一個 Message（整句訊息），同名會寫出重複的鍵。
-    [LoggerMessage(Level = LogLevel.Error, Message = "網頁回報的錯誤（{Kind}）：{ErrorMessage}；路徑 {Path}；人員 {PersonId}；堆疊 {Stack}")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "網頁回報的錯誤（{Kind}）：{ErrorMessage}；路徑 {Path}；人員 {PersonId}；堆疊 {Stack}")]
     private static partial void LogClientError(ILogger logger, string kind, string errorMessage, string path, Guid personId, string? stack);
 }

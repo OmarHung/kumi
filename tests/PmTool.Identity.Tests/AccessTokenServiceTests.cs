@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PmTool.Abstractions;
 
@@ -125,19 +126,70 @@ public sealed class AccessTokenServiceTests
         Assert.That(_host.AccessTokens.TryFindCached("not-a-token"), Is.Null);
 
     [Test]
-    public async Task Create_WithoutExpiry_NeverExpires()
+    public async Task Create_WithoutExpiry_IsInvalidWithThePathOfTheField()
     {
         // Arrange
         var user = await _host.AddUserAsync(_owner.ToActor());
-        var created = (await _host.AccessTokens.CreateAsync(user.ToActor(), new NewAccessToken("永久", Read, null), CancellationToken.None)).Value;
+
+        // Act
+        var result = await _host.AccessTokens.CreateAsync(user.ToActor(), new NewAccessToken("永久", Read, null), CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.AccessTokenExpiryInvalid));
+        Assert.That(result.Failure?.Details?.Single().Path, Is.EqualTo("expiresInDays"));
+        Assert.That(result.Failure?.Details?.Single().Message, Does.Not.Contain("不過期"));
+    }
+
+    [Test]
+    public async Task Find_TokenStoredWithoutExpiry_StillWorks()
+    {
+        // Arrange：既有的不過期權杖不動；Arrange 才直接改資料表
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var created = (await _host.AccessTokens.CreateAsync(user.ToActor(), new NewAccessToken("舊的永久", Read, 30), CancellationToken.None)).Value;
+        await using (var db = await _host.CreateDbContextAsync())
+        {
+            await db.AccessTokens.Where(t => t.Id == created.Token.TokenId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ExpiresAt, (DateTimeOffset?)null));
+        }
 
         // Act
         _time.Advance(TimeSpan.FromDays(3000));
         var found = await _host.AccessTokens.FindAsync(created.Secret, CancellationToken.None);
 
         // Assert
-        Assert.That(created.Token.ExpiresAt, Is.Null);
         Assert.That(found?.TokenId, Is.EqualTo(created.Token.TokenId));
+    }
+
+    [TestCase(1)]
+    [TestCase(90)]
+    public async Task Create_AgentRunWithinNinetyDays_Succeeds(int days)
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+
+        // Act
+        var result = await _host.AccessTokens.CreateAsync(
+            user.ToActor(), new NewAccessToken("本機代理", [AccessTokenScope.AgentRun], days), CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
+    }
+
+    [TestCase(91)]
+    [TestCase(365)]
+    public async Task Create_AgentRunBeyondNinetyDays_IsInvalidAndSaysWhy(int days)
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+
+        // Act
+        var result = await _host.AccessTokens.CreateAsync(
+            user.ToActor(), new NewAccessToken("本機代理", [AccessTokenScope.AgentRun], days), CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.AccessTokenExpiryInvalid));
+        Assert.That(result.Failure?.Details?.Single().Path, Is.EqualTo("expiresInDays"));
+        Assert.That(result.Failure?.Details?.Single().Message, Does.Contain("本機代理").And.Contain("90"));
     }
 
     [TestCase("", AccessTokenErrors.NameRequired, "name")]
@@ -524,7 +576,7 @@ public sealed class AccessTokenServiceTests
         var created = (await _host.AccessTokens.CreateAsync(user.ToActor(), new NewAccessToken("x", Read, 30), CancellationToken.None)).Value;
 
         // Act
-        var changed = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, "brand-new-password", CancellationToken.None);
+        var changed = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, "brand-new-password", false, CancellationToken.None);
 
         // Assert
         Assert.That(changed.Succeeded, Is.True, changed.Failure?.Message);

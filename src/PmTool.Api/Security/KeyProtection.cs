@@ -16,6 +16,7 @@ internal static partial class KeyProtection
 {
     public const string CertificatePathSetting = "DataProtection:CertificatePath";
     public const string CertificatePasswordSetting = "DataProtection:CertificatePassword";
+    public const string RequireCertificateSetting = "DataProtection:RequireCertificate";
     public const string PreviousCertificatePathsSetting = "DataProtection:PreviousCertificatePaths";
 
     /// <summary>
@@ -26,10 +27,19 @@ internal static partial class KeyProtection
     public static IDataProtectionBuilder ProtectKeysFromConfiguration(this IDataProtectionBuilder builder, IConfiguration configuration)
     {
         var path = SettingValues.ReadText(configuration, CertificatePathSetting);
+
+        // 憑證有沒有設都要讀：值不是布林時啟動就失敗，不要等到沒設憑證才發現。
+        var requireCertificate = SettingValues.ReadFlag(configuration, RequireCertificateSetting, defaultValue: false);
         var previousPaths = SettingValues.ReadList(configuration, PreviousCertificatePathsSetting);
         builder.Services.AddSingleton(new KeyProtectionStatus(path is not null));
         if (path is null)
         {
+            if (requireCertificate)
+            {
+                throw new InvalidOperationException(
+                    $"{RequireCertificateSetting} 是 true，卻沒有設定 {CertificatePathSetting}：金鑰會以明文存在資料庫裡。設定憑證，或把 {RequireCertificateSetting} 拿掉。");
+            }
+
             return previousPaths.Count == 0
                 ? builder
                 : throw new InvalidOperationException(
@@ -52,7 +62,7 @@ internal static partial class KeyProtection
         }
 
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(KeyProtection).FullName!);
-        LogKeysNotEncrypted(logger, CertificatePathSetting);
+        LogKeysNotEncrypted(logger, CertificatePathSetting, RequireCertificateSetting);
     }
 
     private static X509Certificate2 Load(string path, string? password, string setting)
@@ -80,6 +90,6 @@ internal static partial class KeyProtection
     }
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "沒有設定 {Setting}：工作階段 Cookie 的加密金鑰以明文存在資料庫裡，資料庫外流時可以拿來偽造 Cookie。")]
-    private static partial void LogKeysNotEncrypted(ILogger logger, string setting);
+        Message = "沒有設定 {Setting}：Data Protection 的金鑰以明文存在資料庫裡，AI 供應商的金鑰與寄信密碼等於明文，拿到資料庫或備份的人解得開；正式環境請設定憑證，並把 {RequireSetting} 設成 true。")]
+    private static partial void LogKeysNotEncrypted(ILogger logger, string setting, string requireSetting);
 }

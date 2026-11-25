@@ -18,6 +18,9 @@ internal static class McpRequestGuard
 {
     public const string ProtectedResourcePath = "/.well-known/oauth-protected-resource";
 
+    // Uri.Host 對 IPv6 位址回傳帶中括號的形式。
+    private static readonly HashSet<string> LoopbackHosts = new(["localhost", "127.0.0.1", "[::1]"], StringComparer.OrdinalIgnoreCase);
+
     private static readonly ApiFailure OriginNotAllowed = ApiFailure.Forbidden with { Message = "這個請求的來源（Origin）不被允許。" };
 
     public static async ValueTask<object?> FilterAsync(EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
@@ -26,7 +29,7 @@ internal static class McpRequestGuard
         var resolver = context.RequestServices.GetRequiredService<OAuthServerResolver>();
         var server = resolver.Resolve(context.Request);
 
-        if (!IsAllowedOrigin(context.Request, server.Issuer))
+        if (!IsAllowedOrigin(context.Request, server.Issuer, resolver.HasPublicHost))
         {
             return OriginNotAllowed.ToResult();
         }
@@ -70,18 +73,28 @@ internal static class McpRequestGuard
             : null;
     }
 
-    /// <summary>沒帶 Origin 的請求（命令列的用戶端）不擋；帶了就要等於這個部署自己的來源。</summary>
-    public static bool IsAllowedOrigin(HttpRequest request, string issuer)
+    /// <summary>
+    /// 沒帶 Origin 的請求（命令列的用戶端）不擋；帶了就要等於這個部署自己的來源。
+    /// 沒設 <c>Security:PublicHost</c> 時，「自己的來源」是從請求的 Host 標頭組的，而標頭是用戶端填的：
+    /// 網域名稱被解析到本機之後，頁面的 Origin 與 Host 會是同一個陌生的名稱，只比對兩者會放行。
+    /// 所以這時只收 localhost、127.0.0.1、[::1]（本機的 http://localhost:8080 照常用），而且要和請求同源。
+    /// </summary>
+    public static bool IsAllowedOrigin(HttpRequest request, string issuer, bool hasPublicHost)
     {
         if (!request.Headers.TryGetValue("Origin", out var values))
         {
             return true;
         }
 
-        return values.Count == 1
-            && Uri.TryCreate(values[0], UriKind.Absolute, out var origin)
-            && Uri.TryCreate(issuer, UriKind.Absolute, out var own)
-            && string.Equals(origin.GetLeftPart(UriPartial.Authority), own.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase);
+        if (values.Count != 1
+            || !Uri.TryCreate(values[0], UriKind.Absolute, out var origin)
+            || !Uri.TryCreate(issuer, UriKind.Absolute, out var own)
+            || !string.Equals(origin.GetLeftPart(UriPartial.Authority), own.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return hasPublicHost || LoopbackHosts.Contains(origin.Host);
     }
 
     /// <summary><c>WWW-Authenticate</c> 的值：中繼資料的網址與要求的範圍（RFC 9728、MCP 授權規格）。</summary>

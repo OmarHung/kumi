@@ -16,7 +16,7 @@ public sealed class CliLoginEndpointTests
     private const string Approve = "/v1/cli-login/approve";
     private const string Token = "/v1/cli-login/token";
 
-    private static object Body(string[]? tokens = null, string[]? scopes = null, string[]? granted = null, int? expiresInDays = 90) => new
+    private static object Body(string[]? tokens = null, string[]? scopes = null, string[]? granted = null, int? expiresInDays = 90, string? confirmationCode = null) => new
     {
         port = 53682,
         state = "abcdefghijklmnopqrstuv",
@@ -26,6 +26,7 @@ public sealed class CliLoginEndpointTests
         scopes = scopes ?? ["items:read", "blueprint:read"],
         grantedScopes = granted ?? ["items:read"],
         expiresInDays,
+        confirmationCode,
     };
 
     private static AiOptions Options(bool canAddPersonal) => new(false, [], null) { CanAddPersonal = canAddPersonal };
@@ -138,6 +139,56 @@ public sealed class CliLoginEndpointTests
             Assert.That(sent.Grant.IncludeAgent, Is.True);
             Assert.That(sent.Grant.ExpiresInDays, Is.EqualTo(30));
         }
+    }
+
+    [Test]
+    public async Task Approve_PassesTheConfirmationCodeToTheModuleAsTyped()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.AiOptions.OnGet = _ => Options(canAddPersonal: true);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PostAsync(Approve, ApiRequests.Json(Body(confirmationCode: "951 123")));
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(factory.Modules.CliLogin.Approvals.Single().Grant.ConfirmationCode, Is.EqualTo("951 123"));
+    }
+
+    [Test]
+    public async Task Approve_ConfirmationMismatch_Is422WithThePathOfTheField()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.CliLogin.OnApprove = (_, _) => new Failure(FailureKind.Invalid, IdentityErrorCodes.CliLoginConfirmationMismatch, "確認碼不對。")
+        {
+            Details = [new FailureDetail(IdentityErrorCodes.CliLoginConfirmationMismatch, "confirmationCode", "確認碼不對。")],
+        };
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PostAsync(Approve, ApiRequests.Json(Body()));
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(response, (HttpStatusCode)422, "cli_login.confirmation_mismatch");
+
+        // Assert
+        Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { "cli_login.confirmation_mismatch|confirmationCode" }));
+    }
+
+    [Test]
+    public async Task Check_DoesNotCarryAnyConfirmationCode()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PostAsync(Check, ApiRequests.Json(Body()));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(data?.ToJsonString(), Does.Not.Contain("onfirmation"));
     }
 
     [Test]

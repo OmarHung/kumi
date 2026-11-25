@@ -64,7 +64,7 @@ internal sealed partial class ClientMetadataFetcher : IDisposable
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, limit.Token);
-            return await ReadAsync(response, clientId, limit.Token);
+            return await ReadAsync(response, clientId, _logger, limit.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -95,9 +95,12 @@ internal sealed partial class ClientMetadataFetcher : IDisposable
     [LoggerMessage(Level = LogLevel.Information, Message = "抓 Client ID Metadata Document 逾時（主機 {Host}）。")]
     private static partial void LogTimedOut(ILogger logger, string host);
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "Client ID Metadata Document 的網址回應 {Status}，不是 200。")]
+    private static partial void LogUnexpectedStatus(ILogger logger, int status);
+
     public void Dispose() => _http.Dispose();
 
-    private static async Task<FetchOutcome> ReadAsync(HttpResponseMessage response, string clientId, CancellationToken cancellationToken)
+    private static async Task<FetchOutcome> ReadAsync(HttpResponseMessage response, string clientId, ILogger logger, CancellationToken cancellationToken)
     {
         if ((int)response.StatusCode >= 500)
         {
@@ -106,7 +109,8 @@ internal sealed partial class ClientMetadataFetcher : IDisposable
 
         if (response.StatusCode != HttpStatusCode.OK)
         {
-            return new FetchOutcome { Rejected = $"用戶端的資料網址回應 {(int)response.StatusCode}（不跟隨轉址，要直接回 200）。" };
+            LogUnexpectedStatus(logger, (int)response.StatusCode);
+            return new FetchOutcome { Rejected = "抓不到用戶端的資料：網址要直接回 200 的 JSON（不跟隨轉址）。" };
         }
 
         var mediaType = response.Content.Headers.ContentType?.MediaType;

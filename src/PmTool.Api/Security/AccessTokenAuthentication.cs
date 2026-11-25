@@ -57,17 +57,27 @@ internal sealed class AccessTokenHandler(
         }
 
         // 在查資料庫之前先看這個來源失敗了幾次：驗證排在限流之前，沒有這一關，亂數的假權杖每個都要查一次。
+        // 被擋的來源只看快取：剛用過的有效權杖照樣放行，沒有的才回 429；不能改成先查資料庫，查不到的權杖不進快取，
+        // 那樣被擋的來源每送一個假權杖都會查一次。
         var source = ApiRateLimiting.AddressKeyOf(Context.Connection.RemoteIpAddress);
+        ActiveAccessToken? token;
         if (failures.IsBlocked(source, out var retryAfter))
         {
-            Context.Items[RetryAfterItem] = retryAfter;
-            return AuthenticateResult.Fail("存取權杖驗證失敗太多次。");
+            token = tokens.TryFindCached(secret);
+            if (token is null)
+            {
+                Context.Items[RetryAfterItem] = retryAfter;
+                return AuthenticateResult.Fail("存取權杖驗證失敗太多次。");
+            }
         }
-
-        if (await tokens.FindAsync(secret, Context.RequestAborted) is not { } token)
+        else
         {
-            failures.RecordFailure(source);
-            return AuthenticateResult.Fail("存取權杖無效。");
+            token = await tokens.FindAsync(secret, Context.RequestAborted);
+            if (token is null)
+            {
+                failures.RecordFailure(source);
+                return AuthenticateResult.Fail("存取權杖無效。");
+            }
         }
 
         // 權杖綁在發給它的 resource（RFC 8707）：OAuth 授權發的只能打 /mcp。權杖本身是有效的，所以不算驗證失敗。

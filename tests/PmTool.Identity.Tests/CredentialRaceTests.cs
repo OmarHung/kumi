@@ -71,7 +71,7 @@ public sealed class CredentialRaceTests
         var session = await host.StartSessionAsync(user);
         gate.Arm(TestData.Password);
         var changing = Task.Run(() => host.Accounts.ChangeOwnPasswordAsync(
-            session.Token, TestData.Password, AttackerPassword, CancellationToken.None));
+            session.Token, TestData.Password, AttackerPassword, false, CancellationToken.None));
         await gate.Entered.WaitAsync(MaxWait);
 
         // Act
@@ -98,19 +98,46 @@ public sealed class CredentialRaceTests
         var mine = await host.StartSessionAsync(user);
         gate.Arm(TestData.Password);
         var changing = Task.Run(() => host.Accounts.ChangeOwnPasswordAsync(
-            stolen.Token, TestData.Password, AttackerPassword, CancellationToken.None));
+            stolen.Token, TestData.Password, AttackerPassword, false, CancellationToken.None));
         await gate.Entered.WaitAsync(MaxWait);
 
         // Act
-        var signedOut = await host.Sessions.EndOthersAsync(mine.Token, CancellationToken.None);
+        var signedOut = await host.Sessions.EndOthersAsync(mine.Token, TestData.Password, CancellationToken.None);
         gate.Release();
         var changed = await changing.WaitAsync(MaxWait);
 
         // Assert
-        Assert.That(signedOut, Is.EqualTo(1));
+        Assert.That(signedOut.Value.SignedOutSessions, Is.EqualTo(1));
         Assert.That(changed.Failure?.Code, Is.EqualTo(IdentityErrorCodes.SessionEnded));
         Assert.That(await host.Sessions.SignInAsync(user.Email, TestData.Password, CancellationToken.None), Is.Not.Null);
         Assert.That(await host.Sessions.SignInAsync(user.Email, AttackerPassword, CancellationToken.None), Is.Null);
+    }
+
+    [Test]
+    public async Task EndOthers_PasswordResetAtTheSameTime_LeavesNoActiveSession()
+    {
+        // Arrange：換成新的工作階段和重設密碼同時進行，不管誰先提交，重設之後都不能留著任何一個有效的。
+        await using var host = await IdentityTestHost.StartAsync();
+        var owner = await host.StartWithOwnerAsync();
+        for (var round = 0; round < 8; round++)
+        {
+            var user = await host.AddUserAsync(owner.ToActor());
+            var mine = await host.StartSessionAsync(user);
+
+            // Act
+            var rotating = Task.Run(() => host.Sessions.EndOthersAsync(mine.Token, TestData.Password, CancellationToken.None));
+            var resetting = Task.Run(() => host.People.ResetPasswordAsync(owner.ToActor(), user.PersonId, ResetPassword, CancellationToken.None));
+            var rotation = await rotating.WaitAsync(MaxWait);
+            var reset = await resetting.WaitAsync(MaxWait);
+
+            // Assert
+            Assert.That(reset.Succeeded, Is.True, reset.Failure?.Message);
+            Assert.That(await host.AreActiveAsync(mine), Is.All.False);
+            if (rotation.Succeeded)
+            {
+                Assert.That(await host.AreActiveAsync(rotation.Value.Session), Is.All.False);
+            }
+        }
     }
 
     private static Task<IdentityTestHost> StartAsync(GatedPasswordHasher gate) =>

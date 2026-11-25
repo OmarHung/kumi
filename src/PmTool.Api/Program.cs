@@ -48,7 +48,7 @@ if (MigrateCommand.IsRequested(args))
 // 等到第一個請求才建立的話，健康檢查是好的，每個驗證請求卻都回 500。
 _ = app.Services.GetRequiredService<IBlueprintValidator>();
 app.WarnIfKeysAreNotEncrypted();
-app.WarnAboutTransportSettings();
+app.CheckTransportSettings();
 await app.RunStartupTasksAsync();
 
 // 順序有意義：

@@ -115,6 +115,7 @@ internal sealed record AuthorizationCheckData(
     string? ClientHost,
     string RedirectHost,
     bool RedirectIsLoopback,
+    bool RedirectMatchesClient,
     IReadOnlyList<string> RequestedScopes,
     AuthorizationAccountData Account);
 

@@ -1,3 +1,4 @@
+using System.Text;
 using PmTool.Abstractions;
 using PmTool.Identity.AccessTokens;
 using PmTool.Identity.OAuth;
@@ -29,7 +30,7 @@ internal static class CliLoginRequestChecker
             CheckPort(parameters.Port),
             CheckState(parameters.State),
             Invalid(ChallengePath, "PKCE 的 challenge 要是 43 到 128 個 base64url 字元。", !Pkce.IsValidChallenge(parameters.CodeChallenge)),
-            CheckMachine(machine),
+            CheckMachine(machine, parameters.CodeChallenge),
             CheckTokens(parameters.Tokens),
             CheckScopes(parameters.Scopes, wantsCli),
         ];
@@ -54,16 +55,41 @@ internal static class CliLoginRequestChecker
 
     private static bool IsBase64UrlCharacter(char c) => char.IsAsciiLetterOrDigit(c) || c is '-' or '_';
 
-    private static FailureDetail? CheckMachine(string machine)
+    private static FailureDetail? CheckMachine(string machine, string? challenge)
     {
         if (machine.Length is 0 or > CliLoginRules.MaxMachineNameLength)
         {
             return new(IdentityErrorCodes.CliLoginRequestInvalid, MachinePath, $"電腦名稱要是 1 到 {CliLoginRules.MaxMachineNameLength} 個字。");
         }
 
-        return InputText.HasForbiddenCharacters(machine) || AccessTokenInput.HasInvisibleFormatting(machine)
-            ? new(IdentityErrorCodes.CliLoginRequestInvalid, MachinePath, "電腦名稱不能有換行、控制字元或無效的字元。")
+        if (InputText.HasForbiddenCharacters(machine) || InputText.HasInvisibleCharacters(machine))
+        {
+            return new(IdentityErrorCodes.CliLoginRequestInvalid, MachinePath, "電腦名稱不能有換行、控制字元或無效的字元。");
+        }
+
+        // 電腦名稱是對方的 kumi 自己報的，同意頁會把它顯示在確認碼欄位旁邊：名稱裡不能出現這次的確認碼，
+        // 畫面上才不會有人把確認碼偽裝成電腦名稱的一部分。
+        return challenge is not null && Pkce.IsValidChallenge(challenge) && ContainsConfirmationCode(machine, CliLoginRules.ConfirmationCodeOf(challenge))
+            ? new(IdentityErrorCodes.CliLoginRequestInvalid, MachinePath, "電腦名稱不能含有確認碼的數字。")
             : null;
+    }
+
+    /// <summary>
+    /// 名稱先做相容正規化（全形、上標之類變成一般數字），再把所有文字的十進位數字轉成 0 到 9 串起來，
+    /// 中間夾的空白、連字號、字母都不算：確認碼的六個數字只要依序出現過，不管怎麼分隔都擋。
+    /// </summary>
+    private static bool ContainsConfirmationCode(string machine, string confirmationCode)
+    {
+        var digits = new StringBuilder();
+        foreach (var rune in machine.Normalize(NormalizationForm.FormKC).EnumerateRunes())
+        {
+            if (Rune.IsDigit(rune))
+            {
+                digits.Append((char)('0' + (int)Rune.GetNumericValue(rune)));
+            }
+        }
+
+        return digits.ToString().Contains(confirmationCode, StringComparison.Ordinal);
     }
 
     private static FailureDetail? CheckTokens(IReadOnlyList<CliLoginTokenKind>? tokens) =>

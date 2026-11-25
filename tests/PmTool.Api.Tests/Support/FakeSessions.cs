@@ -19,6 +19,7 @@ internal sealed class FakeSessionService(FakeAuthenticationService accounts, Tim
     private readonly ConcurrentQueue<string> _findCalls = new();
     private readonly ConcurrentQueue<string> _endCalls = new();
     private readonly ConcurrentQueue<string> _endOthersCalls = new();
+    private readonly ConcurrentQueue<string> _endOthersPasswords = new();
     private long _sequence;
 
     public IReadOnlyList<AuthenticatedUser> StartCalls => _startCalls.ToArray();
@@ -28,6 +29,12 @@ internal sealed class FakeSessionService(FakeAuthenticationService accounts, Tim
     public IReadOnlyList<string> EndCalls => _endCalls.ToArray();
 
     public IReadOnlyList<string> EndOthersCalls => _endOthersCalls.ToArray();
+
+    /// <summary>每次 EndOthersAsync 收到的目前密碼，依呼叫的順序。</summary>
+    public IReadOnlyList<string> EndOthersPasswords => _endOthersPasswords.ToArray();
+
+    /// <summary>指定 EndOthersAsync 的回答，模擬確認登入之後、換工作階段之前它被作廢了（回 SessionEnded）。</summary>
+    public Func<string, Result<SessionRotation>>? OnEndOthers { get; set; }
 
     /// <summary>每次 FindAsync 記下呼叫之後、回答之前會等它，測試用來讓查詢停在半路。</summary>
     public Func<string, Task>? BeforeFind { get; set; }
@@ -96,12 +103,39 @@ internal sealed class FakeSessionService(FakeAuthenticationService accounts, Tim
 
     public Task<bool> IsActiveAsync(string token, CancellationToken cancellationToken) => Task.FromResult(Peek(token) is not null);
 
-    public Task<int> EndOthersAsync(string token, CancellationToken cancellationToken)
+    /// <summary>照真的規則：目前的密碼要對（不對是 account.password_incorrect）、其他的作廢、這一個換成新的（沿用舊的期限）；已經無效是 session_ended。</summary>
+    public Task<Result<SessionRotation>> EndOthersAsync(string token, string currentPassword, CancellationToken cancellationToken)
     {
         _endOthersCalls.Enqueue(token);
+        _endOthersPasswords.Enqueue(currentPassword);
+        if (OnEndOthers is { } respond)
+        {
+            return Task.FromResult(respond(token));
+        }
+
+        if (Peek(token) is not { } session)
+        {
+            return Task.FromResult<Result<SessionRotation>>(SessionEnded);
+        }
+
+        return Task.FromResult(
+            accounts.HasPassword(session.User.Email, currentPassword)
+                ? Rotate(token)
+                : new Failure(FailureKind.Invalid, IdentityErrorCodes.PasswordIncorrect, "目前的密碼不正確。")
+                {
+                    Details = [new FailureDetail(IdentityErrorCodes.PasswordIncorrect, "currentPassword", "目前的密碼不正確。")],
+                });
+    }
+
+    internal static readonly Failure SessionEnded =
+        new(FailureKind.Forbidden, IdentityErrorCodes.SessionEnded, "工作階段已經失效，請重新登入。");
+
+    /// <summary>不問密碼的換發，給假的改密碼用。</summary>
+    internal Result<SessionRotation> Rotate(string token)
+    {
         if (Active(token) is not { } current)
         {
-            return Task.FromResult(0);
+            return SessionEnded;
         }
 
         var others = _sessions
@@ -113,14 +147,27 @@ internal sealed class FakeSessionService(FakeAuthenticationService accounts, Tim
             End(other);
         }
 
-        return Task.FromResult(others.Length);
+        End(token);
+        return new SessionRotation(others.Length, Replace(current, current.ExpiresAt));
     }
+
+    /// <summary>替同一個帳號開一個新的工作階段（換掉舊的那一個），期限由呼叫端決定。</summary>
+    public StartedSession Replace(FakeSession previous, DateTimeOffset expiresAt)
+    {
+        var token = $"fake-session-{Guid.NewGuid():N}";
+        var session = new FakeSession(Interlocked.Increment(ref _sequence), Guid.CreateVersion7(), previous.AccountId, expiresAt, Ended: false);
+        _sessions[token] = session;
+        return new StartedSession(session.SessionId, token, expiresAt);
+    }
+
+    /// <summary>目前還有效的工作階段（給假的帳號服務用）。</summary>
+    public FakeSession? ActiveSession(string token) => Active(token);
 
     private FakeSession? Active(string token) =>
         _sessions.TryGetValue(token, out var session) && !session.Ended && time.GetUtcNow() < session.ExpiresAt ? session : null;
 }
 
-internal sealed record ChangePasswordCall(string Token, string CurrentPassword, string NewPassword);
+internal sealed record ChangePasswordCall(string Token, string CurrentPassword, string NewPassword, bool RevokeAccessTokens = true);
 
 /// <summary>
 /// 測試用的「我的帳號」。預設照真的規則的大意：目前的密碼對了就換，並登出同一個帳號的其他工作階段；
@@ -134,22 +181,32 @@ internal sealed class FakeAccountService(FakeAuthenticationService accounts, Fak
 
     public Func<ChangePasswordCall, Result<PasswordChanged>>? OnChange { get; set; }
 
-    public async Task<Result<PasswordChanged>> ChangeOwnPasswordAsync(
-        string sessionToken, string currentPassword, string newPassword, CancellationToken cancellationToken)
+    public Task<Result<PasswordChanged>> ChangeOwnPasswordAsync(
+        string sessionToken, string currentPassword, string newPassword, bool revokeAccessTokens, CancellationToken cancellationToken)
     {
-        var call = new ChangePasswordCall(sessionToken, currentPassword, newPassword);
+        var call = new ChangePasswordCall(sessionToken, currentPassword, newPassword, revokeAccessTokens);
         _calls.Enqueue(call);
-        if (OnChange is { } respond)
-        {
-            return respond(call);
-        }
+        return Task.FromResult(OnChange is { } respond ? respond(call) : Change(call));
+    }
 
-        if (sessions.Peek(sessionToken) is not { } session || !accounts.HasPassword(session.User.Email, currentPassword))
+    private Result<PasswordChanged> Change(ChangePasswordCall call)
+    {
+        if (sessions.Peek(call.Token) is not { } session || !accounts.HasPassword(session.User.Email, call.CurrentPassword))
         {
             return new Failure(FailureKind.Invalid, IdentityErrorCodes.PasswordIncorrect, "目前的密碼不正確。");
         }
 
-        accounts.SetPassword(session.User.Email, newPassword);
-        return new PasswordChanged(await sessions.EndOthersAsync(sessionToken, cancellationToken));
+        accounts.SetPassword(session.User.Email, call.NewPassword);
+        var rotated = sessions.Rotate(call.Token);
+        if (rotated.Failure is not null || sessions.ActiveSession(rotated.Value.Session.Token) is not { } fresh)
+        {
+            return FakeSessionService.SessionEnded;
+        }
+
+        // 改密碼等於重新登入：期限從現在重新算。
+        var rotation = rotated.Value;
+        sessions.End(rotation.Session.Token);
+        var renewed = sessions.Replace(fresh, DateTimeOffset.UtcNow.AddDays(IdentityRules.SessionAbsoluteDays));
+        return new PasswordChanged(rotation.SignedOutSessions, 0, renewed);
     }
 }

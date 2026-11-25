@@ -14,14 +14,15 @@ internal static class EmailAddress
         var trimmed = email.Trim();
 
         // 要在 Unicode 正規化之前擋：落單的代理字元會讓它丟例外。
-        if (InputText.HasForbiddenCharacters(trimmed))
+        if (InputText.HasForbiddenCharacters(trimmed) || InputText.HasInvisibleCharacters(trimmed))
         {
             normalized = null;
             return false;
         }
 
-        // 先組合再轉小寫。反過來的話，大寫字母加符號的分解寫法（例如 I 加上一點）轉出來會和組合字不一樣。
-        var candidate = trimmed.Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        // 先相容正規化再轉小寫（全形、上標這類畫面上看起來等價的寫法會變成同一個）。
+        // 反過來的話，大寫字母加符號的分解寫法（例如 I 加上一點）轉出來會和組合字不一樣。
+        var candidate = trimmed.Normalize(NormalizationForm.FormKC).ToLowerInvariant();
         normalized = HasPlausibleShape(candidate) ? candidate : null;
         return normalized is not null;
     }

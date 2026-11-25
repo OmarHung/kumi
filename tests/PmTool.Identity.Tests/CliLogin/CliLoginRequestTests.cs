@@ -185,7 +185,7 @@ public sealed class CliLoginRequestTests
         var user = await _host.AddUserAsync(_owner.ToActor());
 
         // Act
-        var result = await _host.CliLogin.ApproveAsync(user.ToActor(), Parameters(Challenge), Grant(), CancellationToken.None);
+        var result = await _host.CliLogin.ApproveAsync(user.ToActor(), Parameters(Challenge), Grant(challenge: Challenge), CancellationToken.None);
 
         // Assert
         var uri = new Uri(result.Value.RedirectUri);
@@ -220,7 +220,7 @@ public sealed class CliLoginRequestTests
     {
         // Act
         var result = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge) with { Port = port }, Grant(), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge) with { Port = port }, Grant(challenge: Challenge), CancellationToken.None);
 
         // Assert
         Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
@@ -231,7 +231,7 @@ public sealed class CliLoginRequestTests
     {
         // Act
         var result = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge) with { Port = 80 }, Grant(), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge) with { Port = 80 }, Grant(challenge: Challenge), CancellationToken.None);
 
         // Assert
         AssertInvalid(result, "port");
@@ -243,7 +243,7 @@ public sealed class CliLoginRequestTests
     {
         // Act
         var result = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge), Grant(origin: origin), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge), Grant(origin: origin, challenge: Challenge), CancellationToken.None);
 
         // Assert
         AssertInvalid(result, "origin");
@@ -257,7 +257,7 @@ public sealed class CliLoginRequestTests
 
         // Act
         var result = await _host.CliLogin.ApproveAsync(
-            user.ToActor(), Parameters(Challenge), Grant(cliScopes: [AccessTokenScope.BlueprintWrite]), CancellationToken.None);
+            user.ToActor(), Parameters(Challenge), Grant(cliScopes: [AccessTokenScope.BlueprintWrite], challenge: Challenge), CancellationToken.None);
 
         // Assert
         Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
@@ -267,13 +267,13 @@ public sealed class CliLoginRequestTests
     public async Task Approve_GrantScopeProblems_AreInvalidWithTheScopesPath()
     {
         // Act
-        var empty = await _host.CliLogin.ApproveAsync(_owner.ToActor(), Parameters(Challenge), Grant(cliScopes: []), CancellationToken.None);
+        var empty = await _host.CliLogin.ApproveAsync(_owner.ToActor(), Parameters(Challenge), Grant(cliScopes: [], challenge: Challenge), CancellationToken.None);
         var agentRun = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge), Grant(cliScopes: [AccessTokenScope.AgentRun]), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge), Grant(cliScopes: [AccessTokenScope.AgentRun], challenge: Challenge), CancellationToken.None);
         var duplicated = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge), Grant(cliScopes: [AccessTokenScope.ItemsRead, AccessTokenScope.ItemsRead]), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge), Grant(cliScopes: [AccessTokenScope.ItemsRead, AccessTokenScope.ItemsRead], challenge: Challenge), CancellationToken.None);
         var withoutCli = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge, tokens: [CliLoginTokenKind.Agent]), Grant(), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge, tokens: [CliLoginTokenKind.Agent]), Grant(challenge: Challenge), CancellationToken.None);
 
         // Assert
         AssertInvalid(empty, "scopes");
@@ -290,7 +290,7 @@ public sealed class CliLoginRequestTests
     {
         // Act
         var result = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge), Grant(expiresInDays: days), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge), Grant(expiresInDays: days, challenge: Challenge), CancellationToken.None);
 
         // Assert
         Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.AccessTokenExpiryInvalid));
@@ -302,7 +302,7 @@ public sealed class CliLoginRequestTests
     {
         // Act
         var result = await _host.CliLogin.ApproveAsync(
-            _owner.ToActor(), Parameters(Challenge, tokens: [CliLoginTokenKind.Agent]), Grant(includeAgent: false, cliScopes: []), CancellationToken.None);
+            _owner.ToActor(), Parameters(Challenge, tokens: [CliLoginTokenKind.Agent]), Grant(includeAgent: false, cliScopes: [], challenge: Challenge), CancellationToken.None);
 
         // Assert
         using (Assert.EnterMultipleScope())
@@ -320,7 +320,7 @@ public sealed class CliLoginRequestTests
         await FillTokensAsync(user, AccessTokenRules.MaxActiveTokensPerAccount - 1);
 
         // Act
-        var two = await _host.CliLogin.ApproveAsync(user.ToActor(), Parameters(Challenge), Grant(), CancellationToken.None);
+        var two = await _host.CliLogin.ApproveAsync(user.ToActor(), Parameters(Challenge), Grant(challenge: Challenge), CancellationToken.None);
 
         // Assert
         Assert.That(two.Succeeded, Is.True, two.Failure?.Message);
@@ -331,7 +331,7 @@ public sealed class CliLoginRequestTests
         for (var i = 0; i < count; i++)
         {
             var created = await _host.AccessTokens.CreateAsync(
-                user.ToActor(), new NewAccessToken($"填滿 {i}", [AccessTokenScope.ItemsRead], null), CancellationToken.None);
+                user.ToActor(), new NewAccessToken($"填滿 {i}", [AccessTokenScope.ItemsRead], 30), CancellationToken.None);
             Assert.That(created.Succeeded, Is.True, created.Failure?.Message);
         }
     }

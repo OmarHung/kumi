@@ -110,7 +110,7 @@ gcloud auth configure-docker <區域>-docker.pkg.dev
 
 工作階段 Cookie 用一組金鑰加密，那組金鑰存在資料庫裡（`identity.data_protection_keys`）。憑證用來把金鑰加密之後才存進去：資料庫的備份外流時，Cookie 的金鑰不會跟著外流。
 
-- 沒有憑證也能跑，只是金鑰是明文，正式環境啟動時會記一筆 Warning（「沒有設定 DataProtection:CertificatePath…」）。上線一定要設。
+- 沒有憑證也能跑，只是金鑰是明文，正式環境啟動時會記一筆 Warning（「沒有設定 DataProtection:CertificatePath…」）。金鑰除了簽 Cookie，也用來加密 AI 供應商的金鑰與寄信的密碼：沒有憑證時，拿到資料庫或備份的人解得開這些。上線一定要設，並把 `DataProtection__RequireCertificate` 設成 `true`：設了它卻沒有 `DataProtection__CertificatePath`，啟動直接失敗，不會悄悄用明文上線（本機的 8080 不設它，照舊可以不用憑證）。
 - 弄丟憑證不會掉資料：金鑰解不開，舊的 Cookie 全部失效，所有人重新登入一次。
 
 **正式環境要在第一次上線之前就設好憑證。** 事後才補設的話，之前以明文存進資料庫的金鑰不會被重新加密，備份裡還是明文。補設之後要刪掉舊金鑰、讓所有人重新登入（做法見下面「憑證外流」那一段的 SQL）。
@@ -314,9 +314,10 @@ docker buildx build --platform linux/amd64 -t "$IMAGE" --push .
 | `ForwardedHeaders__KnownProxies__0`（`__1`…） | 無 | 信任的代理 IP。 |
 | `ForwardedHeaders__KnownNetworks__0`（`__1`…） | 無 | 信任的網段（CIDR，例如 `10.0.0.0/24`）。 |
 | `ForwardedHeaders__TrustAllProxies` | `false` | 信任任何來源。只能用在外面只連得到平台前端的環境（Cloud Run）；VM 開了對外的埠就不行。同時設了 `KnownProxies`／`KnownNetworks` 的話，啟動時會記一筆 Warning（那兩個設定不會有作用）。 |
-| `Security__RequireHttps` | `false` | 打開時 Cookie 一律 Secure；每個回應帶 `Strict-Transport-Security: max-age=31536000`（瀏覽器會記一年，收不回來）；不是 HTTPS 的請求回 308 轉到 https（`/health` 開頭的不轉）。**要搭配 `ForwardedHeaders__Enabled=true`**：在代理後面卻沒讀轉送的標頭，啟動時會記一筆 Warning，而且每個請求都被轉址。 |
-| `Security__PublicHost` | 無 | 對外的網域，例如 `pm.example.com`。設了之後，308 一律轉到 `https://<PublicHost><路徑與查詢字串>`，不用請求的 `Host` 標頭。正式環境建議設：不設的話轉址的目標來自請求的 `Host`，可以被偽造。 |
+| `Security__RequireHttps` | `false` | 打開時 Cookie 一律 Secure，名稱是 `__Host-pmtool_session`（帶 `Secure`、`Path=/`、沒有 `Domain`；關著時叫 `pmtool_session`）；每個回應帶 `Strict-Transport-Security: max-age=31536000`（瀏覽器會記一年，收不回來）；不是 HTTPS 的請求回 308 轉到 https（`/health` 開頭的不轉）。**正式環境（`ASPNETCORE_ENVIRONMENT=Production`）打開它就一定要設 `Security__PublicHost`，沒設的話啟動直接失敗。** **要搭配 `ForwardedHeaders__Enabled=true`**：在代理後面卻沒讀轉送的標頭，啟動時會記一筆 Warning，而且每個請求都被轉址。 |
+| `Security__PublicHost` | 無 | 對外的網域，例如 `pm.example.com`。設了之後，308 一律轉到 `https://<PublicHost><路徑與查詢字串>`，不用請求的 `Host` 標頭。打開 `Security__RequireHttps` 的正式環境必填；其他情況建議設：不設的話轉址的目標、OAuth 的 issuer 與 MCP 的網址都來自請求的 `Host`，可以被偽造。沒設時 `/mcp` 只接受來源（`Origin`）是 `localhost`、`127.0.0.1`、`[::1]` 而且和請求同源的瀏覽器請求（本機的 `http://localhost:8080` 照常用）；沒帶 `Origin` 的命令列用戶端不受影響。 |
 | `DataProtection__CertificatePath` | 無 | PFX 檔的路徑。 |
+| `DataProtection__RequireCertificate` | `false` | 設成 `true` 時，沒有 `DataProtection__CertificatePath` 就啟動失敗。正式環境建議打開，避免忘了掛憑證而用明文存金鑰。 |
 | `DataProtection__CertificatePassword` | 無 | PFX 的密碼。 |
 | `DataProtection__PreviousCertificatePaths__0`（`__1`…） | 無 | 換憑證之前用過的，只用來解開舊金鑰。密碼和目前的相同。 |
 | `Bootstrap__OrganizationName`、`Bootstrap__AdminName`、`Bootstrap__AdminEmail`、`Bootstrap__AdminPassword` | 無 | 資料庫裡還沒有任何帳號時，建立第一個組織與它的擁有者（`migrate` 會做）。密碼至少 10 個字元。**第一個擁有者登入成功後就拿掉**（尤其是密碼）。 |
@@ -327,7 +328,8 @@ docker buildx build --platform linux/amd64 -t "$IMAGE" --push .
 | `Ai__AllowPrivateEndpoints` | `false` | 組織的 AI 連線（OpenAI 相容端點）能不能連到私有網段、本機與 link-local 的位址（第 1.8 節）。自架的模型服務在內網時才打開；成員自己的 AI 帳號不受影響，一律不准。 |
 | `TZ` | UTC | 只影響記錄裡的時間，例如 `Asia/Taipei`。 |
 
-- 設定不合規定時，啟動直接失敗，訊息說得出是哪個設定。例如打開了 `ForwardedHeaders__Enabled` 卻沒有任何信任的代理、網段格式錯、憑證讀不到或密碼錯、角色名稱不合規定。
+- 設定不合規定時，啟動直接失敗，訊息說得出是哪個設定。例如打開了 `ForwardedHeaders__Enabled` 卻沒有任何信任的代理、網段格式錯、憑證讀不到或密碼錯、角色名稱不合規定、`DataProtection__RequireCertificate=true` 卻沒有憑證、正式環境打開 `Security__RequireHttps` 卻沒有 `Security__PublicHost`。
+- **改了 `Security__RequireHttps` 之後，Cookie 的名稱跟著變**（`pmtool_session` 與 `__Host-pmtool_session`）：已經登入的人會被登出一次，重新登入即可。
 - **放在反向代理或平台的前端後面時，`Security__RequireHttps=true` 一定要搭配 `ForwardedHeaders__*`。** 沒讀轉送的標頭，api 看到的永遠是代理送來的 http，每個請求都被轉到 https，瀏覽器會一直轉址打不開。程式不擋這個組合（api 自己提供 HTTPS 時不需要轉送的標頭），要自己確認。
 - 映像檔聽 8080（`ASPNETCORE_HTTP_PORTS`），不用改。
 - 映像檔以 UID 1654 執行（`APP_UID`），不是 root：掛進去的檔案要讓它讀得到。
@@ -353,6 +355,7 @@ docker buildx build --platform linux/amd64 -t "$IMAGE" --push .
 | `ForwardedHeaders__Enabled` | `true` |
 | `ForwardedHeaders__TrustAllProxies` | `true`（外面只連得到 Cloud Run 的前端） |
 | `Security__RequireHttps` | `true` |
+| `Security__PublicHost` | 對外的網域（`RequireHttps` 在正式環境一定要有它） |
 | `DataProtection__CertificatePath` | `/secrets/dp/dataprotection.pfx`（祕密 `pmtool-dp-cert` 掛成檔案） |
 | `DataProtection__CertificatePassword` | 祕密 `pmtool-dp-cert-password` |
 | `TZ` | `Asia/Taipei` |
@@ -694,12 +697,12 @@ PostgreSQL 只能換 18 的小版本（18.x）。換大版本（19）資料要�
 **設定**
 
 - [ ] `ASPNETCORE_ENVIRONMENT=Production`、`Database__MigrateOnStartup=false`。
-- [ ] `Security__PublicHost` 設成對外的網域。
+- [ ] `Security__PublicHost` 設成對外的網域（打開 `Security__RequireHttps` 的正式環境不設就起不來）。
 - [ ] **`Security__RequireHttps` 與 HSTS 一送出就收不回來**（瀏覽器記一年）：確定這個網域只走 HTTPS 之後才打開，測試用的網域不要開。
 - [ ] 轉送的標頭照第 3.2 節（Cloud Run）或第 3.3 節（VM）設好；打開 `RequireHttps` 的話一定要有 `ForwardedHeaders__Enabled=true`，啟動記錄裡沒有相關的 Warning。
 - [ ] `ForwardedHeaders__TrustAllProxies=true` 只用在 Cloud Run 這種外面只連得到平台前端的環境。VM 開了對外的埠就不行，要用 `KnownProxies`。
 - [ ] 用 Cloud Run 的網域對應的話，已經查過所選的區域支援。
-- [ ] 設了 `DataProtection__CertificatePath`，啟動記錄裡沒有「沒有設定 DataProtection:CertificatePath」的 Warning。
+- [ ] 設了 `DataProtection__CertificatePath` 與 `DataProtection__RequireCertificate=true`，啟動記錄裡沒有「沒有設定 DataProtection:CertificatePath」的 Warning。
 - [ ] 只開一個容器。
 - [ ] 要寄 Email 通知的話，在「寄信設定」頁寄過一封測試信給自己，收到了（第 1.7 節）。
 - [ ] 監控與告警設好了，通知會送到真的有人看的地方。至少要有：
@@ -712,7 +715,8 @@ PostgreSQL 只能換 18 的小版本（18.x）。換大版本（19）資料要�
 - [ ] 映像檔是 `linux/amd64`，標籤是提交的 SHA。
 - [ ] `migrate` 成功；`curl -fsS https://<網址>/health/ready` 成功。
 - [ ] `curl -sI http://<網址>/` 是 30x 轉到 `https://`；`curl -sI https://<網址>/` 帶 `Strict-Transport-Security`。
-- [ ] 登入之後，瀏覽器的開發者工具裡工作階段的 Cookie 有 `Secure`。
+- [ ] 登入之後，瀏覽器的開發者工具裡工作階段的 Cookie 叫 `__Host-pmtool_session`，有 `Secure`、`Path=/`，沒有 `Domain`。
+- [ ] `curl -sI https://<網址>/v1/session` 與 `curl -sI https://<網址>/` 都帶 `Permissions-Policy` 與 `Cross-Origin-Opener-Policy: same-origin`；`/v1` 的回應是 `Cache-Control: no-store`（附件與 kumi 的下載是 `private, max-age=0`）。
 - [ ] **確認 api 看到的用戶端 IP 是真的**（第 3.2 節的假設：`X-Forwarded-For` 的最後一層是用戶端）。用兩個不同的網路（例如家裡與手機的行動網路）各打一個請求，確認限流是分開算的：在其中一個網路連續送錯誤的登入直到被限流，另一個網路的登入仍然可以送出。兩邊被一起限流，就是 api 把中間的代理當成用戶端：前面有多層代理（CDN 加 nginx、負載平衡器）就設 `ForwardedHeaders__ForwardLimit`。VM 另外用 IPv6 再試一次（第 3.3 節的 docker-proxy）。
 - [ ] 第一個擁有者登入成功之後，拿掉 `Bootstrap__*` 與那個祕密（第 3.2 節第 7 步）。
 - [ ] 記錄裡找得到 JSON，篩得出 Error。

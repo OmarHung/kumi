@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text;
 using PmTool.Abstractions;
 
 namespace PmTool.Identity.AccessTokens;
@@ -18,7 +16,7 @@ internal static class AccessTokenInput
     public static Result<string> Check(NewAccessToken token)
     {
         var name = token.Name.Trim();
-        FailureDetail?[] found = [CheckName(name), CheckScopes(token.Scopes), CheckExpiry(token.ExpiresInDays)];
+        FailureDetail?[] found = [CheckName(name), CheckScopes(token.Scopes), CheckExpiry(token.ExpiresInDays, token.Scopes.Contains(AccessTokenScope.AgentRun))];
         IReadOnlyList<FailureDetail> issues = [.. found.OfType<FailureDetail>()];
         if (issues.Count == 0)
         {
@@ -41,18 +39,10 @@ internal static class AccessTokenInput
         }
 
         // 合約沒有「名稱有不能用的字元」的代碼；這種名稱等於沒有可用的名稱，歸在 name_required。
-        return InputText.HasForbiddenCharacters(name) || HasInvisibleFormatting(name)
+        return InputText.HasForbiddenCharacters(name) || InputText.HasInvisibleCharacters(name)
             ? new(IdentityErrorCodes.AccessTokenNameRequired, NamePath, "權杖的名稱不能有換行、控制字元或無效的字元。")
             : null;
     }
-
-    /// <summary>
-    /// 雙向控制、零寬字元（Format）與行、段落分隔字元：不是控制字元，卻能讓名稱在清單裡顯示得和實際不同，
-    /// 或把後面的文字藏起來。
-    /// </summary>
-    internal static bool HasInvisibleFormatting(string name) =>
-        name.EnumerateRunes().Any(rune => Rune.GetUnicodeCategory(rune)
-            is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator);
 
     private static FailureDetail? CheckScopes(IReadOnlyList<AccessTokenScope> scopes)
     {
@@ -73,8 +63,20 @@ internal static class AccessTokenInput
             : null;
     }
 
-    internal static FailureDetail? CheckExpiry(int? days) =>
-        days is null or (>= 1 and <= AccessTokenRules.MaxExpiresInDays)
-            ? null
-            : new(IdentityErrorCodes.AccessTokenExpiryInvalid, ExpiresInDaysPath, $"期限要是 1 到 {AccessTokenRules.MaxExpiresInDays} 天，或不過期。");
+    /// <summary>
+    /// 新建的權杖一定要有期限。本機代理的權杖會交給使用者電腦上的引擎，期限比照瀏覽器登入發的那一把，最長 90 天。
+    /// </summary>
+    internal static FailureDetail? CheckExpiry(int? days, bool isAgent = false)
+    {
+        var max = isAgent ? AccessTokenRules.MaxAgentExpiresInDays : AccessTokenRules.MaxExpiresInDays;
+        if (days is >= 1 && days <= max)
+        {
+            return null;
+        }
+
+        var message = isAgent
+            ? $"本機代理的權杖期限要是 1 到 {AccessTokenRules.MaxAgentExpiresInDays} 天（最長 {AccessTokenRules.MaxAgentExpiresInDays} 天）。"
+            : $"期限要是 1 到 {AccessTokenRules.MaxExpiresInDays} 天。";
+        return new(IdentityErrorCodes.AccessTokenExpiryInvalid, ExpiresInDaysPath, message);
+    }
 }

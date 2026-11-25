@@ -34,7 +34,7 @@ public sealed class IdentityDatabaseRoleTests
         var actor = new Actor(owner.OrganizationId, owner.PersonId, IsOrganizationAdmin: true);
         var member = await host.AddUserAsync(actor);
         var session = await host.StartSessionAsync(member);
-        var changed = await host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, "example-password-2", CancellationToken.None);
+        var changed = await host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, "example-password-2", false, CancellationToken.None);
         var disabled = await host.People.SetDisabledAsync(actor, member.PersonId, true, CancellationToken.None);
         var enabled = await host.People.SetDisabledAsync(actor, member.PersonId, false, CancellationToken.None);
         var reset = await host.People.ResetPasswordAsync(actor, member.PersonId, "example-password-3", CancellationToken.None);

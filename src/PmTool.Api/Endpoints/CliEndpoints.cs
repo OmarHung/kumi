@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PmTool.Api.Cli;
+using PmTool.Api.RateLimiting;
 using PmTool.Api.Responses;
 using PmTool.Api.Security;
 
@@ -20,7 +21,8 @@ internal static class CliEndpoints
     public static RouteGroupBuilder MapCliEndpoints(this RouteGroupBuilder app)
     {
         app.MapGet("/cli", GetCli).WithName("GetCli").AllowAnyAccessToken();
-        app.MapGet("/cli/download/{platform}", Download).WithName("DownloadCli").AllowAnyAccessToken();
+        app.MapGet("/cli/download/{platform}", Download).WithName("DownloadCli").AllowAnyAccessToken()
+            .RequireRateLimiting(ApiRateLimiting.CliDownloadPolicy);
         return app;
     }
 

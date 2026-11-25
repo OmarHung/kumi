@@ -50,6 +50,7 @@ internal static class ModuleRegistration
 
         // 稽核與通知要記請求從哪裡來；身分模組自己只有「沒有請求」的版本。
         services.Replace(ServiceDescriptor.Singleton<IRequestSource, HttpRequestSource>());
+        services.Replace(ServiceDescriptor.Singleton<ICurrentSession, HttpCurrentSession>());
         services.Replace(ServiceDescriptor.Scoped<IMcpUrlProvider, RequestMcpUrlProvider>());
 
         // 背景處理在主機裡才跑：migrate 命令不啟動主機，所以不會跑。測試要自己決定什麼時候處理，用設定關掉。

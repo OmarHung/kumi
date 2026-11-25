@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
+using PmTool.Identity.Audit;
 using PmTool.Identity.Persistence;
 using PmTool.Identity.Sessions;
 
@@ -15,6 +16,7 @@ internal sealed class OAuthService(
     OAuthTokenEndpoint tokens,
     OAuthClientDirectory clients,
     SessionCache cache,
+    AuditTrail audit,
     TimeProvider time) : IOAuthService
 {
     private static readonly Failure GrantNotFound = new(FailureKind.NotFound, IdentityErrorCodes.OAuthGrantNotFound, "找不到這筆授權。");
@@ -68,9 +70,9 @@ internal sealed class OAuthService(
         ArgumentNullException.ThrowIfNull(actor);
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var accountId = await AccountIdOfAsync(db, actor, cancellationToken);
-        var exists = await db.OAuthGrants.AnyAsync(
+        var grant = await db.OAuthGrants.AsNoTracking().SingleOrDefaultAsync(
             g => g.Id == grantId && g.OrganizationId == actor.OrganizationId && g.AccountId == accountId && g.RevokedAt == null, cancellationToken);
-        if (!exists)
+        if (grant is null)
         {
             return GrantNotFound;
         }
@@ -78,6 +80,19 @@ internal sealed class OAuthService(
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         var revoked = await OAuthGrantStore.RevokeGrantAsync(
             db, actor.OrganizationId, grantId, SessionEndReasons.OAuthGrantRevoked, time.GetUtcNow(), cancellationToken);
+        if (revoked)
+        {
+            await audit.AddAsync(
+                db,
+                new AuditRecord(actor.OrganizationId, AuditActions.OAuthGrantRevoked)
+                {
+                    ActorPersonId = actor.PersonId,
+                    TargetPersonId = actor.PersonId,
+                    Details = new Dictionary<string, string> { ["client"] = grant.ClientName },
+                },
+                cancellationToken);
+        }
+
         await transaction.CommitAsync(cancellationToken);
 
         // 提交之後才清快取：同一個程序裡這筆授權的權杖立刻失效。

@@ -38,6 +38,10 @@ internal sealed class FakeAccessTokenService(FakeAuthenticationService accounts,
     public string IssueFromMachine(AuthenticatedUser user, string machineName, params AccessTokenScope[] scopes) =>
         Create(user.AccountId, new NewAccessToken("kumi", scopes, null), null, machineName).Secret;
 
+    /// <summary>替帳號發一把記著建立位址的權杖（瀏覽器登入或網頁建的）。</summary>
+    public string IssueCreatedFrom(AuthenticatedUser user, string createdFrom, params AccessTokenScope[] scopes) =>
+        Create(user.AccountId, new NewAccessToken("測試用", scopes, 30), null, null, createdFrom).Secret;
+
     /// <summary>替帳號發一把 OAuth 授權發出的權杖（有授權編號，只能用在 MCP 端點），回傳明文。</summary>
     public string IssueForGrant(AuthenticatedUser user, Guid grantId, params AccessTokenScope[] scopes) =>
         Create(user.AccountId, new NewAccessToken("OAuth 授權", scopes, null), grantId).Secret;
@@ -63,7 +67,8 @@ internal sealed class FakeAccessTokenService(FakeAuthenticationService accounts,
             return Task.FromResult<Result<CreatedAccessToken>>(Invalid(IdentityErrorCodes.AccessTokenScopesRequired, "scopes"));
         }
 
-        if (token.ExpiresInDays is < 1 or > AccessTokenRules.MaxExpiresInDays)
+        if (token.ExpiresInDays is not (>= 1 and <= AccessTokenRules.MaxExpiresInDays)
+            || (token.Scopes.Contains(AccessTokenScope.AgentRun) && token.ExpiresInDays > AccessTokenRules.MaxAgentExpiresInDays))
         {
             return Task.FromResult<Result<CreatedAccessToken>>(Invalid(IdentityErrorCodes.AccessTokenExpiryInvalid, "expiresInDays"));
         }
@@ -128,13 +133,13 @@ internal sealed class FakeAccessTokenService(FakeAuthenticationService accounts,
         return new ActiveAccessToken(found.Summary.TokenId, user, found.Summary.Scopes) { GrantId = found.GrantId };
     }
 
-    private FakeAccessToken Create(Guid accountId, NewAccessToken token, Guid? grantId = null, string? machineName = null)
+    private FakeAccessToken Create(Guid accountId, NewAccessToken token, Guid? grantId = null, string? machineName = null, string? createdFrom = null)
     {
         var now = time.GetUtcNow();
         var secret = $"{AccessTokenRules.Prefix}{Guid.NewGuid():N}";
         var summary = new AccessTokenSummary(
             Guid.CreateVersion7(), token.Name.Trim(), secret[..8], token.Scopes, now, null,
-            token.ExpiresInDays is { } days ? now.AddDays(days) : null) { MachineName = machineName };
+            token.ExpiresInDays is { } days ? now.AddDays(days) : null) { MachineName = machineName, CreatedFrom = createdFrom };
         var created = new FakeAccessToken(summary, accountId, secret, Revoked: false, grantId);
         _tokens[summary.TokenId] = created;
         return created;

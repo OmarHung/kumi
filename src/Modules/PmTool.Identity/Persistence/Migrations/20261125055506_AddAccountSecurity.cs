@@ -8,33 +8,11 @@ namespace PmTool.Identity.Persistence.Migrations
     /// <inheritdoc />
     public partial class AddAccountSecurity : Migration
     {
-        private const string NormalizedEmailCollisionCheck = """
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM identity.accounts
-                    GROUP BY lower(normalize(email, NFKC))
-                    HAVING count(*) > 1
-                ) THEN
-                    RAISE EXCEPTION 'identity.accounts 有 Email 在改成 NFKC 加小寫之後會重複，遷移沒有改任何資料。請先用 SQL 人工修改其中一個帳號的 Email，再重新部署。';
-                END IF;
-            END
-            $$;
-            """;
-
-        private const string NormalizeEmails = """
-            UPDATE identity.accounts
-            SET email = lower(normalize(email, NFKC))
-            WHERE email <> lower(normalize(email, NFKC));
-            """;
-
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Email 的唯一性靠存下來的字串本身：改成 NFKC 加小寫之後，原本不同的兩個帳號可能變成同一個。
-            // 先檢查，會撞就整個遷移失敗、什麼都不改；訊息不帶 Email，免得進了日誌。
-            migrationBuilder.Sql(NormalizedEmailCollisionCheck);
-            migrationBuilder.Sql(NormalizeEmails);
+            // 既有帳號的 Email 改成 NFKC 加小寫，不在這裡用 SQL 做：資料庫的 lower 和 .NET 對少數字元（例如帶點的大寫 I）結果不同，
+            // 改出來的值本人用原本的寫法登入就比對不到。改寫由 IdentityMigrator 在遷移之後用登入同一套規則做。
 
             migrationBuilder.AddColumn<Guid[]>(
                 name: "issued_token_ids",

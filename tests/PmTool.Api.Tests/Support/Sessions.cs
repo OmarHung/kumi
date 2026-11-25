@@ -11,6 +11,9 @@ internal static class Sessions
 
     public const string CookieName = "pmtool_session";
 
+    /// <summary>一律走 HTTPS（<c>Security:RequireHttps</c>）時工作階段 Cookie 的名稱。</summary>
+    public const string HostCookieName = "__Host-pmtool_session";
+
     public static HttpContent Credentials(string email, string password) => ApiRequests.Json(new { email, password });
 
     /// <summary>登入並確認成功。用戶端是 factory 建的，會自己記住 Cookie。</summary>
@@ -31,7 +34,8 @@ internal static class Sessions
     /// <summary>回應裡設定工作階段 Cookie 的那一行 Set-Cookie；沒有就是 null。</summary>
     public static string? SetCookieLineOf(HttpResponseMessage response) =>
         response.Headers.TryGetValues("Set-Cookie", out var lines)
-            ? lines.FirstOrDefault(line => line.StartsWith(CookieName + "=", StringComparison.Ordinal))
+            ? lines.FirstOrDefault(line =>
+                line.StartsWith(CookieName + "=", StringComparison.Ordinal) || line.StartsWith(HostCookieName + "=", StringComparison.Ordinal))
             : null;
 
     public static string? SessionCookieOf(HttpResponseMessage response) => SetCookieLineOf(response)?.Split(';')[0];

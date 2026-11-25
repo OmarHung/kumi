@@ -110,8 +110,26 @@ internal sealed class FakeWorkAccessQueries : IWorkAccessQueries
     public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> VisibleProjectsAsync(Actor actor, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<Guid, ProjectAccessSummary>>(new Dictionary<Guid, ProjectAccessSummary>());
 
-    public Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
-        Task.FromResult<ProjectAccessSummary?>(null);
+    private static readonly string[] AllPermissions =
+    [
+        WorkPermissions.ItemRead, WorkPermissions.ItemCreate, WorkPermissions.ItemUpdate, WorkPermissions.ItemTransition,
+        WorkPermissions.ItemDelete, WorkPermissions.CommentCreate, WorkPermissions.BlueprintRead, WorkPermissions.BlueprintPropose,
+        WorkPermissions.BlueprintApply, WorkPermissions.ProjectManage,
+    ];
+
+    private readonly ConcurrentQueue<(Actor Actor, string ProjectKey)> _findVisibleCalls = new();
+
+    /// <summary>依代號找看得到的專案。預設回一個有全部權限、沒封存的專案；測試可以換成別的（null 是看不到）。</summary>
+    public Func<Actor, string, ProjectAccessSummary?> OnFindVisible { get; set; } =
+        (_, key) => new ProjectAccessSummary(ProjectId, key.ToUpperInvariant(), "範例專案", false, AllPermissions);
+
+    public IReadOnlyList<(Actor Actor, string ProjectKey)> FindVisibleCalls => _findVisibleCalls.ToArray();
+
+    public Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken)
+    {
+        _findVisibleCalls.Enqueue((actor, projectKey));
+        return Task.FromResult(OnFindVisible(actor, projectKey));
+    }
 
     public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> FindVisibleProjectsAsync(
         Actor actor, IReadOnlyCollection<Guid> projectIds, CancellationToken cancellationToken) =>

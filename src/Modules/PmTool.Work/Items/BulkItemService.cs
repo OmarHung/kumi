@@ -80,11 +80,13 @@ internal sealed class BulkItemService(IDbContextFactory<WorkDbContext> contexts,
 
         var batch = prepared.Value;
         var alreadyDeleted = await DeletedAtAsync(actor, batch, cancellationToken);
+        var parents = await ParentsAsync(actor, batch, cancellationToken);
         var results = await batch.RunAsync(
             key => alreadyDeleted.TryGetValue(key, out var at)
                 ? Task.FromResult<Result<DeletedWorkItem>>(new DeletedWorkItem(key, at))
                 : items.DeleteAsync(actor, key, cancellationToken),
-            WaitsForChildren);
+            WaitsForChildren,
+            batch.Sorted(parents, parentsFirst: false));
         var (deleted, failed) = batch.Split(results);
         return new BulkDeleteResult(deleted, failed);
     }
@@ -110,7 +112,8 @@ internal sealed class BulkItemService(IDbContextFactory<WorkDbContext> contexts,
         var results = await batch.RunAsync(
             key => items.RestoreAsync(actor, key, cancellationToken),
             (key, error, inBatch) => error.Code == WorkErrorCodes.ItemParentDeleted
-                && parents.TryGetValue(key, out var parent) && inBatch.Contains(parent));
+                && parents.TryGetValue(key, out var parent) && inBatch.Contains(parent),
+            batch.Sorted(parents, parentsFirst: true));
         var (restored, failed) = batch.Split(results);
         return new BulkRestoreResult(restored, failed);
     }
@@ -150,7 +153,7 @@ internal sealed class BulkItemService(IDbContextFactory<WorkDbContext> contexts,
         return rows.ToDictionary(row => ItemKeys.Format(batch.ProjectKey, row.Number), row => row.DeletedAt, StringComparer.Ordinal);
     }
 
-    /// <summary>這一批裡每個項目的上層編號（有上層的）：復原時上層也在這一批、還沒復原，就等它。</summary>
+    /// <summary>這一批裡每個項目的上層編號（有上層的）：用來排順序，上層也在這一批、還沒做完時就等它。</summary>
     private async Task<Dictionary<string, string>> ParentsAsync(Actor actor, BulkBatch batch, CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);

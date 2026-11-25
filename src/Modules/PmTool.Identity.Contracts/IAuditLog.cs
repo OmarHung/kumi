@@ -16,7 +16,8 @@ public interface IAuditLog
     Task<Result<AuditPage>> ListAsync(Actor actor, AuditQuery query, CancellationToken cancellationToken);
 
     /// <summary>
-    /// 記一次登入的結果。要在回應送完之後才呼叫：只替存在的帳號寫一列，回應時間就會說出這個 Email 有沒有帳號。
+    /// 記一次登入的結果。只放進背景的佇列就回來，不碰資料庫、不丟例外：只替存在的帳號寫一列，
+    /// 寫在請求的路上回應時間就會說出這個 Email 有沒有帳號。佇列滿了丟掉這一筆。
     /// 依正規化後的 Email 找帳號，找不到就不寫（沒有組織可以記）。來源由呼叫端明確帶進來。
     /// </summary>
     Task RecordSignInAsync(SignInAttempt attempt, CancellationToken cancellationToken);
@@ -81,4 +82,7 @@ public static class AuditRules
 
     /// <summary>每個程序每分鐘最多寫這麼多筆登入失敗，超過的只記一筆警告：免得被拿來塞爆資料表。</summary>
     public const int MaxSignInFailuresPerMinute = 600;
+
+    /// <summary>每個帳號每分鐘最多寫這麼多筆登入失敗；每個帳號每分鐘的第一筆不受上面那個總量影響。</summary>
+    public const int MaxSignInFailuresPerAccountPerMinute = 10;
 }

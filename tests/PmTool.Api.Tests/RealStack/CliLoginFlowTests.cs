@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using PmTool.Api.Tests.Support;
+using PmTool.Identity;
 
 namespace PmTool.Api.Tests.RealStack;
 
@@ -31,6 +32,7 @@ public sealed class CliLoginFlowTests : RealStackTestBase
         {
             port = 53682, state = State, challenge, machine = "MacBook-Pro", tokens = new[] { "cli" },
             scopes = new[] { "items:read", "blueprint:read" }, grantedScopes = new[] { "items:read", "blueprint:read" }, expiresInDays = 30,
+            confirmationCode = CliLoginRules.ConfirmationCodeOf(challenge),
         };
 
         // Act
@@ -57,6 +59,53 @@ public sealed class CliLoginFlowTests : RealStackTestBase
             Assert.That(oldAfter.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), "舊的權杖兌換時被撤銷");
             Assert.That(listed.AsArray().Select(token => token!["machineName"]?.GetValue<string>()), Does.Contain("MacBook-Pro"));
             Assert.That(listed.ToJsonString(), Does.Not.Contain(newSecret));
+            Assert.That(listed.AsArray().Select(token => token!["createdFrom"]?.GetValue<string>()), Does.Contain(ClientAddress));
+        }
+    }
+
+    [Test]
+    public async Task Approve_WithoutTheConfirmationCode_Is422AndNothingCanBeRedeemed()
+    {
+        // Arrange
+        using var owner = await SignInAsOwnerAsync();
+        var (verifier, challenge) = CliLoginRequests.NewPkce();
+        var body = new
+        {
+            port = 53682, state = State, challenge, machine = "MacBook-Pro", tokens = new[] { "cli" },
+            scopes = new[] { "items:read" }, grantedScopes = new[] { "items:read" }, expiresInDays = 30,
+        };
+
+        // Act
+        using var approve = await owner.Client.SendAsync(CliLoginRequests.From(CliLoginRequests.Approve, ClientAddress, body));
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(approve, (HttpStatusCode)422, "cli_login.confirmation_mismatch");
+
+        // Assert
+        Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { "cli_login.confirmation_mismatch|confirmationCode" }));
+        Assert.That(verifier, Is.Not.Empty);
+    }
+
+    [Test]
+    public async Task Token_TheSameCodeRedeemedAgain_RevokesTheTokensItIssued()
+    {
+        // Arrange
+        using var owner = await SignInAsOwnerAsync();
+        var (verifier, challenge) = CliLoginRequests.NewPkce();
+        using var approve = await owner.Client.SendAsync(CliLoginRequests.From(CliLoginRequests.Approve, ClientAddress, CliLoginRequests.ApproveBody(challenge)));
+        var redirect = (await ApiRequests.AssertSuccessEnvelopeAsync(approve, HttpStatusCode.OK))!["redirectTo"]!.GetValue<string>();
+        var code = System.Web.HttpUtility.ParseQueryString(new Uri(redirect).Query)["code"]!;
+        using var anonymous = Factory.CreateClient();
+        using var first = await anonymous.SendAsync(CliLoginRequests.From(CliLoginRequests.Token, ClientAddress, new { code, codeVerifier = verifier }));
+        var secret = (await ApiRequests.AssertSuccessEnvelopeAsync(first, HttpStatusCode.OK))!["cli"]!["secret"]!.GetValue<string>();
+
+        // Act
+        using var second = await anonymous.SendAsync(CliLoginRequests.From(CliLoginRequests.Token, ClientAddress, new { code, codeVerifier = verifier }));
+        using var afterwards = await anonymous.SendAsync(AccessTokenAuthenticationTests.Bearer(HttpMethod.Get, "/v1/session", secret));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(second.StatusCode, Is.EqualTo((HttpStatusCode)422));
+            Assert.That(afterwards.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
         }
     }
 

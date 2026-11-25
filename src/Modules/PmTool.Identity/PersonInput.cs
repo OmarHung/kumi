@@ -57,7 +57,7 @@ internal static class PersonInput
         }
 
         // 合約沒有「名稱有不能用的字元」的代碼；這種名稱等於沒有可用的名稱，和工作引擎一樣歸在 name_required。
-        return InputText.HasForbiddenCharacters(displayName)
+        return InputText.HasForbiddenCharacters(displayName) || InputText.HasInvisibleCharacters(displayName)
             ? new(IdentityErrorCodes.NameRequired, DisplayNamePath, "顯示名稱不能有換行、控制字元或無效的字元。")
             : null;
     }

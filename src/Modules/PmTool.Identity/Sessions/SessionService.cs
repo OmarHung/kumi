@@ -1,4 +1,8 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using PmTool.Abstractions;
+using PmTool.Identity.AccessTokens;
+using PmTool.Identity.Audit;
 using PmTool.Identity.Persistence;
 
 namespace PmTool.Identity.Sessions;
@@ -6,9 +10,14 @@ namespace PmTool.Identity.Sessions;
 internal sealed class SessionService(
     IDbContextFactory<IdentityDbContext> contexts,
     AuthenticationService authentication,
+    IPasswordHasher<PasswordCredential> hasher,
     SessionCache cache,
+    AuditTrail audit,
     TimeProvider time) : ISessionService
 {
+    private static readonly Failure SessionEnded =
+        new(FailureKind.Forbidden, IdentityErrorCodes.SessionEnded, "工作階段已經失效，請重新登入。");
+
     public async Task<SignedIn?> SignInAsync(string email, string password, CancellationToken cancellationToken)
     {
         var verified = await authentication.VerifyAsync(email, password, cancellationToken);
@@ -62,12 +71,13 @@ internal sealed class SessionService(
         }
     }
 
-    public async Task<int> EndOthersAsync(string token, CancellationToken cancellationToken)
+    public async Task<Result<SessionRotation>> EndOthersAsync(string token, string currentPassword, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(token);
+        ArgumentNullException.ThrowIfNull(currentPassword);
         if (!SessionToken.TryHash(token, out var hash))
         {
-            return 0;
+            return SessionEnded;
         }
 
         // 直接查資料庫而不是快取：要作廢別人之前，確認這一個現在真的還有效。
@@ -76,15 +86,72 @@ internal sealed class SessionService(
         var found = await SessionStore.FindAsync(db, hash, cancellationToken);
         if (found is null || !SessionStore.IsActive(found, now))
         {
-            return 0;
+            return SessionEnded;
         }
 
-        var ended = await SessionStore.RevokeAsync(
-            db, found.Session.OrganizationId, found.Account.Id, found.Session.Id, SessionEndReasons.OtherSessions, now,
-            cancellationToken);
+        // 只有 Cookie 的人不能一直把本人踢出去：要目前的密碼。密碼不對寫一筆失敗的稽核，工作階段原封不動。
+        if (!CurrentPasswordCheck.Matches(hasher, found.Account.PasswordHash, currentPassword))
+        {
+            await RecordIncorrectPasswordAsync(db, found, cancellationToken);
+            return PersonInput.Invalid([CurrentPasswordCheck.Incorrect]);
+        }
+
+        var rotation = await RotateAsync(db, found, now, cancellationToken);
+        if (rotation is null)
+        {
+            return SessionEnded;
+        }
+
         // 已經閒置或過期、沒算進數字裡的也作廢了，所以不管數字是多少都清快取。
         cache.Forget(found.Account.Id);
-        return ended;
+        return rotation;
+    }
+
+    private Task<Guid> RecordIncorrectPasswordAsync(IdentityDbContext db, SessionWithAccount found, CancellationToken cancellationToken) =>
+        audit.AddAsync(
+            db,
+            new AuditRecord(found.Session.OrganizationId, AuditActions.OtherSessionsSignedOut, AuditOutcomes.Failed)
+            {
+                ActorPersonId = found.Person.Id,
+                TargetPersonId = found.Person.Id,
+                Details = new Dictionary<string, string> { ["reason"] = "incorrect_password" },
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// 換成新的、作廢其餘的，在同一個交易裡。新的沿用舊的絕對期限，不讓這個按鈕延長它。
+    /// 交易一開始先鎖帳號那一列（和改密碼、重設密碼、停用的第一步一樣：先帳號、再工作階段），
+    /// 同一個帳號同時的換發就排隊，不會兩邊各握著對方要動的工作階段而死結；
+    /// 後到的看到自己的工作階段已經被作廢，整個不做。改密碼、重設密碼與停用先提交時，條件不成立，插不進去；
+    /// 後提交時連這一筆一起作廢。
+    /// </summary>
+    private async Task<SessionRotation?> RotateAsync(
+        IdentityDbContext db, SessionWithAccount found, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var organizationId = found.Session.OrganizationId;
+        var (row, newToken) = SessionStore.NewRow(organizationId, found.Account.Id, now, found.Session.ExpiresAt);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await AccessTokenWriter.LockAccountAsync(db, organizationId, found.Account.Id, cancellationToken)
+            || !await SessionStore.InsertForVerifiedAsync(db, row, found.Account.PasswordHash, cancellationToken)
+            || !await SessionStore.TouchAsync(db, found.Session, now, cancellationToken))
+        {
+            return null;
+        }
+
+        await SessionStore.RevokeByIdAsync(db, organizationId, found.Session.Id, SessionEndReasons.Rotated, now, cancellationToken);
+        var ended = await SessionStore.RevokeAsync(
+            db, organizationId, found.Account.Id, row.Id, SessionEndReasons.OtherSessions, now, cancellationToken);
+        await audit.AddAsync(
+            db,
+            new AuditRecord(organizationId, AuditActions.OtherSessionsSignedOut)
+            {
+                ActorPersonId = found.Person.Id,
+                TargetPersonId = found.Person.Id,
+                Details = new Dictionary<string, string> { ["signedOutSessions"] = ended.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+            },
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new SessionRotation(ended, new StartedSession(row.Id, newToken, row.ExpiresAt));
     }
 
     /// <summary>
@@ -112,18 +179,8 @@ internal sealed class SessionService(
 
     private async Task<StartedSession?> StartAsync(VerifiedCredential verified, CancellationToken cancellationToken)
     {
-        var (token, hash) = SessionToken.Create();
         var now = time.GetUtcNow();
-        var row = new SessionRow
-        {
-            Id = Guid.CreateVersion7(),
-            OrganizationId = verified.User.OrganizationId,
-            AccountId = verified.User.AccountId,
-            TokenHash = hash,
-            CreatedAt = now,
-            LastUsedAt = now,
-            ExpiresAt = now + SessionStore.AbsoluteLimit,
-        };
+        var (row, token) = SessionStore.NewRow(verified.User.OrganizationId, verified.User.AccountId, now, now + SessionStore.AbsoluteLimit);
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
 

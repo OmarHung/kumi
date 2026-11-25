@@ -5,7 +5,7 @@ using PmTool.Abstractions;
 
 namespace PmTool.Identity.Tests;
 
-/// <summary>改自己的密碼：先確認目前的密碼，成功後其他工作階段全部登出，這一個留著。</summary>
+/// <summary>改自己的密碼：先確認目前的密碼，成功後其他工作階段全部登出，這一個換成新的。</summary>
 [TestFixture]
 public sealed class AccountServiceTests
 {
@@ -26,7 +26,7 @@ public sealed class AccountServiceTests
     public async Task StopAsync() => await _host.DisposeAsync();
 
     [Test]
-    public async Task ChangeOwnPassword_Accepted_SignsOutTheOtherSessionsAndKeepsThisOne()
+    public async Task ChangeOwnPassword_Accepted_SignsOutTheOtherSessionsAndSwapsThisOneForANewOne()
     {
         // Arrange：另外兩個工作階段先查過一次，結果進了快取；改密碼要立刻讓它們失效。
         var user = await _host.AddUserAsync(_owner.ToActor());
@@ -36,12 +36,12 @@ public sealed class AccountServiceTests
         await _host.AreActiveAsync(second, third);
 
         // Act
-        var result = await _host.Accounts.ChangeOwnPasswordAsync(current.Token, TestData.Password, NewPassword, CancellationToken.None);
+        var result = await _host.Accounts.ChangeOwnPasswordAsync(current.Token, TestData.Password, NewPassword, false, CancellationToken.None);
 
         // Assert
         Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
-        Assert.That(result.Value, Is.EqualTo(new PasswordChanged(2)));
-        Assert.That(await _host.AreActiveAsync(current, second, third), Is.EqualTo(new[] { true, false, false }));
+        Assert.That(result.Value.SignedOutSessions, Is.EqualTo(2));
+        Assert.That(await _host.AreActiveAsync(current, second, third, result.Value.Session), Is.EqualTo(new[] { false, false, false, true }));
     }
 
     [Test]
@@ -52,7 +52,7 @@ public sealed class AccountServiceTests
         var session = await _host.StartSessionAsync(user);
 
         // Act
-        await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, NewPassword, CancellationToken.None);
+        await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, NewPassword, false, CancellationToken.None);
 
         // Assert
         Assert.That(await _host.Authentication.SignInAsync(user.Email, NewPassword, CancellationToken.None), Is.EqualTo(user));
@@ -67,10 +67,10 @@ public sealed class AccountServiceTests
         var session = await _host.StartSessionAsync(user);
 
         // Act
-        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, TestData.Password, CancellationToken.None);
+        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, TestData.Password, false, CancellationToken.None);
 
         // Assert
-        Assert.That(result.Value, Is.EqualTo(new PasswordChanged(0)));
+        Assert.That(result.Value.SignedOutSessions, Is.Zero);
         Assert.That(await _host.Authentication.SignInAsync(user.Email, TestData.Password, CancellationToken.None), Is.Not.Null);
     }
 
@@ -83,7 +83,7 @@ public sealed class AccountServiceTests
         var other = await _host.StartSessionAsync(user);
 
         // Act
-        var result = await _host.Accounts.ChangeOwnPasswordAsync(current.Token, "wrong-password", NewPassword, CancellationToken.None);
+        var result = await _host.Accounts.ChangeOwnPasswordAsync(current.Token, "wrong-password", NewPassword, false, CancellationToken.None);
 
         // Assert
         AssertInvalid(result, (IdentityErrorCodes.PasswordIncorrect, "currentPassword"));
@@ -100,7 +100,7 @@ public sealed class AccountServiceTests
         var session = await _host.StartSessionAsync(user);
 
         // Act
-        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, new string('p', length), CancellationToken.None);
+        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, new string('p', length), false, CancellationToken.None);
 
         // Assert
         AssertInvalid(result, (code, "newPassword"));
@@ -116,7 +116,7 @@ public sealed class AccountServiceTests
         var session = await _host.StartSessionAsync(user);
 
         // Act
-        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, new string('p', length), CancellationToken.None);
+        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, TestData.Password, new string('p', length), false, CancellationToken.None);
 
         // Assert
         Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
@@ -130,7 +130,7 @@ public sealed class AccountServiceTests
         var session = await _host.StartSessionAsync(user);
 
         // Act
-        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, "wrong-password", "short", CancellationToken.None);
+        var result = await _host.Accounts.ChangeOwnPasswordAsync(session.Token, "wrong-password", "short", false, CancellationToken.None);
 
         // Assert：網頁一次把兩個欄位都標出來
         AssertInvalid(
@@ -147,7 +147,7 @@ public sealed class AccountServiceTests
 
         // Act
         var result = await _host.Accounts.ChangeOwnPasswordAsync(
-            session.Token, new string('p', IdentityRules.MaxPasswordLength + 1), NewPassword, CancellationToken.None);
+            session.Token, new string('p', IdentityRules.MaxPasswordLength + 1), NewPassword, false, CancellationToken.None);
 
         // Assert
         AssertInvalid(result, (IdentityErrorCodes.PasswordIncorrect, "currentPassword"));
@@ -169,7 +169,7 @@ public sealed class AccountServiceTests
         };
 
         // Act
-        var result = await _host.Accounts.ChangeOwnPasswordAsync(token, TestData.Password, NewPassword, CancellationToken.None);
+        var result = await _host.Accounts.ChangeOwnPasswordAsync(token, TestData.Password, NewPassword, false, CancellationToken.None);
 
         // Assert
         Assert.That(result.Failure?.Kind, Is.EqualTo(FailureKind.Forbidden));

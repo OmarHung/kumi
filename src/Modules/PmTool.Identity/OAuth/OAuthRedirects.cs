@@ -76,6 +76,30 @@ internal static class OAuthRedirects
         return uri.IsDefaultPort ? host : $"{host}:{uri.Port}";
     }
 
+    /// <summary>
+    /// 導回的網站和用戶端的網域是不是同一個：導回本機算是；主機相同，或其中一方是另一方的子網域也算。
+    /// 沒有 Public Suffix List，所以兄弟子網域會被多警告一次；不同的網域不會被誤判成同一個。
+    /// 用戶端沒有網域（動態註冊的）時，只有導回本機才算同站；導到別的網站，同意頁一律要警告。
+    /// </summary>
+    public static bool IsSameSite(Uri redirect, string? clientHost)
+    {
+        if (IsLoopback(redirect))
+        {
+            return true;
+        }
+
+        if (clientHost is null)
+        {
+            return false;
+        }
+
+        var redirectHost = redirect.IdnHost.ToLowerInvariant();
+        var client = clientHost.ToLowerInvariant();
+        return redirectHost == client
+            || redirectHost.EndsWith("." + client, StringComparison.Ordinal)
+            || client.EndsWith("." + redirectHost, StringComparison.Ordinal);
+    }
+
     /// <summary>在導回網址後面加查詢參數（網址本來就有查詢字串時接在後面）。值是 null 的略過。</summary>
     public static string Append(string redirectUri, IEnumerable<(string Name, string? Value)> parameters)
     {

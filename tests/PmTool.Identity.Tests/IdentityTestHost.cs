@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PmTool.Abstractions;
@@ -26,6 +27,9 @@ internal sealed class IdentityTestHost : IAsyncDisposable
 
     /// <summary>目前的請求來源。預設沒有請求（<see cref="FakeRequestSource.Current"/> 是 null），測試要設才有。</summary>
     public FakeRequestSource Request => _services.GetRequiredService<FakeRequestSource>();
+
+    /// <summary>發出要求的工作階段。預設沒有（<see cref="FakeCurrentSession.Token"/> 是 null），測試要設才有。</summary>
+    public FakeCurrentSession CurrentSession => _services.GetRequiredService<FakeCurrentSession>();
 
     /// <summary>身分模組發出的帳號事件，依發出的順序。</summary>
     public RecordingAccountEventSink Events => _services.GetRequiredService<RecordingAccountEventSink>();
@@ -97,6 +101,8 @@ internal sealed class IdentityTestHost : IAsyncDisposable
     {
         services.AddSingleton<FakeRequestSource>();
         services.AddSingleton<IRequestSource>(provider => provider.GetRequiredService<FakeRequestSource>());
+        services.AddSingleton<FakeCurrentSession>();
+        services.AddSingleton<ICurrentSession>(provider => provider.GetRequiredService<FakeCurrentSession>());
         services.AddSingleton<RecordingAccountEventSink>();
         services.AddSingleton<IAccountEventSink>(provider => provider.GetRequiredService<RecordingAccountEventSink>());
     }
@@ -158,15 +164,20 @@ internal sealed class IdentityTestHost : IAsyncDisposable
 
     /// <summary>
     /// 合約只能建立第一個組織；測試「不會跨組織」需要第二個，直接寫進去。
-    /// 回傳那個組織的管理員身分，可以拿來在裡面新增人員。
+    /// 回傳那個組織的擁有者身分（資料庫裡有他這個人，新增人員時會重查），可以拿來在裡面新增人員。
     /// </summary>
     public async Task<Actor> AddOrganizationAsync(string name)
     {
         var organization = new OrganizationRow { Id = Guid.CreateVersion7(), Name = name, CreatedAt = DateTimeOffset.UtcNow };
         await using var db = await CreateDbContextAsync();
+        var (owner, account) = PersonRows.Create(
+            organization.Id, $"{name}的擁有者", TestData.UniqueEmail(),
+            _services.GetRequiredService<IPasswordHasher<PasswordCredential>>().HashPassword(PasswordCredential.Instance, TestData.Password),
+            OrganizationRole.Owner, DateTimeOffset.UtcNow);
         db.Organizations.Add(organization);
+        db.AddRange(owner, account);
         await db.SaveChangesAsync();
-        return new Actor(organization.Id, Guid.CreateVersion7(), IsOrganizationAdmin: true);
+        return new Actor(organization.Id, owner.Id, IsOrganizationAdmin: true);
     }
 
     /// <summary>建立第一個擁有者並登入，回傳他的身分。</summary>

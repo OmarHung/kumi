@@ -52,7 +52,7 @@ internal static class HostAgentWorkerEndpoints
         CancellationToken cancellationToken)
     {
         // 在查資料庫之前先看這個來源猜錯了幾次：配對碼錯也算失敗。
-        var source = ApiRateLimiting.AddressKeyOf(http.Connection.RemoteIpAddress);
+        var source = HostCredentials.AgentFailureSource(http);
         if (failures.IsBlocked(source, out var retryAfter))
         {
             http.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -94,6 +94,11 @@ internal static class HostAgentWorkerEndpoints
             });
         }
 
+        if (request.FindNullElement() is { } nullElement)
+        {
+            return EndpointResults.Fail(nullElement);
+        }
+
         // 長輪詢：呼叫端斷線時（RequestAborted）模組立刻回，什麼都不領。
         var result = await workers.CheckInAsync(AgentOf(http), request.ToCheckIn(), request.Capacity, cancellationToken);
         return result.Failure is { } failure ? EndpointResults.Fail(failure) : EndpointResults.Ok(HostCheckInData.From(result.Value));
@@ -111,18 +116,13 @@ internal static class HostAgentWorkerEndpoints
             return bodyFailure.ToResult();
         }
 
-        var events = new List<LocalAgentEvent>(request.Events.Count);
-        foreach (var raw in request.Events)
+        var converted = LocalAgentEventRequest.ConvertAll(request.Events);
+        if (converted.Failure is { } invalid)
         {
-            var converted = raw.ToEvent(events.Count);
-            if (converted.Failure is { } invalid)
-            {
-                return EndpointResults.Fail(HostWorkerFailures.AsHostInvalid(invalid));
-            }
-
-            events.Add(converted.Value);
+            return EndpointResults.Fail(HostWorkerFailures.AsHostInvalid(invalid));
         }
 
+        var events = converted.Value;
         var result = await workers.ReportAsync(AgentOf(http), jobId, request.Lease, request.FirstSeq, events, cancellationToken);
         return result.Failure is { } failure ? EndpointResults.Fail(failure) : EndpointResults.Ok(HostAckData.From(result.Value));
     }

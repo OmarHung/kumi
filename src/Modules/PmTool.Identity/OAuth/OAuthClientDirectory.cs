@@ -64,9 +64,31 @@ internal sealed class OAuthClientDirectory(
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         await DeleteUnusedAsync(db, now, cancellationToken);
+        var recent = await db.OAuthClients.CountAsync(
+            c => c.Kind == OAuthClientRow.RegisteredKind && c.CreatedAt > now - OAuthRules.UnauthorizedRegistrationRetention, cancellationToken);
+
+        // 額度滿了不能直接拒絕：任何人都能一直註冊，把額度占滿之後，真正的新用戶端就註冊不了。
+        // 改成讓最舊的、從沒用過也沒有授權的註冊讓位；一個都讓不出來（全都有人在用）才回暫時不能用。
+        if (recent >= OAuthRules.MaxRegistrationsPerDay && !await DeleteOldestUnusedAsync(db, cancellationToken))
+        {
+            return new OAuthFailure(OAuthError.TemporarilyUnavailable, "今天的註冊數量已經到上限，請稍後再試。");
+        }
+
         db.OAuthClients.Add(row);
         await db.SaveChangesAsync(cancellationToken);
         return new OAuthRegisteredClient(row.ClientId, row.Name, row.RedirectUris, now);
+    }
+
+    /// <summary>刪掉最舊的一筆從沒發出過授權碼、也沒有有效授權的註冊；有刪到才回 true。</summary>
+    private static async Task<bool> DeleteOldestUnusedAsync(IdentityDbContext db, CancellationToken cancellationToken)
+    {
+        var oldest = await db.OAuthClients
+            .Where(c => c.Kind == OAuthClientRow.RegisteredKind && c.LastUsedAt == null
+                && !db.OAuthGrants.Any(g => g.ClientId == c.ClientId && g.RevokedAt == null))
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => (Guid?)c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return oldest is { } id && await db.OAuthClients.Where(c => c.Id == id).ExecuteDeleteAsync(cancellationToken) == 1;
     }
 
     /// <summary>有人用這個用戶端發出授權碼了：記下時刻，「90 天沒用」才算得出來。</summary>
@@ -180,6 +202,12 @@ internal sealed class OAuthClientDirectory(
             return false;
         }
 
+        if (parsed.Port != 443)
+        {
+            error = "client_id 不能指定連接埠（只用預設的 443）。";
+            return false;
+        }
+
         if (PublicAddressGuard.IsBlockedLiteral(parsed))
         {
             error = "client_id 指向內網或本機，不能使用。";
@@ -226,8 +254,10 @@ internal sealed class OAuthClientDirectory(
     private static async Task DeleteUnusedAsync(IdentityDbContext db, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var cutoff = now - UnusedRegistrationRetention;
+        var unauthorizedCutoff = now - OAuthRules.UnauthorizedRegistrationRetention;
         await db.OAuthClients
-            .Where(c => c.Kind == OAuthClientRow.RegisteredKind && (c.LastUsedAt ?? c.CreatedAt) < cutoff
+            .Where(c => c.Kind == OAuthClientRow.RegisteredKind
+                && ((c.LastUsedAt ?? c.CreatedAt) < cutoff || (c.LastUsedAt == null && c.CreatedAt < unauthorizedCutoff))
                 && !db.OAuthGrants.Any(g => g.ClientId == c.ClientId && g.RevokedAt == null))
             .ExecuteDeleteAsync(cancellationToken);
         await DeleteStaleMetadataAsync(db, now, cancellationToken);

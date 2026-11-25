@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using PmTool.Abstractions;
 
 namespace PmTool.Identity;
@@ -32,6 +34,7 @@ public interface ICliLoginService
     /// <item><see cref="CliLoginGrant.IncludeAgent"/>：請求有 agent、而且呼叫端確認組織允許成員使用自己的 AI 帳號時才是 true。
     /// 請求有 agent 卻是 false，兌換的結果標 <see cref="CliLoginTokens.AgentSkipped"/>；請求只有 agent 卻是 false：<see cref="IdentityErrorCodes.CliLoginAgentNotAllowed"/>（Forbidden）。</item>
     /// <item><see cref="CliLoginGrant.ExpiresInDays"/>：1～<see cref="AccessTokenRules.MaxExpiresInDays"/>，不收 null（這條路發的權杖一定有期限）。不對：<see cref="IdentityErrorCodes.AccessTokenExpiryInvalid"/>。</item>
+    /// <item><see cref="CliLoginGrant.ConfirmationCode"/>：沒給或不符就不存登入碼，回 <see cref="IdentityErrorCodes.CliLoginConfirmationMismatch"/>。</item>
     /// <item><see cref="CliLoginGrant.Origin"/>：存在碼上，兌換時比對。空白或超過 <see cref="CliLoginRules.MaxOriginLength"/> 字：<see cref="IdentityErrorCodes.CliLoginRequestInvalid"/>。</item>
     /// <item>就算兌換時換掉 <see cref="CliLoginRules.MaxReplaceTokens"/> 把舊的，這一次要建的把數加上還能用的（不算 OAuth 發的）
     /// 還是超過 <see cref="AccessTokenRules.MaxActiveTokensPerAccount"/>：<see cref="IdentityErrorCodes.AccessTokenLimitReached"/>（Conflict）。
@@ -82,7 +85,12 @@ public sealed record CliLoginRequest(string MachineName, IReadOnlyList<CliLoginT
 /// <summary>使用者在同意頁的決定。</summary>
 /// <param name="ExpiresInDays">這條路發的權杖一定有期限：1～<see cref="AccessTokenRules.MaxExpiresInDays"/>，null 不收。只管命令列的權杖；本機代理的固定 <see cref="CliLoginRules.AgentTokenLifetimeDays"/> 天。</param>
 /// <param name="Origin">按下「允許」的瀏覽器的來源鍵，由呼叫端（API）從連線算出來，模組不碰 HTTP。兌換時要帶同一個鍵才換得到。</param>
-public sealed record CliLoginGrant(IReadOnlyList<AccessTokenScope> CliScopes, bool IncludeAgent, int? ExpiresInDays, string Origin);
+/// <param name="ConfirmationCode">
+/// 使用者從終端機抄來的六碼確認碼（<see cref="CliLoginRules.ConfirmationCodeOf"/>），空白與 <c>-</c> 不計。
+/// 沒給或和請求的 PKCE challenge 算出來的不同：<see cref="IdentityErrorCodes.CliLoginConfirmationMismatch"/>（Invalid，細項路徑 confirmationCode），
+/// 這時不存登入碼。檢查請求（<see cref="ICliLoginService.CheckAsync"/>）的結果不帶正確的確認碼：碼只有開了這個登入的終端機看得到。
+/// </param>
+public sealed record CliLoginGrant(IReadOnlyList<AccessTokenScope> CliScopes, bool IncludeAgent, int? ExpiresInDays, string Origin, string? ConfirmationCode = null);
 
 /// <param name="RedirectUri"><c>http://127.0.0.1:{port}/kumi-login?code=…&amp;state=…</c>，網頁直接把瀏覽器導過去。</param>
 public sealed record CliLoginApproval(string RedirectUri);
@@ -131,6 +139,39 @@ public static class CliLoginRules
     /// <summary>本機代理的權杖：<c>agent:run</c> 領工作，其他三個給引擎的 MCP 讀設定、提出變更集、讀項目（和網頁的「建立本機代理用的權杖」同一組）。</summary>
     public static readonly IReadOnlyList<AccessTokenScope> AgentScopes =
         [AccessTokenScope.AgentRun, AccessTokenScope.BlueprintRead, AccessTokenScope.BlueprintWrite, AccessTokenScope.ItemsRead];
+
+    /// <summary>確認碼的位數。</summary>
+    public const int ConfirmationCodeLength = 6;
+
+    private const string ConfirmationPrefix = "kumi-cli-login-confirm\n";
+
+    /// <summary>
+    /// 終端機與同意頁要對上的六碼：SHA-256(「kumi-cli-login-confirm」加換行，再接 challenge 的原字串) 前四個位元組當大端序整數，
+    /// 除以一百萬取餘數，補零到六位。顯示時分成「ddd ddd」。
+    /// </summary>
+    public static string ConfirmationCodeOf(string challenge)
+    {
+        ArgumentNullException.ThrowIfNull(challenge);
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(ConfirmationPrefix + challenge));
+        var number = (digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3];
+        return ((uint)number % 1_000_000u).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// 使用者輸入的碼對不對：去掉空白與 <c>-</c>，剛好六個 ASCII 數字，逐字相同。這個碼不是祕密，不用定時比較。
+    /// </summary>
+    public static bool ConfirmationCodeMatches(string challenge, string? input)
+    {
+        if (input is null)
+        {
+            return false;
+        }
+
+        var digits = new string([.. input.Where(c => !char.IsWhiteSpace(c) && c != '-')]);
+        return digits.Length == ConfirmationCodeLength
+            && digits.All(char.IsAsciiDigit)
+            && string.Equals(digits, ConfirmationCodeOf(challenge), StringComparison.Ordinal);
+    }
 
     /// <summary>命令列的權杖的名稱，例如「kumi（MacBook-Pro）」。</summary>
     public static string CliTokenName(string machineName) => $"kumi（{machineName}）";

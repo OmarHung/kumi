@@ -24,7 +24,7 @@ public sealed class PeopleDirectoryQueryTests
     [Test]
     public async Task ListAsync_Organization_ReturnsItsPeopleSortedByDisplayName()
     {
-        // Arrange：另開一個組織，裡面只有這個測試建的人
+        // Arrange：另開一個組織，裡面除了組織自己的擁有者，只有這個測試建的人
         var organization = await _host.AddOrganizationAsync("排序用的範例組織");
         var created = new List<PersonSummary>();
         foreach (var name in new[] { "C 範例使用者", "A 範例使用者", "B 範例使用者" })
@@ -33,7 +33,8 @@ public sealed class PeopleDirectoryQueryTests
         }
 
         // Act
-        var people = await _host.People.ListAsync(organization.OrganizationId, CancellationToken.None);
+        var people = (await _host.People.ListAsync(organization.OrganizationId, CancellationToken.None))
+            .Where(p => p.PersonId != organization.PersonId);
 
         // Assert
         Assert.That(people, Is.EqualTo(created.OrderBy(p => p.DisplayName, StringComparer.Ordinal)));

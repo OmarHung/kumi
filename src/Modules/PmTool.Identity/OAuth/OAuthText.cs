@@ -15,7 +15,7 @@ internal static class OAuthText
         !string.IsNullOrEmpty(value) && value.Length <= maxLength && !InputText.HasForbiddenCharacters(value);
 
     /// <summary>
-    /// 用戶端自己報的名稱要顯示在同意頁：去掉控制字元，與能讓顯示和實際不同的字元（雙向控制、零寬、行與段落分隔），
+    /// 用戶端自己報的名稱要顯示在同意頁：去掉控制字元，與能讓顯示和實際不同的字元（雙向控制、零寬、行與段落分隔、填充字、變體選擇符），
     /// 去頭尾空白。結果是空的、或超過上限都回 null。
     /// </summary>
     public static string? CleanName(string? name, int maxLength)
@@ -28,7 +28,7 @@ internal static class OAuthText
         var builder = new StringBuilder(name.Length);
         foreach (var rune in name.EnumerateRunes())
         {
-            if (Rune.IsControl(rune) || IsInvisibleFormatting(rune))
+            if (Rune.IsControl(rune) || InputText.IsInvisibleFormatting(rune))
             {
                 continue;
             }
@@ -62,7 +62,4 @@ internal static class OAuthText
 
     public static IReadOnlyList<AccessTokenScope> ScopesFromNames(IEnumerable<string> names) =>
         [.. names.Select(name => AccessTokenScopes.TryParse(name, out var scope) ? (AccessTokenScope?)scope : null).OfType<AccessTokenScope>()];
-
-    private static bool IsInvisibleFormatting(Rune rune) =>
-        Rune.GetUnicodeCategory(rune) is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 }

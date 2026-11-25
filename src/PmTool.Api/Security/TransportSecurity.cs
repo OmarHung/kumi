@@ -59,6 +59,21 @@ internal sealed partial record TransportSecurity(ProxySettings Proxy, bool Requi
                 $"{PublicHostSetting} 只能是主機名稱，可以接 :埠（例如 pm.example.com 或 pm.example.com:8443），不含 https:// 與路徑，現在是「{raw}」。");
     }
 
+    /// <summary>
+    /// 正式環境一律走 HTTPS 時一定要設 <see cref="PublicHostSetting"/>：轉到 https、OAuth 的 issuer 與 MCP 的網址
+    /// 都得有一個不來自請求標頭的對外主機名稱。本機的 8080 不開 RequireHttps，不受影響。
+    /// </summary>
+    /// <exception cref="InvalidOperationException">條件不符，訊息說得出要設哪個設定。</exception>
+    public void Validate(bool isProduction)
+    {
+        if (isProduction && RequireHttps && PublicHost is null)
+        {
+            throw new InvalidOperationException(
+                $"正式環境設了 {RequireHttpsSetting} 就一定要設定 {PublicHostSetting}（對外的主機名稱，例如 pm.example.com）："
+                + "沒有它，轉到 https 的網址與 OAuth 的 issuer 只能依請求的 Host 標頭組出來，標頭是用戶端自己填的。");
+        }
+    }
+
     /// <summary>設定看起來有問題、但不到要讓啟動失敗的地方，記成警告讓部署的人看得到。</summary>
     /// <param name="isProduction">
     /// 環境是 Production。本機的 8080 也是 Production（容器預設），所以沒設 <see cref="PublicHostSetting"/> 只能警告，不能讓啟動失敗。
@@ -110,11 +125,16 @@ internal static partial class TransportSecurityPipeline
         return services;
     }
 
-    /// <summary>正式環境與開發都記：設定的組合看起來有問題但不到要失敗時，部署的人才看得到。</summary>
-    public static void WarnAboutTransportSettings(this WebApplication app)
+    /// <summary>
+    /// 先檢查（不合規定就讓啟動失敗），再把看起來有問題但不到要失敗的組合記成警告，部署的人才看得到。
+    /// 正式環境與開發都記。
+    /// </summary>
+    public static void CheckTransportSettings(this WebApplication app)
     {
+        var settings = app.Services.GetRequiredService<TransportSecurity>();
+        settings.Validate(app.Environment.IsProduction());
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(TransportSecurity).FullName!);
-        foreach (var warning in app.Services.GetRequiredService<TransportSecurity>().Warnings(app.Environment.IsProduction()))
+        foreach (var warning in settings.Warnings(app.Environment.IsProduction()))
         {
             LogWarning(logger, warning);
         }

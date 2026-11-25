@@ -60,6 +60,7 @@ internal static class OAuthAccountEndpoints
             found.ClientHost,
             found.RedirectHost,
             found.RedirectIsLoopback,
+            found.RedirectMatchesClient,
             [.. found.RequestedScopes.Select(AccessTokenScopes.NameOf)],
             new AuthorizationAccountData(user.DisplayName, user.Email, user.OrganizationName)));
     }

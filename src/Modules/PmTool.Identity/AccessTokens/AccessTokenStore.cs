@@ -60,6 +60,21 @@ internal static class AccessTokenStore
                     .SetProperty(t => t.RevokedReason, reason),
                 cancellationToken);
 
+    /// <summary>
+    /// 撤銷一個帳號所有還沒撤銷的個人存取權杖（OAuth 授權發的不算，它們跟著授權一起撤銷），回傳撤銷了幾把。
+    /// 改密碼用；呼叫端提交之後要清快取。
+    /// </summary>
+    public static Task<int> RevokePersonalAsync(
+        IdentityDbContext db, Guid organizationId, Guid accountId, string reason, DateTimeOffset now, CancellationToken cancellationToken) =>
+        db.AccessTokens
+            .Where(t => t.OrganizationId == organizationId && t.AccountId == accountId && t.GrantId == null
+                && t.RevokedAt == null && (t.ExpiresAt == null || t.ExpiresAt > now))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(t => t.RevokedAt, (DateTimeOffset?)now)
+                    .SetProperty(t => t.RevokedReason, reason),
+                cancellationToken);
+
     /// <summary>刪掉這個組織裡結束超過 <see cref="EndedRetention"/> 的權杖。</summary>
     public static Task<int> DeleteEndedAsync(IdentityDbContext db, Guid organizationId, DateTimeOffset now, CancellationToken cancellationToken)
     {

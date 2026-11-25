@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
+using PmTool.Identity.Audit;
 using PmTool.Identity.Persistence;
 using PmTool.Identity.Sessions;
 
@@ -21,6 +22,10 @@ internal sealed class OAuthAuthorization(
     IDbContextFactory<IdentityDbContext> contexts,
     OAuthClientDirectory clients,
     SessionCache cache,
+    AuditTrail audit,
+    AccountEvents events,
+    IRequestSource requestSource,
+    ICurrentSession currentSession,
     TimeProvider time)
 {
     public async Task<OAuthResult<PreparedAuthorization>> PrepareAsync(
@@ -71,7 +76,10 @@ internal sealed class OAuthAuthorization(
             request.Client.Host,
             OAuthRedirects.HostOf(request.RedirectUri),
             OAuthRedirects.IsLoopback(request.RedirectUri),
-            request.Scopes);
+            request.Scopes)
+        {
+            RedirectMatchesClient = OAuthRedirects.IsSameSite(request.RedirectUri, request.Client.Host),
+        };
     }
 
     public async Task<OAuthResult<string>> DenyAsync(OAuthServer server, OAuthAuthorizeParameters parameters, CancellationToken cancellationToken)
@@ -160,7 +168,10 @@ internal sealed class OAuthAuthorization(
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var accountId = await LockAccountAsync(db, actor, cancellationToken);
-        if (accountId is null)
+
+        // 拿到帳號的鎖之後才確認呼叫的工作階段：改密碼已經提交的話，這裡一定看得到它作廢了這個工作階段。
+        if (accountId is null
+            || !await SessionStore.IsCallerSessionActiveAsync(db, actor.OrganizationId, accountId.Value, currentSession.Token, now, cancellationToken))
         {
             return new OAuthFailure(OAuthError.AccessDenied, "登入已經失效，請重新登入。");
         }
@@ -185,13 +196,46 @@ internal sealed class OAuthAuthorization(
             CreatedAt = now,
             ExpiresAt = now + OAuthRules.CodeLifetime,
         });
-        await db.SaveChangesAsync(cancellationToken);
+        var source = RequestSourceText.Clean(requestSource.Current?.Address, RequestSourceText.MaxAddressLength);
+        var eventId = await audit.AddAsync(
+            db,
+            new AuditRecord(actor.OrganizationId, AuditActions.OAuthAuthorized)
+            {
+                ActorPersonId = actor.PersonId,
+                TargetPersonId = actor.PersonId,
+                Details = AuthorizedDetails(request, granted),
+            },
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         // 縮小範圍時撤銷了存取權杖：提交之後清快取，同一個程序裡才立刻失效。
         cache.Forget(accountId.Value);
         await clients.TouchAsync(request.Client.ClientId, cancellationToken);
+
+        // 提交之後才通知：回復的授權不該發出通知；通知失敗也不影響已經發出的授權碼。
+        await events.PublishAsync(new AccountEvent(eventId, actor.OrganizationId, actor.PersonId, AccountEventKind.OAuthAppAuthorized, now)
+        {
+            Scopes = granted,
+            ClientName = request.Client.Name,
+            ClientHost = request.Client.Host,
+            SourceAddress = source,
+        });
         return code;
+    }
+
+    private static Dictionary<string, string> AuthorizedDetails(PreparedAuthorization request, IReadOnlyList<AccessTokenScope> granted)
+    {
+        var details = new Dictionary<string, string>
+        {
+            ["client"] = request.Client.Name,
+            ["scopes"] = string.Join(' ', granted.Select(AccessTokenScopes.NameOf)),
+        };
+        if (request.Client.Host is { } host)
+        {
+            details["clientHost"] = host;
+        }
+
+        return details;
     }
 
     private static async Task<Guid?> LockAccountAsync(IdentityDbContext db, Actor actor, CancellationToken cancellationToken)

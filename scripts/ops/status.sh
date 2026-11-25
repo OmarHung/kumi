@@ -165,9 +165,9 @@ show_errors() {
   read -r errors client <<<"$counts" || true
   errors="${errors:-0}"
   client="${client:-0}"
-  row "api 過去 24 小時的錯誤" "${errors} 筆（其中網頁回報 ${client} 筆）"
+  row "api 過去 24 小時的錯誤" "${errors} 筆 Error／Critical（另外網頁回報的 Warning ${client} 筆）"
   if [[ "$errors" != 0 ]]; then
-    problem "api 過去 24 小時有 $errors 筆 Error／Critical（其中網頁回報 ${client} 筆）：bash scripts/ops/errors.sh"
+    problem "api 過去 24 小時有 $errors 筆 Error／Critical（另外網頁回報的 Warning ${client} 筆）：bash scripts/ops/errors.sh"
   fi
 }
 

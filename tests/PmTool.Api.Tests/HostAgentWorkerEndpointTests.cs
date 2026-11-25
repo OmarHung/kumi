@@ -146,6 +146,50 @@ public sealed class HostAgentWorkerEndpointTests
         }
     }
 
+    [TestCase("""[null]""", "engines[0]", TestName = "引擎的元素是 null")]
+    [TestCase("""[{"kind":"codex","installed":true,"supported":true,"loggedIn":true,"billing":"api","models":[null]}]""", "engines[0].models[0]", TestName = "模型的元素是 null")]
+    [TestCase("""[{"kind":"codex","installed":true,"supported":true,"loggedIn":true,"billing":"api","models":[{"id":"a","displayName":"A","efforts":[null]}]}]""", "engines[0].models[0].efforts[0]", TestName = "思考深度的元素是 null")]
+    public async Task CheckIn_ANullArrayElement_Is422WithThePathAndTheModuleIsNotAsked(string engines, string path)
+    {
+        // Arrange：元素是 null 時轉換會丟 NullReferenceException，回 500；要回和其他欄位一樣的 422。
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        var request = Bearer(HttpMethod.Post, CheckInRoute, FakeHostAgentWorkerService.Credential);
+        request.Content = ApiRequests.Document($$"""{"agentVersion":"0.9.0","serverUrl":"http://api:8080","capacity":1,"engines":{{engines}}}""");
+
+        // Act
+        using var response = await client.SendAsync(request);
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, AiErrorCodes.HostAgentInvalid);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { $"ai.field_invalid|{path}" }));
+            Assert.That(factory.Modules.HostWorker.Calls, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Report_ANullEvent_Is422WithTheIndexAndTheModuleIsNotAsked()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        var request = Bearer(HttpMethod.Post, EventsRoute, FakeHostAgentWorkerService.Credential);
+        request.Content = ApiRequests.Document("""{"lease":3,"firstSeq":1,"events":[{"type":"text","delta":"ok"},null]}""");
+
+        // Act
+        using var response = await client.SendAsync(request);
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, AiErrorCodes.HostAgentInvalid);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { "ai.field_invalid|events[1]" }));
+            Assert.That(factory.Modules.HostWorker.Calls, Is.Empty);
+        }
+    }
+
     [Test]
     public async Task CheckIn_ModuleFailure_IsPassedThrough()
     {

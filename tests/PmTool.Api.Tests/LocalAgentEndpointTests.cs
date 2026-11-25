@@ -205,6 +205,50 @@ public sealed class LocalAgentEndpointTests
         }
     }
 
+    [TestCase("""[null]""", "engines[0]", TestName = "引擎的元素是 null")]
+    [TestCase("""[{"kind":"claude_code","version":"1","models":[null]}]""", "engines[0].models[0]", TestName = "模型的元素是 null")]
+    [TestCase("""[{"kind":"claude_code","version":"1","models":[{"id":"a","displayName":"A","efforts":[null]}]}]""", "engines[0].models[0].efforts[0]", TestName = "思考深度的元素是 null")]
+    public async Task CheckIn_ANullArrayElement_Returns422AgentInvalidWithThePathAndNothingReachesTheModule(string engines, string path)
+    {
+        // Arrange：元素是 null 時轉換會丟 NullReferenceException，回 500；要回和其他欄位一樣的 422。
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        var request = AccessTokenAuthenticationTests.Bearer(HttpMethod.Post, CheckInRoute, AgentToken(factory));
+        request.Content = ApiRequests.Document($$"""{"machineKey":"machine-0001","machineName":"a","agentVersion":"1","engines":{{engines}},"capacity":1}""");
+
+        // Act
+        using var response = await client.SendAsync(request);
+
+        // Assert
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, AiErrorCodes.AgentInvalid);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { $"{AiErrorCodes.FieldInvalid}|{path}" }));
+            Assert.That(factory.Modules.LocalAgents.CheckInCalls, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Report_ANullEvent_Returns422AgentInvalidWithTheIndexAndNothingReachesTheModule()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        var request = AccessTokenAuthenticationTests.Bearer(HttpMethod.Post, EventsRoute, AgentToken(factory));
+        request.Content = ApiRequests.Document("""{"events":[{"type":"text","delta":"好"},null]}""");
+
+        // Act
+        using var response = await client.SendAsync(request);
+
+        // Assert
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, AiErrorCodes.AgentInvalid);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { $"{AiErrorCodes.FieldInvalid}|events[1]" }));
+            Assert.That(factory.Modules.LocalAgents.ReportCalls, Is.Empty);
+        }
+    }
+
     [TestCase("""{"machineKey":"machine-0001"}""", TestName = "少了欄位")]
     [TestCase("""{"machineKey":"machine-0001","machineName":"a","agentVersion":"1","engines":[{"kind":"gemini","version":"1","models":[]}],"capacity":1}""", TestName = "引擎種類不認得")]
     [TestCase("""{"machineKey":"machine-0001","machineName":"a","agentVersion":"1","engines":[],"capacity":1,"extra":1}""", TestName = "多出來的屬性")]

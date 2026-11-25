@@ -7,7 +7,7 @@ using PmTool.Api.Tests.Support;
 
 namespace PmTool.Api.Tests;
 
-/// <summary>網頁回報的錯誤：照合約驗證，以 Error 等級記在固定的類別底下，只記人員編號。</summary>
+/// <summary>網頁回報的錯誤：照合約驗證，以 Warning 等級記在固定的類別底下，只記人員編號。</summary>
 [TestFixture]
 public sealed class ClientErrorEndpointTests
 {
@@ -31,7 +31,7 @@ public sealed class ClientErrorEndpointTests
         var entry = logs.Entries.Single(e => e.Category == Category);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(entry.Level, Is.EqualTo(LogLevel.Error));
+            Assert.That(entry.Level, Is.EqualTo(LogLevel.Warning));
             Assert.That(entry.Properties["Kind"], Is.EqualTo("unhandled_rejection"));
             Assert.That(entry.Properties["ErrorMessage"], Is.EqualTo("Example 失敗"));
             Assert.That(entry.Properties["Stack"], Is.EqualTo("at example (main.js:1:2)"));
@@ -182,7 +182,7 @@ public sealed class ClientErrorEndpointTests
         var accepted = new List<HttpStatusCode>();
         for (var i = 0; i < ApiLimits.ClientErrorPermitsPerWindow; i++)
         {
-            using var report = await member.PostAsync(Route, Report());
+            using var report = await member.PostAsync(Route, Report(message: $"失敗 {i}"));
             accepted.Add(report.StatusCode);
         }
 
@@ -207,18 +207,95 @@ public sealed class ClientErrorEndpointTests
         using var _ = factory;
         using var member = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
         using var owner = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
-        using var first = await member.PostAsync(Route, Report());
-        using var second = await member.PostAsync(Route, Report());
-        using var third = await owner.PostAsync(Route, Report());
+        using var first = await member.PostAsync(Route, Report(message: "失敗 1"));
+        using var second = await member.PostAsync(Route, Report(message: "失敗 2"));
+        using var third = await owner.PostAsync(Route, Report(message: "失敗 3"));
 
         // Act
-        using var rejected = await owner.PostAsync(Route, Report());
+        using var rejected = await owner.PostAsync(Route, Report(message: "失敗 4"));
 
         // Assert
         Assert.That(new[] { first.StatusCode, second.StatusCode, third.StatusCode }, Is.All.EqualTo(HttpStatusCode.OK));
         await ApiRequests.AssertErrorEnvelopeAsync(rejected, HttpStatusCode.TooManyRequests, ApiErrorCodes.RateLimited);
         Assert.That(rejected.Headers.RetryAfter, Is.Not.Null);
         Assert.That(logs.Entries.Count(e => e.Category == Category), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task Report_SameKindAndMessageFromTheSamePersonWithinAMinute_IsAcceptedButLoggedOnce()
+    {
+        // Arrange
+        var (factory, logs) = CreateFactory();
+        using var _ = factory;
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var first = await client.PostAsync(Route, Report());
+        using var repeated = await client.PostAsync(Route, Report(path: "/another"));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(repeated.StatusCode, Is.EqualTo(HttpStatusCode.OK), "被略過的回應和成功的一樣");
+            Assert.That(await repeated.Content.ReadAsStringAsync(), Is.EqualTo(await first.Content.ReadAsStringAsync()));
+            Assert.That(logs.Entries.Count(e => e.Category == Category), Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public async Task Report_SameMessageAfterAMinute_IsLoggedAgain()
+    {
+        // Arrange
+        var (factory, logs) = CreateFactory();
+        using var _ = factory;
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+        using var first = await client.PostAsync(Route, Report());
+
+        // Act
+        factory.Modules.Time.Advance(TimeSpan.FromSeconds(ApiLimits.RateLimitWindowSeconds + 1));
+        using var second = await client.PostAsync(Route, Report());
+
+        // Assert
+        Assert.That(logs.Entries.Count(e => e.Category == Category), Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task Report_SameMessageFromDifferentPeopleOrKinds_IsLoggedEachTime()
+    {
+        // Arrange
+        var (factory, logs) = CreateFactory();
+        using var _ = factory;
+        using var member = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+        using var owner = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+
+        // Act
+        using var a = await member.PostAsync(Route, Report());
+        using var b = await owner.PostAsync(Route, Report());
+        using var c = await member.PostAsync(Route, Report(kind: "render"));
+
+        // Assert
+        Assert.That(logs.Entries.Count(e => e.Category == Category), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task Report_DuplicateDoesNotTakeFromTheSiteWideBudget()
+    {
+        // Arrange：全站只有 2 次；重複的不該占掉額度。
+        var limits = new ClientErrorLimits { PermitsPerWindow = 2 };
+        var (factory, logs) = CreateFactory(services => services.AddSingleton(limits));
+        using var _ = factory;
+        using var member = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+        using var owner = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+        using var first = await member.PostAsync(Route, Report());
+        using var duplicate = await member.PostAsync(Route, Report());
+
+        // Act
+        using var other = await owner.PostAsync(Route, Report(message: "別的"));
+
+        // Assert
+        Assert.That(other.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(logs.Entries.Count(e => e.Category == Category), Is.EqualTo(2));
     }
 
     private static (ApiFactory Factory, CapturingLoggerProvider Logs) CreateFactory(Action<IServiceCollection>? configure = null)

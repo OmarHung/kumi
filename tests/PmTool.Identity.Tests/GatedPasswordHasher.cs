@@ -20,7 +20,7 @@ internal sealed class GatedPasswordHasher : IPasswordHasher<PasswordCredential>,
     /// <summary>比對到被上閘的密碼、停下來的那一刻完成。</summary>
     public Task Entered => _entered.Task;
 
-    /// <summary>之後比對這個密碼時停下來，等 <see cref="Release"/>。</summary>
+    /// <summary>之後第一次比對這個密碼時停下來，等 <see cref="Release"/>；只攔一次。</summary>
     public void Arm(string password) => _gatedPassword = password;
 
     public void Release() => _release.Set();
@@ -29,7 +29,8 @@ internal sealed class GatedPasswordHasher : IPasswordHasher<PasswordCredential>,
 
     public PasswordVerificationResult VerifyHashedPassword(PasswordCredential user, string hashedPassword, string providedPassword)
     {
-        if (providedPassword == _gatedPassword)
+        // 只攔第一個比對：同一個密碼之後再比對（例如另一個請求也要驗它）不必等，測試才能在閘門關著時做別的事。
+        if (providedPassword == _gatedPassword && Interlocked.CompareExchange(ref _gatedPassword, null, providedPassword) == providedPassword)
         {
             _entered.TrySetResult();
             if (!_release.Wait(MaxWait))

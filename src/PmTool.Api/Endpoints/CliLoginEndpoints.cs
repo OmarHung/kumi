@@ -19,7 +19,8 @@ internal sealed record CliLoginRequestBody(
     IReadOnlyList<string>? Tokens,
     IReadOnlyList<string>? Scopes,
     IReadOnlyList<string>? GrantedScopes = null,
-    int? ExpiresInDays = null);
+    int? ExpiresInDays = null,
+    string? ConfirmationCode = null);
 
 internal sealed record CliLoginTokenRequest(string Code, string CodeVerifier, IReadOnlyList<string>? ReplaceTokens = null);
 
@@ -132,11 +133,19 @@ internal static class CliLoginEndpoints
 
         var actor = SessionPrincipal.Read(principal).ToActor();
         var options = await aiOptions.GetAsync(actor, cancellationToken);
-        var grant = new CliLoginGrant(granted, options.CanAddPersonal, request.ExpiresInDays, CliLoginOrigin.KeyOf(context.Connection.RemoteIpAddress));
+        var grant = new CliLoginGrant(granted, options.CanAddPersonal, request.ExpiresInDays, CliLoginOrigin.KeyOf(context.Connection.RemoteIpAddress))
+        {
+            ConfirmationCode = request.ConfirmationCode,
+        };
         var result = await login.ApproveAsync(actor, parameters, grant, cancellationToken);
-        return result.Failure is { } failure
-            ? EndpointResults.Fail(failure)
-            : EndpointResults.Ok(new RedirectData(result.Value.RedirectUri));
+
+        // 確認登入之後，發出要求的工作階段被作廢了（改密碼、別的程序登出）：和沒登入一樣回 401。
+        return result.Failure switch
+        {
+            null => EndpointResults.Ok(new RedirectData(result.Value.RedirectUri)),
+            { Code: IdentityErrorCodes.SessionEnded } => ApiFailure.AuthRequired.ToResult(),
+            var failure => EndpointResults.Fail(failure),
+        };
     }
 
     private static async Task<IResult> TokenAsync(

@@ -25,12 +25,15 @@ internal sealed record HostPairData(Guid AgentId, string AgentName, string Crede
 /// 登記。<c>capacity</c> 是這台現在還能同時多跑幾件，0 時只登記、不領。
 /// <c>engines</c> 兩個引擎各一筆（沒裝也要報）。
 /// </summary>
-internal sealed record HostCheckInRequest(string AgentVersion, string ServerUrl, int Capacity, IReadOnlyList<HostEngineRequest> Engines)
+internal sealed record HostCheckInRequest(string AgentVersion, string ServerUrl, int Capacity, IReadOnlyList<HostEngineRequest?> Engines)
 {
     /// <summary>一次最多領幾件的上限：worker 同時最多跑 <see cref="AiRules.HostWorkerMaxConcurrent"/> 件，給寬一點，只是擋掉不合理的數字。</summary>
     public const int MaxCapacity = 16;
 
-    public HostAgentCheckIn ToCheckIn() => new(AgentVersion, ServerUrl, [.. Engines.Select(engine => engine.ToReport())]);
+    /// <summary>陣列裡有 null 的元素時的失敗（要在 <see cref="ToCheckIn"/> 之前檢查）；沒有就是 null。</summary>
+    public Failure? FindNullElement() => NullElementChecks.InEngines(Engines, engine => engine.Models, AiErrorCodes.HostAgentInvalid);
+
+    public HostAgentCheckIn ToCheckIn() => new(AgentVersion, ServerUrl, [.. Engines.Select(engine => engine!.ToReport())]);
 }
 
 /// <param name="Kind">snake_case：claude_code、codex。</param>
@@ -41,13 +44,13 @@ internal sealed record HostEngineRequest(
     bool Supported,
     bool LoggedIn,
     HostBilling Billing,
-    IReadOnlyList<LocalModelRequest> Models,
+    IReadOnlyList<LocalModelRequest?> Models,
     string? Version = null,
     Guid? LoginId = null,
     string? Problem = null)
 {
     public HostEngineReport ToReport() =>
-        new(Kind, Installed, Version, Supported, LoggedIn, Billing, LoginId, [.. Models.Select(model => model.ToOption())], Problem);
+        new(Kind, Installed, Version, Supported, LoggedIn, Billing, LoginId, [.. Models.Select(model => model!.ToOption())], Problem);
 }
 
 /// <summary>領到的工作與要登出的引擎。<c>job</c> 沒有是 null（寫出 null，不省略）。</summary>
@@ -92,7 +95,7 @@ internal sealed record HostJobData(
 }
 
 /// <summary>回報一批進度。<c>events</c> 的形狀和本機代理的相同。</summary>
-internal sealed record HostEventsRequest(int Lease, int FirstSeq, IReadOnlyList<LocalAgentEventRequest> Events);
+internal sealed record HostEventsRequest(int Lease, int FirstSeq, IReadOnlyList<LocalAgentEventRequest?> Events);
 
 internal sealed record HostAckData(bool Cancelled, int NextSeq)
 {

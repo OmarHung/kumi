@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using PmTool.Abstractions;
+using PmTool.Identity.Audit;
 using PmTool.Identity.Persistence;
 
 namespace PmTool.Identity;
@@ -10,6 +11,7 @@ internal sealed class PeopleDirectory(
     IDbContextFactory<IdentityDbContext> contexts,
     IPasswordHasher<PasswordCredential> hasher,
     AccountAdministration administration,
+    AuditTrail audit,
     TimeProvider time) : IPeopleDirectory
 {
     public async Task<IReadOnlyList<PersonSummary>> ListAsync(Guid organizationId, CancellationToken cancellationToken)
@@ -44,6 +46,8 @@ internal sealed class PeopleDirectory(
         }
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+
+        // 先不鎖地預檢一次：沒有權限的人不必知道資料合不合規定，雜湊也不該在拿著組織的鎖時算。
         if (await CheckPermissionAsync(db, actor, person.Role, cancellationToken) is { } forbidden)
         {
             return forbidden;
@@ -57,11 +61,30 @@ internal sealed class PeopleDirectory(
 
         var (displayName, email) = input.Value;
         var passwordHash = hasher.HashPassword(PasswordCredential.Instance, person.Password);
+
+        // 預檢之後做這件事的人可能剛被停用或降級；拿到鎖之後從資料庫照同樣的規則再查一次才算數。
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await AccountAdministration.LockOrganizationAsync(db, actor.OrganizationId, cancellationToken);
+        if (await CheckPermissionAsync(db, actor, person.Role, cancellationToken) is { } revoked)
+        {
+            return revoked;
+        }
+
         var (personRow, accountRow) = PersonRows.Create(actor.OrganizationId, displayName, email, passwordHash, person.Role, time.GetUtcNow());
         db.AddRange(personRow, accountRow);
         try
         {
-            await db.SaveChangesAsync(cancellationToken);
+            // 稽核與新人在同一次存檔：新增失敗就不會留下紀錄。
+            await audit.AddAsync(
+                db,
+                new AuditRecord(actor.OrganizationId, AuditActions.PersonCreated)
+                {
+                    ActorPersonId = actor.PersonId,
+                    TargetPersonId = personRow.Id,
+                    Details = new Dictionary<string, string> { ["role"] = person.Role.ToString().ToLowerInvariant() },
+                },
+                cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException exception) when (IsEmailTaken(exception))
         {
@@ -101,7 +124,10 @@ internal sealed class PeopleDirectory(
             person.Role,
             account != null && account.DisabledAt != null);
 
-    /// <summary>擁有者與管理員只能由擁有者新增，管理員才不能替自己開出同等或更大的權限；Actor 分不出這兩種，所以查資料庫。</summary>
+    /// <summary>
+    /// 擁有者與管理員只能由擁有者新增，管理員才不能替自己開出同等或更大的權限。Actor 分不出這兩種，
+    /// 也不知道做這件事的人現在是不是還在、有沒有被停用，所以每次查資料庫。
+    /// </summary>
     private static async Task<Failure?> CheckPermissionAsync(
         IdentityDbContext db, Actor actor, OrganizationRole role, CancellationToken cancellationToken)
     {
@@ -110,17 +136,19 @@ internal sealed class PeopleDirectory(
             return new Failure(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, "只有組織的擁有者或管理員可以新增人員。");
         }
 
-        if (role is not (OrganizationRole.Owner or OrganizationRole.Admin))
+        var actorRole = await (
+            from p in db.People
+            join a in db.Accounts on p.Id equals a.PersonId
+            where p.Id == actor.PersonId && p.OrganizationId == actor.OrganizationId && a.DisabledAt == null
+            select (OrganizationRole?)p.Role).SingleOrDefaultAsync(cancellationToken);
+        if (actorRole is not (OrganizationRole.Owner or OrganizationRole.Admin))
         {
-            return null;
+            return new Failure(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, "只有組織的擁有者或管理員可以新增人員。");
         }
 
-        var actorIsOwner = await db.People.AnyAsync(
-            p => p.Id == actor.PersonId && p.OrganizationId == actor.OrganizationId && p.Role == OrganizationRole.Owner,
-            cancellationToken);
-        return actorIsOwner
-            ? null
-            : new Failure(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, "只有組織的擁有者可以新增擁有者或管理員。");
+        return role is OrganizationRole.Owner or OrganizationRole.Admin && actorRole != OrganizationRole.Owner
+            ? new Failure(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, "只有組織的擁有者可以新增擁有者或管理員。")
+            : null;
     }
 
     private static bool IsEmailTaken(DbUpdateException exception) =>

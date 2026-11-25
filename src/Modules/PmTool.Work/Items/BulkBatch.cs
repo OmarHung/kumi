@@ -14,6 +14,8 @@ namespace PmTool.Work.Items;
 internal sealed record BulkBatch(
     Guid ProjectId, string ProjectKey, IReadOnlyList<string> Order, IReadOnlyList<string> Valid, IReadOnlySet<string> Invalid)
 {
+    private const int MaxAttemptsPerItem = 2;
+
     /// <summary>呼叫者在這個專案看得到的項目：這一批裡看不到的，查詢時照不存在處理，不透露它存在。</summary>
     public required ItemScope Scope { get; init; }
 
@@ -50,21 +52,55 @@ internal sealed record BulkBatch(
         Invalid.ToDictionary(key => key, key => (Result<T>)WorkFailures.ItemNotFound(key), StringComparer.Ordinal);
 
     /// <summary>
-    /// 一筆一筆做。<paramref name="isWaiting"/> 認為一筆是在等這一批裡的另一筆（上層等下層刪除、下層等上層復原）時先放著，
+    /// 依上下層排好這一批的順序：<paramref name="parentsFirst"/> 為 true 時上層在前（復原），否則下層在前（刪除）。
+    /// <paramref name="parents"/> 是每個項目的上層編號；上層不在這一批裡就不算。同一層保持請求的順序。
+    /// 上層關係成環時（不該發生）每個環上的項目只往上算一圈，不會無窮迴圈。
+    /// </summary>
+    public IReadOnlyList<string> Sorted(IReadOnlyDictionary<string, string> parents, bool parentsFirst)
+    {
+        var inBatch = Valid.ToHashSet(StringComparer.Ordinal);
+        var depths = Valid.ToDictionary(key => key, key => DepthOf(key, parents, inBatch), StringComparer.Ordinal);
+        var ordered = parentsFirst ? Valid.OrderBy(key => depths[key]) : Valid.OrderByDescending(key => depths[key]);
+        return [.. ordered];
+    }
+
+    private static int DepthOf(string key, IReadOnlyDictionary<string, string> parents, IReadOnlySet<string> inBatch)
+    {
+        var depth = 0;
+        var current = key;
+        while (depth <= inBatch.Count && parents.TryGetValue(current, out var parent) && inBatch.Contains(parent))
+        {
+            depth++;
+            current = parent;
+        }
+
+        return depth;
+    }
+
+    /// <summary>
+    /// 照 <paramref name="order"/> 一筆一筆做。<paramref name="isWaiting"/> 認為一筆是在等這一批裡的另一筆（上層等下層刪除、下層等上層復原）時先放著，
     /// 做完其他的再回頭重試，直到一輪下來沒有進展；剩下的算失敗，原因是最後一次的結果。
+    /// 順序已經排好，正常一輪就做完；總嘗試次數不超過筆數的兩倍，一條長鏈不會讓請求跑出平方次的資料庫往返。
     /// </summary>
     public async Task<Dictionary<string, Result<T>>> RunAsync<T>(
-        Func<string, Task<Result<T>>> run, Func<string, Failure, IReadOnlySet<string>, bool> isWaiting)
+        Func<string, Task<Result<T>>> run, Func<string, Failure, IReadOnlySet<string>, bool> isWaiting, IReadOnlyList<string> order)
     {
         var results = InitialResults<T>();
-        var pending = Valid.ToList();
+        var pending = order.ToList();
+        var attemptsLeft = order.Count * MaxAttemptsPerItem;
         var progressed = true;
-        while (pending.Count > 0 && progressed)
+        while (pending.Count > 0 && progressed && attemptsLeft > 0)
         {
             progressed = false;
             var inBatch = pending.ToHashSet(StringComparer.Ordinal);
             foreach (var key in pending.ToArray())
             {
+                if (attemptsLeft == 0)
+                {
+                    break;
+                }
+
+                attemptsLeft--;
                 var result = await run(key);
                 results[key] = result;
                 if (result.Failure is { } failure && isWaiting(key, failure, inBatch))

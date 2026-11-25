@@ -11,6 +11,13 @@ internal static class SecurityHeaders
     private const string ContentSecurityPolicy =
         "default-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
+    // 網頁用不到這些功能，關掉之後就算頁面被塞進腳本也開不了。不含 clipboard：網頁的「複製指令」要用。
+    private const string PermissionsPolicy =
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), browsing-topics=()";
+
+    private static readonly PathString ApiPrefix = "/v1";
+    private static readonly PathString McpPrefix = "/mcp";
+
     /// <summary>
     /// 放在最外層，在回應開始送出時才寫標頭：例外處理會清掉已經寫好的標頭，
     /// 先寫的話 500 的回應就沒有它們了。一律走 HTTPS（<see cref="TransportSecurity.RequireHttps"/>）時多帶 HSTS，
@@ -29,10 +36,22 @@ internal static class SecurityHeaders
 
     private static Task Apply(object state)
     {
-        var headers = ((HttpResponse)state).Headers;
+        var response = (HttpResponse)state;
+        var headers = response.Headers;
         headers.XContentTypeOptions = "nosniff";
         headers["Referrer-Policy"] = "no-referrer";
         headers.XFrameOptions = "DENY";
+        headers["Permissions-Policy"] = PermissionsPolicy;
+
+        // 這個網站不開別的網站的視窗，也不讓別的網站拿到它的視窗參照；網頁沒有用到 window.open 與 opener。
+        headers["Cross-Origin-Opener-Policy"] = "same-origin";
+
+        // API 的回應是個人的資料，中間的快取不該存。端點自己決定的（附件與 kumi 下載的 private、事件流的 no-cache、
+        // 中繼資料的公開快取）照它的；網頁的靜態檔不在這兩個路徑底下，由 WebAssets 決定。
+        if (!headers.ContainsKey(HeaderNames.CacheControl) && IsApiPath(response.HttpContext.Request.Path))
+        {
+            headers.CacheControl = "no-store";
+        }
 
         // 端點自己寫了 CSP 就用它的：下載使用者上傳的檔案時，比整站的政策更嚴（default-src 'none'; sandbox）。
         if (!headers.ContainsKey(HeaderNames.ContentSecurityPolicy))
@@ -42,6 +61,9 @@ internal static class SecurityHeaders
 
         return Task.CompletedTask;
     }
+
+    private static bool IsApiPath(PathString path) =>
+        path.StartsWithSegments(ApiPrefix, StringComparison.OrdinalIgnoreCase) || path.StartsWithSegments(McpPrefix, StringComparison.OrdinalIgnoreCase);
 
     private static Task ApplyWithHsts(object state)
     {

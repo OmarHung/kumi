@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
+using PmTool.Abstractions;
 using PmTool.Api.Json;
 using PmTool.Api.RateLimiting;
 using PmTool.Api.Responses;
@@ -43,6 +45,11 @@ internal static class SessionEndpoints
         JsonBody<SignInRequest> body,
         HttpContext context,
         [FromServices] ISessionService sessions,
+        [FromServices] SignInThrottle throttle,
+        [FromServices] ISignInDelay delay,
+        [FromServices] IAuditLog audit,
+        [FromServices] IRequestSource requestSource,
+        [FromServices] ILoggerFactory loggers,
         CancellationToken cancellationToken)
     {
         if (!body.TryGetValue(out var request, out var failure))
@@ -50,8 +57,21 @@ internal static class SessionEndpoints
             return failure.ToResult();
         }
 
-        // 驗證密碼與開工作階段在身分模組裡是同一件事：驗證的同時密碼被重設，就不會多出一個工作階段。
-        if (await sessions.SignInAsync(request.Email, request.Password, cancellationToken) is not { } signedIn)
+        var admission = throttle.Begin(request.Email, ApiRateLimiting.AddressKeyOf(context.Connection.RemoteIpAddress));
+        if (!admission.IsAllowed)
+        {
+            context.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(admission.RetryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+            return ApiFailure.RateLimited.ToResult();
+        }
+
+        var (signedIn, source) = await VerifyAsync(request, admission, throttle, delay, sessions, requestSource, cancellationToken);
+
+        // 稽核只放進背景的佇列：回應送完才放，同一條連線上的下一個請求不必等寫入，也就看不出 Email 有沒有帳號。
+        // 來源要在回應送完之前先取出來：回應完成之後 HttpContext 已經不能用了。
+        var attempt = new SignInAttempt(request.Email, signedIn is not null, source?.Address, source?.UserAgent);
+        context.Response.OnCompleted(() => RecordAsync(audit, attempt, loggers.CreateLogger("PmTool.Api.SignIn")));
+        if (signedIn is null)
         {
             return ApiFailure.InvalidCredentials.ToResult();
         }
@@ -66,6 +86,59 @@ internal static class SessionEndpoints
         await context.SignInAsync(
             SessionPrincipal.Scheme, SessionPrincipal.Create(user, session.Token), SessionPrincipal.NewProperties(session.ExpiresAt));
         return Results.Ok(ApiEnvelope.Ok(new SessionData(UserData.From(user))));
+    }
+
+    /// <summary>放進佇列不會碰資料庫；模組自己不丟例外，這裡是最後一道。</summary>
+    private static async Task RecordAsync(IAuditLog audit, SignInAttempt attempt, ILogger logger)
+    {
+        try
+        {
+            await audit.RecordSignInAsync(attempt, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "登入的稽核紀錄寫不進去。");
+        }
+    }
+
+    /// <summary>
+    /// 驗證密碼與開工作階段在身分模組裡是同一件事：驗證的同時密碼被重設，就不會多出一個工作階段。
+    /// 先等節流要求的時間。位子一定交回去：驗完記成功或失敗；沒驗完（斷線、取不到來源、出錯）不算失敗，只放掉位子。
+    /// </summary>
+    private static async Task<(SignedIn? SignedIn, RequestSource? Source)> VerifyAsync(
+        SignInRequest request, SignInAdmission admission, SignInThrottle throttle, ISignInDelay delay,
+        ISessionService sessions, IRequestSource requestSource, CancellationToken cancellationToken)
+    {
+        var settled = false;
+        try
+        {
+            var source = requestSource.Current;
+            if (admission.Delay > TimeSpan.Zero)
+            {
+                await delay.WaitAsync(admission.Delay, cancellationToken);
+            }
+
+            var signedIn = await sessions.SignInAsync(request.Email, request.Password, cancellationToken);
+            if (signedIn is null)
+            {
+                throttle.Failed(admission);
+            }
+            else
+            {
+                throttle.Succeeded(admission);
+            }
+
+            settled = true;
+
+            return (signedIn, source);
+        }
+        finally
+        {
+            if (!settled)
+            {
+                throttle.Abandoned(admission);
+            }
+        }
     }
 
     private static IResult GetSession(ClaimsPrincipal principal) =>

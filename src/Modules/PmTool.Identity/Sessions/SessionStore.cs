@@ -46,6 +46,37 @@ internal static class SessionStore
         && now < found.Session.ExpiresAt
         && now - found.Session.LastUsedAt < IdleLimit;
 
+    /// <summary>新的一筆工作階段與它的權杖明文（明文只交給呼叫端一次）。</summary>
+    public static (SessionRow Row, string Token) NewRow(Guid organizationId, Guid accountId, DateTimeOffset now, DateTimeOffset expiresAt)
+    {
+        var (token, hash) = SessionToken.Create();
+        var row = new SessionRow
+        {
+            Id = Guid.CreateVersion7(),
+            OrganizationId = organizationId,
+            AccountId = accountId,
+            TokenHash = hash,
+            CreatedAt = now,
+            LastUsedAt = now,
+            ExpiresAt = expiresAt,
+        };
+        return (row, token);
+    }
+
+    /// <summary>作廢指定的一個工作階段（已經作廢的不動），回傳有沒有作廢。呼叫端在交易提交之後要叫 <see cref="SessionCache.Forget"/>。</summary>
+    public static async Task<bool> RevokeByIdAsync(
+        IdentityDbContext db, Guid organizationId, Guid sessionId, string reason, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var revoked = await db.Sessions
+            .Where(s => s.Id == sessionId && s.OrganizationId == organizationId && s.RevokedAt == null)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(s => s.RevokedAt, (DateTimeOffset?)now)
+                    .SetProperty(s => s.RevokedReason, reason),
+                cancellationToken);
+        return revoked == 1;
+    }
+
     /// <summary>
     /// 帳號的密碼還是 <paramref name="verifiedPasswordHash"/>、帳號沒停用，才插入這一筆，回傳有沒有插入。
     /// 條件和插入是同一個陳述式，並對帳號那一列加共享鎖：重設密碼、改密碼、停用都先改帳號那一列再作廢工作階段，
@@ -65,6 +96,32 @@ internal static class SessionStore
             """,
             cancellationToken);
         return inserted == 1;
+    }
+
+    /// <summary>
+    /// 發出要求的工作階段（<paramref name="token"/>）現在還有沒有效：是這個帳號的、沒作廢、沒過期、沒閒置太久。
+    /// 要在已經鎖住帳號那一列的交易裡呼叫：改密碼、重設密碼、停用都先改帳號那一列再作廢工作階段，
+    /// 所以拿到鎖之後一定看得到它們的結果，不會讓已經作廢的工作階段再發出新的憑證。
+    /// <paramref name="token"/> 是 null（不是用工作階段呼叫的、沒有請求）時不檢查，回 true。
+    /// </summary>
+    public static async Task<bool> IsCallerSessionActiveAsync(
+        IdentityDbContext db, Guid organizationId, Guid accountId, string? token, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (token is null)
+        {
+            return true;
+        }
+
+        if (!SessionToken.TryHash(token, out var hash))
+        {
+            return false;
+        }
+
+        var idleSince = now - IdleLimit;
+        return await db.Sessions.AsNoTracking().AnyAsync(
+            s => s.TokenHash == hash && s.OrganizationId == organizationId && s.AccountId == accountId
+                && s.RevokedAt == null && s.ExpiresAt > now && s.LastUsedAt > idleSince,
+            cancellationToken);
     }
 
     /// <summary>
