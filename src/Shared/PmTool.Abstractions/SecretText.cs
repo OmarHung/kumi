@@ -4,7 +4,7 @@ namespace PmTool.Abstractions;
 
 /// <summary>
 /// 私鑰與存取權杖的偵測：說明、頁面這類會被很多人讀到的文字，不讓人把它們貼進來。
-/// 樣式和 scripts/precommit-scan.sh 裡的那一組同一份，改了任何一邊要同步另一邊。
+/// 樣式和 scripts/precommit-scan.sh 裡權杖與金鑰的那一組同一份（路徑、位址、主機名只有掃描腳本看），改了任何一邊要同步另一邊。
 /// 這只是防呆，不是防線：密碼字串猜不準，誤判的代價比漏掉高，所以只認格式固定的那幾種。
 /// </summary>
 public static partial class SecretText
@@ -34,8 +34,16 @@ public static partial class SecretText
         + @"|AIza[0-9A-Za-z_-]{35}"
         + @"|\bgh[opsur]_[A-Za-z0-9]{36,}|\bgithub_pat_[A-Za-z0-9_]{30,}"
         + @"|\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"
-        + @"|\bxapp-[A-Za-z0-9-]{4,}|\bxox[baprs]-[A-Za-z0-9-]{4,}"
-        + @"|\bglpat-[A-Za-z0-9_-]{20,}",
+        // Slack：只認有數字段的真實格式，xapp-server、xoxb-team 這類普通的名稱不算。
+        + @"|\bxapp-[0-9]-[A-Z0-9]{8,}-[0-9]{8,}-[A-Za-z0-9]{20,}"
+        + @"|\bxox[baprs]-(?:[0-9]{1,3}-)*[0-9]{8,}-[A-Za-z0-9-]{10,}"
+        + @"|\bglpat-[A-Za-z0-9_-]{20,}"
+        // JWT 三段都要夠長：只有 eyJ 開頭的短字串、網址或一般的 base64 不算。
+        + @"|(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+        + @"|\b(?:sk|rk)_live_[A-Za-z0-9]{20,}"
+        + @"|\bnpm_[A-Za-z0-9]{36}(?![A-Za-z0-9])"
+        + @"|\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}"
+        + @"|AccountKey=[A-Za-z0-9+/]{60,}={0,2}",
         RegexOptions.CultureInvariant)]
     private static partial Regex ProviderTokenRegex();
 }

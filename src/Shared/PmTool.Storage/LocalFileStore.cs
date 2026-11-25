@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace PmTool.Storage;
 
 /// <summary>
@@ -126,15 +124,9 @@ internal sealed class LocalFileStore(string directory) : IFileStore
         return options;
     }
 
-    /// <summary>鍵一定是 Guid 的格式：檔案路徑完全由它決定，不給路徑符號進來的機會。</summary>
     private string PathOf(string key)
     {
-        if (!Guid.TryParseExact(key, "D", out var id))
-        {
-            throw new ArgumentException("附件的鍵必須是編號。", nameof(key));
-        }
-
-        var canonical = id.ToString("D", CultureInfo.InvariantCulture);
+        var canonical = FileKeys.Canonical(key);
         return System.IO.Path.Combine(directory, canonical[^2..], canonical);
     }
 

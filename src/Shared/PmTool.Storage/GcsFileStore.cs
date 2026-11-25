@@ -17,12 +17,18 @@ internal sealed class GcsFileStore(StorageClient client, string bucket) : IFileS
 
     public async Task<StoredFile?> WriteAsync(string key, Stream content, string contentType, long maxBytes, CancellationToken cancellationToken)
     {
+        key = FileKeys.Canonical(key);
         await using var measured = new MeasuringStream(content, maxBytes);
         try
         {
             await client.UploadObjectAsync(
-                bucket, key, contentType, measured, new UploadObjectOptions { ChunkSize = UploadChunkBytes }, cancellationToken);
+                bucket, key, contentType, measured, new UploadObjectOptions { ChunkSize = UploadChunkBytes, IfGenerationMatch = 0 }, cancellationToken);
             return measured.Complete();
+        }
+        catch (Exception exception) when (IsAlreadyThere(exception))
+        {
+            // 這個鍵已經有物件：那是別人的，不能刪。下面的 catch 會刪掉這個鍵，所以要先在這裡處理。
+            throw new InvalidOperationException("附件的鍵已經存在，沒有覆寫。", exception);
         }
         catch (Exception exception) when (IsTooLarge(exception))
         {
@@ -39,6 +45,7 @@ internal sealed class GcsFileStore(StorageClient client, string bucket) : IFileS
 
     public async Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken)
     {
+        key = FileKeys.Canonical(key);
         // 先確認物件在：下載一開始就失敗的話，管線的另一頭才不會是一個讀不到東西的串流。
         try
         {
@@ -54,6 +61,7 @@ internal sealed class GcsFileStore(StorageClient client, string bucket) : IFileS
 
     public async Task DeleteAsync(string key, CancellationToken cancellationToken)
     {
+        key = FileKeys.Canonical(key);
         try
         {
             await client.DeleteObjectAsync(bucket, key, cancellationToken: cancellationToken);
@@ -80,6 +88,11 @@ internal sealed class GcsFileStore(StorageClient client, string bucket) : IFileS
                 exception);
         }
     }
+
+    // 例外可能被包了一層：只看最外層的話會落進一般的失敗處理，去刪那個別人已經寫好的鍵。
+    private static bool IsAlreadyThere(Exception exception) =>
+        exception is GoogleApiException { HttpStatusCode: HttpStatusCode.PreconditionFailed }
+        || exception.InnerException is { } inner && IsAlreadyThere(inner);
 
     private static bool IsTooLarge(Exception exception) =>
         exception is FileTooLargeException || exception.InnerException is { } inner && IsTooLarge(inner);

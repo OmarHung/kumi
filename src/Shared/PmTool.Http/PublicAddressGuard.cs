@@ -62,7 +62,20 @@ public static class PublicAddressGuard
 
     public static async ValueTask<Stream> ConnectGuardedAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
     {
-        var host = context.DnsEndPoint.Host;
+        var socket = await ConnectAsync(context.DnsEndPoint, cancellationToken);
+        return new NetworkStream(socket, ownsSocket: true);
+    }
+
+    /// <summary>
+    /// 解析主機、檢查每一個位址、連上，回傳已連線的 <see cref="Socket"/>（呼叫端負責放掉）。給不走 HTTP 的協定用（例如 SMTP）：
+    /// 檢查與連線在同一個動作裡，不會有「檢查通過之後換了位址」的空隙。
+    /// </summary>
+    /// <exception cref="BlockedAddressException">解析出任何一個被擋的位址，或解析不到位址。</exception>
+    /// <exception cref="HttpRequestException">每個位址都連不上。</exception>
+    public static async Task<Socket> ConnectAsync(DnsEndPoint endpoint, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        var host = endpoint.Host;
         var addresses = await Dns.GetHostAddressesAsync(host, cancellationToken);
 
         // 只要有一個解析結果是被擋的就整個不連：不能讓對方挑一個通過檢查的、再連到另一個。
@@ -77,8 +90,8 @@ public static class PublicAddressGuard
             var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
             try
             {
-                await socket.ConnectAsync(new IPEndPoint(address, context.DnsEndPoint.Port), cancellationToken);
-                return new NetworkStream(socket, ownsSocket: true);
+                await socket.ConnectAsync(new IPEndPoint(address, endpoint.Port), cancellationToken);
+                return socket;
             }
             catch (SocketException exception)
             {
@@ -87,7 +100,7 @@ public static class PublicAddressGuard
             }
             catch
             {
-                // 被取消或其他例外：socket 還沒交給 NetworkStream，不放掉就漏掉一個連線。
+                // 被取消或其他例外：socket 還沒交給呼叫端，不放掉就漏掉一個連線。
                 socket.Dispose();
                 throw;
             }
