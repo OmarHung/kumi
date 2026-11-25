@@ -85,13 +85,14 @@ function PasteFallback({ origin }: { readonly origin: string }) {
 export function LocalAgentSetup({ hasMachines }: { readonly hasMachines: boolean }) {
   const origin = window.location.origin;
   if (hasMachines) {
+    // 直接放進右欄（不包步驟清單的外框）：沒有序號，不用讓出序號的位置，左緣和上面的電腦清單對齊。
     return (
-      <div className={styles.steps}>
+      <>
         <p className={accountStyles.note}>
           要接另一台電腦，照同樣的步驟：在那台電腦執行<WizardLink />，或執行 <code>{loginCommand(origin)}</code> 再 <code>{ENABLE_COMMAND}</code>。沒辦法開瀏覽器時：
         </p>
         <PasteFallback origin={origin} />
-      </div>
+      </>
     );
   }
   return (
