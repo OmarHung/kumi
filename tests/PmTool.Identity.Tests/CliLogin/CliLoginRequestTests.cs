@@ -54,6 +54,8 @@ public sealed class CliLoginRequestTests
         Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
     }
 
+    [TestCase(8080, "port")]
+    [TestCase(32767, "port")]
     [TestCase(1023, "port")]
     [TestCase(65536, "port")]
     [TestCase(0, "port")]
@@ -212,6 +214,18 @@ public sealed class CliLoginRequestTests
         Assert.That(await _host.AccessTokens.ListAsync(user.ToActor(), CancellationToken.None), Is.Empty);
     }
 
+    [TestCase(32768)]
+    [TestCase(65535)]
+    public async Task Approve_PortAtOrAboveTheMinimum_Succeeds(int port)
+    {
+        // Act
+        var result = await _host.CliLogin.ApproveAsync(
+            _owner.ToActor(), Parameters(Challenge) with { Port = port }, Grant(), CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
+    }
+
     [Test]
     public async Task Approve_InvalidRequest_IsRejectedLikeCheck()
     {
@@ -221,6 +235,18 @@ public sealed class CliLoginRequestTests
 
         // Assert
         AssertInvalid(result, "port");
+    }
+
+    [TestCase("")]
+    [TestCase("   ")]
+    public async Task Approve_BlankOrigin_IsRejected(string origin)
+    {
+        // Act
+        var result = await _host.CliLogin.ApproveAsync(
+            _owner.ToActor(), Parameters(Challenge), Grant(origin: origin), CancellationToken.None);
+
+        // Assert
+        AssertInvalid(result, "origin");
     }
 
     [Test]
@@ -256,10 +282,11 @@ public sealed class CliLoginRequestTests
         AssertInvalid(withoutCli, "scopes");
     }
 
+    [TestCase(null)]
     [TestCase(0)]
     [TestCase(-1)]
     [TestCase(AccessTokenRules.MaxExpiresInDays + 1)]
-    public async Task Approve_ExpiryOutOfRange_IsRejectedWithTheExpiryCode(int days)
+    public async Task Approve_ExpiryMissingOrOutOfRange_IsRejectedWithTheExpiryCode(int? days)
     {
         // Act
         var result = await _host.CliLogin.ApproveAsync(

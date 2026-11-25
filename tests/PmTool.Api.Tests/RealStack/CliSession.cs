@@ -49,7 +49,8 @@ internal sealed class CliSession : IDisposable
         return new CliSession(factory, created.Value, actor);
     }
 
-    public static AccessTokenScope[] AllScopes => [.. AccessTokenScopes.All];
+    /// <summary>命令列用得到的全部範圍。<c>agent:run</c> 是本機代理的權杖專用的，帶了它就打不了一般的端點，也不能和 <c>items:write</c> 放在同一把。</summary>
+    public static AccessTokenScope[] AllScopes => [.. AccessTokenScopes.All.Where(scope => scope != AccessTokenScope.AgentRun)];
 
     /// <summary>用環境變數帶權杖（和 CI 一樣）跑一個指令。</summary>
     public Task<CliOutcome> RunAsync(params string[] args) => RunWithInputAsync(string.Empty, args);

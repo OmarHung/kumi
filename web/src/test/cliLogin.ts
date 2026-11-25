@@ -1,6 +1,7 @@
 import { http } from 'msw';
 import type { CliLoginApproval, CliLoginCheck, CliLoginRequest } from '../api/cliLogin';
 import { failure, ok } from './api';
+import { MAX_PORT, MIN_PORT } from '../features/cli-login/cliLoginText';
 import { server } from './server';
 
 /** 瀏覽器登入檢查的結果（假資料）；沒給的欄位是「命令列與本機代理都要、組織允許、四個範圍」。 */
@@ -38,7 +39,15 @@ export function serveCliLogin({
       return ok(check);
     }),
     http.post('/v1/cli-login/approve', async ({ request }) => {
-      backend.approvals.push((await request.json()) as CliLoginApproval);
+      const approval = (await request.json()) as CliLoginApproval;
+      backend.approvals.push(approval);
+      if ((approval.expiresInDays as number | null) === null) {
+        const issue = { code: 'access_token.expiry_invalid', path: 'expiresInDays', message: '期限一定要有天數。' };
+        return failure(422, issue.code, issue.message, [issue]);
+      }
+      if (approval.port < MIN_PORT || approval.port > MAX_PORT) {
+        return failure(422, 'cli_login.request_invalid', '連接埠要在 32768 到 65535 之間。');
+      }
       return ok({ redirectTo: approveRedirect });
     }),
   );

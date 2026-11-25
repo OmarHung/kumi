@@ -279,22 +279,61 @@ describe('我的帳號：建立存取權杖', () => {
     expect(within(dialog).getByRole('combobox', { name: '期限' })).toHaveTextContent('90 天');
   });
 
-  it('範圍多一個「本機代理」，說明在旁邊，預設不勾；勾了就送 agent:run', async () => {
+  it('範圍多一個「本機代理」，說明在旁邊，預設不勾；取消「修改項目」之後勾了就送 agent:run', async () => {
     // Arrange
     const opened = await openCreate([]);
     const { user, dialog, backend } = opened;
     const checkbox = within(dialog).getByRole('checkbox', { name: /本機代理/ });
     expect(checkbox).not.toBeChecked();
-    expect(checkbox).toHaveAccessibleDescription('讓這台電腦的 Claude Code／Codex 接網頁的 AI 助理。');
+    expect(checkbox).toHaveAccessibleDescription(/讓這台電腦的 Claude Code／Codex 接網頁的 AI 助理。/);
 
     // Act
+    await user.click(within(dialog).getByRole('checkbox', { name: /修改項目/ }));
     await user.click(checkbox);
     await createWithName(opened, '本機代理');
 
     // Assert
     expect(backend.creates).toEqual([
-      { name: '本機代理', scopes: ['items:read', 'items:write', 'blueprint:read', 'blueprint:write', 'agent:run'], expiresInDays: 90 },
+      { name: '本機代理', scopes: ['items:read', 'blueprint:read', 'blueprint:write', 'agent:run'], expiresInDays: 90 },
     ]);
+  });
+
+  it('「修改項目」勾著時「本機代理」停用並說明原因；勾了「本機代理」則換成「修改項目」停用', async () => {
+    // Arrange
+    const { user, dialog } = await openCreate([]);
+    const agent = within(dialog).getByRole('checkbox', { name: /本機代理/ });
+    const write = within(dialog).getByRole('checkbox', { name: /修改項目/ });
+
+    // Assert
+    expect(agent).toBeDisabled();
+    expect(agent).toHaveAccessibleDescription(/要勾選「本機代理」，請先取消「修改項目」：這兩個不能放在同一把/);
+    expect(write).toBeEnabled();
+
+    // Act
+    await user.click(write);
+    await user.click(agent);
+
+    // Assert
+    expect(agent).toBeChecked();
+    expect(agent).toBeEnabled();
+    expect(write).toBeDisabled();
+    expect(write).toHaveAccessibleDescription(/要勾選「修改項目」，請先取消「本機代理」：這兩個不能放在同一把/);
+  });
+
+  it('伺服器拒絕本機代理和修改項目並存（422）時標在範圍欄位上', async () => {
+    // Arrange
+    const { user, dialog } = await openCreate([]);
+    const issue = { code: 'access_token.scopes_conflict', path: 'scopes', message: 'agent:run 和 items:write 不能放在同一把。' };
+    server.use(http.post('/v1/account/tokens', () => failure(422, issue.code, issue.message, [issue])));
+    await user.type(within(dialog).getByLabelText('名稱'), 'x');
+
+    // Act
+    await user.click(within(dialog).getByRole('button', { name: '建立' }));
+
+    // Assert
+    await waitFor(() => {
+      expect(within(dialog).getByRole('group', { name: '範圍' })).toHaveAccessibleDescription(/不能放在同一把/);
+    });
   });
 
   it('清單上的範圍：本機代理用的權杖列出名稱；全部的後面接「本機代理」', async () => {

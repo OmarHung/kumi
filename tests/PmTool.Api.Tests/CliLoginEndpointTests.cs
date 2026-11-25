@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json.Nodes;
 using PmTool.Abstractions;
 using PmTool.Ai;
+using PmTool.Api.Endpoints;
 using PmTool.Api.Tests.Support;
 using PmTool.Identity;
 
@@ -138,6 +139,57 @@ public sealed class CliLoginEndpointTests
             Assert.That(sent.Grant.ExpiresInDays, Is.EqualTo(30));
         }
     }
+
+    [Test]
+    public async Task ApproveAndToken_FromTheSameClient_PassTheSameOriginKey()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing(), new ApiFactoryOptions { UseTestRemoteIpHeader = true });
+        factory.Modules.AiOptions.OnGet = _ => Options(canAddPersonal: true);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+        var expected = CliLoginOrigin.KeyOf(IPAddress.Parse("203.0.113.7"));
+
+        // Act
+        using var approved = await client.SendAsync(FromAddress(Approve, "203.0.113.7", Body()));
+        using var redeemed = await factory.CreateClient().SendAsync(
+            FromAddress(Token, "203.0.113.7", new { code = "the-code", codeVerifier = "the-verifier" }));
+
+        // Assert
+        var grant = factory.Modules.CliLogin.Approvals.Single().Grant;
+        var redemption = factory.Modules.CliLogin.Redemptions.Single();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(grant.Origin, Is.EqualTo(expected));
+            Assert.That(redemption.Origin, Is.EqualTo(expected));
+        }
+    }
+
+    [Test]
+    public async Task ApproveAndToken_WithoutARemoteAddress_PassAnEmptyOriginKey()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.AiOptions.OnGet = _ => Options(canAddPersonal: true);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var approved = await client.PostAsync(Approve, ApiRequests.Json(Body()));
+        using var redeemed = await factory.CreateClient().PostAsync(Token, ApiRequests.Json(new { code = "the-code", codeVerifier = "the-verifier" }));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(factory.Modules.CliLogin.Approvals.Single().Grant.Origin, Is.Empty);
+            Assert.That(factory.Modules.CliLogin.Redemptions.Single().Origin, Is.Empty);
+        }
+    }
+
+    private static HttpRequestMessage FromAddress(string route, string address, object body) =>
+        new(HttpMethod.Post, route)
+        {
+            Content = ApiRequests.Json(body),
+            Headers = { { ApiFactory.RemoteIpHeader, address } },
+        };
 
     [Test]
     public async Task Approve_WhenThePersonalAiIsNotAllowed_PassesIncludeAgentFalse()

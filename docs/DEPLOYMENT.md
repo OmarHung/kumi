@@ -251,7 +251,7 @@ mkdir -m 700 pmtool-dp
 - **一定要設 `Security__PublicHost`**：OAuth 的 issuer 與 MCP 的網址都由它組成（`https://<PublicHost>`、`https://<PublicHost>/mcp`）。沒設時用請求的 Host 標頭，只適合本機；上線沒設的話，用戶端看到的網址可能和中繼資料對不上，授權會失敗。
 - **反向代理不用改設定**：`/.well-known/oauth-authorization-server`、`/.well-known/oauth-protected-resource`、`/oauth/*`、`/mcp` 都是一般的 HTTP，照現在的轉送就好。
 - **主機要能連出去抓用戶端的資料**：Claude Code 這類用戶端用「Client ID Metadata Document」（一個 https 網址）表明身分，授權時伺服器會去抓（對外的 443，只連公開的位址）。對外連線有限制的話，要放行用戶端的網域（例如 `claude.ai`）。
-- **限流在反向代理後面要讀得到用戶端的 IP**（`ForwardedHeaders__*`）：token、動態註冊、撤銷依來源 IP 限流，沒設的話所有人共用一份額度。
+- **限流在反向代理後面要讀得到用戶端的 IP**（`ForwardedHeaders__*`）：token、動態註冊、撤銷依來源 IP 限流，沒設的話所有人共用一份額度。命令列的瀏覽器登入也會比對核准與兌換兩邊的用戶端位址，轉送標頭沒設好時所有人的位址都一樣，這個比對就沒有作用。
 - claude.ai 網頁版的自訂連接器要從 Anthropic 的雲端連進來，防火牆只放行公司 IP 的部署用不了。
 
 ### 1.10 即時更新（WebSocket）
@@ -366,7 +366,7 @@ docker buildx build --platform linux/amd64 -t "$IMAGE" --push .
 | `Bootstrap__*` | 第一次部署時才給（建立第一個擁有者），之後拿掉 |
 | 參數 | `migrate`（映像檔的進入點是 `dotnet PmTool.Api.dll`，加上它就是 `dotnet PmTool.Api.dll migrate`） |
 
-**注意：前面另外加 Google 的外部負載平衡器時**，負載平衡器會在 `X-Forwarded-For` 的最後再接上它自己的 IP。api 只看最後一層，會把所有人都當成負載平衡器，限流變成全站共用一份。用 Cloud Run 自己的網址或網域對應，不用調整。一定要用負載平衡器的話，把 `ForwardedHeaders__ForwardLimit` 設成 `2`，並照第 8 節的方法確認 api 看到的是真的用戶端。
+**注意：前面另外加 Google 的外部負載平衡器時**，負載平衡器會在 `X-Forwarded-For` 的最後再接上它自己的 IP。api 只看最後一層，會把所有人都當成負載平衡器，限流變成全站共用一份。用 Cloud Run 自己的網址或網域對應，不用調整。一定要用負載平衡器的話，把 `ForwardedHeaders__ForwardLimit` 設成 `2`，並照第 8 節的方法確認 api 看到的是真的用戶端（命令列的瀏覽器登入比對的也是這個位址）。
 
 #### 步驟
 

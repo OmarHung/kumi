@@ -25,10 +25,10 @@ export const PERSON_ERROR_MAPPING: FieldMapping<PersonField> = {
 
 export const PASSWORD_HINT = `${String(PASSWORD_MIN_LENGTH)} 到 ${String(PASSWORD_MAX_LENGTH)} 個字元。請用別處沒用過的密碼，交給對方後請他自己記好。`;
 
-/** 擁有者只能由擁有者新增；其他組織管理員的選單裡不出現。 */
+/** 擁有者與管理員只能由擁有者新增（和改角色同一條規則）；其他組織管理員的選單裡不出現。 */
 export function assignableRoles(user: SessionUser): readonly OrganizationRole[] {
   const roles: readonly OrganizationRole[] = ['owner', 'admin', 'member', 'guest'];
-  return user.role === 'owner' ? roles : roles.filter((role) => role !== 'owner');
+  return user.role === 'owner' ? roles : roles.filter((role) => role !== 'owner' && role !== 'admin');
 }
 
 /**

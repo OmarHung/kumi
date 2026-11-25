@@ -183,7 +183,9 @@ public sealed class AccessTokenScopeTests
     {
         // Arrange：權杖有其他所有範圍，就是沒有這個端點要的。
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
-        var others = new[] { ItemsRead, ItemsWrite, BlueprintRead, BlueprintWrite, AgentRun }.Except(scopes).ToArray();
+        // agent:run 不放進「其他範圍」：帶它的權杖只能打領工作與任何權杖都可以的端點（見 AgentTokenEndpointLimitTests），
+        // 放進來訊息會是本機代理的說法，不是「需要哪個範圍」。
+        var others = new[] { ItemsRead, ItemsWrite, BlueprintRead, BlueprintWrite }.Except(scopes).ToArray();
         if (others.Length == 0)
         {
             Assert.Pass("任何有效的權杖都可以：沒有「其他範圍」可試。");

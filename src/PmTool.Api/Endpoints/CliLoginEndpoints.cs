@@ -132,7 +132,7 @@ internal static class CliLoginEndpoints
 
         var actor = SessionPrincipal.Read(principal).ToActor();
         var options = await aiOptions.GetAsync(actor, cancellationToken);
-        var grant = new CliLoginGrant(granted, options.CanAddPersonal, request.ExpiresInDays);
+        var grant = new CliLoginGrant(granted, options.CanAddPersonal, request.ExpiresInDays, CliLoginOrigin.KeyOf(context.Connection.RemoteIpAddress));
         var result = await login.ApproveAsync(actor, parameters, grant, cancellationToken);
         return result.Failure is { } failure
             ? EndpointResults.Fail(failure)
@@ -151,7 +151,7 @@ internal static class CliLoginEndpoints
             return bodyFailure.ToResult();
         }
 
-        var redemption = new CliLoginRedemption(request.Code ?? string.Empty, request.CodeVerifier ?? string.Empty, request.ReplaceTokens ?? []);
+        var redemption = new CliLoginRedemption(request.Code ?? string.Empty, request.CodeVerifier ?? string.Empty, request.ReplaceTokens ?? [], CliLoginOrigin.KeyOf(context.Connection.RemoteIpAddress));
         var result = await login.RedeemAsync(redemption, cancellationToken);
         if (result.Failure is { } failure)
         {

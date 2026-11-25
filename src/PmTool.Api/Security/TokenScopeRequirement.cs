@@ -5,6 +5,8 @@ namespace PmTool.Api.Security;
 /// <summary>
 /// 端點宣告：用存取權杖呼叫時，權杖要有這些範圍之一。沒有宣告的端點一律不給權杖用（帳號管理、人員管理、
 /// 建立專案這些只能在網頁上做）：新加的端點忘了宣告時，預設是安全的那一邊。
+/// 帶 <see cref="AccessTokenScope.AgentRun"/> 的權杖（本機代理的，會交給成員電腦上的引擎）只能用在宣告了它的端點
+/// 或 <see cref="AnyToken"/> 的端點，宣告的是別的範圍時照樣拒絕（<see cref="TokenScopeCheck"/>）。
 /// </summary>
 internal sealed record TokenScopeRequirement(IReadOnlyList<AccessTokenScope> AnyOf)
 {

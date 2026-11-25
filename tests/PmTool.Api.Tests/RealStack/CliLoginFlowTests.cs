@@ -15,6 +15,7 @@ public sealed class CliLoginFlowTests : RealStackTestBase
 {
     private const string TokensRoute = "/v1/account/tokens";
     private const string State = "abcdefghijklmnopqrstuv";
+    private const string ClientAddress = "203.0.113.7";
 
     [Test]
     public async Task Login_ApprovedOnTheWebAndRedeemedWithoutACookie_GivesTheTokensAndRevokesTheOldOne()
@@ -34,12 +35,12 @@ public sealed class CliLoginFlowTests : RealStackTestBase
 
         // Act
         using var check = await owner.Client.PostAsync("/v1/cli-login/check", ApiRequests.Json(body));
-        using var approve = await owner.Client.PostAsync("/v1/cli-login/approve", ApiRequests.Json(body));
+        using var approve = await owner.Client.SendAsync(CliLoginRequests.From("/v1/cli-login/approve", ClientAddress, body));
         var redirect = (await ApiRequests.AssertSuccessEnvelopeAsync(approve, HttpStatusCode.OK))!["redirectTo"]!.GetValue<string>();
         var code = System.Web.HttpUtility.ParseQueryString(new Uri(redirect).Query)["code"]!;
         using var anonymous = Factory.CreateClient();
-        using var redeem = await anonymous.PostAsync(
-            "/v1/cli-login/token", ApiRequests.Json(new { code, codeVerifier = verifier, replaceTokens = new[] { oldSecret } }));
+        using var redeem = await anonymous.SendAsync(CliLoginRequests.From(
+            "/v1/cli-login/token", ClientAddress, new { code, codeVerifier = verifier, replaceTokens = new[] { oldSecret } }));
         var redeemed = await ApiRequests.AssertSuccessEnvelopeAsync(redeem, HttpStatusCode.OK);
         var newSecret = redeemed!["cli"]!["secret"]!.GetValue<string>();
         using var session = await anonymous.SendAsync(AccessTokenAuthenticationTests.Bearer(HttpMethod.Get, "/v1/session", newSecret));

@@ -44,7 +44,9 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 
 ### `propose_item_changes`（只給本機代理）
 
-本機代理（權杖有 `agent:run`）的每個 `/mcp` 請求都要帶 `X-Kumi-Project` 標頭（那則對話的專案代號），沒帶整個請求拒絕；所有工具只准碰那個專案，別的專案的項目與專案當作不存在，`my_work` 這類跨專案的工具不能用。標頭由 `kumi agent start` 寫進引擎的 MCP 設定，模型改不了，所以項目內容裡夾帶的指令也讓它碰不到別的專案。一般的權杖（OAuth、個人存取權杖）不受影響。
+本機代理（權杖有 `agent:run`）的每個 `/mcp` 請求都要帶 `X-Kumi-Project` 標頭（那則對話的專案代號），沒帶整個請求拒絕；所有工具只准碰那個專案，別的專案的項目與專案當作不存在，`my_work` 這類跨專案的工具不能用。標頭由 `kumi agent start` 寫進引擎的 MCP 設定，模型改不了，所以項目內容裡夾帶的指令也讓它碰不到別的專案。
+
+本機代理的權杖在伺服器端還有兩層限制，因為它會交給你電腦上的引擎：`/mcp` 只列也只讓它叫本機代理的十個工具（`get_blueprint`、`list_templates`、`get_template`、`describe_usage`、`preview_changeset`、`propose_changeset`、`get_changeset`、`get_item`、`search_items`、`propose_item_changes`），`update_item`、`create_item`、`list_projects` 這些就算權杖另外有範圍也不能用；REST API 上只能領工作、確認自己是誰，以及查詢與下載命令列工具（`GET /v1/cli`、`GET /v1/cli/download/{platform}`），其他端點一律拒絕。新建的權杖不能同時有 `agent:run` 和 `items:write`。一般的權杖（OAuth、個人存取權杖）不受影響。
 
 `propose_item_changes`（參數 `projectKey`、`itemKey`、`changes`（`[{field, value}]`）、`descriptionRevision`、`comment`）只建立「修改建議」，不改項目。它的範圍是 `agent:run`，只有 `kumi agent start` 用的權杖有；OAuth 授權不發這個範圍，`tools/list` 也不會把它列給沒有這個範圍的權杖。一般的 MCP 用戶端要改項目，用 `update_item`、`move_item`、`add_comment`（`items:write`）。
 

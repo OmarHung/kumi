@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ModelContextProtocol.Protocol;
+using PmTool.Ai;
 using PmTool.Api.Tests.Support;
 using PmTool.Identity;
 
@@ -49,7 +50,7 @@ public sealed class McpToolCatalogTests
     }
 
     [Test]
-    public async Task ListTools_ReturnsAllSeventeenToolsForALocalAgentToken()
+    public async Task ListTools_LocalAgentToken_ReturnsOnlyTheTenLocalAgentTools()
     {
         // Arrange
         await using var mcp = await McpHarness.StartForAgentAsync("WEB", [.. AccessTokenScopes.All]);
@@ -58,7 +59,7 @@ public sealed class McpToolCatalogTests
         var tools = await mcp.Client.ListToolsAsync();
 
         // Assert
-        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(Expected.Keys));
+        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(LocalAgentTools.Allowed));
     }
 
     [Test]

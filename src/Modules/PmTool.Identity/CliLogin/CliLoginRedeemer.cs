@@ -41,6 +41,12 @@ internal sealed class CliLoginRedeemer(
         }
 
         var row = await db.CliLoginCodes.AsNoTracking().SingleAsync(c => c.CodeHash == codeHash, cancellationToken);
+        // 來源不符和 verifier 不對一樣：碼已經燒掉，本人也不能再用同一個碼重試。碼只換給和核准時同一個來源鍵的請求；同一個對外位址後面的電腦分不出來。
+        if (!CliLoginOrigin.IsValid(redemption.Origin) || redemption.Origin != row.OriginKey)
+        {
+            return CodeInvalid;
+        }
+
         if (!Pkce.IsValidVerifier(redemption.CodeVerifier) || !Pkce.Verify(redemption.CodeVerifier, row.CodeChallenge))
         {
             return CodeInvalid;
@@ -111,12 +117,12 @@ internal sealed class CliLoginRedeemer(
         if (row.CliScopes.Length > 0)
         {
             var scopes = row.CliScopes.Select(name => AccessTokenScopes.TryParse(name, out var scope) ? scope : (AccessTokenScope?)null).OfType<AccessTokenScope>().ToArray();
-            cli = Add(db, row, CliLoginRules.CliTokenName(row.MachineName), scopes, now);
+            cli = Add(db, row, CliLoginRules.CliTokenName(row.MachineName), scopes, row.ExpiresInDays, now);
         }
 
         if (row.IncludeAgent)
         {
-            agent = Add(db, row, CliLoginRules.AgentTokenName(row.MachineName), CliLoginRules.AgentScopes, now);
+            agent = Add(db, row, CliLoginRules.AgentTokenName(row.MachineName), CliLoginRules.AgentScopes, CliLoginRules.AgentTokenLifetimeDays, now);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -124,9 +130,9 @@ internal sealed class CliLoginRedeemer(
     }
 
     private static CreatedAccessToken Add(
-        IdentityDbContext db, CliLoginCodeRow row, string name, IReadOnlyList<AccessTokenScope> scopes, DateTimeOffset now)
+        IdentityDbContext db, CliLoginCodeRow row, string name, IReadOnlyList<AccessTokenScope> scopes, int? expiresInDays, DateTimeOffset now)
     {
-        var (token, secret) = AccessTokenWriter.NewRow(row.OrganizationId, row.AccountId, name, scopes, row.ExpiresInDays, row.MachineName, now);
+        var (token, secret) = AccessTokenWriter.NewRow(row.OrganizationId, row.AccountId, name, scopes, expiresInDays, row.MachineName, now);
         db.AccessTokens.Add(token);
         return new CreatedAccessToken(AccessTokenService.Summarize(token), secret);
     }

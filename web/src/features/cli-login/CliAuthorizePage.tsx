@@ -7,7 +7,7 @@ import { LoadingState } from '../../components/StatusViews/StatusViews';
 import { COMMAND_NAME } from '../../config/product';
 import { ConsentFacts, ConsentHeading, ConsentShell, NoWrap } from '../oauth/ConsentShell';
 import { CliAuthorizeForm } from './CliAuthorizeForm';
-import { WARNING_NOTE, requestFromSearch } from './cliLoginText';
+import { WARNING_NOTE, redirectNote, requestFromSearch } from './cliLoginText';
 
 const RETRY_HINT = `請回到終端機重新執行 ${COMMAND_NAME} auth login。`;
 
@@ -20,7 +20,7 @@ function Problem({ message }: { readonly message: string }) {
   );
 }
 
-function Who({ check }: { readonly check: CliLoginCheck }) {
+function Who({ check, port }: { readonly check: CliLoginCheck; readonly port: number }) {
   const { account } = check;
   return (
     <>
@@ -33,6 +33,7 @@ function Who({ check }: { readonly check: CliLoginCheck }) {
       <Notice tone="warning" role="none">
         {WARNING_NOTE}
       </Notice>
+      <ConsentFacts>{redirectNote(port)}</ConsentFacts>
     </>
   );
 }
@@ -70,7 +71,7 @@ export function CliAuthorizePage() {
           <ConsentHeading id={headingId}>
             讓這台電腦上的 {COMMAND_NAME} 使用你的<NoWrap>帳號？</NoWrap>
           </ConsentHeading>
-          <Who check={check.data} />
+          <Who check={check.data} port={request.port} />
           <CliAuthorizeForm check={check.data} request={request} />
         </>
       )}

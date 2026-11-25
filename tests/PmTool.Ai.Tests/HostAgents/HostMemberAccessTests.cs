@@ -245,7 +245,13 @@ public sealed class HostMemberAccessTests
         Assert.That(job.SystemPrompt, Does.Not.Contain("你的電腦").And.Not.Contain("kumi agent"));
         Assert.That(job.SystemPrompt, Does.Contain("代替發問的人"));
         Assert.That(job.Prompt, Does.Contain("請看一下 WEB-1"));
-        Assert.That(job.AllowedTools, Does.Contain("propose_item_changes").And.Contain("get_item"));
+        Assert.That(
+            job.AllowedTools,
+            Is.EquivalentTo(new[]
+            {
+                "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset", "get_changeset",
+                "get_item", "search_items", "propose_item_changes",
+            }));
         Assert.That(job.McpUrl, Is.EqualTo(HostHarness.ServerUrl + "/mcp"));
         Assert.That(job.ToolToken, Does.StartWith("kjt_"));
         Assert.That(job.ProjectKey, Is.EqualTo(AssistantHarness.ProjectKey));

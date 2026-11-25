@@ -7,15 +7,20 @@ import { Button, buttonClassName } from '../../components/Button/Button';
 import { SelectField } from '../../components/Field/Field';
 import { Notice } from '../../components/Notice/Notice';
 import { navigateTo } from '../../lib/navigateTo';
-import { DEFAULT_EXPIRY, EXPIRY_CHOICES, expiryDays } from '../account/accessTokenText';
+import { DEFAULT_EXPIRY } from '../account/accessTokenText';
 import { ConsentActions, ConsentHint } from '../oauth/ConsentShell';
 import { ScopeChecklist } from '../oauth/ScopeChecklist';
 import {
   AGENT_BLOCKED_NOTE,
+  AGENT_EXPIRY_DAYS,
+  AGENT_EXPIRY_NOTE,
+  AGENT_ONLY_EXPIRY_NOTE,
   AGENT_SKIPPED_NOTE,
   APPROVED_NOTE,
   BAD_REDIRECT_NOTE,
+  CLI_EXPIRY_CHOICES,
   CLI_SCOPE_OPTIONS,
+  cliExpiryDays,
   DENIED_NOTE,
   denyRedirectUrl,
   isExpectedRedirect,
@@ -25,7 +30,7 @@ import {
 } from './cliLoginText';
 import styles from './CliAuthorize.module.css';
 
-const EXPIRY_OPTIONS = EXPIRY_CHOICES.map(({ value, label }) => ({ value, label }));
+const EXPIRY_OPTIONS = CLI_EXPIRY_CHOICES.map(({ value, label }) => ({ value, label }));
 
 type Outcome = 'approved' | 'denied' | null;
 
@@ -52,7 +57,7 @@ function useDecision(request: CliLoginRequest) {
     redirectProblem,
     isPending: approve.isPending,
     isBusy: approve.isPending || outcome !== null,
-    approve: (grantedScopes: readonly AccessTokenScope[], expiresIn: number | null) => {
+    approve: (grantedScopes: readonly AccessTokenScope[], expiresIn: number) => {
       if (isLocked.current) return;
       isLocked.current = true;
       setRedirectProblem(false);
@@ -123,6 +128,7 @@ function AgentBlock({ check, wantsCli, noteId }: AgentBlockProps) {
               <li key={scope}>{scopeLabel(scope)}</li>
             ))}
           </ul>
+          <p className={styles.note}>{wantsCli ? AGENT_EXPIRY_NOTE : AGENT_ONLY_EXPIRY_NOTE}</p>
         </>
       ) : (
         <p id={noteId} className={styles.note}>
@@ -161,7 +167,7 @@ interface FieldsProps {
   readonly noteId: string;
 }
 
-/** 要給的範圍與期限：命令列的勾選、本機代理的固定範圍、期限。 */
+/** 要給的範圍與期限：命令列的勾選、本機代理的固定範圍、命令列的期限（只要本機代理時沒有可以調的期限）。 */
 function ConsentFields({ check, selected, onSelect, expiry, onExpiry, isBusy, noteId }: FieldsProps) {
   const wantsCli = check.tokens.includes('cli');
   return (
@@ -170,7 +176,7 @@ function ConsentFields({ check, selected, onSelect, expiry, onExpiry, isBusy, no
         <ScopeChecklist legend="命令列可以做這些事" options={CLI_SCOPE_OPTIONS} selected={selected} disabled={isBusy} onChange={onSelect} />
       )}
       {check.tokens.includes('agent') && <AgentBlock check={check} wantsCli={wantsCli} noteId={noteId} />}
-      <SelectField label="期限" value={expiry} options={EXPIRY_OPTIONS} disabled={isBusy} onChange={onExpiry} />
+      {wantsCli && <SelectField label="期限" value={expiry} options={EXPIRY_OPTIONS} disabled={isBusy} onChange={onExpiry} />}
     </>
   );
 }
@@ -212,7 +218,7 @@ export function CliAuthorizeForm({ check, request }: FormProps) {
           aria-describedby={describedBy}
           onClick={() => {
             if (isBlocked || decision.isBusy) return;
-            decision.approve(wantsCli ? selected : [], expiryDays(expiry));
+            decision.approve(wantsCli ? orderedScopes(selected) : [], wantsCli ? cliExpiryDays(expiry) : AGENT_EXPIRY_DAYS);
           }}
         >
           {decision.isPending ? '授權中…' : '允許'}

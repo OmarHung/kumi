@@ -9,6 +9,8 @@ internal static class CliLoginTestSupport
 {
     public const int Port = 53682;
 
+    public const string Origin = "203.0.113.7";
+
     public const string State = "abcdefghijklmnopqrstuv";
 
     public static readonly AccessTokenScope[] CliScopes = [AccessTokenScope.ItemsRead, AccessTokenScope.ItemsWrite, AccessTokenScope.BlueprintRead];
@@ -23,8 +25,8 @@ internal static class CliLoginTestSupport
         return new CliLoginParameters(Port, State, challenge, machine, kinds, scopes ?? (kinds.Contains(CliLoginTokenKind.Cli) ? CliScopes : []));
     }
 
-    public static CliLoginGrant Grant(bool includeAgent = true, int? expiresInDays = 90, IReadOnlyList<AccessTokenScope>? cliScopes = null) =>
-        new(cliScopes ?? CliScopes, includeAgent, expiresInDays);
+    public static CliLoginGrant Grant(bool includeAgent = true, int? expiresInDays = 90, IReadOnlyList<AccessTokenScope>? cliScopes = null, string origin = Origin) =>
+        new(cliScopes ?? CliScopes, includeAgent, expiresInDays, origin);
 
     /// <summary>核准一次，回傳碼與 PKCE 的 verifier。</summary>
     public static async Task<(string Code, string Verifier)> ApproveAsync(
@@ -45,7 +47,10 @@ internal static class CliLoginTestSupport
 
     public static Task<Result<CliLoginTokens>> RedeemAsync(
         this IdentityTestHost host, string code, string verifier, params string[] replace) =>
-        host.CliLogin.RedeemAsync(new CliLoginRedemption(code, verifier, replace), CancellationToken.None);
+        host.CliLogin.RedeemAsync(new CliLoginRedemption(code, verifier, replace, Origin), CancellationToken.None);
+
+    public static Task<Result<CliLoginTokens>> RedeemFromAsync(this IdentityTestHost host, string code, string verifier, string origin) =>
+        host.CliLogin.RedeemAsync(new CliLoginRedemption(code, verifier, [], origin), CancellationToken.None);
 
     public static System.Collections.Specialized.NameValueCollection QueryOf(string url) => HttpUtility.ParseQueryString(new Uri(url).Query);
 }

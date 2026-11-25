@@ -26,7 +26,10 @@ internal sealed record CliLoginCodeRow
     /// <summary>請求有 agent，但核准時組織不允許，不建本機代理的權杖。</summary>
     public required bool AgentSkipped { get; init; }
 
-    /// <summary>null 表示不過期。</summary>
+    /// <summary>按下「允許」的瀏覽器的來源鍵（API 從連線算的）；兌換時要一樣。空字串表示沒有存，一律換不到。</summary>
+    public string OriginKey { get; init; } = string.Empty;
+
+    /// <summary>核准時選的天數，只用在命令列的權杖；本機代理的固定天數。</summary>
     public int? ExpiresInDays { get; init; }
 
     public required DateTimeOffset CreatedAt { get; init; }

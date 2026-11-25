@@ -23,6 +23,19 @@ export const DEFAULT_SCOPES: readonly AccessTokenScope[] = ['items:read', 'items
 
 const SCOPE_LABELS = new Map(SCOPE_OPTIONS.map((option) => [option.scope, option.label]));
 
+/** 本機代理的權杖不能同時改項目（引擎拿得到它），所以這兩個不能在同一把裡；伺服器也擋，這裡先停用，不讓人勾出會被退回的組合。 */
+const EXCLUSIVE_SCOPES: Readonly<Partial<Record<AccessTokenScope, AccessTokenScope>>> = {
+  'agent:run': 'items:write',
+  'items:write': 'agent:run',
+};
+
+/** 另一個互斥的範圍已經勾著時，這一項停用的原因與解法（接在說明後面，開頭有空白）：預設就勾著「修改項目」，本機代理一開始是停用的，要告訴人先取消哪一個。沒有衝突回 null。 */
+export function scopeConflictNote(scope: AccessTokenScope, selected: readonly AccessTokenScope[]): string | null {
+  const other = EXCLUSIVE_SCOPES[scope];
+  if (other === undefined || !selected.includes(other)) return null;
+  return ` 要勾選「${SCOPE_LABELS.get(scope) ?? scope}」，請先取消「${SCOPE_LABELS.get(other) ?? other}」：這兩個不能放在同一把。`;
+}
+
 /** 清單上的範圍：項目與設定的四種都有時寫「全部」（本機代理另外接在後面），其他照順序列出名稱。 */
 export function scopesText(scopes: readonly AccessTokenScope[]): string {
   const labels = (list: readonly AccessTokenScope[]) =>

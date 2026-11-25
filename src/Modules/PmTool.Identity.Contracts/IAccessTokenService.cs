@@ -111,6 +111,10 @@ public static class AccessTokenRules
     public const int MaxExpiresInDays = 365;
 }
 
+/// <param name="Scopes">
+/// 範圍；<see cref="AccessTokenScope.AgentRun"/> 不能和 <see cref="AccessTokenScope.ItemsWrite"/> 放在同一把
+/// （<see cref="IdentityErrorCodes.AccessTokenScopesConflict"/>），本機代理的權杖會交給使用者電腦上的引擎。
+/// </param>
 /// <param name="ExpiresInDays">幾天後過期，1～<see cref="AccessTokenRules.MaxExpiresInDays"/>；null 表示不過期。</param>
 public sealed record NewAccessToken(string Name, IReadOnlyList<AccessTokenScope> Scopes, int? ExpiresInDays);
 

@@ -148,6 +148,13 @@ function tokenIssue(body: CreateBody): Issue | null {
   if (!Array.isArray(body.scopes) || body.scopes.length === 0) {
     return { code: 'access_token.scopes_required', path: 'scopes', message: '至少要選一個範圍。' };
   }
+  if (body.scopes.includes('agent:run') && body.scopes.includes('items:write')) {
+    return {
+      code: 'access_token.scopes_conflict',
+      path: 'scopes',
+      message: 'agent:run 是給本機代理的權杖用的，不能和 items:write 放在同一把；請分成兩把。',
+    };
+  }
   const isBadDays = days !== null && (typeof days !== 'number' || days < 1 || days > TOKEN_EXPIRY_MAX_DAYS);
   return isBadDays
     ? { code: 'access_token.expiry_invalid', path: 'expiresInDays', message: `期限要在 1 到 ${String(TOKEN_EXPIRY_MAX_DAYS)} 天之間，或選不過期。` }

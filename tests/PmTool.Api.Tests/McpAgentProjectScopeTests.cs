@@ -120,7 +120,7 @@ public sealed class McpAgentProjectScopeTests
     }
 
     [Test]
-    public async Task ListProjects_ShowsOnlyTheScopedProject()
+    public async Task ListProjects_AgentToken_IsNotOnTheLocalAgentToolList()
     {
         // Arrange
         await using var mcp = await McpHarness.StartForAgentAsync("WEB", Scopes);
@@ -131,8 +131,8 @@ public sealed class McpAgentProjectScopeTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(isError, Is.False);
-            Assert.That(body["projects"]!.AsArray().Select(project => project?["key"]?.GetValue<string>()), Is.All.EqualTo("WEB"));
+            Assert.That(isError, Is.True);
+            Assert.That(body["error"]?.GetValue<string>(), Does.Contain("list_projects"));
         }
     }
 

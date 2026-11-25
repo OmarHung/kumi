@@ -38,6 +38,12 @@ public static class IdentityErrorCodes
     /// <summary>沒有給任何範圍，或有重複的範圍（Invalid，細項路徑 <c>scopes</c>）。</summary>
     public const string AccessTokenScopesRequired = "access_token.scopes_required";
 
+    /// <summary>
+    /// <c>agent:run</c> 和 <c>items:write</c> 放在同一把新權杖裡（Invalid，細項路徑 <c>scopes</c>）：
+    /// 本機代理的權杖會交給使用者電腦上的引擎，不能同時有直接改項目的範圍。
+    /// </summary>
+    public const string AccessTokenScopesConflict = "access_token.scopes_conflict";
+
     /// <summary>期限不在 1～<see cref="AccessTokenRules.MaxExpiresInDays"/> 天（Invalid，細項路徑 <c>expiresInDays</c>）。</summary>
     public const string AccessTokenExpiryInvalid = "access_token.expiry_invalid";
 

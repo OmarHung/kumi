@@ -61,7 +61,7 @@ public sealed class PeopleDirectoryCreateTests
     }
 
     [Test]
-    public async Task CreateAsync_AdminAddsAdmin_Succeeds()
+    public async Task CreateAsync_AdminAddsAdmin_ReturnsForbidden()
     {
         // Arrange
         var admin = await CreateAndSignInAsync(OrganizationRole.Admin);
@@ -71,8 +71,37 @@ public sealed class PeopleDirectoryCreateTests
         var result = await _host.People.CreateAsync(admin.ToActor(), person, CancellationToken.None);
 
         // Assert
+        Assert.That(result.Failure?.Kind, Is.EqualTo(FailureKind.Forbidden));
+        Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.Forbidden));
+    }
+
+    [Test]
+    public async Task CreateAsync_OwnerAddsAdmin_Succeeds()
+    {
+        // Arrange
+        var person = new NewPerson("範例管理員", TestData.UniqueEmail(), TestData.Password, OrganizationRole.Admin);
+
+        // Act
+        var result = await _host.People.CreateAsync(_owner.ToActor(), person, CancellationToken.None);
+
+        // Assert
         Assert.That(result.Succeeded, Is.True);
         Assert.That(result.Value.Role, Is.EqualTo(OrganizationRole.Admin));
+    }
+
+    [Test]
+    public async Task CreateAsync_AdminAddsMember_Succeeds()
+    {
+        // Arrange
+        var admin = await CreateAndSignInAsync(OrganizationRole.Admin);
+        var person = new NewPerson("範例成員", TestData.UniqueEmail(), TestData.Password, OrganizationRole.Member);
+
+        // Act
+        var result = await _host.People.CreateAsync(admin.ToActor(), person, CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(result.Value.Role, Is.EqualTo(OrganizationRole.Member));
     }
 
     [Test]

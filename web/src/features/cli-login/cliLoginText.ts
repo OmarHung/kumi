@@ -1,9 +1,10 @@
 import type { CliLoginRequest } from '../../api/cliLogin';
 import type { AccessTokenScope } from '../../api/types';
 import { COMMAND_NAME } from '../../config/product';
-import { SCOPE_OPTIONS } from '../account/accessTokenText';
+import { DEFAULT_EXPIRY, EXPIRY_CHOICES, SCOPE_OPTIONS } from '../account/accessTokenText';
 
-export const MIN_PORT = 1024;
+// 只收系統分配給暫時連線的範圍（32768 起）：低一點的埠常有別的服務佔著，不該是 kumi 開的暫時迴路。
+export const MIN_PORT = 32768;
 export const MAX_PORT = 65535;
 // state 是 kumi 產生的 base64url；要放進導回的網址，所以只收這些字元（不必靠編碼才安全）。
 const STATE_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
@@ -75,9 +76,33 @@ export function orderedScopes(scopes: readonly AccessTokenScope[]): readonly Acc
   return [...scopes].sort((a, b) => rank(a) - rank(b));
 }
 
-/** 預先勾好的：請求的範圍裡網頁認得、而且能給命令列用的。 */
+const READ_SCOPES: readonly AccessTokenScope[] = ['items:read', 'blueprint:read'];
+
+/** 預先勾好的：請求的範圍裡能給命令列用的讀取範圍；寫入的列出來，要使用者自己勾。 */
 export function preselectedScopes(requested: readonly AccessTokenScope[]): readonly AccessTokenScope[] {
-  return CLI_SCOPE_OPTIONS.map((option) => option.scope).filter((scope) => requested.includes(scope));
+  return CLI_SCOPE_OPTIONS.map((option) => option.scope).filter((scope) => READ_SCOPES.includes(scope) && requested.includes(scope));
+}
+
+const DEFAULT_EXPIRY_DAYS = Number(DEFAULT_EXPIRY);
+
+/** 這一頁的期限一定要有天數，不給「不過期」。 */
+export const CLI_EXPIRY_CHOICES = EXPIRY_CHOICES.filter((choice) => choice.days !== null);
+
+/** 選項的天數；對不到（不該發生）時用預設的 90 天，不送 null 讓伺服器退回。 */
+export function cliExpiryDays(value: string): number {
+  return CLI_EXPIRY_CHOICES.find((choice) => choice.value === value)?.days ?? DEFAULT_EXPIRY_DAYS;
+}
+
+/** 本機代理的權杖由伺服器固定發 90 天。 */
+export const AGENT_EXPIRY_DAYS = 90;
+/** 只要本機代理時沒有期限的選單可以調，直接說固定 90 天。 */
+export const AGENT_ONLY_EXPIRY_NOTE = `本機代理的權杖固定 ${String(AGENT_EXPIRY_DAYS)} 天。`;
+/** 同時要命令列時，上面有期限的選單：說明它不管本機代理。 */
+export const AGENT_EXPIRY_NOTE = '本機代理的權杖固定 90 天，不受上面的期限影響。';
+
+/** 讓使用者看得到核准之後瀏覽器會被導到哪裡。 */
+export function redirectNote(port: number): string {
+  return `按下允許之後，會把一次性的登入碼送回這台電腦的 127.0.0.1:${String(port)}。`;
 }
 
 /** 命令列有要、本機代理不給：照樣可以允許，只是不建那一把。 */

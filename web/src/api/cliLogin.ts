@@ -36,8 +36,8 @@ export interface CliLoginCheck {
 
 export interface CliLoginApproval extends CliLoginRequest {
   readonly grantedScopes: readonly AccessTokenScope[];
-  /** null 是不過期。 */
-  readonly expiresInDays: number | null;
+  /** 一定要有天數：伺服器不收不過期的（422 expiresInDays）。 */
+  readonly expiresInDays: number;
 }
 
 export interface CliLoginRedirect {

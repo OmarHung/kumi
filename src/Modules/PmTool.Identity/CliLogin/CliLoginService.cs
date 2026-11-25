@@ -86,6 +86,7 @@ internal sealed class CliLoginService(
             IncludeAgent = includeAgent,
             AgentSkipped = wantsAgent && !includeAgent,
             ExpiresInDays = grant.ExpiresInDays,
+            OriginKey = grant.Origin,
             CreatedAt = now,
             ExpiresAt = now + CliLoginRules.CodeLifetime,
         });
@@ -104,13 +105,25 @@ internal sealed class CliLoginService(
             return Detailed(IdentityErrorCodes.CliLoginRequestInvalid, CliLoginRequestChecker.ScopesPath, message);
         }
 
-        if (AccessTokenInput.CheckExpiry(grant.ExpiresInDays) is { } expiry)
+        if (CheckExpiry(grant.ExpiresInDays) is { } expiry)
         {
             return Detailed(expiry.Code, expiry.Path, expiry.Message);
         }
 
+        if (!CliLoginOrigin.IsValid(grant.Origin))
+        {
+            return Detailed(IdentityErrorCodes.CliLoginRequestInvalid, "origin", "請求的來源不對。");
+        }
+
         return !wantsCli && wantsAgent && !grant.IncludeAgent ? AgentNotAllowed : null;
     }
+
+    /// <summary>這條路發的權杖一定有期限，所以不收 null；不改手動建立權杖的規則（它允許不過期）。</summary>
+    private static FailureDetail? CheckExpiry(int? days) =>
+        days is >= 1 and <= AccessTokenRules.MaxExpiresInDays
+            ? null
+            : new(IdentityErrorCodes.AccessTokenExpiryInvalid, AccessTokenInput.ExpiresInDaysPath,
+                $"瀏覽器登入發的權杖要有期限：1 到 {AccessTokenRules.MaxExpiresInDays} 天。");
 
     private static Failure Detailed(string code, string path, string message) =>
         new(FailureKind.Invalid, code, message) { Details = [new FailureDetail(code, path, message)] };

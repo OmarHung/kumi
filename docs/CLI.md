@@ -69,10 +69,12 @@ kumi auth login --server https://pm.example.com
 
 流程（照 RFC 8252 的原生程式作法）：`kumi` 在這台電腦的 `127.0.0.1` 開一個暫時的連接埠、打開瀏覽器到 Kumi 的同意頁；你按「允許」後，瀏覽器把一次性的碼帶回這個連接埠，`kumi` 用 PKCE 的 verifier 換成權杖並存進設定檔。伺服器只會把碼送到 `127.0.0.1`（連接埠是 `kumi` 自己報的，網址由伺服器組成）。發出來的就是一般的存取權杖，名稱是「kumi（電腦名稱）」，在網頁的「存取權杖」清單看得到、撤銷得掉。重新登入會換掉這台電腦上同一個伺服器、同一個帳號的舊權杖，清單不會越積越多。
 
+按「允許」的瀏覽器與執行 `kumi` 的電腦，要從同一個網路位址連到伺服器：一次性的碼只換給當初核准它的那個位址，碼的有效時間是 1 分鐘、只能換一次。下面幾種情形兩邊的位址會不同，登入會失敗、要重新執行，這時改用 `--paste`：其中一邊走 VPN 或代理（兩邊出口位址不同）、瀏覽器開了會換出口的功能（例如 Safari 的 iCloud 私密轉送）、只有瀏覽器走公司的代理。登入發的權杖最長 365 天（同意頁選的天數，一定有期限）；本機代理的那一把固定 90 天。
+
 | 選項 | 作用 |
 |---|---|
 | `--server 網址` | 伺服器（沒給時用 `KUMI_SERVER`、設定檔，都沒有就問） |
-| `--scope 範圍` | 權杖要的範圍，可以重複、也可以用逗號放好幾個（預設 `items:read`、`items:write`、`blueprint:read`；同意頁還可以改勾）。`agent:run` 不能用這個要，見下面的 `kumi agent login` |
+| `--scope 範圍` | 權杖要的範圍，可以重複、也可以用逗號放好幾個（預設 `items:read`、`items:write`、`blueprint:read`）。同意頁只預先勾讀取的範圍，寫入的（`items:write`、`blueprint:write`）要自己勾。`agent:run` 不能用這個要，見下面的 `kumi agent login` |
 | `--no-browser` | 不自己開瀏覽器，只印網址；迴路照樣在這台電腦上等，所以要在**這台電腦**的瀏覽器開 |
 | `--paste` | 改成在終端機貼上在網頁建立的存取權杖（輸入時不會顯示）。**透過 SSH 登入遠端機器時用這個**：瀏覽器在你面前的電腦，迴路卻開在遠端機器上，導不回去 |
 | `--with-token` | 從標準輸入讀權杖，不互動，給腳本用 |
@@ -94,6 +96,8 @@ kumi agent login [--server 網址] [--no-browser] [--paste] [--with-token]
 ```
 
 流程和 `kumi auth login` 一樣，但要的是本機代理的權杖（範圍固定是 `agent:run`、`blueprint:read`、`blueprint:write`、`items:read`），存進 `agentToken`，不動命令列的那一把。組織沒有開放成員使用自己的 AI 帳號時，同意頁會說明、`kumi` 說「沒有建立本機代理的權杖」並結束（代碼 1）。`--paste`、`--with-token` 貼的是網頁「AI 帳號」建立的本機代理權杖，`kumi` 會先確認它有 `agent:run`。`kumi agent start` 與 `kumi agent enable` 依序用 `KUMI_TOKEN`、`agentToken`、`token`（舊設定檔只有一把時照樣能用）。
+
+本機代理的權杖只能用在領工作與連 MCP：REST API 上只能打 `/v1/agent/*`、`GET /v1/session`、`GET /v1/cli*`，其他一律 403；MCP 上只能用本機代理的十個工具。建立權杖時 `agent:run` 不能和 `items:write` 放在同一把。以前把同一把權杖同時拿來跑 `kumi` 的一般指令與本機代理的話，一般指令會變成 403，重新執行 `kumi setup`（或 `kumi auth login` 加 `kumi agent login`）分成兩把。
 
 ```bash
 kumi auth status    # 伺服器、登入身分、權杖從哪裡來、有沒有存本機代理的權杖

@@ -140,7 +140,7 @@ describe('新增人員', () => {
     ]);
   });
 
-  it('不是擁有者的管理員不能選「擁有者」', async () => {
+  it('不是擁有者的管理員不能選「擁有者」與「管理員」', async () => {
     // Arrange
     const { user, dialog } = await openNewPerson(orgAdmin);
 
@@ -149,6 +149,7 @@ describe('新增人員', () => {
 
     // Assert
     expect(within(dialog).queryByRole('option', { name: '擁有者' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('option', { name: '管理員' })).not.toBeInTheDocument();
   });
 
   it('沒填或密碼太短時在欄位旁說明，焦點移到第一個有問題的欄位，不送出', async () => {
@@ -196,7 +197,7 @@ describe('新增人員', () => {
   it('權限之類對不到欄位的錯誤顯示在表單上方', async () => {
     // Arrange
     const { user, dialog } = await openNewPerson(orgAdmin);
-    server.use(http.post('/v1/people', () => failure(403, 'person.forbidden', '只有擁有者可以新增擁有者。')));
+    server.use(http.post('/v1/people', () => failure(403, 'person.forbidden', '只有組織的擁有者可以新增擁有者或管理員。')));
 
     // Act
     await user.type(within(dialog).getByLabelText('名稱'), '範例新人');
@@ -205,7 +206,7 @@ describe('新增人員', () => {
     await user.click(within(dialog).getByRole('button', { name: '新增' }));
 
     // Assert
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('只有擁有者可以新增擁有者。');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('只有組織的擁有者可以新增擁有者或管理員。');
   });
 });
 

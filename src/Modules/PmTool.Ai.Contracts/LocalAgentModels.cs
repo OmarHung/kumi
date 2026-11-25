@@ -80,6 +80,30 @@ public sealed record LocalAgentJob(
     string McpUrl,
     int MaxTurns);
 
+/// <summary>
+/// 本機代理（成員電腦上的 Claude Code、Codex）與主機代理能用的 MCP 工具（工具名稱，不含前綴），只有一份：
+/// 建立工作時當 <see cref="LocalAgentJob.AllowedTools"/> 送出去，伺服器的 <c>/mcp</c> 對帶 <c>agent:run</c> 的權杖也用它當上限，
+/// 引擎被誘導去叫別的工具時伺服器端一樣擋得住，不靠成員電腦上的設定。
+/// </summary>
+public static class LocalAgentTools
+{
+    public static IReadOnlyList<string> Allowed { get; } =
+    [
+        "get_blueprint",
+        "list_templates",
+        "get_template",
+        "describe_usage",
+        "preview_changeset",
+        "propose_changeset",
+        "get_changeset",
+        "get_item",
+        "search_items",
+        "propose_item_changes",
+    ];
+
+    public static bool IsAllowed(string toolName) => Allowed.Contains(toolName);
+}
+
 /// <summary>本機代理回報的一則進度。JSON 用 <c>type</c> 分：<c>text</c>、<c>tool</c>。</summary>
 public abstract record LocalAgentEvent;
 

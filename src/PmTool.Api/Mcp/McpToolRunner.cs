@@ -32,7 +32,10 @@ internal sealed class McpToolRunner(
         [AccessTokenScope.AgentRun] = "當本機代理（只給 kumi agent start 的權杖）",
     };
 
-    /// <summary>只列權杖的範圍涵蓋的工具：沒有 <c>agent:run</c> 的權杖看不到本機代理專用的工具。</summary>
+    /// <summary>
+    /// 只列權杖的範圍涵蓋的工具：沒有 <c>agent:run</c> 的權杖看不到本機代理專用的工具；
+    /// 有 <c>agent:run</c> 的權杖再和本機代理的工具清單（<see cref="LocalAgentTools.Allowed"/>）取交集。
+    /// </summary>
     public ValueTask<ListToolsResult> ListAsync(RequestContext<ListToolsRequestParams> request, CancellationToken cancellationToken)
     {
         var http = httpContexts.HttpContext;
@@ -41,7 +44,7 @@ internal sealed class McpToolRunner(
         // 主機代理的工作只看得到授權的工具（工作建立時定的清單），不看範圍。
         var grant = http is null ? null : HostCredentials.TryGetGrant(http);
         var visible = McpToolCatalog.All.Where(tool =>
-            grant is not null ? grant.AllowedTools.Contains(tool.Name) : token?.Scopes.Contains(tool.Scope) == true);
+            grant is not null ? grant.AllowedTools.Contains(tool.Name) : IsVisibleToToken(token, tool));
         return ValueTask.FromResult(new ListToolsResult { Tools = [.. visible.Select(Describe)] });
     }
 
@@ -63,6 +66,12 @@ internal sealed class McpToolRunner(
         if (!token.Scopes.Contains(tool.Scope))
         {
             return Render(McpToolResult.Error(MissingScopeMessage(tool.Scope)));
+        }
+
+        // 本機代理的權杖會交給成員電腦上的引擎：工具的上限由伺服器定，就算權杖另外有那個工具的範圍。
+        if (McpProjectScope.Applies(token) && !LocalAgentTools.IsAllowed(tool.Name))
+        {
+            return Render(McpToolResult.Error($"本機代理的權杖不能用 {tool.Name} 這個工具。"));
         }
 
         if (!limiter.TryAcquire(user.PersonId))
@@ -146,6 +155,9 @@ internal sealed class McpToolRunner(
             await grants.CompleteWriteAsync(grant.JobId, tool.Name, hash, resultJson, CancellationToken.None);
         }
     }
+
+    private static bool IsVisibleToToken((Guid TokenId, IReadOnlyList<AccessTokenScope> Scopes)? token, McpTool tool) =>
+        token?.Scopes.Contains(tool.Scope) == true && (!McpProjectScope.Applies(token) || LocalAgentTools.IsAllowed(tool.Name));
 
     public static string MissingScopeMessage(AccessTokenScope scope) =>
         $"這個連線沒有「{ScopeLabels[scope]}」（{AccessTokenScopes.NameOf(scope)}）的權限。" +

@@ -24,20 +24,6 @@ internal sealed class LocalAgentRelay(
 
     public const string UnreportedFailureMessage = "你電腦上的引擎回報失敗，沒有說明原因。";
 
-    internal static readonly string[] AllowedTools =
-    [
-        AssistantToolNames.GetBlueprint,
-        AssistantToolNames.ListTemplates,
-        AssistantToolNames.GetTemplate,
-        AssistantToolNames.DescribeUsage,
-        AssistantToolNames.PreviewChangeSet,
-        AssistantToolNames.ProposeChangeSet,
-        "get_changeset",
-        AssistantToolNames.GetItem,
-        AssistantToolNames.SearchItems,
-        AssistantToolNames.ProposeItemChanges,
-    ];
-
     /// <summary>
     /// 建立工作並一路讀到結束，事件寫進 <paramref name="session"/>。<paramref name="cancellationToken"/> 取消（使用者停止或逾時）時，
     /// 先請本機代理停下來、最多等 <see cref="LocalAgentTimings.StopGrace"/>，把最後的進度收完才丟 <see cref="OperationCanceledException"/>。
@@ -88,7 +74,7 @@ internal sealed class LocalAgentRelay(
             request.ProjectKey,
             LocalPromptBuilder.SystemPrompt(request.ProjectName, request.ProjectKey, request.Permissions, request.ItemKey),
             LocalPromptBuilder.Prompt(request.History, request.UserText),
-            AllowedTools,
+            LocalAgentTools.Allowed,
             request.McpUrl ?? string.Empty,
             AiRules.MaxToolCallsPerReply + 1);
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);

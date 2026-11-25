@@ -9,6 +9,8 @@ namespace PmTool.Identity;
 /// 發出去的就是一般的個人存取權杖（同一張表、同一套範圍與上限），多帶 <see cref="AccessTokenSummary.MachineName"/>。
 /// 一次最多兩把：命令列用的（<see cref="CliLoginTokenKind.Cli"/>）與本機代理用的（<see cref="CliLoginTokenKind.Agent"/>，
 /// 範圍固定是 <see cref="CliLoginRules.AgentScopes"/>）。分成兩把：本機代理的引擎拿到的權杖不能改項目。
+/// 碼綁來源：核准與兌換各帶一個由連線算出來的來源鍵（<see cref="CliLoginGrant.Origin"/>、<see cref="CliLoginRedemption.Origin"/>），
+/// 瀏覽器與 kumi 要從同一個網路位址連到伺服器才換得到；不同時和其他失敗一樣回 <see cref="IdentityErrorCodes.CliLoginCodeInvalid"/>，而且碼照樣算用過。
 /// 導回網址一律由伺服器組成 <c>http://127.0.0.1:{port}{CallbackPath}</c>，不收別的主機或網址，所以碼只會送到這台電腦。
 /// </summary>
 public interface ICliLoginService
@@ -29,7 +31,8 @@ public interface ICliLoginService
     /// （可以和請求的不同：使用者在同意頁替自己決定）；請求沒有 cli 時一定是空的。不對：<see cref="IdentityErrorCodes.CliLoginRequestInvalid"/>（細項路徑 scopes）。</item>
     /// <item><see cref="CliLoginGrant.IncludeAgent"/>：請求有 agent、而且呼叫端確認組織允許成員使用自己的 AI 帳號時才是 true。
     /// 請求有 agent 卻是 false，兌換的結果標 <see cref="CliLoginTokens.AgentSkipped"/>；請求只有 agent 卻是 false：<see cref="IdentityErrorCodes.CliLoginAgentNotAllowed"/>（Forbidden）。</item>
-    /// <item><see cref="CliLoginGrant.ExpiresInDays"/>：同 <see cref="NewAccessToken.ExpiresInDays"/>。不對：<see cref="IdentityErrorCodes.AccessTokenExpiryInvalid"/>。</item>
+    /// <item><see cref="CliLoginGrant.ExpiresInDays"/>：1～<see cref="AccessTokenRules.MaxExpiresInDays"/>，不收 null（這條路發的權杖一定有期限）。不對：<see cref="IdentityErrorCodes.AccessTokenExpiryInvalid"/>。</item>
+    /// <item><see cref="CliLoginGrant.Origin"/>：存在碼上，兌換時比對。空白或超過 <see cref="CliLoginRules.MaxOriginLength"/> 字：<see cref="IdentityErrorCodes.CliLoginRequestInvalid"/>。</item>
     /// <item>就算兌換時換掉 <see cref="CliLoginRules.MaxReplaceTokens"/> 把舊的，這一次要建的把數加上還能用的（不算 OAuth 發的）
     /// 還是超過 <see cref="AccessTokenRules.MaxActiveTokensPerAccount"/>：<see cref="IdentityErrorCodes.AccessTokenLimitReached"/>（Conflict）。
     /// 同一台電腦重跑精靈會換掉自己的舊權杖，不能在這裡先擋；一次最多兩把、最多換兩把時這一條等於不會發生，真正的判斷在兌換。</item>
@@ -39,12 +42,12 @@ public interface ICliLoginService
     Task<Result<CliLoginApproval>> ApproveAsync(Actor actor, CliLoginParameters parameters, CliLoginGrant grant, CancellationToken cancellationToken);
 
     /// <summary>
-    /// 兌換（不用登入）。碼不存在、用過、過期、verifier 和 challenge 對不上、帳號已經停用：一律 <see cref="IdentityErrorCodes.CliLoginCodeInvalid"/>（Invalid），
-    /// 不透露是哪一種。在同一個交易裡：把碼標成用過（條件更新，同時兩個請求只有一個換得到）、鎖住帳號那一列、
+    /// 兌換（不用登入）。碼不存在、用過、過期、<see cref="CliLoginRedemption.Origin"/> 和核准時存的不同（或空白、過長）、verifier 和 challenge 對不上、帳號已經停用：一律 <see cref="IdentityErrorCodes.CliLoginCodeInvalid"/>（Invalid），
+    /// 不透露是哪一種；碼只要找到就已經算用過，來源不符的人換不到，之後從對的來源也不能再用同一個碼。在同一個交易裡：把碼標成用過（條件更新，同時兩個請求只有一個換得到）、鎖住帳號那一列、
     /// 撤銷 <see cref="CliLoginRedemption.ReplaceTokens"/> 裡屬於同一個帳號、自己建的（不是 OAuth 發的）、還能用的權杖
     /// （這台電腦重新登入時換掉自己之前的那把；別人的、不認得的照樣略過，不回錯誤），
     /// 再建立權杖：命令列的叫 <see cref="CliLoginRules.CliTokenName"/>、本機代理的叫 <see cref="CliLoginRules.AgentTokenName"/>，
-    /// <see cref="AccessTokenSummary.MachineName"/> 是電腦名稱。撤銷之後還是超過上限：<see cref="IdentityErrorCodes.AccessTokenLimitReached"/>（Conflict，碼照樣算用過）。
+    /// <see cref="AccessTokenSummary.MachineName"/> 是電腦名稱；命令列的權杖期限是核准時選的天數，本機代理的固定 <see cref="CliLoginRules.AgentTokenLifetimeDays"/> 天。撤銷之後還是超過上限：<see cref="IdentityErrorCodes.AccessTokenLimitReached"/>（Conflict，碼照樣算用過）。
     /// </summary>
     Task<Result<CliLoginTokens>> RedeemAsync(CliLoginRedemption redemption, CancellationToken cancellationToken);
 }
@@ -77,15 +80,18 @@ public sealed record CliLoginParameters(
 public sealed record CliLoginRequest(string MachineName, IReadOnlyList<CliLoginTokenKind> Tokens, IReadOnlyList<AccessTokenScope> Scopes);
 
 /// <summary>使用者在同意頁的決定。</summary>
-public sealed record CliLoginGrant(IReadOnlyList<AccessTokenScope> CliScopes, bool IncludeAgent, int? ExpiresInDays);
+/// <param name="ExpiresInDays">這條路發的權杖一定有期限：1～<see cref="AccessTokenRules.MaxExpiresInDays"/>，null 不收。只管命令列的權杖；本機代理的固定 <see cref="CliLoginRules.AgentTokenLifetimeDays"/> 天。</param>
+/// <param name="Origin">按下「允許」的瀏覽器的來源鍵，由呼叫端（API）從連線算出來，模組不碰 HTTP。兌換時要帶同一個鍵才換得到。</param>
+public sealed record CliLoginGrant(IReadOnlyList<AccessTokenScope> CliScopes, bool IncludeAgent, int? ExpiresInDays, string Origin);
 
 /// <param name="RedirectUri"><c>http://127.0.0.1:{port}/kumi-login?code=…&amp;state=…</c>，網頁直接把瀏覽器導過去。</param>
 public sealed record CliLoginApproval(string RedirectUri);
 
 /// <param name="ReplaceTokens">這台電腦之前存的權杖明文（最多 <see cref="CliLoginRules.MaxReplaceTokens"/> 把），換到新的之後撤銷；沒有就是空的。</param>
-public sealed record CliLoginRedemption(string Code, string CodeVerifier, IReadOnlyList<string> ReplaceTokens)
+/// <param name="Origin">兌換的呼叫端（kumi 所在電腦）的來源鍵，算法和 <see cref="CliLoginGrant.Origin"/> 相同；和核准時存的不同就換不到。</param>
+public sealed record CliLoginRedemption(string Code, string CodeVerifier, IReadOnlyList<string> ReplaceTokens, string Origin)
 {
-    // 這三個都是祕密：record 預設的 ToString 會把它們印進記錄。
+    // 前三個都是祕密：record 預設的 ToString 會把它們印進記錄。
     public override string ToString() => $"CliLoginRedemption {{ ReplaceTokens = {ReplaceTokens.Count} }}";
 }
 
@@ -97,7 +103,14 @@ public sealed record CliLoginAccount(string DisplayName, string Email, string Or
 
 public static class CliLoginRules
 {
-    public const int MinPort = 1024;
+    /// <summary>kumi 是讓作業系統配暫時的連接埠，各平台配的範圍都在這個數字以上；常見的開發用連接埠就不會被拿來當導回的目標。</summary>
+    public const int MinPort = 32768;
+
+    /// <summary>來源鍵的長度上限，也是資料欄位的長度。</summary>
+    public const int MaxOriginLength = 64;
+
+    /// <summary>本機代理的權杖固定的有效天數，不跟使用者在同意頁選的走：這一把在背景自己用、使用者不會每天看到它，所以不讓它不過期；也不跟命令列那把的天數，背景的代理不該因為命令列的權杖選得短就跟著停。</summary>
+    public const int AgentTokenLifetimeDays = 90;
 
     public const int MaxPort = 65535;
 
@@ -107,8 +120,8 @@ public static class CliLoginRules
 
     public const int MaxMachineNameLength = 60;
 
-    /// <summary>按下「允許」到 kumi 換走之間通常不到一秒；給慢的網路與防毒掃描一點餘裕。</summary>
-    public static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(2);
+    /// <summary>按下「允許」到 kumi 換走之間通常不到一秒；短一點，沒被換走的碼就不會留著。</summary>
+    public static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(1);
 
     /// <summary>kumi 在 127.0.0.1 接回呼的路徑。</summary>
     public const string CallbackPath = "/kumi-login";

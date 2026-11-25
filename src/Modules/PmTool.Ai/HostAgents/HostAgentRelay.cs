@@ -67,7 +67,7 @@ internal sealed class HostAgentRelay(
             selection.Effort,
             LocalPromptBuilder.HostSystemPrompt(request.ProjectName, request.ProjectKey, request.Permissions, request.ItemKey),
             LocalPromptBuilder.Prompt(request.History, request.UserText),
-            LocalAgentRelay.AllowedTools,
+            LocalAgentTools.Allowed,
             AiRules.MaxToolCallsPerReply + 1));
         var now = time.GetUtcNow();
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);

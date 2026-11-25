@@ -101,7 +101,7 @@ internal sealed class PeopleDirectory(
             person.Role,
             account != null && account.DisabledAt != null);
 
-    /// <summary>擁有者只能由擁有者新增，管理員才不能替自己開出更大的權限；Actor 分不出這兩種，所以查資料庫。</summary>
+    /// <summary>擁有者與管理員只能由擁有者新增，管理員才不能替自己開出同等或更大的權限；Actor 分不出這兩種，所以查資料庫。</summary>
     private static async Task<Failure?> CheckPermissionAsync(
         IdentityDbContext db, Actor actor, OrganizationRole role, CancellationToken cancellationToken)
     {
@@ -110,7 +110,7 @@ internal sealed class PeopleDirectory(
             return new Failure(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, "只有組織的擁有者或管理員可以新增人員。");
         }
 
-        if (role != OrganizationRole.Owner)
+        if (role is not (OrganizationRole.Owner or OrganizationRole.Admin))
         {
             return null;
         }
@@ -120,7 +120,7 @@ internal sealed class PeopleDirectory(
             cancellationToken);
         return actorIsOwner
             ? null
-            : new Failure(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, "只有組織的擁有者可以新增擁有者。");
+            : new Failure(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, "只有組織的擁有者可以新增擁有者或管理員。");
     }
 
     private static bool IsEmailTaken(DbUpdateException exception) =>

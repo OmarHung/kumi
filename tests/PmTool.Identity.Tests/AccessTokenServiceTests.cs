@@ -196,6 +196,46 @@ public sealed class AccessTokenServiceTests
         Assert.That(duplicated.Failure?.Code, Is.EqualTo(IdentityErrorCodes.AccessTokenScopesRequired));
     }
 
+    [Test]
+    public async Task Create_AgentRunTogetherWithItemsWrite_IsScopesConflict()
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+
+        // Act
+        var result = await _host.AccessTokens.CreateAsync(
+            user.ToActor(), new NewAccessToken("x", [AccessTokenScope.AgentRun, AccessTokenScope.ItemsWrite], 30), CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.AccessTokenScopesConflict));
+            Assert.That(result.Failure?.Details?.Single().Path, Is.EqualTo("scopes"));
+        }
+    }
+
+    [Test]
+    public async Task Create_AgentRunWithReadAndBlueprintWrite_AndItemsWriteAlone_AreAllowed()
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+
+        // Act
+        var agent = await _host.AccessTokens.CreateAsync(
+            user.ToActor(),
+            new NewAccessToken("a", [AccessTokenScope.AgentRun, AccessTokenScope.ItemsRead, AccessTokenScope.BlueprintWrite], 30),
+            CancellationToken.None);
+        var writer = await _host.AccessTokens.CreateAsync(
+            user.ToActor(), new NewAccessToken("b", [AccessTokenScope.ItemsWrite], 30), CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(agent.Succeeded, Is.True);
+            Assert.That(writer.Succeeded, Is.True);
+        }
+    }
+
     [TestCase(0)]
     [TestCase(-1)]
     [TestCase(366)]

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -109,6 +110,7 @@ internal sealed class RealStackFactory(string connectionString, RealStackOptions
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
             }
 
+            services.AddSingleton<IStartupFilter, TestRemoteAddressStartupFilter>();
             _options.ConfigureServices?.Invoke(services);
         });
     }
@@ -138,5 +140,26 @@ internal sealed class RealStackFactory(string connectionString, RealStackOptions
         {
             Directory.Delete(_attachmentDirectory, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// TestServer 的連線沒有遠端位址；要看「依來源位址」的行為時，請求帶 <see cref="ApiFactory.RemoteIpHeader"/> 指定。
+    /// 沒帶標頭就維持沒有位址，和 Kestrel 走 Unix socket 的情形一樣。
+    /// </summary>
+    private sealed class TestRemoteAddressStartupFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use((context, nextMiddleware) =>
+            {
+                if (context.Request.Headers.TryGetValue(ApiFactory.RemoteIpHeader, out var ip))
+                {
+                    context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(ip.ToString());
+                }
+
+                return nextMiddleware(context);
+            });
+            next(app);
+        };
     }
 }

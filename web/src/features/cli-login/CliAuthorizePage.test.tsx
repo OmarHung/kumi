@@ -5,7 +5,7 @@ import { ok, signedInAs, signedOut } from '../../test/api';
 import { cliLoginCheckOf, failCliLoginApprove, serveCliLogin } from '../../test/cliLogin';
 import { exampleOwner } from '../../test/fixtures';
 import { currentPath, renderApp } from '../../test/renderApp';
-import { chooseOption } from '../../test/select';
+import { chooseOption, openOptions } from '../../test/select';
 import { server } from '../../test/server';
 
 const navigateTo = vi.hoisted(() => vi.fn<(url: string) => void>());
@@ -65,7 +65,7 @@ describe('瀏覽器登入同意頁：顯示', () => {
     ]);
   });
 
-  it('命令列的範圍列四個（不含本機代理），請求的預先勾好', async () => {
+  it('命令列的範圍列四個（不含本機代理），請求的讀取範圍預先勾好、寫入的列出來但不勾', async () => {
     // Arrange
     serveCliLogin();
 
@@ -76,7 +76,7 @@ describe('瀏覽器登入同意頁：顯示', () => {
     const group = await screen.findByRole('group', { name: '命令列可以做這些事' });
     expect(within(group).getAllByRole('checkbox')).toHaveLength(4);
     expect(within(group).getByRole('checkbox', { name: /讀取項目/ })).toBeChecked();
-    expect(within(group).getByRole('checkbox', { name: /修改項目/ })).toBeChecked();
+    expect(within(group).getByRole('checkbox', { name: /修改項目/ })).not.toBeChecked();
     expect(within(group).getByRole('checkbox', { name: /讀取設定/ })).toBeChecked();
     expect(within(group).getByRole('checkbox', { name: /修改設定/ })).not.toBeChecked();
   });
@@ -130,6 +130,7 @@ describe('瀏覽器登入同意頁：不合格的請求', () => {
   it.each([
     ['連接埠不是數字', PATH.replace('port=45678', 'port=abc')],
     ['連接埠太小', PATH.replace('port=45678', 'port=80')],
+    ['連接埠在 32768 以下', PATH.replace('port=45678', 'port=32767')],
     ['連接埠太大', PATH.replace('port=45678', 'port=70000')],
     ['沒有連接埠', PATH.replace('port=45678&', '')],
     ['state 帶了不是 base64url 的字元', PATH.replace(STATE, 'a%2Fb')],
@@ -188,27 +189,128 @@ describe('瀏覽器登入同意頁：允許', () => {
         machine: 'MacBook-Pro',
         tokens: ['cli', 'agent'],
         scopes: ['items:read', 'items:write', 'blueprint:read'],
-        grantedScopes: ['items:read', 'items:write', 'blueprint:read', 'blueprint:write'],
+        grantedScopes: ['items:read', 'blueprint:read', 'blueprint:write'],
         expiresInDays: 90,
       },
     ]);
     expect(screen.getByText('已允許，請回到終端機。')).toBeInTheDocument();
   });
 
-  it('期限可以改成不過期', async () => {
+  it('期限一定要選一個天數：沒有「不過期」，可以改成一年', async () => {
     // Arrange
     const backend = serveCliLogin();
     const { user } = await openConsent();
     await screen.findByRole('button', { name: '允許' });
 
     // Act
-    await chooseOption(user, screen.getByRole('combobox', { name: '期限' }), '不過期');
+    const options = await openOptions(user, screen.getByRole('combobox', { name: '期限' }));
+    const names = options.map((option) => option.textContent);
+    await chooseOption(user, screen.getByRole('combobox', { name: '期限' }), '1 年');
+    await user.click(screen.getByRole('button', { name: '允許' }));
+
+    // Assert
+    expect(names).toEqual(['30 天', '90 天', '1 年']);
+    await waitFor(() => {
+      expect(backend.approvals[0]?.expiresInDays).toBe(365);
+    });
+  });
+
+  it('寫入的範圍要自己勾才會送出', async () => {
+    // Arrange
+    const backend = serveCliLogin();
+    const { user } = await openConsent();
+    await screen.findByRole('button', { name: '允許' });
+
+    // Act
+    await user.click(screen.getByRole('checkbox', { name: /修改項目/ }));
     await user.click(screen.getByRole('button', { name: '允許' }));
 
     // Assert
     await waitFor(() => {
-      expect(backend.approvals[0]?.expiresInDays).toBeNull();
+      expect(backend.approvals[0]?.grantedScopes).toEqual(['items:read', 'items:write', 'blueprint:read']);
     });
+  });
+
+  it('請求只要寫入的範圍：都不勾，允許停用並說明，勾了才能允許', async () => {
+    // Arrange
+    const backend = serveCliLogin({ check: cliLoginCheckOf({ scopes: ['items:write'] }) });
+    const { user } = await openConsent();
+    const allow = await screen.findByRole('button', { name: '允許' });
+
+    // Assert（先確認是停用的狀態，再確認按下去沒有東西送出）
+    expect(screen.getByRole('checkbox', { name: /修改項目/ })).not.toBeChecked();
+    expect(allow).toHaveAttribute('aria-disabled', 'true');
+    expect(allow).toHaveAccessibleDescription('至少要勾一項');
+
+    // Act
+    await user.click(allow);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Assert
+    expect(backend.approvals).toHaveLength(0);
+  });
+
+  it('說明按下允許之後會把一次性的登入碼送回哪一個連接埠', async () => {
+    // Arrange
+    serveCliLogin();
+
+    // Act
+    await openConsent();
+
+    // Assert
+    expect(await screen.findByText('按下允許之後，會把一次性的登入碼送回這台電腦的 127.0.0.1:45678。')).toBeInTheDocument();
+  });
+
+  it('有本機代理的權杖時說明它固定 90 天；只有命令列時不寫', async () => {
+    // Arrange
+    serveCliLogin();
+
+    // Act
+    await openConsent();
+
+    // Assert
+    expect(await screen.findByText(/本機代理的權杖固定 90 天/)).toBeInTheDocument();
+  });
+
+  it('只要本機代理時沒有期限的選單，說明固定 90 天，送出的期限是 90', async () => {
+    // Arrange
+    const backend = serveCliLogin({ check: cliLoginCheckOf({ tokens: ['agent'], scopes: [] }) });
+    const { user } = await openConsent(PATH.replace('cli%2Cagent', 'agent'));
+
+    // Act
+    await user.click(await screen.findByRole('button', { name: '允許' }));
+
+    // Assert
+    expect(screen.queryByRole('combobox', { name: '期限' })).not.toBeInTheDocument();
+    expect(screen.getByText('本機代理的權杖固定 90 天。')).toBeInTheDocument();
+    expect(screen.queryByText(/不受上面的期限影響/)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(backend.approvals[0]?.expiresInDays).toBe(90);
+    });
+  });
+
+  it('命令列與本機代理一起要時維持期限選單與「不受上面的期限影響」', async () => {
+    // Arrange
+    serveCliLogin();
+
+    // Act
+    await openConsent();
+
+    // Assert
+    expect(await screen.findByRole('combobox', { name: '期限' })).toBeInTheDocument();
+    expect(screen.getByText('本機代理的權杖固定 90 天，不受上面的期限影響。')).toBeInTheDocument();
+  });
+
+  it('只要命令列時沒有本機代理固定 90 天的說明', async () => {
+    // Arrange
+    serveCliLogin({ check: cliLoginCheckOf({ tokens: ['cli'] }) });
+
+    // Act
+    await openConsent(PATH.replace('cli%2Cagent', 'cli'));
+
+    // Assert
+    await screen.findByRole('group', { name: '命令列可以做這些事' });
+    expect(screen.queryByText(/固定 90 天/)).not.toBeInTheDocument();
   });
 
   it('伺服器給的導回網址不是這個連接埠的迴路：不導過去，說明並可以再試', async () => {

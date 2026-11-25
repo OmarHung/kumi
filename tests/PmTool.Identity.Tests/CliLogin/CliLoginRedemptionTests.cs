@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Identity.Tests.OAuth;
 using static PmTool.Identity.Tests.CliLogin.CliLoginTestSupport;
@@ -78,17 +79,118 @@ public sealed class CliLoginRedemptionTests
     }
 
     [Test]
-    public async Task Redeem_NoExpiry_NeverExpires()
+    public async Task Redeem_AgentToken_ExpiresInNinetyDaysWhateverTheUserPicked()
     {
         // Arrange
         var user = await _host.AddUserAsync(_owner.ToActor());
-        var (code, verifier) = await _host.ApproveAsync(user, grant: Grant(expiresInDays: null));
+        var (code, verifier) = await _host.ApproveAsync(user, grant: Grant(expiresInDays: 7));
 
         // Act
         var tokens = (await _host.RedeemAsync(code, verifier)).Value;
 
         // Assert
-        Assert.That(tokens.Cli!.Token.ExpiresAt, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(tokens.Cli!.Token.ExpiresAt, Is.EqualTo(_time.GetUtcNow().AddDays(7)));
+            Assert.That(tokens.Agent!.Token.ExpiresAt, Is.EqualTo(_time.GetUtcNow().AddDays(CliLoginRules.AgentTokenLifetimeDays)));
+        }
+    }
+
+    [Test]
+    public async Task Redeem_FromAnotherOrigin_IsRejectedAndTheCodeIsBurned()
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var (code, verifier) = await _host.ApproveAsync(user);
+
+        // Act
+        var wrong = await _host.RedeemFromAsync(code, verifier, "198.51.100.9");
+        var again = await _host.RedeemFromAsync(code, verifier, Origin);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(wrong.Failure?.Code, Is.EqualTo(IdentityErrorCodes.CliLoginCodeInvalid));
+            Assert.That(again.Failure?.Code, Is.EqualTo(IdentityErrorCodes.CliLoginCodeInvalid));
+            Assert.That(await _host.AccessTokens.ListAsync(user.ToActor(), CancellationToken.None), Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Redeem_FromTheSameOrigin_CreatesTheTokens()
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var (code, verifier) = await _host.ApproveAsync(user, grant: Grant(origin: "198.51.100.9"));
+
+        // Act
+        var result = await _host.RedeemFromAsync(code, verifier, "198.51.100.9");
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
+    }
+
+    [Test]
+    public async Task Redeem_WhenTheStoredOriginIsEmpty_IsAlwaysRejected()
+    {
+        // Arrange: 核准已經拒絕空的來源，空的只會來自舊資料（部署前核准、還沒兌換的碼），所以直接改資料列。
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var (code, verifier) = await _host.ApproveAsync(user);
+        await using (var db = await _host.CreateDbContextAsync())
+        {
+            await db.CliLoginCodes
+                .Where(row => row.AccountId == user.AccountId && row.UsedAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.OriginKey, string.Empty));
+        }
+
+        // Act
+        var blank = await _host.RedeemFromAsync(code, verifier, string.Empty);
+        var (secondCode, secondVerifier) = await _host.ApproveAsync(user);
+        await using (var db = await _host.CreateDbContextAsync())
+        {
+            await db.CliLoginCodes
+                .Where(row => row.AccountId == user.AccountId && row.UsedAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.OriginKey, string.Empty));
+        }
+
+        var real = await _host.RedeemFromAsync(secondCode, secondVerifier, Origin);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(blank.Failure?.Code, Is.EqualTo(IdentityErrorCodes.CliLoginCodeInvalid));
+            Assert.That(real.Failure?.Code, Is.EqualTo(IdentityErrorCodes.CliLoginCodeInvalid));
+            Assert.That(await _host.AccessTokens.ListAsync(user.ToActor(), CancellationToken.None), Is.Empty);
+        }
+    }
+
+    [TestCase("")]
+    [TestCase("   ")]
+    public async Task Redeem_BlankOrigin_IsRejected(string origin)
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var (code, verifier) = await _host.ApproveAsync(user);
+
+        // Act
+        var result = await _host.RedeemFromAsync(code, verifier, origin);
+
+        // Assert
+        Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.CliLoginCodeInvalid));
+    }
+
+    [Test]
+    public async Task Redeem_OriginLongerThanTheLimit_IsRejected()
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var (code, verifier) = await _host.ApproveAsync(user);
+
+        // Act
+        var result = await _host.RedeemFromAsync(code, verifier, new string('a', CliLoginRules.MaxOriginLength + 1));
+
+        // Assert
+        Assert.That(result.Failure?.Code, Is.EqualTo(IdentityErrorCodes.CliLoginCodeInvalid));
     }
 
     [Test]
@@ -407,7 +509,7 @@ public sealed class CliLoginRedemptionTests
     public void Redemption_ToString_DoesNotShowTheSecrets()
     {
         // Act
-        var text = new CliLoginRedemption("the-code", "the-verifier", ["pmt_old"]).ToString();
+        var text = new CliLoginRedemption("the-code", "the-verifier", ["pmt_old"], Origin).ToString();
 
         // Assert
         Assert.That(text, Does.Not.Contain("the-code").And.Not.Contain("the-verifier").And.Not.Contain("pmt_old"));

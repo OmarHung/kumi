@@ -61,8 +61,15 @@ internal static class AccessTokenInput
             return new(IdentityErrorCodes.AccessTokenScopesRequired, ScopesPath, "至少要選一個範圍。");
         }
 
-        return scopes.Distinct().Count() != scopes.Count || scopes.Any(scope => !Enum.IsDefined(scope))
-            ? new(IdentityErrorCodes.AccessTokenScopesRequired, ScopesPath, "範圍不能重複，也不能有不認得的範圍。")
+        if (scopes.Distinct().Count() != scopes.Count || scopes.Any(scope => !Enum.IsDefined(scope)))
+        {
+            return new(IdentityErrorCodes.AccessTokenScopesRequired, ScopesPath, "範圍不能重複，也不能有不認得的範圍。");
+        }
+
+        // 本機代理的權杖會交給使用者電腦上的引擎；伺服器端雖然也限制它能打的端點與工具，
+        // 新建時就不讓它同時有直接改項目的範圍，兩層各守一半。只擋新建，既有的權杖照舊受伺服器端的限制。
+        return scopes.Contains(AccessTokenScope.AgentRun) && scopes.Contains(AccessTokenScope.ItemsWrite)
+            ? new(IdentityErrorCodes.AccessTokenScopesConflict, ScopesPath, "agent:run 是給本機代理的權杖用的，不能和 items:write 放在同一把；請分成兩把。")
             : null;
     }
 
