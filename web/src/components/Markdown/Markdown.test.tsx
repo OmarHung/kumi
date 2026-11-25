@@ -4,8 +4,8 @@ import { Markdown, PlainText } from './Markdown';
 
 const MEMBERS = new Map([['p-1', '王小明']]);
 
-async function renderMarkdown(text: string, mentionNames: ReadonlyMap<string, string> = MEMBERS, hasAttachments = true) {
-  const view = render(<Markdown text={text} mentionNames={mentionNames} hasAttachments={hasAttachments} />);
+async function renderMarkdown(text: string, mentionNames: ReadonlyMap<string, string> = MEMBERS, hasAttachments = true, linkHosts?: 'mismatch' | 'always') {
+  const view = render(<Markdown text={text} mentionNames={mentionNames} hasAttachments={hasAttachments} linkHosts={linkHosts} />);
   // 渲染器是延後載入的：先是純文字的備用畫面（data-state="plain"），載入好之後換成 Markdown（"rendered"）。
   await waitFor(() => {
     expect(view.container.querySelector('[data-state]')).toHaveAttribute('data-state', 'rendered');
@@ -427,5 +427,79 @@ describe('Markdown 的附件', () => {
     // Assert
     expect(container.querySelector('[href]')).toBeNull();
     expect(container.querySelector('img')).toBeNull();
+  });
+});
+
+describe('連結的網域提示', () => {
+  it('文字像網址、主機卻不同時，連結後面提示實際的網域', async () => {
+    // Arrange & Act
+    await renderMarkdown('[www.bank.example](https://other.example/login)');
+
+    // Assert
+    expect(screen.getByText('（實際連到 other.example）')).toHaveAttribute('title', 'https://other.example/login');
+  });
+
+  it('文字與網址相同、或文字不像網址時不提示', async () => {
+    // Arrange & Act
+    await renderMarkdown('<https://a.example>\n\n[按這裡](https://x.example)\n\n[www.example.com](https://example.com/p)');
+
+    // Assert
+    expect(screen.queryByText(/實際連到/)).toBeNull();
+  });
+
+  it('預設不在一致的連結後面列網域，AI 的回覆（always）一律列', async () => {
+    // Arrange & Act
+    await renderMarkdown('[文件](https://docs.example/a)', MEMBERS, true, 'always');
+
+    // Assert
+    expect(screen.getByText('（docs.example）')).toBeInTheDocument();
+  });
+
+  it('always 時文字與網域不一致照樣用「實際連到」', async () => {
+    // Arrange & Act
+    await renderMarkdown('[www.bank.example](https://other.example)', MEMBERS, true, 'always');
+
+    // Assert
+    expect(screen.getByText('（實際連到 other.example）')).toBeInTheDocument();
+  });
+
+  it('國際化網域顯示 punycode', async () => {
+    // Arrange & Act
+    await renderMarkdown('[文件](https://bаnk.example/)', MEMBERS, true, 'always');
+
+    // Assert
+    expect(screen.getByText('（網域含非英文字母：xn--bnk-6cd.example）')).toBeInTheDocument();
+  });
+
+  it('同形字的網域：文字與連結用同一個也標出來，預設模式一樣', async () => {
+    // Arrange & Act
+    await renderMarkdown('[bаnk.example](https://bаnk.example/)');
+
+    // Assert
+    expect(screen.getByText('（網域含非英文字母：xn--bnk-6cd.example）')).toBeInTheDocument();
+  });
+
+  it('文字是一句話、夾著別的網域：提示實際連到哪裡', async () => {
+    // Arrange & Act
+    await renderMarkdown('[visit bank.example](https://other.example/login)');
+
+    // Assert
+    expect(screen.getByText('（實際連到 other.example）')).toBeInTheDocument();
+  });
+
+  it('帳密寫法的文字連到它後面的主機：提示', async () => {
+    // Arrange & Act
+    await renderMarkdown('[https://bank.example@other.example](https://other.example/)');
+
+    // Assert
+    expect(screen.getByText('（實際連到 other.example）')).toBeInTheDocument();
+  });
+
+  it('提及與附件連結不接網域', async () => {
+    // Arrange & Act
+    await renderMarkdown('[@王小明](mention:p-1) [檔](attachment:0b9f5a52-1111-4222-8333-444455556666)', MEMBERS, true, 'always');
+
+    // Assert
+    expect(screen.queryByText(/（/)).toBeNull();
   });
 });

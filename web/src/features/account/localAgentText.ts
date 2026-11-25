@@ -4,6 +4,7 @@ import { COMMAND_NAME } from '../../config/product';
 import { formatDate, toCalendarDate } from '../../domain/dates';
 import { formatRelativeTime } from '../../domain/time';
 import { OPTION_LABELS } from '../ai/aiLabels';
+import { quotedOrigin } from './cliText';
 
 /** 本機代理用的權杖：`agent:run` 領工作，後三個給引擎的 MCP 讀設定、提出變更集、讀項目（internal/HANDOFF-local-agent.md 第 2 節）。 */
 export const LOCAL_AGENT_SCOPES: readonly AccessTokenScope[] = ['agent:run', 'blueprint:read', 'blueprint:write', 'items:read'];
@@ -23,13 +24,15 @@ export function localAgentTokenName(now: Date): string {
 }
 
 /** 本機代理自己的登入（存的是另一把權杖，不會蓋掉命令列的）：瀏覽器按「允許」。 */
-export function loginCommand(origin: string): string {
-  return `${COMMAND_NAME} agent login --server ${origin}`;
+export function loginCommand(origin: string): string | null {
+  const server = quotedOrigin(origin);
+  return server === null ? null : `${COMMAND_NAME} agent login --server ${server}`;
 }
 
 /** 沒辦法開瀏覽器（透過 SSH）時：貼上網頁建的本機代理權杖。 */
-export function pasteLoginCommand(origin: string): string {
-  return `${loginCommand(origin)} --paste`;
+export function pasteLoginCommand(origin: string): string | null {
+  const login = loginCommand(origin);
+  return login === null ? null : `${login} --paste`;
 }
 
 /** 登入電腦時自動在背景啟動（macOS、Windows）。 */

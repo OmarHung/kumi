@@ -432,6 +432,22 @@ describe('頁面樹：搬移…', () => {
     expect(await within(dialog).findByText('這個空間已經封存。')).toBeInTheDocument();
     expect(screen.getByRole('treeitem', { name: /會議記錄/ })).toHaveAttribute('aria-level', '1');
   });
+
+  it('搬出別人設的限制（403 restriction_owner_required）：照伺服器的訊息寫在對話框裡', async () => {
+    // Arrange
+    const { user, dialog } = await openMove('會議記錄');
+    const message = '只有設定這個限制的人或空間的管理者能放寬（拿掉限制、加人、搬出有限制的範圍）。';
+    server.use(http.post('/v1/knowledge/spaces/:key/pages/:number/move', () => failure(403, 'knowledge.restriction_owner_required', message)));
+
+    // Act
+    await user.click(within(dialog).getByRole('combobox', { name: '上層頁面' }));
+    await user.click(await screen.findByRole('option', { name: '新人到職' }));
+    await user.click(within(dialog).getByRole('button', { name: '搬移' }));
+
+    // Assert
+    expect(await within(dialog).findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: /會議記錄/ })).toHaveAttribute('aria-level', '1');
+  });
 });
 
 describe('頁面樹：刪除…', () => {
@@ -457,6 +473,24 @@ describe('頁面樹：刪除…', () => {
 
     // Assert
     expect(await screen.findByText('這一頁會放進垃圾桶，可以從垃圾桶復原。')).toBeInTheDocument();
+  });
+
+  it('垃圾桶滿了（409 trash_full）：照伺服器的訊息寫在對話框裡，頁面還在', async () => {
+    // Arrange
+    const { user } = await openDelete('會議記錄');
+    const dialog = await screen.findByRole('dialog', { name: '刪除「會議記錄」？' });
+    const message = '垃圾桶已經有 1,000 批，請空間的管理者先清掉 30 天以上的，或永久刪除不要的。';
+    server.use(http.delete('/v1/knowledge/spaces/:key/pages/:number', () => failure(409, 'knowledge.trash_full', message)));
+    await waitFor(() => {
+      expect(within(dialog).getByRole('button', { name: '刪除' })).not.toHaveAttribute('aria-disabled');
+    });
+
+    // Act
+    await user.click(within(dialog).getByRole('button', { name: '刪除' }));
+
+    // Assert
+    expect(await within(dialog).findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: /會議記錄/ })).toBeInTheDocument();
   });
 
   it('確認後：樹上少了這一頁（連同底下的），上方說已放進垃圾桶並給「復原」', async () => {

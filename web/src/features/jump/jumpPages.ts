@@ -41,6 +41,7 @@ const SETTINGS_HUB_ICONS: Readonly<Record<SettingsHubPageKey, IconName>> = {
   integrations: 'link',
   'description-templates': 'fileDocument',
   'email-settings': 'mail',
+  'storage-usage': 'settings',
   'ai-settings': 'sparkles',
   'host-agents': 'sparkles',
 };

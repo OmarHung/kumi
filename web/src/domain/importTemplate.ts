@@ -5,8 +5,12 @@ import { importTargets } from './importTargets';
 export const TEMPLATE_FILE_NAME = '匯入範本.csv';
 const BOM = '\uFEFF';
 
+/** 試算表會把開頭是這幾個字元的格子當公式執行：前面補一個 '，格子就只是文字。 */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
 function escapeCell(cell: string): string {
-  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+  const safe = FORMULA_START.test(cell) ? `'${cell}` : cell;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /**

@@ -60,12 +60,12 @@ describe('jumpPages', () => {
     );
   });
 
-  it('管理員多了人員、說明格式、寄信設定、AI 設定，沒有主機 AI 代理', () => {
+  it('管理員多了人員、說明格式、寄信設定、儲存空間、AI 設定，沒有主機 AI 代理', () => {
     // Arrange、Act
     const pages = jumpPages({ user: exampleAdmin, project: null });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', 'AI 設定']);
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', '儲存空間', 'AI 設定']);
     expect(pages.map((page) => page.action)).toContainEqual({ kind: 'navigate', to: '/people' });
   });
 

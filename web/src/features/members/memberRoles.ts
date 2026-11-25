@@ -34,6 +34,10 @@ export function roleDescription(role: string): string | undefined {
   return isBuiltInProjectRole(role) ? BUILT_IN_PROJECT_ROLE_DESCRIPTIONS[role] : undefined;
 }
 
+/** 設定成員、設定角色權限、套用變更集的地方都給同一段說明：這兩個權限等同專案的最高權限。 */
+export const PRIVILEGED_PERMISSIONS_NOTE =
+  '有「管理專案」（project.manage）的角色能設定成員與角色；能「套用變更集」（blueprint.apply）的角色能改每個角色的權限。兩者都等同這個專案的最高權限，只給信得過的人。';
+
 export interface MemberRoleChange {
   readonly personId: string;
   readonly role: string;

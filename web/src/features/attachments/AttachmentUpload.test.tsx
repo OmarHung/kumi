@@ -292,6 +292,27 @@ describe('附件區：大小與失敗', () => {
     expect(await within(section).findByRole('progressbar', { name: '規格.pdf 的上傳進度' })).toBeInTheDocument();
   });
 
+  it.each([
+    ['attachment.quota_exceeded', '組織的附件已經用了 20.1 GiB，上限是 20 GiB。請刪掉不用的附件，或請管理員調高上限。'],
+    ['attachment.daily_quota_exceeded', '你在過去 24 小時已經上傳 2.0 GiB，上限是 2 GiB，請稍後再試。'],
+  ])('超過儲存空間的配額（%s）：那一列照伺服器的訊息說明，不自動重試', async (code, message) => {
+    // Arrange
+    const { user, section } = await openAttachments();
+    await pick(user, section, [aFile('規格.pdf')]);
+    await waitFor(() => {
+      expect(uploads).toHaveLength(1);
+    });
+
+    // Act
+    uploads[0]?.respondFailure(409, code, message);
+
+    // Assert
+    expect(await within(section).findByText(`上傳失敗：${message}`)).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: '重試 規格.pdf' })).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(uploads).toHaveLength(1);
+  });
+
   it('網路錯誤也說原因；「移除」拿掉那一列，焦點到「上傳檔案」', async () => {
     // Arrange
     const { user, section } = await openAttachments();

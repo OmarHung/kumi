@@ -11,6 +11,7 @@ export type SettingsHubPageKey =
   | 'integrations'
   | 'description-templates'
   | 'email-settings'
+  | 'storage-usage'
   | 'ai-settings'
   | 'host-agents';
 
@@ -44,6 +45,7 @@ export const SETTINGS_HUB_PAGES: readonly SettingsHubPage[] = [
   { key: 'integrations', path: '/account/integrations', label: '命令列與整合', group: 'personal', access: 'everyone', variant: 'reading' },
   { key: 'description-templates', path: '/description-templates', label: '說明格式', group: 'organization', access: 'admin', variant: 'list' },
   { key: 'email-settings', path: '/email-settings', label: '寄信設定', group: 'organization', access: 'admin', variant: 'reading' },
+  { key: 'storage-usage', path: '/storage-usage', label: '儲存空間', group: 'organization', access: 'admin', variant: 'reading' },
   { key: 'ai-settings', path: '/ai-settings', label: 'AI 設定', group: 'organization', access: 'admin', variant: 'reading' },
   { key: 'host-agents', path: '/ai-settings/host', label: '主機 AI 代理', group: 'organization', access: 'owner', variant: 'reading' },
 ];

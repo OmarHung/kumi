@@ -201,6 +201,9 @@ export const LazyDescriptionTemplatesPage = lazy(() =>
 export const LazyEmailSettingsPage = lazy(() =>
   import('../features/email-settings/EmailSettingsPage').then((module) => ({ default: module.EmailSettingsPage })),
 );
+export const LazyStorageUsagePage = lazy(() =>
+  import('../features/storage-usage/StorageUsagePage').then((module) => ({ default: module.StorageUsagePage })),
+);
 export const LazyAiSettingsPage = lazy(() =>
   import('../features/ai-settings/AiSettingsPage').then((module) => ({ default: module.AiSettingsPage })),
 );

@@ -169,7 +169,9 @@ describe('主機 AI 代理：新增與配對', () => {
     });
     expect(screen.queryByText(PAIRING_CODE)).not.toBeInTheDocument();
     expect(await screen.findByText('機房主機')).toBeInTheDocument();
-    expect(localStorage.length).toBe(0);
+    // 登入時記的「上一個登入的人」是唯一會有的鍵，裡面沒有配對碼。
+    expect(Object.keys(localStorage).filter((key) => key !== 'session.lastPersonId')).toEqual([]);
+    expect(Object.keys(localStorage).map((key) => localStorage.getItem(key)).join()).not.toContain(PAIRING_CODE);
     expect(serializedCaches(queryClient)).not.toContain(PAIRING_CODE);
     // 焦點回到「新增主機代理」。
     expect(screen.getByRole('button', { name: '新增主機代理' })).toHaveFocus();

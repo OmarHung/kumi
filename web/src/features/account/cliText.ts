@@ -15,6 +15,9 @@ export const CHIP_HINT = '不確定晶片：蘋果選單 → 關於這台 Mac，
 export const PATH_HINT_MAC = '第一次安裝才要加進 PATH，之後的更新不必。執行完開一個新的終端機視窗。';
 export const PATH_HINT_WINDOWS = '第一次安裝才要加進 PATH，之後的更新不必。執行完開一個新的 PowerShell 視窗。';
 
+/** 安裝指令核對 SHA-256 的說明：核對的範圍要講清楚，不讓使用者以為伺服器本身被換掉也擋得住。 */
+export const HASH_NOTE = '指令會先用上面的 SHA-256 核對下載的檔案，對不上就停下、不安裝。核對的是下載有沒有完整；伺服器本身被換掉的情況要等之後的簽章才擋得住。';
+
 export const FOLDER_HINT =
   '瀏覽器存到別的資料夾的話，把指令裡下載資料夾的路徑換掉。下載資料夾裡已經有同名的檔案時，瀏覽器會在檔名後面加上 (1)：先刪掉舊的再下載一次。';
 
@@ -37,6 +40,19 @@ export function downloadLabel(version: string, pkg: CliPackage): string {
 }
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+/** 要放進指令的網址只認這幾種字元：http(s)、主機、埠、IPv6 的方括號；引號、空白、分號這些會拆開指令的字元一律不收。 */
+const SAFE_ORIGIN = /^https?:\/\/[A-Za-z0-9.\-:[\]]+$/;
+
+export function isSafeOrigin(origin: string): boolean {
+  return SAFE_ORIGIN.test(origin);
+}
+
+/** 雙引號包起來的網址（IPv6 的 [::1] 在 zsh 會被當成萬用字元；cmd.exe 不認單引號，雙引號三種 shell 都認）；形狀不合就是 null，呼叫的人不產生指令。 */
+export function quotedOrigin(origin: string): string | null {
+  return isSafeOrigin(origin) ? `"${origin}"` : null;
+}
 
 /** 伺服器照這個規則命名（internal/HANDOFF-cli-downloads.md 第 1 節）。 */
 export function expectedFileName(version: string, platform: CliPlatform): string {
@@ -45,34 +61,38 @@ export function expectedFileName(version: string, platform: CliPlatform): string
 
 /**
  * 能給使用者下載、照著指令裝的平台：網頁認得的平台，而且檔名剛好是規則算出來的那一個。
- * 檔名會原樣放進要貼到終端機執行的指令，所以不盲信伺服器：對不上的整個不列（不會變成命令注入）。
+ * 檔名與 SHA-256 會原樣放進要貼到終端機執行的指令，所以不盲信伺服器：檔名對不上、雜湊不是 64 個小寫十六進位字元的整個不列（不會變成命令注入）。
  */
 export function usablePackages(catalog: CliCatalog): readonly CliPackage[] {
   const version = catalog.version;
   if (version === null || !VERSION_PATTERN.test(version)) return [];
   return catalog.packages.filter(
-    (pkg) => Object.hasOwn(PLATFORM_LABELS, pkg.platform) && pkg.fileName === expectedFileName(version, pkg.platform),
+    (pkg) => Object.hasOwn(PLATFORM_LABELS, pkg.platform) && pkg.fileName === expectedFileName(version, pkg.platform) && SHA256_PATTERN.test(pkg.sha256),
   );
 }
 
 const MAC_PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
+const HASH_MISMATCH_MESSAGE = '下載的檔案和伺服器上的不同，請重新下載。';
 const WINDOWS_DIR = '$env:LOCALAPPDATA\\Programs\\Kumi';
 
 /**
- * 把下載來的檔案放到固定的位置、改名成 kumi。macOS 的 xattr -c 清掉瀏覽器加的隔離標記，不然系統會直接擋掉。
+ * 先核對 SHA-256、再把下載來的檔案放到固定的位置、改名成 kumi。核對的是下載有沒有完整（伺服器給的雜湊對得上檔案）；
+ * 對不上就停下，不搬檔。macOS 的 xattr -c 清掉瀏覽器加的隔離標記，不然系統會直接擋掉。
  * Windows 的下載資料夾向系統問（被 OneDrive 或使用者搬走時不是 $HOME\Downloads），問不到才用 $HOME\Downloads；
  * 搬檔失敗時停下（-ErrorAction Stop），不接著對不存在的檔案解除封鎖、噴一串看不懂的錯。
  */
 export function installCommand(pkg: CliPackage): string {
   if (isMac(pkg.platform)) {
     const target = `~/.local/bin/${COMMAND_NAME}`;
-    return `mkdir -p ~/.local/bin && mv ~/Downloads/${pkg.fileName} ${target} && chmod 755 ${target} && xattr -c ${target}`;
+    const download = `~/Downloads/${pkg.fileName}`;
+    return `printf '%s  %s\\n' '${pkg.sha256}' ${download} | shasum -a 256 -c - && mkdir -p ~/.local/bin && mv ${download} ${target} && chmod 755 ${target} && xattr -c ${target}`;
   }
   const exe = `"$d\\${COMMAND_NAME}.exe"`;
   return [
     `$dl = (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path`,
     `if (-not $dl) { $dl = "$HOME\\Downloads" }`,
     `$d = "${WINDOWS_DIR}"`,
+    `if ((Get-FileHash -Algorithm SHA256 (Join-Path $dl '${pkg.fileName}')).Hash -ne '${pkg.sha256.toUpperCase()}') { throw '${HASH_MISMATCH_MESSAGE}' }`,
     'New-Item -ItemType Directory -Force $d | Out-Null',
     `Move-Item -Force -ErrorAction Stop (Join-Path $dl '${pkg.fileName}') ${exe}`,
     `Unblock-File ${exe}`,
@@ -99,13 +119,15 @@ export const VERSION_COMMAND = `${COMMAND_NAME} --version`;
 export const UPDATE_COMMAND = `${COMMAND_NAME} update`;
 
 /** 瀏覽器登入：終端機裡 kumi 開瀏覽器請使用者按「允許」，不必複製權杖。 */
-export function loginCommand(origin: string): string {
-  return `${COMMAND_NAME} auth login --server ${origin}`;
+export function loginCommand(origin: string): string | null {
+  const server = quotedOrigin(origin);
+  return server === null ? null : `${COMMAND_NAME} auth login --server ${server}`;
 }
 
 /** 沒辦法開瀏覽器（透過 SSH）時：貼上網頁「存取權杖」建的權杖。 */
-export function pasteLoginCommand(origin: string): string {
-  return `${loginCommand(origin)} --paste`;
+export function pasteLoginCommand(origin: string): string | null {
+  const login = loginCommand(origin);
+  return login === null ? null : `${login} --paste`;
 }
 
 /** 瀏覽器猜的平台：Windows 選 Windows，Mac 選 Apple 晶片（猜不出晶片時），其他（Linux、手機）不猜。iPhone 的 userAgent 也寫「like Mac OS X」，先排除。 */

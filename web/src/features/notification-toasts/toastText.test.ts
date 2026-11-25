@@ -76,3 +76,12 @@ describe('最多三個提示', () => {
     expect(folded).toEqual(entries.slice(0, 3));
   });
 });
+
+describe('編輯過的留言', () => {
+  it('完整的提示與報讀的摘要後面接「（已編輯）」，精簡不顯示內容', () => {
+    const edited = notification({ kind: 'commented', excerpt: '收到', edited: true });
+    expect(toastExcerpt(edited, 'full')).toBe('收到（已編輯）');
+    expect(toastAnnouncement(edited, 'full')).toContain('收到（已編輯）');
+    expect(toastExcerpt(edited, 'compact')).toBeNull();
+  });
+});

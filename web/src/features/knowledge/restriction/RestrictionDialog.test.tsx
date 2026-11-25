@@ -5,6 +5,7 @@ import { failure, ok, signedInAs } from '../../../test/api';
 import { exampleOwner, projectDetail, webProject } from '../../../test/fixtures';
 import { knowledgeSpaceOf, pageNodeOf, serveKnowledge } from '../../../test/knowledge';
 import { adminPerson, guestPerson, memberPerson, ownerPerson } from '../../../test/people';
+import { flushPending } from '../../../test/flush';
 import { renderApp } from '../../../test/renderApp';
 import { chooseOption, openOptions } from '../../../test/select';
 import { server } from '../../../test/server';
@@ -319,5 +320,109 @@ describe('「限制…」對話框：繼承與錯誤', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('「限制…」對話框：誰設的、誰能放寬', () => {
+  const restricted = { trees: { DOCS: [pageNodeOf({ number: 1, title: '人事', isRestricted: true })] } };
+
+  async function openRestricted(meta: { restrictedBy: { personId: string; displayName: string } | null; canRelax: boolean }) {
+    const view = openPage('/knowledge/DOCS/1', restricted);
+    view.backend.restrictions['DOCS/1'] = [ownerPerson.personId, memberPerson.personId];
+    view.backend.restrictionMeta['DOCS/1'] = meta;
+    await view.user.click(await screen.findByRole('button', { name: '限制…' }));
+    const dialog = await screen.findByRole('dialog', { name: '限制「人事」' });
+    return { view, dialog };
+  }
+
+  it('寫出設定的人', async () => {
+    // Arrange、Act
+    const { dialog } = await openRestricted({ restrictedBy: { personId: memberPerson.personId, displayName: '範例成員' }, canRelax: true });
+
+    // Assert
+    expect(await within(dialog).findByText('設定的人：範例成員')).toBeInTheDocument();
+  });
+
+  it('舊資料沒有紀錄：說明只有管理者能放寬', async () => {
+    // Arrange、Act
+    const { dialog } = await openRestricted({ restrictedBy: null, canRelax: false });
+
+    // Assert
+    expect(await within(dialog).findByText('設定的人：（沒有紀錄，只有管理者能放寬）')).toBeInTheDocument();
+  });
+
+  it('沒有限制的頁面不寫設定的人', async () => {
+    // Arrange
+    const view = openPage('/knowledge/DOCS/2');
+
+    // Act
+    const dialog = await openFromPage(view);
+
+    // Assert
+    await within(dialog).findByRole('button', { name: '限制這一頁' });
+    expect(within(dialog).queryByText(/設定的人/)).not.toBeInTheDocument();
+  });
+
+  it('不能放寬：「拿掉限制」與選人是 aria-disabled 並說明原因，按了不送請求；移除名單上的人照樣可以', async () => {
+    // Arrange
+    const { view, dialog } = await openRestricted({ restrictedBy: { personId: adminPerson.personId, displayName: '範例管理員' }, canRelax: false });
+    const reason = '只有設定這個限制的人或空間的管理者能放寬（拿掉限制、加人）。';
+    const remove = await within(dialog).findByRole('button', { name: '拿掉限制' });
+    const picker = within(dialog).getByRole('combobox', { name: '加入人員' });
+
+    // Assert
+    expect(remove).toHaveAttribute('aria-disabled', 'true');
+    expect(picker).toHaveAttribute('aria-disabled', 'true');
+    expect(within(dialog).getAllByText(reason).length).toBeGreaterThan(0);
+    await view.user.click(remove);
+    // 請求是非同步送出的：等一輪再看，漏送的請求才抓得到。
+    await flushPending();
+    expect(putsOf(view.backend)).toEqual([]);
+
+    // Act
+    await view.user.click(within(dialog).getByRole('button', { name: '移除 範例成員' }));
+    await view.user.click(within(dialog).getByRole('button', { name: '儲存' }));
+
+    // Assert
+    await waitFor(() => {
+      expect(putsOf(view.backend)).toEqual([{ people: [ownerPerson.personId] }]);
+    });
+  });
+
+  it('可以放寬：「拿掉限制」與選人照常，不寫「只有…能放寬」', async () => {
+    // Arrange、Act
+    const { dialog } = await openRestricted({ restrictedBy: { personId: ownerPerson.personId, displayName: '範例使用者' }, canRelax: true });
+
+    // Assert
+    expect(await within(dialog).findByRole('button', { name: '拿掉限制' })).not.toHaveAttribute('aria-disabled');
+    expect(within(dialog).getByRole('combobox', { name: '加入人員' })).not.toHaveAttribute('aria-disabled');
+    expect(within(dialog).queryByText(/能放寬/)).not.toBeInTheDocument();
+  });
+
+  it('伺服器 403 restriction_owner_required：訊息寫在對話框裡，對話框留著', async () => {
+    // Arrange
+    const { view, dialog } = await openRestricted({ restrictedBy: null, canRelax: true });
+    const message = '只有設定這個限制的人或空間的管理者能放寬（拿掉限制、加人、搬出有限制的範圍）。';
+    server.use(http.put('/v1/knowledge/spaces/:key/pages/:number/restriction', () => failure(403, 'knowledge.restriction_owner_required', message)));
+
+    // Act
+    await view.user.click(await within(dialog).findByRole('button', { name: '拿掉限制' }));
+
+    // Assert
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('專案空間的說明是「組織管理員與這個專案的管理者一律看得到」，組織空間不變', async () => {
+    // Arrange
+    const space = knowledgeSpaceOf({ id: 'space-web', key: 'WEB', project: { key: 'WEB', name: '官網改版', isArchived: false } });
+    const view = openPage('/knowledge/WEB/1', { spaces: [space], trees: { WEB: [pageNodeOf({ number: 1, title: '部署' })] } }, { details: [projectDetail(webProject)] });
+
+    // Act
+    await view.user.click(await screen.findByRole('button', { name: '限制…' }));
+
+    // Assert
+    const dialog = await screen.findByRole('dialog', { name: '限制「部署」' });
+    expect(within(dialog).getByText('只有名單上的人看得到這一頁與底下的頁面；組織管理員與這個專案的管理者一律看得到。')).toBeInTheDocument();
   });
 });

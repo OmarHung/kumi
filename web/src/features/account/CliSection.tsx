@@ -16,6 +16,7 @@ import {
   UPDATE_COMMAND,
   VERSION_COMMAND,
   downloadLabel,
+  HASH_NOTE,
   installCommand,
   isMac,
   loginCommand,
@@ -42,6 +43,8 @@ function Steps({ pkg, version }: { readonly pkg: CliPackage; readonly version: s
       <li>
         <p>{isMac(platform) ? '在終端機執行，把它放到固定的位置、改名成 ' : '在 PowerShell 執行，把它放到固定的位置、改名成 '}<code>{COMMAND_NAME}</code>：</p>
         <CopyBlock label="安裝的指令" text={installCommand(pkg)} wrap />
+        <CopyBlock label="SHA-256" text={pkg.sha256} />
+        <p className={accountStyles.note}>{HASH_NOTE}</p>
         <p className={accountStyles.note}>{FOLDER_HINT}</p>
       </li>
       <li>
@@ -55,7 +58,7 @@ function Steps({ pkg, version }: { readonly pkg: CliPackage; readonly version: s
         </p>
         <CopyBlock label="登入的指令" text={loginCommand(window.location.origin)} wrap />
         <p className={accountStyles.note}>
-          沒辦法開瀏覽器（例如透過 SSH）時，到下面的「存取權杖」建一把，再執行 <code>{pasteLoginCommand(window.location.origin)}</code> 貼上權杖。
+          沒辦法開瀏覽器（例如透過 SSH）時，到下面的「存取權杖」建一把，再執行 <code>{pasteLoginCommand(window.location.origin) ?? `${COMMAND_NAME} auth login --paste`}</code> 貼上權杖。
         </p>
         <p className={accountStyles.note}>
           之後有新版時執行 <code>{UPDATE_COMMAND}</code> 更新。

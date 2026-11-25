@@ -44,6 +44,7 @@ const HUB_OPTIONS_OWNER_BEFORE_PROJECT = [
   ...PERSONAL_HUB_OPTIONS,
   '說明格式 組織設定',
   '寄信設定 組織設定',
+  '儲存空間 組織設定',
   'AI 設定 組織設定',
   '主機 AI 代理 組織設定',
 ];
@@ -174,7 +175,7 @@ describe('快速跳轉：combobox', () => {
     expect(input).toHaveAttribute('aria-expanded', 'true');
     expect(input).toHaveAttribute('aria-autocomplete', 'list');
     const groups = within(listbox).getAllByRole('group');
-    expect(groups.map((group) => within(group).getAllByRole('option').length)).toEqual([1, 2, 12]);
+    expect(groups.map((group) => within(group).getAllByRole('option').length)).toEqual([1, 2, 13]);
     expect(within(listbox).getByRole('group', { name: '最近看過' })).toHaveTextContent('AGY-3 首頁設計稿');
     expect(within(listbox).getByRole('group', { name: '專案' })).toBeInTheDocument();
     expect(within(listbox).getByRole('group', { name: '頁面' })).toBeInTheDocument();

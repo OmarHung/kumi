@@ -18,7 +18,9 @@ import { candidatesOf, isSameList, problemsOf, withSelfFirst } from './restricti
 import { useIsSavingRestriction, useProjectMemberIds, useRestrictionQuery, useSaveRestriction } from './useRestriction';
 import styles from './RestrictionDialog.module.css';
 
-const EXPLANATION = '只有名單上的人看得到這一頁與底下的頁面；組織管理員一律看得到。';
+const ORGANIZATION_EXPLANATION = '只有名單上的人看得到這一頁與底下的頁面；組織管理員一律看得到。';
+const PROJECT_EXPLANATION = '只有名單上的人看得到這一頁與底下的頁面；組織管理員與這個專案的管理者一律看得到。';
+const NO_RECORD = '（沒有紀錄，只有管理者能放寬）';
 
 export interface RestrictionDialogProps {
   readonly spaceKey: string;
@@ -137,6 +139,7 @@ function RestrictionForm(props: RestrictionFormProps) {
   return (
     <form className={styles.form} noValidate aria-busy={save.isPending} onSubmit={handleSubmit}>
       <InheritedNote spaceKey={spaceKey} ancestors={data.restrictedAncestors} onNavigate={onClose} />
+      {data.people !== null && <p className={styles.note}>{`設定的人：${data.restrictedBy?.displayName ?? NO_RECORD}`}</p>}
       {shown === null ? (
         <p className={styles.note}>{canEdit ? '這一頁沒有自己的名單，看得到空間的人都看得到（上層有限制的話照上層）。' : '這一頁沒有自己的名單。'}</p>
       ) : (
@@ -144,6 +147,7 @@ function RestrictionForm(props: RestrictionFormProps) {
           people={shown}
           selfId={self.personId}
           canEdit={canEdit}
+          canRelax={data.people === null || data.canRelax}
           candidates={editing.candidates}
           loadError={editing.loadError}
           problems={problems.byPerson}
@@ -169,7 +173,7 @@ export function RestrictionDialog(props: RestrictionDialogProps) {
   // 儲存中不能關（和搬移、新增空間的對話框一樣）：關掉了就看不到結果，失敗也無處說。
   const isSaving = useIsSavingRestriction(spaceKey, pageNumber);
   return (
-    <Dialog title={`限制「${pageTitle}」`} description={EXPLANATION} onClose={isSaving ? () => undefined : onClose}>
+    <Dialog title={`限制「${pageTitle}」`} description={props.projectKey === null ? ORGANIZATION_EXPLANATION : PROJECT_EXPLANATION} onClose={isSaving ? () => undefined : onClose}>
       {query.isPending ? (
         <LoadingState label="正在載入名單…" />
       ) : query.isError ? (

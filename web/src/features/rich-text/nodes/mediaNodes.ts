@@ -26,11 +26,24 @@ export const ImageNode = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'img[src]', getAttrs: (element) => (isPastableImageSource(element.getAttribute('src') ?? '') ? null : false) }];
+    return [
+      { tag: 'img[src]', getAttrs: (element) => (isPastableImageSource(element.getAttribute('src') ?? '') ? null : false) },
+      // 編輯器之間複製貼上：外部網址放在 data-external-src（見 renderHTML），這裡換回 src。
+      {
+        tag: 'img[data-external-src]',
+        getAttrs: (element) => {
+          const src = element.getAttribute('data-external-src') ?? '';
+          return isPastableImageSource(src) ? { src, alt: element.getAttribute('alt') ?? '', title: element.getAttribute('title') } : false;
+        },
+      },
+    ];
   },
 
+  // 複製出去的 HTML 只有自己的附件會帶 src：外部網址的圖片放進別的頁面或信件時，不讓它自己去載入。
   renderHTML({ HTMLAttributes }) {
-    return ['img', HTMLAttributes];
+    const { src, ...rest } = HTMLAttributes as Record<string, unknown>;
+    const text = typeof src === 'string' ? src : '';
+    return ['img', attachmentIdOf(text) === null ? { ...rest, 'data-external-src': text } : { ...rest, src: text }];
   },
 
   renderText({ node }) {
@@ -49,13 +62,20 @@ export const AttachmentFileNode = Node.create({
 
   addAttributes() {
     return {
-      attachmentId: { default: '', parseHTML: (element: HTMLElement) => element.getAttribute('data-attachment-file') },
+      // 和讀入 Markdown 時同一個判斷：不是附件的 GUID 就不當附件檔案。
+      attachmentId: { default: '', parseHTML: (element: HTMLElement) => attachmentIdOf(`attachment:${element.getAttribute('data-attachment-file') ?? ''}`) },
       name: { default: '', parseHTML: (element: HTMLElement) => element.textContent },
     };
   },
 
   parseHTML() {
-    return [{ tag: 'span[data-attachment-file]', priority: 100 }];
+    return [
+      {
+        tag: 'span[data-attachment-file]',
+        priority: 100,
+        getAttrs: (element) => (attachmentIdOf(`attachment:${element.getAttribute('data-attachment-file') ?? ''}`) === null ? false : null),
+      },
+    ];
   },
 
   renderHTML({ node }) {

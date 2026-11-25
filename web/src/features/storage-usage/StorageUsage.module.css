@@ -1,0 +1,55 @@
+/*
+ * 儲存空間（閱讀頁，docs/DESIGN.md 6.2）：幾塊 SettingsSection，沒有卡片與色條。
+ * 用量條是原生的 <progress>（和規劃頁的進度條同一個做法）：填滿的長度是 value／max，不用 style 屬性。
+ */
+.stack {
+  --storage-width: 26rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--storage-width);
+}
+
+.figure {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.track {
+  appearance: none;
+  inline-size: 100%;
+  block-size: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+  overflow: hidden;
+}
+
+.track::-webkit-progress-bar {
+  background: var(--color-canvas);
+}
+
+.track::-webkit-progress-value {
+  background: var(--color-accent-solid);
+}
+
+.track::-moz-progress-bar {
+  background: var(--color-accent-solid);
+}
+
+/* 超過上限：填滿的部分換成警告色（文字與警告的提示一樣寫出來，不只靠顏色）。 */
+.trackOver::-webkit-progress-value {
+  background: var(--color-warning);
+}
+
+.trackOver::-moz-progress-bar {
+  background: var(--color-warning);
+}

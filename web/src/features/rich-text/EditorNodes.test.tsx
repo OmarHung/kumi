@@ -217,3 +217,46 @@ describe('編輯器：貼上與複製', () => {
     expect(plain?.[1]).toBe('## 標題\n\n- 一\n- 二');
   });
 });
+
+describe('編輯器：複製出去的 HTML', () => {
+  it('外部網址的圖片不輸出 src，改放 data-external-src；自己的附件照舊有 src', async () => {
+    // Arrange
+    render(<EditorHarness initial={`![外部圖](https://example.com/a.png) ![自己的](attachment:${GUID})`} />);
+    const editor = await findEditor('說明');
+    await screen.findByRole('img', { name: '自己的' });
+
+    // Act
+    const html = tiptapOf(editor).getHTML();
+
+    // Assert
+    expect(html).toContain('data-external-src="https://example.com/a.png"');
+    expect(html).not.toMatch(/\ssrc="https:/);
+    expect(html).toContain(`src="attachment:${GUID}"`);
+  });
+
+  it('貼回編輯器時 data-external-src 換回圖片的網址', async () => {
+    // Arrange
+    render(<EditorHarness initial="" />);
+    const editor = await findEditor('說明');
+
+    // Act
+    tiptapOf(editor).commands.insertContent('<p><img data-external-src="https://example.com/a.png" alt="外部圖"></p>');
+
+    // Assert
+    const json = JSON.stringify(tiptapOf(editor).getJSON());
+    expect(json).toContain('"type":"image"');
+    expect(json).toContain('"src":"https://example.com/a.png"');
+  });
+
+  it('data-attachment-file 不是附件編號的 span 不當附件檔案', async () => {
+    // Arrange
+    render(<EditorHarness initial="" />);
+    const editor = await findEditor('說明');
+
+    // Act
+    tiptapOf(editor).commands.insertContent('<p><span data-attachment-file="x) 外部的](https://other.example">檔</span></p>');
+
+    // Assert
+    expect(JSON.stringify(tiptapOf(editor).getJSON())).not.toContain('attachmentFile');
+  });
+});

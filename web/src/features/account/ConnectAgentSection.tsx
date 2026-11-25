@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '../../components/Button/Button';
 import { SettingsSection } from '../../components/SettingsSection/SettingsSection';
 import { COMMAND_NAME, PRODUCT_NAME } from '../../config/product';
+import { isSafeOrigin } from './cliText';
 import { copyToClipboard } from './TokenSecretView';
 import accountStyles from './AccountPage.module.css';
 import styles from './ConnectAgentSection.module.css';
@@ -13,13 +14,20 @@ export function mcpUrl(): string {
   return `${window.location.origin}/mcp`;
 }
 
-/** 加在 user 範圍（所有資料夾都能用；預設的 local 範圍只在執行指令的那個資料夾有效），再登入。 */
-export function claudeCodeCommand(url: string): string {
-  return [`claude mcp add --scope user --transport http ${COMMAND_NAME} ${url}`, `claude mcp login ${COMMAND_NAME}`].join('\n');
+/** 雙引號包起來的 MCP 網址（cmd.exe 不認單引號）；網址的形狀不合就是 null，不產生指令。 */
+function quotedMcpUrl(url: string): string | null {
+  return url.endsWith('/mcp') && isSafeOrigin(url.slice(0, -'/mcp'.length)) ? `"${url}"` : null;
 }
 
-export function codexCommand(url: string): string {
-  return [`codex mcp add ${COMMAND_NAME} --url ${url}`, `codex mcp login ${COMMAND_NAME}`].join('\n');
+/** 加在 user 範圍（所有資料夾都能用；預設的 local 範圍只在執行指令的那個資料夾有效），再登入。 */
+export function claudeCodeCommand(url: string): string | null {
+  const quoted = quotedMcpUrl(url);
+  return quoted === null ? null : [`claude mcp add --scope user --transport http ${COMMAND_NAME} ${quoted}`, `claude mcp login ${COMMAND_NAME}`].join('\n');
+}
+
+export function codexCommand(url: string): string | null {
+  const quoted = quotedMcpUrl(url);
+  return quoted === null ? null : [`codex mcp add ${COMMAND_NAME} --url ${quoted}`, `codex mcp login ${COMMAND_NAME}`].join('\n');
 }
 
 type CopyResult = 'copied' | 'failed' | null;
@@ -29,7 +37,7 @@ type CopyResult = 'copied' | 'failed' | null;
  * `wrap`：放不下時折行，不在區塊裡橫向捲動。給要貼進終端機執行的長指令：執行之前整段看得到。
  * `onCopy`：複製成功時呼叫（設定精靈用它判斷這一步做了）。
  */
-export function CopyBlock({ label, text, wrap = false, onCopy }: { readonly label: string; readonly text: string; readonly wrap?: boolean; readonly onCopy?: () => void }) {
+export function CopyBlock({ label, text, wrap = false, onCopy }: { readonly label: string; readonly text: string | null; readonly wrap?: boolean; readonly onCopy?: () => void }) {
   const [result, setResult] = useState<CopyResult>(null);
   useEffect(() => {
     if (result === null) return undefined;
@@ -40,6 +48,8 @@ export function CopyBlock({ label, text, wrap = false, onCopy }: { readonly labe
       window.clearTimeout(timer);
     };
   }, [result]);
+  // 網址的形狀不合時沒有指令可給：寧可不給，也不產生一行會被終端機照字面解讀的東西。
+  if (text === null) return <p className={accountStyles.note}>這個網址含有不支援的字元，沒辦法產生{label}。</p>;
   return (
     <div className={styles.block}>
       <pre className={wrap ? `${styles.code} ${styles.wrap}` : styles.code} tabIndex={0} role="region" aria-label={label}>

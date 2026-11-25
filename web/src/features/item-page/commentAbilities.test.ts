@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Permission } from '../../api/blueprint';
-import { commented, deletedComment, memberRef, ownerRef } from '../../test/activity';
+import { IMPORTED_FROM, commented, deletedComment, memberRef, ownerRef } from '../../test/activity';
 import { exampleMember, exampleOwner } from '../../test/fixtures';
 import { commentAbilities } from './commentAbilities';
 
@@ -85,5 +85,37 @@ describe('留言的權限（誰能編輯、刪除、復原）', () => {
     // Assert
     expect(deleted).toMatchObject({ canEdit: false, canDelete: false });
     expect(anonymous).toMatchObject({ canEdit: false, canDelete: false, canRestore: false });
+  });
+});
+
+describe('匯入的留言', () => {
+  it('作者本人也不能編輯，只有管理專案的人能刪', () => {
+    // Arrange
+    const imported = commented('舊的', { actor: ownerRef, importedFrom: IMPORTED_FROM });
+
+    // Act
+    const asAuthor = abilities(imported, AUTHOR_ID, WRITER);
+    const asManager = abilities(imported, AUTHOR_ID, MANAGER);
+
+    // Assert
+    expect(asAuthor).toEqual({ canEdit: false, canDelete: false, canRestore: false, isAuthor: true });
+    expect(asManager).toMatchObject({ canEdit: false, canDelete: true, canRestore: false });
+  });
+
+  it('管理者刪了的匯入留言：只有管理專案的人能復原，作者不能', () => {
+    // Arrange
+    const deleted = deletedComment({ actor: ownerRef, importedFrom: IMPORTED_FROM, deletedBy: ownerRef });
+
+    // Act
+    const asAuthor = abilities(deleted, AUTHOR_ID, WRITER);
+    const asManager = abilities(deleted, AUTHOR_ID, MANAGER);
+
+    // Assert
+    expect(asAuthor).toMatchObject({ canEdit: false, canDelete: false, canRestore: false });
+    expect(asManager).toMatchObject({ canRestore: true });
+  });
+
+  it('封存的專案照舊一律不行', () => {
+    expect(abilities(commented('舊的', { importedFrom: IMPORTED_FROM }), AUTHOR_ID, MANAGER, true)).toMatchObject({ canDelete: false });
   });
 });

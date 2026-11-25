@@ -43,6 +43,14 @@ function roleOf(dialog: HTMLElement, name: string): HTMLElement {
 }
 
 describe('成員對話框', () => {
+  it('能管理成員的人看得到最高權限的說明，只能看的人沒有', async () => {
+    // Arrange & Act
+    const { dialog } = await openDialog();
+
+    // Assert
+    expect(within(dialog).getByText('有「管理專案」（project.manage）的角色能設定成員與角色；能「套用變更集」（blueprint.apply）的角色能改每個角色的權限。兩者都等同這個專案的最高權限，只給信得過的人。')).toBeInTheDocument();
+  });
+
   it('列出成員與角色：內建角色用中文，自訂角色用藍圖的名稱；Esc 關閉後焦點回到按鈕', async () => {
     // Arrange
     const { user, dialog } = await openDialog();
@@ -78,6 +86,7 @@ describe('成員對話框', () => {
     expect(within(roleOf(dialog, '範例成員')).getByText('編輯者')).toBeInTheDocument();
     expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('form', { name: '加入成員' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/等同這個專案的最高權限/)).not.toBeInTheDocument();
   });
 
   it('改角色後重新讀專案內容，表格與我的角色跟著更新', async () => {

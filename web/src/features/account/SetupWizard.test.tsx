@@ -118,7 +118,7 @@ describe('設定精靈：版面與展開順序', () => {
     // Assert
     expect(within(stepOf(section, '下載 kumi')).getByText('已經裝好 kumi')).toBeInTheDocument();
     const second = stepOf(section, '在終端機貼上這一行');
-    expect(within(second).getByRole('region', { name: '啟動設定精靈的指令' })).toHaveTextContent(`kumi setup --server '${ORIGIN}'`);
+    expect(within(second).getByRole('region', { name: '啟動設定精靈的指令' })).toHaveTextContent(`kumi setup --server "${ORIGIN}"`);
     expect(within(second).queryByRole('region', { name: '安裝並啟動設定精靈的指令' })).not.toBeInTheDocument();
   });
 
@@ -167,7 +167,7 @@ describe('設定精靈：和「命令列工具」共用平台的選擇', () => {
 });
 
 describe('設定精靈：第二步的一行指令', () => {
-  it('Mac：安裝、PATH、完整路徑啟動精靈，網址用單引號；另附已經裝好的那一行', async () => {
+  it('Mac：安裝、PATH、完整路徑啟動精靈，網址用雙引號；另附已經裝好的那一行', async () => {
     // Arrange
     const { user, section } = await openWizard();
 
@@ -179,8 +179,8 @@ describe('設定精靈：第二步的一行指令', () => {
     const command = within(second).getByRole('region', { name: '安裝並啟動設定精靈的指令' });
     expect(command).toHaveTextContent('mv ~/Downloads/kumi-0.3.0-macos-arm64 ~/.local/bin/kumi');
     expect(command).toHaveTextContent('&& { grep -qsxF');
-    expect(command).toHaveTextContent(`&& ~/.local/bin/kumi setup --server '${ORIGIN}'`);
-    expect(within(second).getByRole('region', { name: '啟動設定精靈的指令' })).toHaveTextContent(`kumi setup --server '${ORIGIN}'`);
+    expect(command).toHaveTextContent(`&& ~/.local/bin/kumi setup --server "${ORIGIN}"`);
+    expect(within(second).getByRole('region', { name: '啟動設定精靈的指令' })).toHaveTextContent(`kumi setup --server "${ORIGIN}"`);
     expect(within(second).getByText(/會問你要設定哪些，再開瀏覽器請你按「允許」/)).toBeInTheDocument();
   });
 
@@ -194,7 +194,7 @@ describe('設定精靈：第二步的一行指令', () => {
     // Assert
     const command = within(stepOf(section, '在終端機貼上這一行')).getByRole('region', { name: '安裝並啟動設定精靈的指令' });
     expect(command).toHaveTextContent('Unblock-File');
-    expect(command).toHaveTextContent(`& "$d\\kumi.exe" setup --server '${ORIGIN}'`);
+    expect(command).toHaveTextContent(`& "$d\\kumi.exe" setup --server "${ORIGIN}"`);
   });
 
   it('按「複製」就算這一步做了：第二步收起、第三步展開', async () => {
@@ -207,7 +207,7 @@ describe('設定精靈：第二步的一行指令', () => {
     await user.click(within(section).getByRole('button', { name: '複製安裝並啟動設定精靈的指令' }));
 
     // Assert
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`setup --server '${ORIGIN}'`));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`setup --server "${ORIGIN}"`));
     await waitFor(() => {
       expect(stepOf(section, '完成的項目')).toHaveAttribute('data-state', 'current');
     });

@@ -1,7 +1,8 @@
-import { Children, createContext, memo, useContext, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
+import { Children, createContext, isValidElement, memo, useContext, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { attachmentContentUrl } from '../../api/attachments';
 import { Icon } from '../Icon/Icon';
+import { actualHostOf, linkHostNote } from './linkHosts';
 import { attachmentIdOf, isMentionUrl, markdownUrlTransform, mentionIdOf } from './markdownUrls';
 import { REMARK_PLUGINS } from './markdownPlugins';
 import styles from './Markdown.module.css';
@@ -14,7 +15,14 @@ export interface MarkdownProps {
   readonly hasAttachments?: boolean;
   /** 附件編號對應的下載網址；預設是項目的附件（知識庫的頁面傳 knowledgeAttachmentContentUrl）。 */
   readonly attachmentUrl?: (attachmentId: string) => string;
+  /**
+   * 外部連結旁的網域提示：'mismatch'（預設）只在連結的文字像網址、而且主機和實際的不同時提示；
+   * 'always' 每一個外部連結都接上實際的網域（AI 的回覆：內容不是人寫的，沒辦法靠上下文判斷）。
+   */
+  readonly linkHosts?: LinkHostsMode;
 }
+
+export type LinkHostsMode = 'mismatch' | 'always';
 
 const IMAGE_URL = /^https?:/i;
 
@@ -38,6 +46,17 @@ function plainText(children: ReactNode): string {
     .join('');
 }
 
+/** 連結顯示出來的文字（含粗體等巢狀元素裡的字）：判斷文字像不像網址要看使用者實際讀到的。 */
+function visibleText(children: ReactNode): string {
+  return Children.toArray(children)
+    .map((child) => {
+      if (typeof child === 'string' || typeof child === 'number') return String(child);
+      if (isValidElement<{ children?: ReactNode }>(child)) return visibleText(child.props.children);
+      return '';
+    })
+    .join('');
+}
+
 /**
  * 人員編號對應的名稱，用 Context 傳給連結：元件的函式本身永遠是同一個（模組層級的 COMPONENTS）。
  * 要是每次渲染都產生新的元件函式，React 會把整段 DOM 拆掉重建（選取、捲動位置、說明的「顯示全部」量到的高度都跟著丟）。
@@ -51,6 +70,38 @@ interface AttachmentsValue {
 }
 
 const AttachmentsContext = createContext<AttachmentsValue>({ enabled: true, urlOf: attachmentContentUrl });
+
+const LinkHostsContext = createContext<LinkHostsMode>('mismatch');
+
+/**
+ * 連結後面的網域提示：不一致時是警告樣式的「（實際連到 …）」；實際的主機是國際化網域（punycode）時，
+ * 不論文字與連結一不一致都標出來；'always' 時一致的也列出網域；其他是 null。
+ */
+function HostNote({ href, children }: { readonly href: string; readonly children: ReactNode }) {
+  const mode = useContext(LinkHostsContext);
+  const note = linkHostNote(visibleText(children), href);
+  if (note?.kind === 'mismatch') {
+    return (
+      <span className={styles.hostWarning} title={href}>
+        {note.isPunycode ? `（實際連到 ${note.host}，網域含非英文字母）` : `（實際連到 ${note.host}）`}
+      </span>
+    );
+  }
+  if (note?.kind === 'punycode') {
+    return (
+      <span className={styles.hostWarning} title={href}>
+        {`（網域含非英文字母：${note.host}）`}
+      </span>
+    );
+  }
+  const host = mode === 'always' ? actualHostOf(href) : null;
+  if (host === null) return null;
+  return (
+    <span className={styles.hostNote} title={href}>
+      {`（${host}）`}
+    </span>
+  );
+}
 
 /** 在連結裡面：裡面的圖片不再自己包一層 <a>（巢狀的連結不合法，輔助科技與點擊都會亂）。 */
 const InsideLinkContext = createContext(false);
@@ -73,10 +124,17 @@ function Link({ href, children }: { readonly href?: string; readonly children?: 
   }
   const attachmentId = attachmentIdOf(href);
   if (attachmentId !== null && !hasAttachments) return <span>{children}</span>;
-  return (
+  const anchor = (
     <a href={attachmentId === null ? href : urlOf(attachmentId)} target="_blank" rel="noopener noreferrer">
       <InsideLinkContext value>{children}</InsideLinkContext>
     </a>
+  );
+  if (attachmentId !== null) return anchor;
+  return (
+    <>
+      {anchor}
+      <HostNote href={href}>{children}</HostNote>
+    </>
   );
 }
 
@@ -176,17 +234,19 @@ const COMPONENTS: Components = {
  * （既有的內容都是照純文字打的）。安全：不開原始的 HTML（沒有 rehype-raw，照文字顯示）、連結只認 http、https、mailto、
  * mention、自己附件的 attachment:；圖片只載入自己附件的，外部網址的不載入。這個檔案帶著 react-markdown 全家，只經過 Markdown.tsx 延後載入。
  */
-export const MarkdownContent = memo(function MarkdownContent({ text, mentionNames, hasAttachments = true, attachmentUrl = attachmentContentUrl }: MarkdownProps) {
+export const MarkdownContent = memo(function MarkdownContent({ text, mentionNames, hasAttachments = true, attachmentUrl = attachmentContentUrl, linkHosts = 'mismatch' }: MarkdownProps) {
   // 值要穩定：memo 的元件重畫時不能每次都換一個新物件，不然 Context 的使用者全部重畫。
   const attachments = useMemo(() => ({ enabled: hasAttachments, urlOf: attachmentUrl }), [hasAttachments, attachmentUrl]);
   return (
     <MentionNamesContext value={mentionNames}>
       <AttachmentsContext value={attachments}>
-        <div className={styles.markdown} data-state="rendered">
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} urlTransform={markdownUrlTransform} components={COMPONENTS}>
-            {text}
-          </ReactMarkdown>
-        </div>
+        <LinkHostsContext value={linkHosts}>
+          <div className={styles.markdown} data-state="rendered">
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} urlTransform={markdownUrlTransform} components={COMPONENTS}>
+              {text}
+            </ReactMarkdown>
+          </div>
+        </LinkHostsContext>
       </AttachmentsContext>
     </MentionNamesContext>
   );

@@ -111,6 +111,21 @@
   color: var(--color-accent-hover);
 }
 
+/* 連結後面的網域小標記：不一致時是警告色（提醒要看清楚再點），一致時（AI 的回覆）是淡字；都是 --text-sm，不加底色與色條。 */
+.hostNote,
+.hostWarning {
+  margin-left: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.hostNote {
+  color: var(--color-text-muted);
+}
+
+.hostWarning {
+  color: var(--color-warning);
+}
+
 /* 引用：灰字加縮排，用字色與縮排區分，不畫色條（第 9 節）。 */
 .markdown blockquote {
   padding-left: var(--space-4);

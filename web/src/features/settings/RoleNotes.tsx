@@ -1,5 +1,6 @@
 import type { RoleDefinition } from '../../api/blueprint';
 import { Notice } from '../../components/Notice/Notice';
+import { PRIVILEGED_PERMISSIONS_NOTE } from '../members/memberRoles';
 import { roleReferences, type RoleReference } from '../../domain/settingsRoles';
 import { elementId, useSettingsEditor, type SettingsEditorValue } from './SettingsContext';
 import { stateLabel } from './transitionLabels';
@@ -89,5 +90,14 @@ export function RemovedRoleNotes({ role }: { readonly role: RoleDefinition }) {
         </Notice>
       )}
     </>
+  );
+}
+
+/** 勾選角色權限的地方：這兩個權限等同專案的最高權限，改之前先讀到。 */
+export function PermissionsNote() {
+  return (
+    <Notice tone="info" role="none" className={styles.rowNotice}>
+      {PRIVILEGED_PERMISSIONS_NOTE}
+    </Notice>
   );
 }

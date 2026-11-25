@@ -1,6 +1,6 @@
 import type { Notification } from '../../api/types';
 import { ACCOUNT_NOTICE_LABEL } from '../inbox/accountNoticeText';
-import { notificationHeadline, plainExcerpt } from '../inbox/notificationText';
+import { notificationExcerpt, notificationHeadline } from '../inbox/notificationText';
 import type { ToastMode } from './toastMode';
 
 /** 同時在畫面上的提示最多幾個（含「還有 N 則」那一個）。 */
@@ -32,7 +32,7 @@ export function toastSubject(notification: Notification): string {
 
 /** 完整時第三段的內容（留言或提及的摘錄，和收件匣同一種處理）；精簡、沒有內容時是 null。 */
 export function toastExcerpt(notification: Notification, mode: ToastMode): string | null {
-  return mode === 'full' ? plainExcerpt(notification.excerpt) : null;
+  return mode === 'full' ? notificationExcerpt(notification) : null;
 }
 
 /** 報讀軟體唸的一句：「新通知：王小明 提及了你，MNT-12 修正登入頁」；完整時接著唸內容，精簡不唸。 */

@@ -84,6 +84,27 @@ describe('templateCsv', () => {
     expect(text).toContain('影響程度');
   });
 
+  it('欄位名稱開頭是公式的字元時前面補 \'，試算表不會當公式執行', () => {
+    // Arrange
+    const blueprint = {
+      ...agencyBlueprint,
+      fields: [
+        { key: 'a', name: '=HYPERLINK("https://x.example")', type: 'text' as const },
+        { key: 'b', name: '+1', type: 'text' as const },
+        { key: 'c', name: '-2', type: 'text' as const },
+        { key: 'd', name: '@sum', type: 'text' as const },
+        { key: 'e', name: '\t分頁', type: 'text' as const },
+      ],
+    };
+
+    // Act
+    const text = templateCsv(blueprint, true);
+
+    // Assert
+    expect(text).toContain('"\'=HYPERLINK(""https://x.example"")"');
+    expect(text).toContain(",'+1,'-2,'@sum,'\t分頁");
+  });
+
   it('沒有 project.manage 時不放「狀態」', () => {
     expect(templateCsv(agencyBlueprint, false)).not.toContain('狀態');
   });

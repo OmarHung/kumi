@@ -101,6 +101,28 @@ describe('看一頁', () => {
     expect(screen.queryByRole('button', { name: '開始寫這一頁' })).not.toBeInTheDocument();
   });
 
+  it('專案空間裡只看自己項目的執行者（canEdit 是 false）：看得到頁面，沒有編輯、新增、搬移、刪除的入口', async () => {
+    // Arrange
+    const executorSpace = knowledgeSpaceOf({
+      id: 'space-web',
+      key: 'WEB',
+      project: { key: 'WEB', name: '官網改版', isArchived: false },
+      myPermissions: { canEdit: false, canComment: false, canManage: false },
+    });
+    openPage('/knowledge/WEB/1', {
+      spaces: [executorSpace],
+      trees: { WEB: [pageNodeOf({ number: 1, title: '部署' })] },
+      bodies: { 'WEB/1': '部署的步驟。' },
+    });
+
+    // Assert
+    expect(await screen.findByText('部署的步驟。')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '編輯' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新增最上層的頁面' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /更多動作/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '限制…' })).not.toBeInTheDocument();
+  });
+
   it('能改的人：空的頁面整塊是「開始寫這一頁」', async () => {
     // Arrange
     const { user } = openPage('/knowledge/DOCS/3');

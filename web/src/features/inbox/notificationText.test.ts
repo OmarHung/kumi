@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { notification } from '../../test/notifications';
-import { notificationSentence, plainExcerpt } from './notificationText';
+import { notificationExcerpt, notificationSentence, plainExcerpt } from './notificationText';
 
 describe('notificationSentence', () => {
   it.each([
@@ -47,5 +47,16 @@ describe('plainExcerpt', () => {
   it('沒有摘要是 null', () => {
     expect(plainExcerpt(null)).toBeNull();
     expect(plainExcerpt('   ')).toBeNull();
+  });
+});
+
+describe('notificationExcerpt', () => {
+  it('編輯過的留言在摘要後面加「（已編輯）」，沒編輯過的不加', () => {
+    expect(notificationExcerpt(notification({ kind: 'commented', excerpt: '收到', edited: true }))).toBe('收到（已編輯）');
+    expect(notificationExcerpt(notification({ kind: 'commented', excerpt: '收到', edited: false }))).toBe('收到');
+  });
+
+  it('沒有摘要時沒有內容，也不單獨出現「（已編輯）」', () => {
+    expect(notificationExcerpt(notification({ excerpt: null, edited: true }))).toBeNull();
   });
 });

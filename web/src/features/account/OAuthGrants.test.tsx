@@ -184,10 +184,10 @@ describe('我的帳號：連接 Claude Code／Codex', () => {
     // Assert
     expect(within(section).getByText(URL_TEXT)).toBeInTheDocument();
     const claude = within(section).getByRole('region', { name: 'Claude Code 的指令' });
-    expect(claude).toHaveTextContent(`claude mcp add --scope user --transport http kumi ${URL_TEXT}`);
+    expect(claude).toHaveTextContent(`claude mcp add --scope user --transport http kumi "${URL_TEXT}"`);
     expect(claude).toHaveTextContent('claude mcp login kumi');
     const codex = within(section).getByRole('region', { name: 'Codex 的指令' });
-    expect(codex).toHaveTextContent(`codex mcp add kumi --url ${URL_TEXT}`);
+    expect(codex).toHaveTextContent(`codex mcp add kumi --url "${URL_TEXT}"`);
     expect(codex).toHaveTextContent('codex mcp login kumi');
     expect(section).not.toHaveTextContent('config.toml');
   });
@@ -210,7 +210,7 @@ describe('我的帳號：連接 Claude Code／Codex', () => {
     await user.click(within(section).getByRole('button', { name: '複製Claude Code 的指令' }));
 
     // Assert
-    expect(writeText).toHaveBeenCalledWith(`claude mcp add --scope user --transport http kumi ${URL_TEXT}\nclaude mcp login kumi`);
+    expect(writeText).toHaveBeenCalledWith(`claude mcp add --scope user --transport http kumi "${URL_TEXT}"\nclaude mcp login kumi`);
     expect(await within(section).findByText('已複製')).toBeInTheDocument();
   });
 

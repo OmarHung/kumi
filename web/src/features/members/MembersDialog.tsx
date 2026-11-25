@@ -6,6 +6,7 @@ import { FormAlert } from '../../components/FormAlert/FormAlert';
 import { Notice } from '../../components/Notice/Notice';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { AddMemberForm } from './AddMemberForm';
+import { PRIVILEGED_PERMISSIONS_NOTE } from './memberRoles';
 import { MemberRoster } from './MemberRoster';
 import styles from './MembersDialog.module.css';
 
@@ -54,6 +55,7 @@ export function MembersDialog({ projectKey, onClose }: MembersDialogProps) {
           <>
             <FormAlert message={failure} />
             <MemberRoster detail={detail} canManage={canManage} fallbackFocusId={closeId} {...feedback} />
+            {canManage && <Notice tone="info" role="none">{PRIVILEGED_PERMISSIONS_NOTE}</Notice>}
             {canManage && <AddMemberForm detail={detail} onSaved={feedback.onSaved} />}
           </>
         )}

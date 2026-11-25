@@ -51,6 +51,7 @@ describe('套用變更集', () => {
       '8 個項目的「備註」會被封存',
     ]);
     expect(dialog).toHaveTextContent('這個動作不能一鍵還原');
+    expect(dialog).toHaveTextContent('有「管理專案」（project.manage）的角色能設定成員與角色；能「套用變更集」（blueprint.apply）的角色能改每個角色的權限。兩者都等同這個專案的最高權限，只給信得過的人。');
     await user.click(within(dialog).getByRole('button', { name: '取消' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '套用' })).toHaveFocus();

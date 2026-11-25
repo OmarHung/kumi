@@ -12,7 +12,7 @@ import { BELOW_WIDE_QUERY } from '../../lib/useMediaQuery';
 const exampleAdmin: SessionUser = { ...exampleOwner, role: 'admin', displayName: '範例管理員' };
 
 const PERSONAL = ['我的帳號', '通知', 'AI 帳號', '命令列與整合'];
-const ORGANIZATION = ['說明格式', '寄信設定', 'AI 設定'];
+const ORGANIZATION = ['說明格式', '寄信設定', '儲存空間', 'AI 設定'];
 
 function serveHubPages() {
   serveEmailSettings();
@@ -44,7 +44,7 @@ describe('設定中心：次導覽', () => {
     expect(within(nav).queryByText('組織')).not.toBeInTheDocument();
   });
 
-  it('管理員多「組織」的三項，沒有主機 AI 代理', async () => {
+  it('管理員多「組織」的四項，沒有主機 AI 代理', async () => {
     // Arrange / Act
     const { nav } = await openHubNav(exampleAdmin);
 
@@ -53,7 +53,7 @@ describe('設定中心：次導覽', () => {
     expect(within(nav).queryByRole('link', { name: '主機 AI 代理' })).not.toBeInTheDocument();
   });
 
-  it('擁有者四項組織的都有，主機 AI 代理在最後', async () => {
+  it('擁有者五項組織的都有，主機 AI 代理在最後', async () => {
     // Arrange / Act
     const { nav } = await openHubNav(exampleOwner);
 

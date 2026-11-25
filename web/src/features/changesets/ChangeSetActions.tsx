@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../../components/Dialog/ConfirmDialog';
 import { Notice } from '../../components/Notice/Notice';
 import type { ChangeSetBlueprints } from '../../domain/changeSetText';
 import { impactLines } from '../../domain/impactText';
+import { PRIVILEGED_PERMISSIONS_NOTE } from '../members/memberRoles';
 import type { useChangeSetActions } from './useChangeSetActions';
 import styles from './ChangeSets.module.css';
 
@@ -60,6 +61,9 @@ function ApplyDialog({ detail, names, actions, onClose }: DialogProps) {
       )}
       <Notice tone="warning" role="none" className={styles.dialogNotice}>
         {NOT_REVERSIBLE}
+      </Notice>
+      <Notice tone="info" role="none" className={styles.dialogNotice}>
+        {PRIVILEGED_PERMISSIONS_NOTE}
       </Notice>
     </ConfirmDialog>
   );

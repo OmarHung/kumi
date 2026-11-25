@@ -470,6 +470,25 @@ describe('對話清單', () => {
     expect(await screen.findByText('粗體')).toHaveProperty('tagName', 'STRONG');
     expect(screen.getByText(/第一行/)).toBeInTheDocument();
   });
+
+  it('助理回覆裡的外部連結一律接上實際的網域，使用者自己寫的訊息不接', async () => {
+    // Arrange / Act
+    signedInAs(exampleOwner, { details: [smkDetail()] });
+    serveAiOptions();
+    serveConversations('SMK', [OLD]);
+    serveConversation('SMK', {
+      conversation: OLD,
+      messages: [
+        makeMessage({ parts: [{ type: 'text', text: '[我的文件](https://mine.example/a)' }] }),
+        makeAssistantMessage({ parts: [{ type: 'text', text: '請看 [說明](https://docs.example/a)' }] }),
+      ],
+    });
+    renderApp('/projects/SMK/assistant/conv-1');
+
+    // Assert
+    expect(await screen.findByText('（docs.example）')).toBeInTheDocument();
+    expect(screen.queryByText('（mine.example）')).toBeNull();
+  });
 });
 
 describe('回覆中離開', () => {

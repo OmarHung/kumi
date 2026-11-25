@@ -14,15 +14,41 @@ import { clearPanelMemory } from '../features/assistant-panel/panelMemory';
 import { clearRecentItems } from '../features/jump/recentItems';
 import { forgetAllDrafts } from '../features/settings/settingsDraftMemory';
 import { clearAllDrafts } from '../lib/draftStorage';
+import { clearSignedInStorage, rememberSignedInPerson } from '../lib/signOutStorage';
 
 const HTTP_UNAUTHORIZED = 401;
 
-/** 沒登入不是錯誤，是一種狀態：回 null，讓畫面決定要不要導到登入頁。 */
-async function fetchSessionUser(signal: AbortSignal): Promise<SessionUser | null> {
+/**
+ * 登出、工作階段失效、一開始就是沒登入、換了人登入都經過這裡：瀏覽器儲存裡只留純顯示偏好（lib/signOutStorage.ts 的保留清單），其餘都清掉；
+ * 打到一半的留言與說明、快速跳轉的最近看過的項目一起清掉，共用電腦上下一個登入的人看不到（lib/draftStorage.ts、features/jump/recentItems.ts）；
+ * 設定頁送出後記在記憶體的草稿也是（features/settings/settingsDraftMemory.ts），AI 助理面板記的專案與大小也是（features/assistant-panel/panelMemory.ts）。
+ */
+function clearSignedInState(queryClient: QueryClient): void {
+  clearAllDrafts();
+  clearRecentItems();
+  clearPanelMemory();
+  // 上面幾行清的是特定的鍵；這一行把其餘不在保留清單上的（帶專案、空間代號的偏好）也清掉。
+  clearSignedInStorage();
+  forgetAllDrafts(queryClient);
+}
+
+/** 登入的人和這個瀏覽器上一次登入的不同：上一個人留下的偏好與草稿不能留給這一個。 */
+function clearWhenPersonChanged(queryClient: QueryClient, user: SessionUser): void {
+  if (rememberSignedInPerson(user.personId)) clearSignedInState(queryClient);
+}
+
+/**
+ * 沒登入不是錯誤，是一種狀態：回 null，讓畫面決定要不要導到登入頁。
+ * 401 代表工作階段已經不在（例如瀏覽器重開、Cookie 過期）：那一次沒有經過登出，這裡補清；斷線與 5xx 不算沒登入，不清。
+ */
+async function fetchSessionUser(signal: AbortSignal, queryClient: QueryClient): Promise<SessionUser | null> {
   try {
-    return (await getSession(signal)).user;
+    const { user } = await getSession(signal);
+    clearWhenPersonChanged(queryClient, user);
+    return user;
   } catch (error) {
     if (isApiError(error) && error.status === HTTP_UNAUTHORIZED) {
+      clearSignedInState(queryClient);
       return null;
     }
     throw error;
@@ -30,9 +56,10 @@ async function fetchSessionUser(signal: AbortSignal): Promise<SessionUser | null
 }
 
 export function useSession() {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: queryKeys.session,
-    queryFn: ({ signal }) => fetchSessionUser(signal),
+    queryFn: ({ signal }) => fetchSessionUser(signal, queryClient),
     // 登入狀態只在登入、登出、或任何請求收到 401 時改變，不必定期重抓。
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -48,15 +75,9 @@ function forgetUserData(queryClient: QueryClient): void {
   queryClient.removeQueries({ predicate: isNotSession });
 }
 
-/**
- * 帳號選單的登出成功、任何請求收到 401（工作階段失效）都經過這裡：打到一半的留言與說明、快速跳轉的最近看過的項目一起清掉，
- * 共用電腦上下一個登入的人看不到（lib/draftStorage.ts、features/jump/recentItems.ts）；設定頁送出後記在記憶體的草稿也是（features/settings/settingsDraftMemory.ts），AI 助理面板記的專案與大小也是（features/assistant-panel/panelMemory.ts）。
- */
+/** 帳號選單的登出成功、任何請求收到 401（工作階段失效）都經過這裡：清掉登入狀態相關的東西並標成沒登入（清了什麼見 clearSignedInState）。 */
 export function markSignedOut(queryClient: QueryClient): void {
-  clearAllDrafts();
-  clearRecentItems();
-  clearPanelMemory();
-  forgetAllDrafts(queryClient);
+  clearSignedInState(queryClient);
   queryClient.setQueryData(queryKeys.session, null);
 }
 
@@ -118,6 +139,7 @@ export function useSignIn() {
     mutationFn: (request: SignInRequest) => signIn(request),
     onSuccess: ({ user }) => {
       forgetUserData(queryClient);
+      clearWhenPersonChanged(queryClient, user);
       queryClient.setQueryData(queryKeys.session, user);
     },
   });

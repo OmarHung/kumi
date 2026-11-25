@@ -5,7 +5,7 @@ import { useProjectTable } from '../item-table/ProjectTableContext';
 
 /** 一則留言現在能對它做哪些事。畫面只是不開放，真正的檢查在後端（HANDOFF-comment-edit 第 2 節）。 */
 export interface CommentAbilities {
-  /** 作者本人而且有 comment.create；刪除的留言要先復原。 */
+  /** 作者本人而且有 comment.create；刪除的留言要先復原；匯入的留言不能編輯。 */
   readonly canEdit: boolean;
   /** 作者本人有 comment.create，或有 project.manage（可以刪別人的）。 */
   readonly canDelete: boolean;
@@ -32,6 +32,10 @@ export function commentAbilities({ activity, personId, permissions, isArchived }
   const isAuthor = activity.actor.personId === personId;
   const mayWrite = isAuthor && permissions.includes('comment.create');
   const mayManage = permissions.includes('project.manage');
+  // 從別的系統匯入的留言：作者是歸屬上的人，不是真的寫的人，所以不能編輯，刪除與復原只有管理專案的人。
+  if (activity.importedFrom !== null) {
+    return { canEdit: false, canDelete: activity.deletedAt === null && mayManage, canRestore: activity.deletedAt !== null && mayManage, isAuthor };
+  }
   if (activity.deletedAt !== null) {
     const deletedByAuthor = activity.deletedBy?.personId === activity.actor.personId;
     return { canEdit: false, canDelete: false, canRestore: deletedByAuthor ? mayWrite || mayManage : mayManage, isAuthor };

@@ -55,9 +55,9 @@ describe('AI 帳號：本機代理（出現的條件）', () => {
     expect(within(steps).getAllByRole('listitem')).toHaveLength(5);
     expect(within(steps).getByRole('button', { name: '建立本機代理用的權杖' })).toBeInTheDocument();
     expect(within(steps).getByRole('region', { name: '啟動代理的指令' })).toHaveTextContent('kumi agent start');
-    expect(within(steps).getByRole('region', { name: '登入的指令' })).toHaveTextContent(`kumi agent login --server ${window.location.origin}`);
+    expect(within(steps).getByRole('region', { name: '登入的指令' })).toHaveTextContent(`kumi agent login --server "${window.location.origin}"`);
     expect(within(steps).getByRole('region', { name: '自動啟動的指令' })).toHaveTextContent('kumi agent enable');
-    expect(within(steps).getByRole('region', { name: '貼上權杖登入的指令' })).toHaveTextContent(`kumi agent login --server ${window.location.origin} --paste`);
+    expect(within(steps).getByRole('region', { name: '貼上權杖登入的指令' })).toHaveTextContent(`kumi agent login --server "${window.location.origin}" --paste`);
     expect(within(section).queryByRole('list', { name: '我的電腦' })).not.toBeInTheDocument();
   });
 

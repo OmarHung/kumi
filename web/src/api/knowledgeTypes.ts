@@ -161,10 +161,11 @@ export interface KnowledgeTrashPage {
   readonly capacity: KnowledgeTrashCapacity | null;
 }
 
-/** 永久刪除的內文（`POST …/trash/purge`）：deletionId 是 null 時清掉刪除超過 30 天的批，有值時立刻永久刪除那一批。 */
-export interface KnowledgeTrashPurgeRequest {
-  readonly deletionId: string | null;
-}
+/**
+ * 永久刪除的內文（`POST …/trash/purge`）：要明講是哪一種，剛好帶其中一個——立刻永久刪除那一批，或清掉刪除超過 30 天的批。
+ * 都沒帶或都帶是 422：不能復原的操作不用「省略」當預設。
+ */
+export type KnowledgeTrashPurgeRequest = { readonly deletionId: string } | { readonly expired: true };
 
 export interface KnowledgeTrashPurge {
   readonly purgedBatches: number;
@@ -172,6 +173,8 @@ export interface KnowledgeTrashPurge {
   readonly purgedAttachments: number;
   /** 清完之後垃圾桶裡還剩幾批（呼叫的人看不到的批也算，所以只有空間的管理者才會拿來顯示）。 */
   readonly remainingBatches: number;
+  /** 清到期的：這一次因為一次的上限沒清到、但已經到期而且清得掉的批還有沒有。 */
+  readonly hasMoreExpired: boolean;
 }
 
 export interface KnowledgePageRestriction {

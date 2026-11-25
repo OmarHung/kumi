@@ -35,7 +35,15 @@ const SCROLL_NOTE = '內容較長，捲動看完整的說明';
  * 說明的一格：內容很長時有高度上限、自己捲動，「套用」不會被推到看不見。只有真的溢出時才能用鍵盤聚焦捲動
  * （沒溢出時不多一個 Tab 停駐點），並在格子下面說一聲還有更多。
  */
-function DescriptionBox({ label, heading, text }: { readonly label: string; readonly heading: string; readonly text: string }) {
+interface DescriptionBoxProps {
+  readonly label: string;
+  readonly heading: string;
+  readonly text: string;
+  /** AI 建議的內容一律列出連結的網域；「現在的說明」不是 AI 寫的，維持預設。 */
+  readonly linkHosts?: 'always';
+}
+
+function DescriptionBox({ label, heading, text, linkHosts }: DescriptionBoxProps) {
   const boxRef = useRef<HTMLElement>(null);
   const noteId = useId();
   const isOverflowing = useOverflow(boxRef, text);
@@ -51,7 +59,7 @@ function DescriptionBox({ label, heading, text }: { readonly label: string; read
         <h4 className={styles.boxLabel} aria-hidden="true">
           {heading}
         </h4>
-        {text.trim() === '' ? <span className={styles.before}>{EMPTY_VALUE}</span> : <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} />}
+        {text.trim() === '' ? <span className={styles.before}>{EMPTY_VALUE}</span> : <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts={linkHosts} />}
       </section>
       {isOverflowing && (
         <p id={noteId} className={styles.scrollNote}>
@@ -73,7 +81,7 @@ function DescriptionRow({ row }: { readonly row: DescriptionChange }) {
         {row.text !== null && (
           <div className={styles.compare}>
             {row.before !== undefined && <DescriptionBox label="現在的說明" heading="現在的" text={row.before} />}
-            <DescriptionBox label="建議的說明" heading="建議的" text={row.text} />
+            <DescriptionBox label="建議的說明" heading="建議的" text={row.text} linkHosts="always" />
           </div>
         )}
       </dd>
@@ -107,7 +115,7 @@ function CommentRow({ text }: { readonly text: string }) {
       <dt className={styles.label}>留言</dt>
       <dd className={styles.value}>
         <blockquote className={styles.quote}>
-          <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} />
+          <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />
         </blockquote>
         <p className={styles.commentNote}>{COMMENT_NOTE}</p>
       </dd>

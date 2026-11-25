@@ -9,6 +9,7 @@ import type {
   NewKnowledgePage,
 } from '../api/knowledgeTypes';
 import { failure, ok } from './api';
+import type { PersonRef } from '../api/types';
 import { adminPerson, memberPerson, ownerPerson } from './people';
 import { server } from './server';
 
@@ -68,6 +69,12 @@ export interface KnowledgeBackend {
   trash: Record<string, KnowledgeTrashEntry[]>;
   /** 依「代號/編號」放的限制名單（人員的編號）；沒放的是沒有設限制。 */
   restrictions: Record<string, string[]>;
+  /** 依「代號/編號」放的「誰設的限制、呼叫的人能不能放寬」；沒放的是沒有紀錄的預設（restrictedBy null、canRelax true）。 */
+  restrictionMeta: Record<string, { readonly restrictedBy: PersonRef | null; readonly canRelax: boolean }>;
+  /** 垃圾桶回的容量（只有空間的管理者）；沒放時管理者看到「批數／1,000」，其他人是 null。 */
+  trashMaxBatches: number;
+  /** 這些批底下還有留著的頁面：永久刪除回 200 但什麼都不刪（計數都是 0）。 */
+  trashPinned: Set<string>;
   /** 收到的寫入，測試拿來驗送出的內容。 */
   readonly requests: { method: string; path: string; body: unknown }[];
 }
@@ -138,7 +145,8 @@ function restrictionOf(backend: KnowledgeBackend, space: KnowledgeSpace, node: K
   const restrictedAncestors = ancestorsOf(backend.trees[space.key] ?? [], node)
     .filter((ancestor) => ancestor.isRestricted)
     .map(refOf);
-  return { people, restrictedAncestors, restrictedBy: null, canRelax: true };
+  const meta = backend.restrictionMeta[pageKey(space.key, node.number)];
+  return { people, restrictedAncestors, restrictedBy: meta?.restrictedBy ?? null, canRelax: meta?.canRelax ?? true };
 }
 
 const notFoundSpace = () => failure(404, 'knowledge.space_not_found', '找不到這個空間。');
@@ -159,6 +167,9 @@ export function serveKnowledge(options: ServeKnowledgeOptions = {}): KnowledgeBa
     revisions: {},
     trash: {},
     restrictions: {},
+    restrictionMeta: {},
+    trashMaxBatches: 1000,
+    trashPinned: new Set<string>(),
     requests: [],
   };
   const spaceOf = (key: unknown) => backend.spaces.find((space) => space.key === String(key));
@@ -179,9 +190,43 @@ export function serveKnowledge(options: ServeKnowledgeOptions = {}): KnowledgeBa
       const space = spaceOf(params.key);
       return space === undefined ? notFoundSpace() : ok({ space, pages: backend.trees[space.key] ?? [] });
     }),
-    http.get('/v1/knowledge/spaces/:key/trash', ({ params }) => {
+    http.get('/v1/knowledge/spaces/:key/trash', ({ request, params }) => {
       const space = spaceOf(params.key);
-      return space === undefined ? notFoundSpace() : ok(backend.trash[space.key] ?? []);
+      if (space === undefined) return notFoundSpace();
+      const url = new URL(request.url);
+      const all = backend.trash[space.key] ?? [];
+      // 假的游標就是從第幾批開始。
+      const start = Number(url.searchParams.get('cursor') ?? '0');
+      const limit = Number(url.searchParams.get('limit') ?? '50');
+      const items = all.slice(start, start + limit);
+      const next = start + limit;
+      return ok({
+        items,
+        nextCursor: next < all.length ? String(next) : null,
+        capacity: space.myPermissions.canManage ? { batches: all.length, maxBatches: backend.trashMaxBatches } : null,
+      });
+    }),
+    http.post('/v1/knowledge/spaces/:key/trash/purge', async ({ request, params }) => {
+      const space = spaceOf(params.key);
+      if (space === undefined) return notFoundSpace();
+      const body = (await request.clone().json()) as Partial<{ deletionId: string; expired: boolean }>;
+      await record(request, `/v1/knowledge/spaces/${space.key}/trash/purge`);
+      if (!space.myPermissions.canManage) return failure(403, 'knowledge.forbidden', '你沒有權限這樣做。');
+      // 和伺服器一樣：剛好帶一種，不然 422。
+      if ((typeof body.deletionId === 'string') === (body.expired === true)) return failure(422, 'knowledge.purge_scope_invalid', '永久刪除要剛好帶 deletionId（這一批）或 expired:true（刪除超過 30 天的批）其中一個。');
+      const deletionId = body.deletionId ?? null;
+      const all = backend.trash[space.key] ?? [];
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const doomed = all.filter((entry) => !backend.trashPinned.has(entry.deletionId)).filter((entry) => (deletionId === null ? Date.parse(entry.deletedAt) <= cutoff : entry.deletionId === deletionId));
+      if (deletionId !== null && doomed.length === 0 && !backend.trashPinned.has(deletionId)) return failure(404, 'knowledge.page_not_found', '找不到這一頁。');
+      backend.trash[space.key] = all.filter((entry) => !doomed.includes(entry));
+      return ok({
+        purgedBatches: doomed.length,
+        purgedPages: doomed.reduce((sum, entry) => sum + entry.pageCount, 0),
+        purgedAttachments: doomed.length,
+        remainingBatches: backend.trash[space.key]?.length ?? 0,
+        hasMoreExpired: false,
+      });
     }),
     http.get('/v1/knowledge/spaces/:key/pages/:number', ({ params }) => {
       const space = spaceOf(params.key);

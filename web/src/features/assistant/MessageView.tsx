@@ -53,7 +53,7 @@ function ChangeSetCard({ projectKey, number }: { readonly projectKey: string; re
 
 function PartView({ part, projectKey }: { readonly part: AssistantMessage['parts'][number]; readonly projectKey: string }) {
   if (part.type === 'text') {
-    return part.text === '' ? null : <Markdown text={part.text} mentionNames={NO_MENTIONS} hasAttachments={false} />;
+    return part.text === '' ? null : <Markdown text={part.text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />;
   }
   return (
     <>

@@ -6,7 +6,7 @@ import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState } from '../../components/StatusViews/StatusViews';
 import { COMMAND_NAME } from '../../config/product';
 import { PlatformPicker, type DownloadChoice } from './cliPlatform';
-import { CHIP_HINT, NO_DOWNLOAD_NOTE, downloadLabel, isMac } from './cliText';
+import { CHIP_HINT, HASH_NOTE, NO_DOWNLOAD_NOTE, downloadLabel, isMac } from './cliText';
 import { CopyBlock } from './ConnectAgentSection';
 import { COMMAND_NOTE, STATUS_NOTE, oneLineCommand, setupCommand } from './setupText';
 import type { StatusKind, StatusLine } from './setupStatus';
@@ -40,6 +40,8 @@ export function DownloadStep({ choice, onDownloaded, onAlreadyInstalled }: Downl
           <PlatformPicker label="設定精靈的作業系統" packages={packages} value={pkg.platform} onChange={choose} />
           {/* 晶片的提示放在下載的前面：Safari、Firefox 猜不出 Intel 的 Mac，下載之前就要看到。 */}
           {isMac(pkg.platform) && <p className={accountStyles.note}>{CHIP_HINT}</p>}
+          <CopyBlock label="SHA-256" text={pkg.sha256} />
+          <p className={accountStyles.note}>{HASH_NOTE}</p>
         </>
       )}
       <div className={styles.actions}>

@@ -9,7 +9,9 @@ import type {
   KnowledgePageTree,
   KnowledgeSpace,
   KnowledgeSpaceSettings,
-  KnowledgeTrashEntry,
+  KnowledgeTrashPage,
+  KnowledgeTrashPurge,
+  KnowledgeTrashPurgeRequest,
   NewKnowledgePage,
   NewKnowledgeSpace,
 } from './knowledgeTypes';
@@ -75,9 +77,23 @@ export function getPageTree(spaceKey: string, signal?: AbortSignal): Promise<Kno
   return apiRequest<KnowledgePageTree>(`${spacePath(spaceKey)}/tree`, { signal });
 }
 
-/** 新刪的在前。 */
-export function listTrash(spaceKey: string, signal?: AbortSignal): Promise<readonly KnowledgeTrashEntry[]> {
-  return apiRequest<readonly KnowledgeTrashEntry[]>(`${spacePath(spaceKey)}/trash`, { signal });
+/** 垃圾桶每次讀的批數（伺服器預設 50、最多 100）。 */
+export const TRASH_PAGE_SIZE = 50;
+
+/** 新刪的在前，依游標往後讀；capacity 只有空間的管理者才有。422 query.invalid（游標壞了）。 */
+export function listTrash(spaceKey: string, cursor: string | null, signal?: AbortSignal): Promise<KnowledgeTrashPage> {
+  const params = new URLSearchParams({ limit: String(TRASH_PAGE_SIZE) });
+  if (cursor !== null) params.set('cursor', cursor);
+  return apiRequest<KnowledgeTrashPage>(`${spacePath(spaceKey)}/trash?${params.toString()}`, { signal });
+}
+
+/**
+ * 永久刪除（只有空間的管理者，不能復原）：deletionId 是 null 時清掉刪除超過 30 天的批（一次最多 200 批），有值時立刻刪那一批。
+ * 403 knowledge.forbidden；409 knowledge.space_archived；404（那一批已經不在垃圾桶裡）。
+ */
+export function purgeTrash(spaceKey: string, deletionId: string | null): Promise<KnowledgeTrashPurge> {
+  const body: KnowledgeTrashPurgeRequest = deletionId === null ? { expired: true } : { deletionId };
+  return apiRequest<KnowledgeTrashPurge>(`${spacePath(spaceKey)}/trash/purge`, { method: 'POST', body });
 }
 
 /**
@@ -97,12 +113,12 @@ export function updatePage(spaceKey: string, pageNumber: number, patch: Knowledg
   return apiRequest<KnowledgePage>(pagePath(spaceKey, pageNumber), { method: 'PATCH', body: patch });
 }
 
-/** 回傳搬完的樹。422 knowledge.page_position_invalid、knowledge.page_too_deep。 */
+/** 回傳搬完的樹。422 knowledge.page_position_invalid、knowledge.page_too_deep；403 knowledge.restriction_owner_required（搬出別人設的限制）。 */
 export function movePage(spaceKey: string, pageNumber: number, move: KnowledgePageMove): Promise<KnowledgePageTree> {
   return apiRequest<KnowledgePageTree>(`${pagePath(spaceKey, pageNumber)}/move`, { method: 'POST', body: move });
 }
 
-/** 連同底下的頁面一起進垃圾桶。409 knowledge.page_has_hidden_descendants。 */
+/** 連同底下的頁面一起進垃圾桶。409 knowledge.page_has_hidden_descendants、knowledge.trash_full（垃圾桶滿了，訊息照伺服器的顯示）。 */
 export function deletePage(spaceKey: string, pageNumber: number): Promise<KnowledgePageDeletion> {
   return apiRequest<KnowledgePageDeletion>(pagePath(spaceKey, pageNumber), { method: 'DELETE' });
 }
@@ -116,7 +132,7 @@ export function getPageRestriction(spaceKey: string, pageNumber: number, signal?
   return apiRequest<KnowledgePageRestriction>(`${pagePath(spaceKey, pageNumber)}/restriction`, { signal });
 }
 
-/** people 是 null 或空陣列是拿掉限制；有名單時伺服器自動把自己加進去。422 knowledge.restriction_invalid（path 是 people 或 people[i]）。 */
+/** people 是 null 或空陣列是拿掉限制；有名單時伺服器自動把自己加進去。422 knowledge.restriction_invalid（path 是 people 或 people[i]）；403 knowledge.restriction_owner_required（放寬限制的人不是設定的人，也不是空間的管理者）。 */
 export function setPageRestriction(
   spaceKey: string,
   pageNumber: number,

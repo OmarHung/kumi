@@ -11,6 +11,8 @@ function leaveDrafts() {
   sessionStorage.setItem('draft.comment.SMK-7', '寫到一半的留言');
   sessionStorage.setItem('draft.description.AGY-1', '寫到一半的說明');
   sessionStorage.setItem('other.key', '不是草稿');
+  localStorage.setItem('shell.theme', 'dark');
+  localStorage.setItem('project.view.SMK', 'board');
 }
 
 function draftKeys(): string[] {
@@ -18,7 +20,7 @@ function draftKeys(): string[] {
 }
 
 describe('登出時清掉草稿', () => {
-  it('從帳號選單登出：所有 draft.* 都清掉，別的照樣留著', async () => {
+  it('從帳號選單登出：分頁的 sessionStorage 全清，localStorage 只留顯示偏好', async () => {
     // Arrange
     leaveDrafts();
     signedInAs(exampleOwner);
@@ -32,7 +34,9 @@ describe('登出時清掉草稿', () => {
     // Assert
     expect(await screen.findByLabelText('Email')).toBeInTheDocument();
     expect(draftKeys()).toEqual([]);
-    expect(sessionStorage.getItem('other.key')).toBe('不是草稿');
+    expect(sessionStorage.getItem('other.key')).toBeNull();
+    expect(localStorage.getItem('shell.theme')).toBe('dark');
+    expect(localStorage.getItem('project.view.SMK')).toBeNull();
   });
 
   it('登出失敗時草稿留著（還沒登出，畫面不動）', async () => {

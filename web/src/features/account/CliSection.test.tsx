@@ -196,8 +196,22 @@ describe('我的帳號：命令列工具（切換與步驟）', () => {
     expect(within(steps).getAllByRole('listitem')).toHaveLength(4);
     expect(within(steps).getByText(/kumi --version/)).toBeInTheDocument();
     expect(within(steps).getByText(/存取權杖/)).toBeInTheDocument();
-    expect(within(steps).getByRole('region', { name: '登入的指令' })).toHaveTextContent(`kumi auth login --server ${window.location.origin}`);
+    expect(within(steps).getByRole('region', { name: '登入的指令' })).toHaveTextContent(`kumi auth login --server "${window.location.origin}"`);
     expect(within(steps).getByText(/kumi update/)).toBeInTheDocument();
+  });
+
+  it('安裝指令核對 SHA-256：畫面上顯示雜湊與只核對下載完不完整的說明', async () => {
+    // Arrange
+    useBrowser(MAC_UA);
+
+    // Act
+    const { section } = await openSection();
+
+    // Assert
+    const steps = await within(section).findByRole('list', { name: 'Mac（Apple 晶片）的安裝步驟' });
+    expect(within(steps).getByRole('region', { name: 'SHA-256' })).toHaveTextContent('a'.repeat(64));
+    expect(within(steps).getByRole('region', { name: '安裝的指令' })).toHaveTextContent('shasum -a 256 -c -');
+    expect(within(steps).getByText(/核對的是下載有沒有完整/)).toBeInTheDocument();
   });
 });
 

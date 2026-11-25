@@ -155,4 +155,22 @@ describe('頁面的附件', () => {
     expect(await screen.findByText(/檔案太大/)).toBeInTheDocument();
     expect(screen.queryByText('上傳中：截圖.png…')).not.toBeInTheDocument();
   });
+
+  it.each([
+    ['knowledge.attachment_quota_exceeded', '組織的附件已經用了 20.1 GiB，上限是 20 GiB。請刪掉不用的附件，或請管理員調高上限。'],
+    ['knowledge.attachment_daily_quota_exceeded', '你在過去 24 小時已經上傳 2.0 GiB，上限是 2 GiB，請稍後再試。'],
+  ])('編輯：超過儲存空間的配額（%s）時照伺服器的訊息說明，不自動重試', async (code, message) => {
+    // Arrange
+    const view = openPage();
+    await startUploading(view);
+
+    // Act
+    uploads[0]?.respondFailure(409, code, message);
+
+    // Assert
+    expect(await screen.findByText(new RegExp(message.slice(0, 12)))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(message.slice(-12)))).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(uploads).toHaveLength(1);
+  });
 });

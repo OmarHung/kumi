@@ -6,6 +6,7 @@ import { BUILT_IN_ROLES, removedRoles } from '../../domain/settingsRoles';
 import { sectionHeadingId } from './settingsSections';
 import { AddRoleDialog } from './AddRoleDialog';
 import { BuiltInRoleRow, RemovedRoleRow, RoleRow } from './RoleRow';
+import { PermissionsNote } from './RoleNotes';
 import { useSettingsEditor } from './SettingsContext';
 import styles from './Settings.module.css';
 
@@ -30,6 +31,7 @@ export function RolesSection() {
           <BuiltInRoleRow key={role.key} role={role} />
         ))}
       </ul>
+      {editor.canEdit && <PermissionsNote />}
       {editor.draft.roles.length > 0 ? (
         <ul className={styles.list} aria-label="自訂角色">
           {editor.draft.roles.map((role) => (

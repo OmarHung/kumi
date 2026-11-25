@@ -40,6 +40,14 @@ const withClient = () =>
 const [projectManager, client] = agencyBlueprint.roles ?? [];
 
 describe('設定頁：角色', () => {
+  it('勾選權限的地方有最高權限的說明', async () => {
+    // Arrange & Act
+    await openSettings(agyDetail());
+
+    // Assert
+    expect(screen.getByText('有「管理專案」（project.manage）的角色能設定成員與角色；能「套用變更集」（blueprint.apply）的角色能改每個角色的權限。兩者都等同這個專案的最高權限，只給信得過的人。')).toBeInTheDocument();
+  });
+
   it('內建角色列出名稱與權限，不能改', async () => {
     // Arrange & Act
     await openSettings(agyDetail());

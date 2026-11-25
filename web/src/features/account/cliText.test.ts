@@ -6,6 +6,8 @@ import {
   downloadLabel,
   guessPlatform,
   installCommand,
+  loginCommand,
+  pasteLoginCommand,
   pathCommand,
   sizeText,
   usablePackages,
@@ -18,8 +20,9 @@ describe('命令列工具的指令字串', () => {
     const command = installCommand(ARM);
 
     // Assert
+    const sha = 'a'.repeat(64);
     expect(command).toBe(
-      'mkdir -p ~/.local/bin && mv ~/Downloads/kumi-0.3.0-macos-arm64 ~/.local/bin/kumi && chmod 755 ~/.local/bin/kumi && xattr -c ~/.local/bin/kumi',
+      `printf '%s  %s\\n' '${sha}' ~/Downloads/kumi-0.3.0-macos-arm64 | shasum -a 256 -c - && mkdir -p ~/.local/bin && mv ~/Downloads/kumi-0.3.0-macos-arm64 ~/.local/bin/kumi && chmod 755 ~/.local/bin/kumi && xattr -c ~/.local/bin/kumi`,
     );
   });
 
@@ -38,6 +41,7 @@ describe('命令列工具的指令字串', () => {
         "$dl = (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path",
         'if (-not $dl) { $dl = "$HOME\\Downloads" }',
         '$d = "$env:LOCALAPPDATA\\Programs\\Kumi"',
+        `if ((Get-FileHash -Algorithm SHA256 (Join-Path $dl 'kumi-0.3.0-windows-x64.exe')).Hash -ne '${'A'.repeat(64)}') { throw '下載的檔案和伺服器上的不同，請重新下載。' }`,
         'New-Item -ItemType Directory -Force $d | Out-Null',
         "Move-Item -Force -ErrorAction Stop (Join-Path $dl 'kumi-0.3.0-windows-x64.exe') \"$d\\kumi.exe\"",
         'Unblock-File "$d\\kumi.exe"',
@@ -90,10 +94,41 @@ describe('只列檔名對得上規則的平台', () => {
     expect(usablePackages({ version: null, packages: exampleCliPackages })).toEqual([]);
   });
 
+  it.each([
+    ['太短', 'abc'],
+    ['大寫', 'A'.repeat(64)],
+    ['帶引號與指令', `${'a'.repeat(60)}';rm`],
+    ['長度多一個', 'a'.repeat(65)],
+  ])('SHA-256 不合格（%s）：那個平台不列，也就不會放進指令', (_case, sha256) => {
+    // Arrange
+    const catalog = { version: '0.3.0', packages: [{ ...ARM, sha256 }, WINDOWS] };
+
+    // Act
+    const usable = usablePackages(catalog);
+
+    // Assert
+    expect(usable).toEqual([WINDOWS]);
+  });
+
   it('網頁不認得的平台：不列', () => {
     const linux = { ...ARM, platform: 'linux-x64' as unknown as typeof ARM.platform, fileName: 'kumi-0.3.0-linux-x64' };
     expect(usablePackages({ version: '0.3.0', packages: [linux, WINDOWS] })).toEqual([WINDOWS]);
   });
+});
+
+describe('指令裡的網址', () => {
+  it('登入的指令把網址用雙引號包起來（PowerShell、zsh、cmd.exe 都認）', () => {
+    expect(loginCommand('https://kumi.example.com')).toBe('kumi auth login --server "https://kumi.example.com"');
+    expect(pasteLoginCommand('http://[::1]:8080')).toBe('kumi auth login --server "http://[::1]:8080" --paste');
+  });
+
+  it.each(["https://x.example'; rm -rf ~; '", 'https://x.example"&calc', 'https://x.example`id`', 'https://x.example\\id', 'https://x.example!', 'https://x.example%PATH%', 'https://x.example$HOME', 'https://x.example $(id)', 'ftp://x.example', 'https://x.example/path', 'https://x.example\nid'])(
+    '形狀不合（%s）：不產生指令',
+    (origin) => {
+      expect(loginCommand(origin)).toBeNull();
+      expect(pasteLoginCommand(origin)).toBeNull();
+    },
+  );
 });
 
 describe('預設的平台', () => {

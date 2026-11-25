@@ -78,6 +78,8 @@ export const queryKeys = {
   changeSets: (projectKey: string) => ['project', projectKey, 'changesets'],
   changeSet: (projectKey: string, number: number) => ['project', projectKey, 'changesets', number],
   // 知識庫（internal/HANDOFF-knowledge-base.md）：空間清單、一個空間（樹、垃圾桶、頁面都放在它底下，空間失效時一起重抓）。
+  // 組織的儲存空間用量（只有管理員）。
+  storageUsage: ['storage-usage'],
   knowledgeSpaces: ['knowledge', 'spaces'],
   knowledgeSpace: (spaceKey: string) => ['knowledge', 'space', spaceKey],
   knowledgeTree: (spaceKey: string) => ['knowledge', 'space', spaceKey, 'tree'],

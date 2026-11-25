@@ -8,7 +8,7 @@ import { useItemPanelLink } from '../item-page/ItemPanelContext';
 import { useItemPageEntry } from '../work-items/itemLinks';
 import { ACCOUNT_NOTICE_LABEL } from './accountNoticeText';
 import { notificationLink } from './notificationLink';
-import { notificationSentence, plainExcerpt } from './notificationText';
+import { notificationExcerpt, notificationSentence } from './notificationText';
 import styles from './Inbox.module.css';
 
 const MIDDLE_BUTTON = 1;
@@ -41,7 +41,7 @@ function ItemNotificationRow({ notification, now, isFirst, isCurrent, onOpen, on
   const panelLink = useItemPanelLink(itemKey);
   const isUnread = notification.readAt === null;
   const sentence = notificationSentence(notification);
-  const excerpt = plainExcerpt(notification.excerpt);
+  const excerpt = notificationExcerpt(notification);
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onOpen(notification);
     panelLink.onClick?.(event);

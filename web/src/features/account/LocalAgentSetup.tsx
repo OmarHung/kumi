@@ -89,7 +89,7 @@ export function LocalAgentSetup({ hasMachines }: { readonly hasMachines: boolean
     return (
       <>
         <p className={accountStyles.note}>
-          要接另一台電腦，照同樣的步驟：在那台電腦執行<WizardLink />，或執行 <code>{loginCommand(origin)}</code> 再 <code>{ENABLE_COMMAND}</code>。沒辦法開瀏覽器時：
+          要接另一台電腦，照同樣的步驟：在那台電腦執行<WizardLink />，或執行 <code>{loginCommand(origin) ?? `${COMMAND_NAME} agent login`}</code> 再 <code>{ENABLE_COMMAND}</code>。沒辦法開瀏覽器時：
         </p>
         <PasteFallback origin={origin} />
       </>

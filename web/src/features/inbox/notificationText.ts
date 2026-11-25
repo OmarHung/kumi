@@ -53,3 +53,11 @@ export function notificationHeadline(notification: Notification): string {
   const sentence = notificationSentence(notification);
   return notification.kind === 'account_security' ? sentence : `${notification.actor.displayName} ${sentence}`;
 }
+
+export const EDITED_SUFFIX = '（已編輯）';
+
+/** 通知列與提示的摘要：換成純文字之後，留言被編輯過就在後面加「（已編輯）」（摘要已換成編輯後的內容）。沒有內容回 null。 */
+export function notificationExcerpt(notification: Notification): string | null {
+  const text = plainExcerpt(notification.excerpt);
+  return text !== null && notification.edited ? `${text}${EDITED_SUFFIX}` : text;
+}

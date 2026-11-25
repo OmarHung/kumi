@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { useId, type RefObject } from 'react';
 import { KNOWLEDGE_MAX_RESTRICTED_PEOPLE } from '../../../api/knowledge';
 import type { Person, PersonRef } from '../../../api/types';
 import { Avatar } from '../../../components/Avatar/Avatar';
@@ -11,6 +11,7 @@ import styles from './RestrictionDialog.module.css';
 
 const MEMBERS_GROUP = '專案成員';
 const OTHERS_GROUP = '其他人';
+const RELAX_REASON = '只有設定這個限制的人或空間的管理者能放寬（拿掉限制、加人）。';
 
 function labelOf(person: Person): string {
   return person.email === null ? person.displayName : `${person.displayName}（${person.email}）`;
@@ -57,10 +58,18 @@ function PersonRow({ person, isSelf, canEdit, problem, onRemove }: RowProps) {
   );
 }
 
+/** 自己不在名單上（組織管理員）時，儲存會把他補進去：要把那一個算進去，不然 100 人再加一個就變成 101 人被擋下。 */
+function isListFull(people: readonly PersonRef[], selfId: string): boolean {
+  const willAddSelf = !people.some((person) => person.personId === selfId);
+  return people.length + (willAddSelf ? 1 : 0) >= KNOWLEDGE_MAX_RESTRICTED_PEOPLE;
+}
+
 interface PeopleListProps {
   readonly people: readonly PersonRef[];
   readonly selfId: string;
   readonly canEdit: boolean;
+  /** 能不能放寬（拿掉限制、加人）：false 時兩個入口停用並說明，移除名單上的人照樣可以。 */
+  readonly canRelax: boolean;
   /** null：人員清單還在讀。 */
   readonly candidates: Candidates | null;
   readonly loadError: string | null;
@@ -75,10 +84,10 @@ interface PeopleListProps {
  * 這一頁自己的名單：一個人一列（自己固定在最前面、不能移除），下面是選人的下拉（人多時有篩選框）和人數。
  * 選了就加進名單、下拉回到空白，可以接著選下一個。
  */
-export function RestrictionPeopleList({ people, selfId, canEdit, candidates, loadError, problems, pickerRef, onAdd, onRemove, onRemoveAll }: PeopleListProps) {
-  // 自己不在名單上（組織管理員）時，儲存會把他補進去：要把那一個算進去，不然 100 人再加一個就變成 101 人被擋下。
-  const willAddSelf = !people.some((person) => person.personId === selfId);
-  const isFull = people.length + (willAddSelf ? 1 : 0) >= KNOWLEDGE_MAX_RESTRICTED_PEOPLE;
+export function RestrictionPeopleList({ people, selfId, canEdit, canRelax, candidates, loadError, problems, pickerRef, onAdd, onRemove, onRemoveAll }: PeopleListProps) {
+  const isFull = isListFull(people, selfId);
+  const reasonId = useId();
+  const isRelaxBlocked = canEdit && !canRelax;
   const count = `${String(people.length)} / ${String(KNOWLEDGE_MAX_RESTRICTED_PEOPLE)} 人`;
   return (
     <section className={styles.list} aria-label="名單">
@@ -94,15 +103,30 @@ export function RestrictionPeopleList({ people, selfId, canEdit, candidates, loa
           value=""
           placeholder={candidates === null && loadError === null ? '載入中…' : '選擇人員'}
           disabled={candidates === null || isFull}
+          aria-disabled={isRelaxBlocked || undefined}
+          aria-describedby={isRelaxBlocked ? reasonId : undefined}
           options={candidates === null ? [] : pickerOptions(candidates)}
           hint={isFull ? `名單最多 ${String(KNOWLEDGE_MAX_RESTRICTED_PEOPLE)} 人。` : loadError ?? undefined}
           onChange={onAdd}
         />
       )}
+      {isRelaxBlocked && (
+        <p id={reasonId} className={styles.note}>
+          {RELAX_REASON}
+        </p>
+      )}
       <div className={styles.footer}>
         <span className={styles.count}>{count}</span>
         {canEdit && onRemoveAll !== null && (
-          <Button size="sm" variant="ghost" onClick={onRemoveAll}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-disabled={isRelaxBlocked || undefined}
+            aria-describedby={isRelaxBlocked ? reasonId : undefined}
+            onClick={() => {
+              if (!isRelaxBlocked) onRemoveAll();
+            }}
+          >
             拿掉限制
           </Button>
         )}
