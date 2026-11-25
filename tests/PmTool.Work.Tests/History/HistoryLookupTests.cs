@@ -55,7 +55,7 @@ public sealed class HistoryLookupTests
     }
 
     [Test]
-    public async Task LookupAsync_ProjectTheCallerCannotSee_IsLeftOut()
+    public async Task LookupAsync_CallerWhoManagesNoProject_IsRefused()
     {
         // Arrange
         var (scenario, manager, member) = await ProjectWithMembersAsync(_host);
@@ -65,14 +65,34 @@ public sealed class HistoryLookupTests
 
         // Act
         var forViewer = await _host.History.LookupAsync(visible, Lookup(HistoryRefKind.Item, "m-1"), CancellationToken.None);
+        var forManager = await _host.History.LookupAsync(manager, Lookup(HistoryRefKind.Item, "m-1"), CancellationToken.None);
         var forOutsider = await _host.History.LookupAsync(outsider, Lookup(HistoryRefKind.Item, "m-1"), CancellationToken.None);
 
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(forViewer.Value.Select(r => r.ItemKey), Is.EqualTo(new[] { "WEB-1" }));
-            Assert.That(forOutsider.Value, Is.Empty);
+            Assert.That(forManager.Value.Select(r => r.ItemKey), Is.EqualTo(new[] { "WEB-1" }));
+            Assert.That(forViewer.Failure?.Kind, Is.EqualTo(FailureKind.Forbidden));
+            Assert.That(forOutsider.Failure?.Kind, Is.EqualTo(FailureKind.Forbidden));
         }
+    }
+
+    [Test]
+    public async Task LookupAsync_RefsInAProjectTheCallerDoesNotManage_AreFilteredOutWithoutRefusingTheRest()
+    {
+        // Arrange
+        var (scenario, manager, member) = await ProjectWithMembersAsync(_host);
+        await scenario.CreateProjectAsync("OPS");
+        var opsPerson = await scenario.MemberAsync("OPS", "editor");
+        await _host.Projects.SetMemberAsync(scenario.Admin, "OPS", manager.PersonId, "editor", CancellationToken.None);
+        await _host.History.ImportItemsAsync(manager, "WEB", Batch(Row("w-1", member.PersonId)), CancellationToken.None);
+        await _host.History.ImportItemsAsync(scenario.Admin, "OPS", Batch(Row("o-1", opsPerson.PersonId)), CancellationToken.None);
+
+        // Act
+        var result = await _host.History.LookupAsync(manager, Lookup(HistoryRefKind.Item, "w-1", "o-1"), CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Value.Select(r => (r.ExternalId, r.ItemKey)), Is.EqualTo(new[] { ("w-1", "WEB-1") }));
     }
 
     [Test]
@@ -110,6 +130,26 @@ public sealed class HistoryLookupTests
             Assert.That(Paths(badKind.Failure), Is.EqualTo(new[] { "kind" }));
             Assert.That(Paths(badId.Failure), Is.EqualTo(new[] { "externalIds/1" }));
             Assert.That(Paths(many.Failure), Is.EqualTo(new[] { "externalIds" }));
+        }
+    }
+
+    [Test]
+    public async Task LookupAsync_ContributorWithoutProjectManage_IsRefusedWhileAManagerStillSeesTheRef()
+    {
+        // Arrange
+        var (scenario, manager, member) = await ProjectWithMembersAsync(_host);
+        var contributor = await scenario.MemberAsync("WEB", "contributor");
+        await _host.History.ImportItemsAsync(manager, "WEB", Batch(Row("m-1", member.PersonId)), CancellationToken.None);
+
+        // Act
+        var refused = await _host.History.LookupAsync(contributor, Lookup(HistoryRefKind.Item, "m-1"), CancellationToken.None);
+        var allowed = await _host.History.LookupAsync(manager, Lookup(HistoryRefKind.Item, "m-1"), CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(refused.Failure?.Kind, Is.EqualTo(FailureKind.Forbidden));
+            Assert.That(allowed.Value.Select(r => r.ExternalId), Is.EqualTo(new[] { "m-1" }));
         }
     }
 

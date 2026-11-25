@@ -56,9 +56,11 @@ internal sealed class HistoryCommentsImporter(
         _items = await HistoryRefs.FindAsync(
             db, actor.OrganizationId, import.Source, HistoryRefKind.Item, comments.Select(c => c.ItemExternalId), cancellationToken);
         var itemIds = _items.Values.Where(r => r.ProjectId == access.Project.Id).Select(r => r.ItemId).ToArray();
-        _itemRows = await db.Items
-            .AsNoTracking()
-            .Where(i => i.OrganizationId == actor.OrganizationId && i.DeletedAt == null && itemIds.Contains(i.Id))
+
+        // 範圍外的項目（只看自己項目的角色）當作不存在，不因為它有沒有被匯入過、有沒有刪除而有不同的回答；
+        // 刪除的也讀進來，才分得出「看得到、但已經刪除」。
+        _itemRows = await access.Items.Apply(db.Items.AsNoTracking())
+            .Where(i => i.OrganizationId == actor.OrganizationId && itemIds.Contains(i.Id))
             .ToDictionaryAsync(i => i.Id, cancellationToken);
         _members = await HistoryRefs.MembersAmongAsync(db, access, comments.Select(c => c.AuthorId), cancellationToken);
 
@@ -167,13 +169,12 @@ internal sealed class HistoryCommentsImporter(
         }
     }
 
-    /// <summary>留言所在的項目：要是之前匯入過、在這個專案、沒刪除的。</summary>
+    /// <summary>留言所在的項目：要是之前匯入過、在這個專案、呼叫者看得到、沒刪除的。看不到的和沒匯入過的是同一個回答。</summary>
     private ItemEntity? ItemOf(int index, HistoryComment comment)
     {
         if (!_items.TryGetValue(comment.ItemExternalId ?? string.Empty, out var reference))
         {
-            Add(index, "item_external_id", $"找不到項目{TextRules.Quote(comment.ItemExternalId)}：項目要先匯入。");
-            return null;
+            return NotImported(index, comment);
         }
 
         if (reference.ProjectId != access.Project.Id)
@@ -186,12 +187,23 @@ internal sealed class HistoryCommentsImporter(
             return null;
         }
 
-        if (_itemRows.TryGetValue(reference.ItemId, out var item))
+        if (!_itemRows.TryGetValue(reference.ItemId, out var item))
         {
-            return item;
+            return NotImported(index, comment);
         }
 
-        Add(index, "item_external_id", $"項目{reference.ItemKey}已經刪除，不能再加留言。");
+        if (item.DeletedAt is not null)
+        {
+            Add(index, "item_external_id", $"項目{reference.ItemKey}已經刪除，不能再加留言。");
+            return null;
+        }
+
+        return item;
+    }
+
+    private ItemEntity? NotImported(int index, HistoryComment comment)
+    {
+        Add(index, "item_external_id", $"找不到項目{TextRules.Quote(comment.ItemExternalId)}：項目要先匯入。");
         return null;
     }
 

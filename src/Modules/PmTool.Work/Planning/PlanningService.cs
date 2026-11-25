@@ -31,6 +31,25 @@ internal sealed partial class PlanningService(
     }
 
     /// <summary>
+    /// 新增、修改、刪除共用的寫入檢查：週期與里程碑是整個專案的事，除了 item.update，還要看得到全部項目；
+    /// 只看自己的、或完全沒有讀取權限的角色，有 item.update 也不能動。
+    /// </summary>
+    private async Task<Result<ProjectAccess>> CheckWriteAccessAsync(
+        WorkDbContext db, Actor actor, string projectKey, CancellationToken cancellationToken)
+    {
+        var access = await CheckAccessAsync(db, actor, projectKey, WorkPermissions.ItemUpdate, cancellationToken);
+        if (access.Failure is not null)
+        {
+            return access;
+        }
+
+        // 只看得到自己項目的人讀得到項目，說「沒有查看項目的權限」會讓他摸不著頭緒：直接說缺的是什麼。
+        return access.Value.ReadsAllItems
+            ? access
+            : WorkFailures.Forbidden("週期與里程碑是整個專案共用的：要看得到這個專案的全部項目，才能新增、修改或刪除。");
+    }
+
+    /// <summary>
     /// 寫入前的共同步驟：先確認能改專案的項目，再檢查欄位，最後鎖住專案。欄位檢查在鎖之前：
     /// 不合格的請求不必排隊。
     /// </summary>
@@ -44,16 +63,10 @@ internal sealed partial class PlanningService(
     {
         // 呼叫端已開交易：先取專案的共用鎖，封存（要排他鎖）要等這次寫入提交，封存之後才進來的寫入讀到的就是封存的專案。
         await ProjectLocks.ShareAsync(db, actor.OrganizationId, projectKey, cancellationToken);
-        var access = await CheckAccessAsync(db, actor, projectKey, WorkPermissions.ItemUpdate, cancellationToken);
+        var access = await CheckWriteAccessAsync(db, actor, projectKey, cancellationToken);
         if (access.Failure is { } failure)
         {
             return failure;
-        }
-
-        // 週期與里程碑是整個專案的事：只看得到自己項目的人（item.read_own，例如執行者）有 item.update 也不能改，要看得到全部才行。
-        if (access.Value.Items.OwnOnly)
-        {
-            return access.Value.Missing(WorkPermissions.ItemRead);
         }
 
         var checkedDraft = check();

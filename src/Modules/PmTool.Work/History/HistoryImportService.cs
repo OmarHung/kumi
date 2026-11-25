@@ -52,12 +52,15 @@ internal sealed partial class HistoryImportService(
         return new HistoryItemsResult(DryRun: false, importer.Created, importer.Skipped);
     }
 
-    /// <summary>看得到的專案，加上正在寫的這一個（能寫就一定看得到它）。已經匯入到別處的外部編號，只有在看得到的專案才能透露那邊的編號。</summary>
+    /// <summary>
+    /// 有 project.manage 的專案（組織管理員是全部），加上正在寫的這一個（能寫就一定管得到它）。
+    /// 已經匯入到別處的外部編號，只有在這些專案才能透露那邊的編號，和 <see cref="LookupAsync"/> 同一條規則。
+    /// </summary>
     private async Task<IReadOnlySet<Guid>> VisibleProjectsAsync(
         WorkDbContext db, Actor actor, ProjectAccess access, CancellationToken cancellationToken)
     {
-        var readable = await ReadableProjects.IdsAsync(db, cache, actor, cancellationToken);
-        return new HashSet<Guid>(readable) { access.Project.Id };
+        var manageable = await ReadableProjects.ManageableIdsAsync(db, cache, actor, cancellationToken);
+        return new HashSet<Guid>(manageable) { access.Project.Id };
     }
 
     private static Failure? CheckItemsRequest(HistoryItems import)

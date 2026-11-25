@@ -39,11 +39,11 @@ public sealed class HistoryVisibilityTests
     }
 
     [Test]
-    public async Task ImportItemsAsync_ExternalIdImportedIntoAProjectTheCallerCanSee_IsSkippedWithThatKey()
+    public async Task ImportItemsAsync_ExternalIdImportedIntoAProjectTheCallerManages_IsSkippedWithThatKey()
     {
         // Arrange
         var setup = await TwoProjectsAsync();
-        await _host.Projects.SetMemberAsync(setup.Scenario.Admin, Hidden, setup.Manager.PersonId, "viewer", CancellationToken.None);
+        await _host.Projects.SetMemberAsync(setup.Scenario.Admin, Hidden, setup.Manager.PersonId, "admin", CancellationToken.None);
 
         // Act
         var result = await _host.History.ImportItemsAsync(setup.Manager, "WEB", Batch(Row("m-1", setup.Member.PersonId)), CancellationToken.None);
@@ -100,17 +100,75 @@ public sealed class HistoryVisibilityTests
     }
 
     [Test]
-    public async Task ImportCommentsAsync_ItemInAnotherProjectTheCallerCanSee_NamesThatProject()
+    public async Task ImportCommentsAsync_ItemInAnotherProjectTheCallerManages_NamesThatProject()
     {
         // Arrange
         var setup = await TwoProjectsAsync();
-        await _host.Projects.SetMemberAsync(setup.Scenario.Admin, Hidden, setup.Manager.PersonId, "viewer", CancellationToken.None);
+        await _host.Projects.SetMemberAsync(setup.Scenario.Admin, Hidden, setup.Manager.PersonId, "admin", CancellationToken.None);
 
         // Act
         var result = await _host.History.ImportCommentsAsync(setup.Manager, "WEB", Comments(Comment("u-1", "m-1", setup.Member.PersonId)), CancellationToken.None);
 
         // Assert
         Assert.That(Texts(result.Failure), Does.Contain(Hidden));
+    }
+
+    [Test]
+    public async Task ImportItemsAsync_DryRunWithExternalIdInAProjectTheCallerOnlyReadsPartly_IsAProblemWithoutAnyKey()
+    {
+        // Arrange
+        var setup = await TwoProjectsAsync();
+        await _host.Projects.SetMemberAsync(setup.Scenario.Admin, Hidden, setup.Manager.PersonId, "contributor", CancellationToken.None);
+
+        // Act
+        var result = await _host.History.ImportItemsAsync(setup.Manager, "WEB", Batch(true, Row("m-1", setup.Member.PersonId)), CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((result.Failure?.Code, Paths(result.Failure)), Is.EqualTo((WorkErrorCodes.ImportInvalid, new[] { "rows/0/external_id" })));
+            Assert.That(Texts(result.Failure), Does.Not.Contain(Hidden));
+            Assert.That(Texts(result.Failure), Does.Contain("已經匯入到別的專案"));
+        }
+    }
+
+    [Test]
+    public async Task ImportItemsAsync_DryRunWithExternalIdInAProjectTheCallerManages_StillSkipsWithThatKey()
+    {
+        // Arrange
+        var setup = await TwoProjectsAsync();
+        await _host.Projects.SetMemberAsync(setup.Scenario.Admin, Hidden, setup.Manager.PersonId, "admin", CancellationToken.None);
+
+        // Act
+        var result = await _host.History.ImportItemsAsync(setup.Manager, "WEB", Batch(true, Row("m-1", setup.Member.PersonId)), CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Value.Skipped, Is.EqualTo(new[] { new HistoryItemRef("m-1", "OPS-1") }));
+            Assert.That(result.Value.DryRun, Is.True);
+        }
+    }
+
+    [Test]
+    public async Task ImportCommentsAsync_ItemOrCommentInAProjectTheCallerOnlyReadsPartly_IsAProblemWithoutTheProjectKey()
+    {
+        // Arrange
+        var setup = await TwoProjectsAsync();
+        await _host.Projects.SetMemberAsync(setup.Scenario.Admin, Hidden, setup.Manager.PersonId, "contributor", CancellationToken.None);
+        await _host.History.ImportCommentsAsync(setup.Scenario.Admin, Hidden, Comments(Comment("u-1", "m-1", setup.OpsPerson.PersonId)), CancellationToken.None);
+        await _host.History.ImportItemsAsync(setup.Manager, "WEB", Batch(Row("w-1", setup.Member.PersonId)), CancellationToken.None);
+        var batch = Comments(Comment("u-1", "w-1", setup.Member.PersonId), Comment("u-2", "m-1", setup.Member.PersonId));
+
+        // Act
+        var result = await _host.History.ImportCommentsAsync(setup.Manager, "WEB", batch, CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Paths(result.Failure), Is.EqualTo(new[] { "comments/0/external_id", "comments/1/item_external_id" }));
+            Assert.That(Texts(result.Failure), Does.Not.Contain(Hidden));
+        }
     }
 
     [Test]

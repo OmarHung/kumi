@@ -79,6 +79,22 @@ internal static class ReadableProjects
             .ToHashSet();
     }
 
+    /// <summary>
+    /// 呼叫者有 project.manage 的專案（組織管理員是組織裡全部）。歷史匯入的查詢只給管理專案的人，範圍和匯入的寫入一致。
+    /// </summary>
+    public static async Task<IReadOnlySet<Guid>> ManageableIdsAsync(WorkDbContext db, BlueprintCache cache, Actor actor, CancellationToken cancellationToken)
+    {
+        if (actor.IsOrganizationAdmin)
+        {
+            return await IdsAsync(db, cache, actor, cancellationToken);
+        }
+
+        return (await MembershipsAsync(db, cache, actor, cancellationToken))
+            .Where(m => ProjectRoles.PermissionsOf(m.Role, m.Schema).Contains(WorkPermissions.ProjectManage))
+            .Select(m => m.ProjectId)
+            .ToHashSet();
+    }
+
     /// <summary>呼叫者是成員、而且角色讀得到項目的專案，連同範圍：true 是只看自己的（沒有 <see cref="WorkPermissions.ItemRead"/>）。</summary>
     public static async Task<IReadOnlyDictionary<Guid, bool>> OwnOnlyByProjectAsync(
         WorkDbContext db, BlueprintCache cache, Actor actor, CancellationToken cancellationToken) =>

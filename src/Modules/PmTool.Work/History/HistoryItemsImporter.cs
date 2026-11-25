@@ -71,8 +71,8 @@ internal sealed class HistoryItemsImporter(
     }
 
     /// <summary>
-    /// 外部編號合格、這一批裡只出現一次、之前沒匯入過，才要繼續處理這一列。已經匯入過的：看得到那個專案就略過並帶它的編號；
-    /// 看不到的專案不能透露任何編號，當成這一列的問題。
+    /// 外部編號合格、這一批裡只出現一次、之前沒匯入過，才要繼續處理這一列。已經匯入過的：在呼叫者有 project.manage 的專案就略過並帶它的編號；
+    /// 其他的專案不能透露任何編號，當成這一列的問題。
     /// </summary>
     private bool IsNewExternalId(int index, HistoryItem row)
     {
@@ -167,7 +167,7 @@ internal sealed class HistoryItemsImporter(
                 return parent.Key;
             }
 
-            // 看不到的專案不透露它的項目編號。
+            // 管不到的專案不透露它的項目編號。
             var where = readable.Contains(parent.ProjectId) ? $"（{parent.Key}）" : string.Empty;
             Add(index, "parent_external_id", $"上層{TextRules.Quote(parentId)}已經匯入到別的專案{where}，上層要在同一個專案。");
             return null;

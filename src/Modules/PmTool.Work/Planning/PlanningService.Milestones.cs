@@ -156,7 +156,7 @@ internal sealed partial class PlanningService
         // 和新增、修改一樣先取專案的共用鎖，才不會在封存之後還刪掉一筆。
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await ProjectLocks.ShareAsync(db, actor.OrganizationId, projectKey, cancellationToken);
-        var access = await CheckAccessAsync(db, actor, projectKey, WorkPermissions.ItemUpdate, cancellationToken);
+        var access = await CheckWriteAccessAsync(db, actor, projectKey, cancellationToken);
         if (access.Failure is { } failure)
         {
             return failure;

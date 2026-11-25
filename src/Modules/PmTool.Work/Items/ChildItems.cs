@@ -41,9 +41,14 @@ internal static class ChildItems
     public static Failure HasChildren(string projectKey, string itemKey, IReadOnlyList<ChildItem> children) =>
         new(FailureKind.Conflict, WorkErrorCodes.ItemHasChildren, $"項目 {itemKey} 底下還有{CountText(children)}，要先把它們移開或刪除，才能刪除這個項目。")
         {
-            Details = [.. children.Select(child => child.Hidden
-                ? HiddenDetail(WorkErrorCodes.ItemHasChildren, "還有你看不到的項目掛在這個項目底下，要請能看到的人先把它移開或刪除。")
-                : Detail(WorkErrorCodes.ItemHasChildren, projectKey, child, $"{Describe(projectKey, child)}還掛在這個項目底下，要先把它移開或刪除。"))],
+            Details =
+            [
+                .. children.Where(child => !child.Hidden).Select(child =>
+                    Detail(WorkErrorCodes.ItemHasChildren, projectKey, child, $"{Describe(projectKey, child)}還掛在這個項目底下，要先把它移開或刪除。")),
+                .. children.Any(child => child.Hidden)
+                    ? [HiddenDetail(WorkErrorCodes.ItemHasChildren, "還有你看不到的項目掛在這個項目底下，要請能看到的人先把它移開或刪除。")]
+                    : Array.Empty<FailureDetail>(),
+            ],
         };
 
     /// <summary>訊息裡的下層數量：只算呼叫者看得到的，看不到的只說有，不給數量（數量也是資訊）。</summary>

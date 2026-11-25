@@ -17,8 +17,15 @@ internal sealed partial class HistoryImportService
         }
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+
+        // 查詢只給匯入工具用：只回有 project.manage 的專案，和匯入的寫入一致；非組織管理員一個都沒有就是沒有權限。
+        var readable = await ReadableProjects.ManageableIdsAsync(db, cache, actor, cancellationToken);
+        if (readable.Count == 0 && !actor.IsOrganizationAdmin)
+        {
+            return WorkFailures.Forbidden("你沒有任何專案的管理權限，不能查詢匯入紀錄。");
+        }
+
         var found = await HistoryRefs.FindAsync(db, actor.OrganizationId, lookup.Source, lookup.Kind, lookup.ExternalIds, cancellationToken);
-        var readable = await ReadableProjects.IdsAsync(db, cache, actor, cancellationToken);
         List<HistoryRef> visible =
         [
             .. lookup.ExternalIds.Distinct(StringComparer.Ordinal)

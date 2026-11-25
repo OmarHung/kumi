@@ -42,6 +42,7 @@ internal static class TypeChangeRules
     private static IEnumerable<FailureDetail> ChildProblems(ProjectAccess access, ItemType next, IReadOnlyList<ChildItem> children)
     {
         var projectKey = access.Project.Key;
+        var hiddenReported = false;
         foreach (var child in children)
         {
             // 下層的類型一定在藍圖裡：套用變更集時已經擋下被刪除類型底下還有沒刪除的項目。
@@ -53,6 +54,13 @@ internal static class TypeChangeRules
 
             if (child.Hidden)
             {
+                // 看不到的下層合併成一筆：筆數也是資訊。
+                if (hiddenReported)
+                {
+                    continue;
+                }
+
+                hiddenReported = true;
                 yield return ChildItems.HiddenDetail(
                     WorkErrorCodes.ItemChildrenNotAllowed,
                     $"有你看不到的下層項目不能掛在{Quote(next.Name)}底下；要請能看到的人先把它移開，才能改成這個類型。");
