@@ -32,6 +32,9 @@ internal sealed class AccountEvents(IEnumerable<IAccountEventSink> sinks, ILogge
         }
         catch (TimeoutException)
         {
+            // 等待的上限和取消來源的計時器同時到期：等待先放手時，離開這裡就會處理掉取消來源、計時器的取消再也送不出去，
+            // 還在跑的接收者會一直等下去。放手之前自己取消。
+            await cancellation.CancelAsync();
             logger.LogWarning("帳號事件 {Kind}（{EventId}）超過 {Seconds} 秒還沒送完，不再等。", accountEvent.Kind, accountEvent.EventId, timeout.TotalSeconds);
         }
     }
