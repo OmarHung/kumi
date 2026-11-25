@@ -37,17 +37,21 @@ internal sealed record NotificationRow
 
     public required NotificationKind Kind { get; init; }
 
-    public required Guid ProjectId { get; init; }
+    /// <summary>帳號通知（<see cref="NotificationKind.AccountSecurity"/>）沒有專案與項目，這五個欄位都是 null；其他種類一定有。</summary>
+    public Guid? ProjectId { get; init; }
 
-    public required string ProjectKey { get; init; }
+    public string? ProjectKey { get; init; }
 
-    public required Guid ItemId { get; init; }
+    public Guid? ItemId { get; init; }
 
-    public required string ItemKey { get; init; }
+    public string? ItemKey { get; init; }
 
-    public required string ItemTitle { get; init; }
+    public string? ItemTitle { get; init; }
 
     public required Guid ActorPersonId { get; init; }
+
+    /// <summary>只有帳號通知有：發生了什麼事，存成 jsonb；資料庫的檢查限制保證它和種類一起出現。</summary>
+    public AccountNotice? AccountNotice { get; init; }
 
     public string? FromStateName { get; init; }
 

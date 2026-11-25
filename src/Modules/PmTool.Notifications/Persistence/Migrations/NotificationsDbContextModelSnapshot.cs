@@ -188,6 +188,10 @@ namespace PmTool.Notifications.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("AccountNotice")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("account_notice");
+
                     b.Property<Guid>("ActorPersonId")
                         .HasColumnType("uuid")
                         .HasColumnName("actor_person_id");
@@ -216,18 +220,16 @@ namespace PmTool.Notifications.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("from_state_name");
 
-                    b.Property<Guid>("ItemId")
+                    b.Property<Guid?>("ItemId")
                         .HasColumnType("uuid")
                         .HasColumnName("item_id");
 
                     b.Property<string>("ItemKey")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("item_key");
 
                     b.Property<string>("ItemTitle")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("item_title");
 
@@ -241,12 +243,11 @@ namespace PmTool.Notifications.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
 
-                    b.Property<Guid>("ProjectId")
+                    b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
                     b.Property<string>("ProjectKey")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("project_key");
@@ -282,7 +283,10 @@ namespace PmTool.Notifications.Persistence.Migrations
                         .IsDescending(false, false, true, true)
                         .HasDatabaseName("ix_notifications_organization_id_recipient_id_created_at_id");
 
-                    b.ToTable("notifications", "notifications");
+                    b.ToTable("notifications", "notifications", t =>
+                        {
+                            t.HasCheckConstraint("ck_notifications_account_notice", "(kind = 'account_security') = (project_id IS NULL AND item_id IS NULL AND account_notice IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("PmTool.Notifications.Persistence.ReaderPositionRow", b =>

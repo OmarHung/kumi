@@ -7,7 +7,7 @@ namespace PmTool.Notifications;
 
 /// <summary>
 /// 一個人的通知現在還看得到哪些。收件匣與寄 Email 共用這一份：哪些專案、哪些項目看得到由工作引擎決定（<see cref="IWorkAccessQueries"/>），
-/// 看不到的專案、看不到的項目的通知，既不列在收件匣、不算未讀，也不寄信。
+/// 看不到的專案、看不到的項目的通知，既不列在收件匣、不算未讀，也不寄信。帳號通知沒有專案，只要是本人的就一直看得到。
 /// </summary>
 internal sealed class NotificationVisibility(IWorkAccessQueries access)
 {
@@ -23,7 +23,8 @@ internal sealed class NotificationVisibility(IWorkAccessQueries access)
     {
         Guid[] readableProjectIds = [.. await access.ReadableProjectIdsAsync(actor, cancellationToken)];
         var inProjects = db.Notifications.AsNoTracking().Where(n =>
-            n.OrganizationId == actor.OrganizationId && n.RecipientId == actor.PersonId && readableProjectIds.Contains(n.ProjectId));
+            n.OrganizationId == actor.OrganizationId && n.RecipientId == actor.PersonId
+            && (n.ProjectId == null || readableProjectIds.Contains(n.ProjectId.Value)));
         if (readableProjectIds.Length == 0)
         {
             return inProjects;
@@ -36,7 +37,11 @@ internal sealed class NotificationVisibility(IWorkAccessQueries access)
             return inProjects;
         }
 
-        var itemIds = await inProjects.Where(n => ownOnly.Contains(n.ProjectId)).Select(n => n.ItemId).Distinct().ToListAsync(cancellationToken);
+        var itemIds = await inProjects
+            .Where(n => n.ProjectId != null && n.ItemId != null && ownOnly.Contains(n.ProjectId.Value))
+            .Select(n => n.ItemId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
         var hidden = new List<Guid>();
         foreach (var chunk in itemIds.Chunk(ItemCheckChunkSize))
         {
@@ -45,6 +50,6 @@ internal sealed class NotificationVisibility(IWorkAccessQueries access)
         }
 
         var hiddenIds = hidden.ToArray();
-        return hiddenIds.Length == 0 ? inProjects : inProjects.Where(n => !hiddenIds.Contains(n.ItemId));
+        return hiddenIds.Length == 0 ? inProjects : inProjects.Where(n => n.ItemId == null || !hiddenIds.Contains(n.ItemId.Value));
     }
 }

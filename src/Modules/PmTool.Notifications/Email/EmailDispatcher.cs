@@ -88,7 +88,7 @@ internal sealed partial class EmailDispatcher(
         return sent;
     }
 
-    /// <summary>已經讀了的、組織沒開寄信的、太舊的：不必寄，標成處理完了。</summary>
+    /// <summary>已經讀了的、組織沒開寄信的、太舊的：不必寄，標成處理完了。帳號通知讀了照寄（讀的人可能不是本人），其餘照舊。</summary>
     private async Task MarkUnneededHandledAsync(CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
@@ -96,7 +96,7 @@ internal sealed partial class EmailDispatcher(
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         await db.Notifications
             .Where(n => n.EmailHandledAt == null
-                && (n.ReadAt != null
+                && ((n.ReadAt != null && n.Kind != NotificationKind.AccountSecurity)
                     || n.CreatedAt < oldest
                     || !db.EmailSettings.Any(s => s.OrganizationId == n.OrganizationId && s.Enabled)))
             .ExecuteUpdateAsync(set => set.SetProperty(n => n.EmailHandledAt, now), cancellationToken);
@@ -143,16 +143,13 @@ internal sealed partial class EmailDispatcher(
         {
             foreach (var recipientId in recipients)
             {
-                var prepared = await PrepareAsync(settings, recipientId, sender, zone, cancellationToken);
-                if (prepared is null)
+                foreach (var prepared in await PrepareAsync(settings, recipientId, sender, zone, cancellationToken))
                 {
-                    continue;
-                }
-
-                session ??= await transport.OpenAsync(connection, cancellationToken);
-                if (await TrySendAsync(session, settings, prepared, cancellationToken))
-                {
-                    sent++;
+                    session ??= await transport.OpenAsync(connection, cancellationToken);
+                    if (await TrySendAsync(session, settings, prepared, cancellationToken))
+                    {
+                        sent++;
+                    }
                 }
             }
         }

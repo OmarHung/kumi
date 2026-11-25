@@ -38,10 +38,73 @@ public sealed class NotificationEndpointTests
         var expected = JsonNode.Parse($$"""
             {"items":[{"notificationId":"{{NotificationId}}","kind":"state_changed","projectKey":"WEB","itemKey":"WEB-7",
             "itemTitle":"範例項目","actor":{"personId":"{{TestUsers.Owner.PersonId}}","displayName":"{{TestUsers.Owner.DisplayName}}"},
-            "fromStateName":"待辦","toStateName":"審查中","excerpt":null,"commentId":null,"createdAt":"2026-11-18T03:04:05Z","readAt":null}],
+            "fromStateName":"待辦","toStateName":"審查中","excerpt":null,"commentId":null,"createdAt":"2026-11-18T03:04:05Z","readAt":null,"account":null}],
             "nextCursor":"next-page"}
             """);
         Assert.That(JsonNode.DeepEquals(data, expected), Is.True, data?.ToJsonString());
+    }
+
+    [Test]
+    public async Task List_AccountNotice_HasNoProjectAndWritesTheAccountShape()
+    {
+        // Arrange
+        var account = new AccountNotice(
+            AccountNoticeEvent.CliLoginTokensIssued,
+            [new AccountNoticeToken("kumi（MacBook-Pro）", ["items:read"], new DateTimeOffset(2027, 2, 23, 0, 0, 0, TimeSpan.Zero))],
+            [],
+            "203.0.113.5",
+            "MacBook-Pro",
+            null,
+            null,
+            0);
+        var notice = new NotificationItem(
+            NotificationId, NotificationKind.AccountSecurity, null, null, null, TestUsers.Owner.PersonId, null, null, null, Created, null, null)
+        {
+            Account = account,
+        };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Notifications.OnList = (_, _) => new NotificationPage([notice], null);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync("/v1/notifications");
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        var expected = JsonNode.Parse($$$"""
+            {"items":[{"notificationId":"{{{NotificationId}}}","kind":"account_security","projectKey":null,"itemKey":null,
+            "itemTitle":null,"actor":{"personId":"{{{TestUsers.Owner.PersonId}}}","displayName":"{{{TestUsers.Owner.DisplayName}}}"},
+            "fromStateName":null,"toStateName":null,"excerpt":null,"commentId":null,"createdAt":"2026-11-18T03:04:05Z","readAt":null,
+            "account":{"event":"cli_login_tokens_issued",
+            "tokens":[{"name":"kumi（MacBook-Pro）","scopes":["items:read"],"expiresAt":"2027-02-23T00:00:00Z"}],
+            "scopes":[],"sourceAddress":"203.0.113.5","machineName":"MacBook-Pro","clientName":null,"clientHost":null,"revokedTokens":0}}],
+            "nextCursor":null}
+            """);
+        Assert.That(JsonNode.DeepEquals(data, expected), Is.True, data?.ToJsonString());
+    }
+
+    [TestCase(AccountNoticeEvent.AccessTokenCreated, "access_token_created")]
+    [TestCase(AccountNoticeEvent.CliLoginTokensIssued, "cli_login_tokens_issued")]
+    [TestCase(AccountNoticeEvent.OauthAppAuthorized, "oauth_app_authorized")]
+    [TestCase(AccountNoticeEvent.CliLoginCodeReused, "cli_login_code_reused")]
+    public async Task List_EachAccountEvent_IsWrittenInSnakeCase(AccountNoticeEvent kind, string expected)
+    {
+        // Arrange
+        var notice = new NotificationItem(
+            NotificationId, NotificationKind.AccountSecurity, null, null, null, TestUsers.Owner.PersonId, null, null, null, Created, null, null)
+        {
+            Account = new AccountNotice(kind, [], [], null, null, null, null, 0),
+        };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Notifications.OnList = (_, _) => new NotificationPage([notice], null);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync("/v1/notifications");
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(data?["items"]?[0]?["account"]?["event"]?.GetValue<string>(), Is.EqualTo(expected));
     }
 
     [Test]

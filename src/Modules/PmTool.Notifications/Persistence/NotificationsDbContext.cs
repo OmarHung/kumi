@@ -11,6 +11,9 @@ internal sealed class NotificationsDbContext(DbContextOptions<NotificationsDbCon
     /// <summary>事件的唯一限制。重複處理同一個事件時靠它擋下重複的通知，所以名稱固定下來。</summary>
     public const string NotificationEventIndex = "ux_notifications_event_recipient_kind";
 
+    /// <summary>帳號通知沒有專案與項目、一般通知一定有，由資料庫保證。</summary>
+    public const string AccountNoticeCheck = "ck_notifications_account_notice";
+
     /// <summary>同一筆事件「確定的失敗」到第幾次就略過它（暫時性的錯誤不算）。</summary>
     public const int MaxEventAttempts = 3;
 
@@ -73,6 +76,14 @@ internal sealed class NotificationsDbContext(DbContextOptions<NotificationsDbCon
                 .HasConversion(kind => NotificationKinds.NameOf(kind), name => NotificationKinds.Parse(name));
             notification.Property(n => n.ProjectKey).HasMaxLength(MaxKeyLength);
             notification.Property(n => n.ItemKey).HasMaxLength(MaxKeyLength);
+            notification.Property(n => n.AccountNotice)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    notice => AccountNoticeJson.Write(notice!),
+                    json => AccountNoticeJson.Read(json));
+            notification.ToTable(table => table.HasCheckConstraint(
+                AccountNoticeCheck,
+                "(kind = 'account_security') = (project_id IS NULL AND item_id IS NULL AND account_notice IS NOT NULL)"));
             notification.HasIndex(n => new { n.EventId, n.RecipientId, n.Kind }).IsUnique().HasDatabaseName(NotificationEventIndex);
 
             // 收件匣：某個人的通知，新的在前。
@@ -146,6 +157,7 @@ internal static class NotificationKinds
         NotificationKind.Commented => "commented",
         NotificationKind.StateChanged => "state_changed",
         NotificationKind.Replied => "replied",
+        NotificationKind.AccountSecurity => "account_security",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "不認得的通知種類。"),
     };
 
@@ -156,6 +168,7 @@ internal static class NotificationKinds
         "commented" => NotificationKind.Commented,
         "state_changed" => NotificationKind.StateChanged,
         "replied" => NotificationKind.Replied,
+        "account_security" => NotificationKind.AccountSecurity,
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "不認得的通知種類。"),
     };
 }

@@ -5,21 +5,24 @@ using PmTool.Notifications.Persistence;
 
 namespace PmTool.Notifications.Email;
 
-/// <summary>要寄給一個人的信，以及寄出之後要標成處理完了的通知。</summary>
+/// <summary>要寄給一個人的一封信，以及寄出之後要標成處理完了的通知。</summary>
 internal sealed record PreparedEmail(Guid RecipientId, OutgoingEmail Email, IReadOnlyList<Guid> NotificationIds);
 
 internal sealed partial class EmailDispatcher
 {
-    /// <summary>最舊的一則還在等的通知已經超過 <see cref="EmailRules.Delay"/> 的人，最舊的先寄，一輪最多 <see cref="EmailRules.MaxRecipientsPerRun"/> 個。</summary>
+    /// <summary>
+    /// 有還在等的項目通知、而且最舊的已經超過 <see cref="EmailRules.Delay"/> 的人，或有還在等的帳號通知的人（不等延遲，也不看讀了沒有）；
+    /// 最舊的先寄，一輪最多 <see cref="EmailRules.MaxRecipientsPerRun"/> 個。
+    /// </summary>
     private async Task<List<Guid>> DueRecipientsAsync(Guid organizationId, CancellationToken cancellationToken)
     {
         var cutoff = clock.GetUtcNow() - EmailRules.Delay;
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         return await db.Notifications.AsNoTracking()
-            .Where(n => n.OrganizationId == organizationId && n.EmailHandledAt == null && n.ReadAt == null)
+            .Where(n => n.OrganizationId == organizationId && n.EmailHandledAt == null
+                && (n.Kind == NotificationKind.AccountSecurity || (n.ReadAt == null && n.CreatedAt <= cutoff)))
             .GroupBy(n => n.RecipientId)
             .Select(g => new { Recipient = g.Key, Oldest = g.Min(n => n.CreatedAt) })
-            .Where(x => x.Oldest <= cutoff)
             .OrderBy(x => x.Oldest)
             .Take(EmailRules.MaxRecipientsPerRun)
             .Select(x => x.Recipient)
@@ -28,9 +31,10 @@ internal sealed partial class EmailDispatcher
 
     /// <summary>
     /// 取這個人所有還在等的通知（不只超過延遲的那幾則，一起寄），決定寄不寄、寄什麼。
-    /// 不必寄的（他關掉了、沒有 Email、帳號停用了、不在組織了、項目現在看不到、已經讀了）當場標成處理完了；回 null 是沒有信要寄。
+    /// 不必寄的（他關掉了、沒有 Email、帳號停用了、不在組織了、項目現在看不到、項目的通知已經讀了）當場標成處理完了；沒有信要寄是空的。
+    /// 項目的通知併成一封；帳號通知另外一封，不和項目的通知放在一起（不連到項目、讀了也寄）。
     /// </summary>
-    private async Task<PreparedEmail?> PrepareAsync(
+    private async Task<IReadOnlyList<PreparedEmail>> PrepareAsync(
         EmailSettingsRow settings,
         Guid recipientId,
         (string Address, string? Name) sender,
@@ -44,7 +48,7 @@ internal sealed partial class EmailDispatcher
             .ToListAsync(cancellationToken);
         if (pending.Count == 0)
         {
-            return null;
+            return [];
         }
 
         var enabled = await db.EmailPreferences
@@ -57,7 +61,7 @@ internal sealed partial class EmailDispatcher
         if (!enabled || recipient is not { IsDisabled: false, Email: { } address } || string.IsNullOrWhiteSpace(address))
         {
             await MarkHandledAsync(db, [.. pending.Select(n => n.Id)], cancellationToken);
-            return null;
+            return [];
         }
 
         if (!EmailSettingsValidator.IsDeliverable(address.Trim()))
@@ -65,12 +69,12 @@ internal sealed partial class EmailDispatcher
             // 地址寄信的函式庫解不開（例如帶逗號）：永遠寄不出去，不讓它卡住整個組織。
             LogInvalidAddress(logger, settings.OrganizationId, recipientId);
             await MarkHandledAsync(db, [.. pending.Select(n => n.Id)], cancellationToken);
-            return null;
+            return [];
         }
 
         var actor = new Actor(settings.OrganizationId, recipientId, recipient.Role is OrganizationRole.Owner or OrganizationRole.Admin);
         var visible = await (await visibility.VisibleToAsync(db, actor, cancellationToken))
-            .Where(n => n.EmailHandledAt == null && n.ReadAt == null)
+            .Where(n => n.EmailHandledAt == null && (n.ReadAt == null || n.Kind == NotificationKind.AccountSecurity))
             .OrderBy(n => n.CreatedAt).ThenBy(n => n.Id)
             .ToListAsync(cancellationToken);
 
@@ -79,7 +83,7 @@ internal sealed partial class EmailDispatcher
         await MarkHandledAsync(db, [.. pending.Select(n => n.Id).Where(id => !visibleIds.Contains(id))], cancellationToken);
         if (visible.Count == 0)
         {
-            return null;
+            return [];
         }
 
         var context = new EmailComposer.Context(
@@ -89,7 +93,25 @@ internal sealed partial class EmailDispatcher
             settings.SiteUrl ?? string.Empty,
             zone,
             names.ToDictionary(pair => pair.Key, pair => pair.Value.DisplayName));
-        return new PreparedEmail(recipientId, EmailComposer.Notification(context, visible), [.. visible.Select(n => n.Id)]);
+        return Compose(context, recipientId, visible);
+    }
+
+    private static List<PreparedEmail> Compose(EmailComposer.Context context, Guid recipientId, IReadOnlyList<NotificationRow> visible)
+    {
+        List<PreparedEmail> emails = [];
+        var items = visible.Where(n => n.Kind != NotificationKind.AccountSecurity).ToList();
+        if (items.Count > 0)
+        {
+            emails.Add(new PreparedEmail(recipientId, EmailComposer.Notification(context, items), [.. items.Select(n => n.Id)]));
+        }
+
+        var accounts = visible.Where(n => n.Kind == NotificationKind.AccountSecurity).ToList();
+        if (accounts.Count > 0)
+        {
+            emails.Add(new PreparedEmail(recipientId, EmailComposer.AccountNotices(context, accounts), [.. accounts.Select(n => n.Id)]));
+        }
+
+        return emails;
     }
 
     private async Task MarkHandledAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)

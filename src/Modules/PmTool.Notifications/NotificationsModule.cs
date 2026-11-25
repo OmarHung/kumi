@@ -41,6 +41,9 @@ public static class NotificationsModule
         services.TryAddScoped<IItemSubscriptionService, ItemSubscriptionService>();
         services.TryAddScoped<NotificationVisibility>();
 
+        // 帳號事件的接收者：身分模組發事件時一個一個叫，所以也用加入清單的方式註冊。
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<PmTool.Identity.IAccountEventSink, AccountNotices.AccountNoticeSink>());
+
         // 寄信的傳送放在內部介面後面，TryAdd：測試先放假的，就不會真的連出去。
         services.TryAddSingleton<IEmailTransport, MailKitEmailTransport>();
         services.TryAddSingleton<EmailPasswordProtector>();

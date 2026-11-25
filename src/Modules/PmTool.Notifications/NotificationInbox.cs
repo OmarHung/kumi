@@ -107,5 +107,8 @@ internal sealed class NotificationInbox(
 
     private static NotificationItem ToItem(NotificationRow row) => new(
         row.Id, row.Kind, row.ProjectKey, row.ItemKey, row.ItemTitle, row.ActorPersonId,
-        row.FromStateName, row.ToStateName, row.Excerpt, row.CreatedAt, row.ReadAt, row.CommentId);
+        row.FromStateName, row.ToStateName, row.Excerpt, row.CreatedAt, row.ReadAt, row.CommentId)
+    {
+        Account = row.AccountNotice,
+    };
 }

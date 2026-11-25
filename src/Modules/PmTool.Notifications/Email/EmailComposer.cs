@@ -9,7 +9,7 @@ namespace PmTool.Notifications.Email;
 /// 組信（規格見 HANDOFF-email-notifications 第 5 節）。HTML 與純文字各一份；標題、摘錄、名稱都是使用者輸入，
 /// HTML 裡的所有文字一律跳脫、摘錄照原文顯示（Markdown 不轉換）。樣式寫成 inline、單欄、不用圖片。
 /// </summary>
-internal static class EmailComposer
+internal static partial class EmailComposer
 {
     public const string UnknownActorName = "（已不在組織）";
 
@@ -111,7 +111,7 @@ internal static class EmailComposer
     }
 
     private static string ItemUrl(string siteUrl, NotificationRow row) =>
-        $"{siteUrl}/projects/{Uri.EscapeDataString(row.ProjectKey)}/items/{Uri.EscapeDataString(row.ItemKey)}";
+        $"{siteUrl}/projects/{Uri.EscapeDataString(row.ProjectKey!)}/items/{Uri.EscapeDataString(row.ItemKey!)}";
 
     private static string NameOf(Context context, Guid personId) =>
         context.Names.TryGetValue(personId, out var name) ? name : UnknownActorName;

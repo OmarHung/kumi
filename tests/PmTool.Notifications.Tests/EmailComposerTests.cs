@@ -250,4 +250,161 @@ public sealed class EmailComposerTests
         // Assert
         Assert.That(mail.TextBody, Does.Contain("MNT-12 第一行 第二行").And.Not.Contain("第一行\n"));
     }
+
+    private static NotificationRow AccountRow(AccountNotice notice) => new()
+    {
+        Id = Guid.CreateVersion7(),
+        OrganizationId = Guid.CreateVersion7(),
+        RecipientId = Me,
+        Kind = NotificationKind.AccountSecurity,
+        ActorPersonId = Me,
+        AccountNotice = notice,
+        EventId = Guid.CreateVersion7(),
+        CreatedAt = At,
+    };
+
+    private static AccountNotice Notice(AccountNoticeEvent kind) => new(kind, [], [], null, null, null, null, 0);
+
+    [Test]
+    public void AccountNotices_TokenCreated_SaysWhatHappenedAndWhereToUndoIt()
+    {
+        // Arrange
+        var notice = Notice(AccountNoticeEvent.AccessTokenCreated) with
+        {
+            Tokens = [new AccountNoticeToken("CI", ["items:read", "items:write"], new DateTimeOffset(2027, 2, 23, 0, 0, 0, TimeSpan.Zero))],
+            SourceAddress = "203.0.113.5",
+        };
+
+        // Act
+        var mail = EmailComposer.AccountNotices(Context(), [AccountRow(notice)]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.Subject, Is.EqualTo("Kumi：你的帳號建立了存取權杖"));
+            Assert.That(mail.TextBody, Does.Contain("建立了存取權杖「CI」"));
+            Assert.That(mail.TextBody, Does.Contain("讀取項目、修改項目"));
+            Assert.That(mail.TextBody, Does.Contain("203.0.113.5"));
+            Assert.That(mail.TextBody, Does.Contain("2027/02/23"));
+            Assert.That(mail.TextBody, Does.Contain("https://pm.example.com/account/integrations"));
+            Assert.That(mail.TextBody, Does.Contain("不是你做的話，請到「命令列與整合」撤銷並改密碼"));
+            Assert.That(mail.HtmlBody, Does.Contain("href=\"https://pm.example.com/account/integrations\""));
+            Assert.That(mail.TextBody, Does.Not.Contain("/projects/"));
+        }
+    }
+
+    [Test]
+    public void AccountNotices_TokenWithoutExpiry_SaysItNeverExpires()
+    {
+        // Arrange
+        var notice = Notice(AccountNoticeEvent.AccessTokenCreated) with { Tokens = [new AccountNoticeToken("舊的", ["items:read"], null)] };
+
+        // Act
+        var mail = EmailComposer.AccountNotices(Context(), [AccountRow(notice)]);
+
+        // Assert
+        Assert.That(mail.TextBody, Does.Contain("不會過期"));
+    }
+
+    [Test]
+    public void AccountNotices_CliLogin_NamesTheMachineAndTheTokenCount()
+    {
+        // Arrange
+        var notice = Notice(AccountNoticeEvent.CliLoginTokensIssued) with
+        {
+            Tokens = [new AccountNoticeToken("kumi（MacBook-Pro）", ["items:read"], null), new AccountNoticeToken("本機代理", ["agent:run"], null)],
+            MachineName = "MacBook-Pro",
+            SourceAddress = "198.51.100.9",
+        };
+
+        // Act
+        var mail = EmailComposer.AccountNotices(Context(), [AccountRow(notice)]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.Subject, Is.EqualTo("Kumi：命令列登入了你的帳號"));
+            Assert.That(mail.TextBody, Does.Contain("命令列在「MacBook-Pro」登入，建立了 2 把存取權杖"));
+            Assert.That(mail.TextBody, Does.Contain("198.51.100.9"));
+            Assert.That(mail.TextBody, Does.Contain("本機代理"));
+        }
+    }
+
+    [Test]
+    public void AccountNotices_OAuthAuthorization_NamesTheClientAndScopes()
+    {
+        // Arrange
+        var notice = Notice(AccountNoticeEvent.OauthAppAuthorized) with
+        {
+            Scopes = ["items:read", "blueprint:write"],
+            ClientName = "Claude Code",
+            ClientHost = "client.example.com",
+        };
+
+        // Act
+        var mail = EmailComposer.AccountNotices(Context(), [AccountRow(notice)]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.Subject, Is.EqualTo("Kumi：你的帳號授權了 AI 用戶端"));
+            Assert.That(mail.TextBody, Does.Contain("授權了「Claude Code」連到你的帳號"));
+            Assert.That(mail.TextBody, Does.Contain("讀取項目、修改設定"));
+            Assert.That(mail.TextBody, Does.Contain("client.example.com"));
+        }
+    }
+
+    [Test]
+    public void AccountNotices_ReusedCode_SaysHowManyTokensWereRevoked()
+    {
+        // Arrange
+        var notice = Notice(AccountNoticeEvent.CliLoginCodeReused) with { RevokedTokens = 2, SourceAddress = "203.0.113.5" };
+
+        // Act
+        var mail = EmailComposer.AccountNotices(Context(), [AccountRow(notice)]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.Subject, Is.EqualTo("Kumi：你的登入碼被重複使用"));
+            Assert.That(mail.TextBody, Does.Contain("登入碼被重複使用，已撤銷 2 把存取權杖"));
+        }
+    }
+
+    [Test]
+    public void AccountNotices_Several_ListsEachUnderOneSubjectWithTheCount()
+    {
+        // Act
+        var mail = EmailComposer.AccountNotices(
+            Context(),
+            [AccountRow(Notice(AccountNoticeEvent.CliLoginCodeReused)), AccountRow(Notice(AccountNoticeEvent.OauthAppAuthorized) with { ClientName = "A" })]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.Subject, Is.EqualTo("Kumi：你的帳號有 2 則安全通知"));
+            Assert.That(mail.TextBody, Does.Contain("登入碼被重複使用").And.Contain("授權了「A」"));
+        }
+    }
+
+    [Test]
+    public void AccountNotices_NamesFromUsers_AreEscapedInHtmlAndStayOnOneLineInText()
+    {
+        // Arrange
+        var notice = Notice(AccountNoticeEvent.AccessTokenCreated) with
+        {
+            Tokens = [new AccountNoticeToken("<b>x</b>\r\n第二行", ["items:read"], null)],
+        };
+
+        // Act
+        var mail = EmailComposer.AccountNotices(Context(), [AccountRow(notice)]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.HtmlBody, Does.Not.Contain("<b>x</b>").And.Contain("&lt;b&gt;x&lt;/b&gt;"));
+            Assert.That(mail.TextBody, Does.Contain("<b>x</b> 第二行"));
+            Assert.That(mail.Subject, Does.Not.Contain("\n"));
+        }
+    }
 }
