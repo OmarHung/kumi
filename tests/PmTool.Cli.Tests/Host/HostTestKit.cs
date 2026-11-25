@@ -147,8 +147,9 @@ internal sealed class HostTestKit : IDisposable
         return wire;
     }
 
-    public static HttpResponseMessage CheckInResponse(JsonObject? job = null, string[]? logout = null, bool disabled = false) =>
-        FakeServer.Envelope(HttpStatusCode.OK, new { job = (object?)job, logout = logout ?? [], disabled });
+    public static HttpResponseMessage CheckInResponse(
+        JsonObject? job = null, string[]? logout = null, bool disabled = false, string? rotatedCredential = null) =>
+        FakeServer.Envelope(HttpStatusCode.OK, new { job = (object?)job, logout = logout ?? [], disabled, rotatedCredential });
 
     public static HttpResponseMessage Failure(HttpStatusCode status, string code, string message) => FakeAgentServer.Failure(status, code, message);
 

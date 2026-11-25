@@ -50,13 +50,14 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
 
         return new LaunchPlan(arguments, job.Prompt, new Dictionary<string, string>
         {
-            ["mcp.json"] = McpConfig(job.McpUrl, job.ProjectKey),
+            ["mcp.json"] = McpConfig(job.McpUrl, job.ProjectKey, job.JobId),
             ["system.md"] = job.SystemPrompt,
         });
     }
 
-    /// <summary>專案標頭讓伺服器把這把權杖限在對話的專案（代理的權杖一定要帶）；是字面值，已經驗過格式。權杖不寫進檔案：Claude Code 讀檔時把 ${KUMI_MCP_TOKEN} 換成環境變數的值。</summary>
-    private static string McpConfig(string url, string projectKey) => JsonSerializer.Serialize(new
+    /// <summary>
+    /// 專案標頭讓伺服器把這把權杖限在對話的專案（代理的權杖一定要帶）；工作標頭讓伺服器計這件工作的工具額度。都是字面值（專案代號已經驗過格式、工作編號是 GUID）。權杖不寫進檔案：Claude Code 讀檔時把 ${KUMI_MCP_TOKEN} 換成環境變數的值。</summary>
+    private static string McpConfig(string url, string projectKey, Guid jobId) => JsonSerializer.Serialize(new
     {
         mcpServers = new
         {
@@ -64,7 +65,7 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
             {
                 type = "http",
                 url,
-                headers = new Dictionary<string, string> { ["Authorization"] = "Bearer ${" + TokenVariable + "}", ["X-Kumi-Project"] = projectKey },
+                headers = new Dictionary<string, string> { ["Authorization"] = "Bearer ${" + TokenVariable + "}", ["X-Kumi-Project"] = projectKey, ["X-Kumi-Job"] = jobId.ToString() },
             },
         },
     });

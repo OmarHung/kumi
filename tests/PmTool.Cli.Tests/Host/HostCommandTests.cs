@@ -185,7 +185,7 @@ public sealed class HostCommandTests
     {
         // Arrange
         _kit.InstallFakeClaude(HostTestKit.LoggedOutAuth, afterLogin: HostTestKit.ApiAuth);
-        _kit.Pair();
+        var paired = _kit.Pair();
         _cli.Server.On("POST", "/v1/host-agent/logins/claim", new { loginId = LoginId, engine = "claude_code", expiresAt = DateTimeOffset.UtcNow.AddMinutes(10) });
         _cli.Server.On("POST", $"/v1/host-agent/logins/{LoginId}/complete", new { loginId = LoginId, engine = "claude_code" });
         _cli.StandardInput = LoginCode;
@@ -200,6 +200,8 @@ public sealed class HostCommandTests
             Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
             Assert.That(_cli.Server.To("POST", "/v1/host-agent/logins/claim").Single().Json!["code"]!.GetValue<string>(), Is.EqualTo(LoginCode));
             Assert.That(report.Authorization, Is.EqualTo($"Bearer {HostTestKit.Credential}"));
+            Assert.That(report.Header("X-Kumi-Machine"), Is.EqualTo(paired.MachineKey), "領登入碼與回報都帶機器編號");
+            Assert.That(_cli.Server.To("POST", "/v1/host-agent/logins/claim").Single().Header("X-Kumi-Machine"), Is.EqualTo(paired.MachineKey));
             Assert.That(report.Json!["loggedIn"]!.GetValue<bool>(), Is.True);
             Assert.That(report.Json!["billing"]!.GetValue<string>(), Is.EqualTo("api"));
             Assert.That(_kit.Scripts.Read("login-args"), Does.Contain("--console"));

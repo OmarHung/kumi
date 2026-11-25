@@ -122,11 +122,146 @@ public sealed class HostServiceTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
-            Assert.That(result.Error, Does.Contain("機器憑證失效，請組織擁有者在網頁重新配對"));
+            Assert.That(result.Error, Does.Contain("停用").And.Contain("過期").And.Contain("重新配對"));
             Assert.That(_kit.CheckIns[0].Authorization, Is.EqualTo($"Bearer {HostTestKit.Credential}"));
             Assert.That(_kit.CheckIns[1].Authorization, Is.EqualTo("Bearer kha_a_brand_new_credential"), "換了憑證馬上用新的，不必等 5 分鐘");
             Assert.That(_cli.Server.Requests, Has.Count.EqualTo(2), "失效期間不一直打伺服器");
         }
+    }
+
+    [Test]
+    public async Task Run_WhenTheServerKeepsAnswering401_RetriesWithTheSameCredentialAndDoesNotExit()
+    {
+        // Arrange：停用、過期、機器編號對不上，伺服器一律 401；重新啟用之後同一把憑證自己接上。
+        _cli.HostOptions = new HostOptions { InvalidCredentialRetry = TimeSpan.Zero };
+        _kit.InstallFakeClaude();
+        _kit.Pair();
+        OnCheckIn(null, special: call =>
+        {
+            if (call >= 4)
+            {
+                _cli.Interrupt!();
+            }
+
+            return call < 3 ? HostTestKit.Failure(HttpStatusCode.Unauthorized, "auth.required", "x") : HostTestKit.CheckInResponse();
+        });
+
+        // Act
+        var result = await _cli.RunAsync("host", "run");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(_kit.CheckIns, Has.Count.GreaterThanOrEqualTo(4));
+            Assert.That(_kit.CheckIns.Select(request => request.Authorization), Is.All.EqualTo($"Bearer {HostTestKit.Credential}"));
+            Assert.That(result.Error.Split("停用").Length - 1, Is.EqualTo(2), "每次 401 印一句");
+        }
+    }
+
+    [Test]
+    public async Task Run_AfterAnUnauthorizedAnswer_DoesNotAskAgainBeforeTheRetryInterval()
+    {
+        // Arrange
+        _kit.InstallFakeClaude();
+        _kit.Pair();
+        OnCheckIn(null, special: _ => HostTestKit.Failure(HttpStatusCode.Unauthorized, "auth.required", "x"));
+        var waits = 0;
+        _kit.OnWait = _ =>
+        {
+            if (Interlocked.Increment(ref waits) == 3)
+            {
+                _cli.Interrupt!();
+            }
+        };
+
+        // Act
+        await _cli.RunAsync("host", "run");
+
+        // Assert
+        Assert.That(new HostOptions().InvalidCredentialRetry, Is.EqualTo(TimeSpan.FromSeconds(60)));
+        Assert.That(_kit.CheckIns, Has.Count.EqualTo(1), "一分鐘內不再問");
+    }
+
+    [Test]
+    public async Task CheckIn_SendsTheMachineKeyAndTheComputerName()
+    {
+        // Arrange
+        _kit.InstallFakeClaude();
+        var paired = _kit.Pair();
+        OnCheckIn(null, inspect: _ => _cli.Interrupt!());
+
+        // Act
+        var result = await _cli.RunAsync("host", "run");
+
+        // Assert
+        var body = _kit.CheckIns[0].Json!;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(body["machineKey"]!.GetValue<string>(), Is.EqualTo(paired.MachineKey));
+            Assert.That(body["machineName"]!.GetValue<string>(), Is.Not.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Run_WhenTheServerHandsOverANewCredential_StoresItSafelyAndUsesItFromTheNextCheckIn()
+    {
+        // Arrange
+        const string next = "kha_rotated_machine_credential_value";
+        _kit.InstallFakeClaude();
+        _kit.Pair();
+        OnCheckIn(null, special: call =>
+        {
+            if (call == 2)
+            {
+                _cli.Interrupt!();
+            }
+
+            return HostTestKit.CheckInResponse(rotatedCredential: call == 1 ? next : null);
+        });
+
+        // Act
+        var result = await _cli.RunAsync("host", "run");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(_kit.CheckIns[0].Authorization, Is.EqualTo($"Bearer {HostTestKit.Credential}"));
+            Assert.That(_kit.CheckIns[1].Authorization, Is.EqualTo($"Bearer {next}"));
+            Assert.That(_kit.Store.Load().Credential, Is.EqualTo(next));
+            Assert.That(
+                OperatingSystem.IsWindows() || File.GetUnixFileMode(_kit.Store.Path) == (UnixFileMode.UserRead | UnixFileMode.UserWrite), Is.True,
+                "狀態檔只有自己讀寫");
+            Assert.That(result.Error + result.Out, Does.Not.Contain(next));
+            Assert.That(Directory.GetFiles(_kit.StateDirectory), Has.Length.EqualTo(1), "暫存檔不留");
+        }
+    }
+
+    [Test]
+    public async Task Run_WhenTheCredentialWasReplacedMeanwhile_DoesNotOverwriteItWithTheRotatedOne()
+    {
+        // Arrange：擁有者剛重新配對，狀態檔已經是別把憑證；舊憑證換來的新憑證不能蓋掉它。
+        _kit.InstallFakeClaude();
+        _kit.Pair();
+        OnCheckIn(null, special: call =>
+        {
+            if (call == 1)
+            {
+                _kit.Store.Update(state => state with { Credential = "kha_freshly_paired_credential" });
+                return HostTestKit.CheckInResponse(rotatedCredential: "kha_rotated_from_the_old_one");
+            }
+
+            _cli.Interrupt!();
+            return HostTestKit.CheckInResponse();
+        });
+
+        // Act
+        await _cli.RunAsync("host", "run");
+
+        // Assert
+        Assert.That(_kit.Store.Load().Credential, Is.EqualTo("kha_freshly_paired_credential"));
     }
 
     [Test]
@@ -239,7 +374,7 @@ public sealed class HostServiceTests
     {
         // Arrange
         _kit.InstallFakeClaude();
-        _kit.Pair(loginId: LoginId);
+        var paired = _kit.Pair(loginId: LoginId);
         var jobId = Guid.NewGuid();
         OnCheckIn(HostTestKit.HostJobWire(jobId, lease: 7));
         OnEventsAckEverything();
@@ -270,6 +405,10 @@ public sealed class HostServiceTests
                 Is.All.EqualTo($"Bearer {HostTestKit.Credential}"), "回報用機器憑證，不是工具授權");
             Assert.That(result.Out + result.Error, Does.Not.Contain(HostTestKit.ToolToken).And.Not.Contain(HostTestKit.Credential));
             Assert.That(result.Out, Does.Contain("DEMO").And.Contain("完成"));
+            Assert.That(
+                _cli.Server.To("POST", "/v1/host-agent/check-in").Concat(_cli.Server.To("POST", EventsPath(jobId))).Concat(_cli.Server.To("POST", FinishPath(jobId))),
+                Is.Not.Empty.And.All.Matches<RecordedRequest>(request => request.Header("X-Kumi-Machine") == paired.MachineKey),
+                "登記、回報、結束的每個請求都帶機器編號");
         }
     }
 

@@ -7,6 +7,7 @@ public sealed class EngineSpecTests
 {
     private const string Server = "https://pm.example.com";
     private const string WorkDirectory = "/tmp/kumi-agent-work";
+    private static readonly Guid JobId = Guid.Parse("3f0c6a52-8a53-4a53-9d2e-0a7f4a1f9c11");
 
     private static string[] Args(LaunchPlan plan) => [.. plan.Arguments];
 
@@ -55,10 +56,11 @@ public sealed class EngineSpecTests
     public void Claude_McpConfig_ReferencesTheTokenVariableInsteadOfEmbeddingIt()
     {
         // Act
-        var config = new ClaudeCodeSpec().Plan(TestJobs.Make(), WorkDirectory).Files["mcp.json"];
+        var job = TestJobs.Make(id: JobId);
+        var config = new ClaudeCodeSpec().Plan(job, WorkDirectory).Files["mcp.json"];
 
         // Assert
-        Assert.That(config, Is.EqualTo("""{"mcpServers":{"kumi":{"type":"http","url":"https://pm.example.com/mcp","headers":{"Authorization":"Bearer ${KUMI_MCP_TOKEN}","X-Kumi-Project":"DEMO"}}}}"""));
+        Assert.That(config, Is.EqualTo("""{"mcpServers":{"kumi":{"type":"http","url":"https://pm.example.com/mcp","headers":{"Authorization":"Bearer ${KUMI_MCP_TOKEN}","X-Kumi-Project":"DEMO","X-Kumi-Job":"3f0c6a52-8a53-4a53-9d2e-0a7f4a1f9c11"}}}}"""));
     }
 
     [Test]
@@ -80,7 +82,7 @@ public sealed class EngineSpecTests
         var spec = new CodexSpec(["shell_tool", "view_image"]);
 
         // Act
-        var plan = spec.Plan(TestJobs.Make(EngineKinds.Codex), WorkDirectory);
+        var plan = spec.Plan(TestJobs.Make(EngineKinds.Codex, id: JobId), WorkDirectory);
 
         // Assert
         var args = Args(plan);
@@ -93,7 +95,7 @@ public sealed class EngineSpecTests
             Assert.That(configs, Does.Contain("agents.enabled=false").And.Contain("web_search=\"disabled\"").And.Contain("project_doc_max_bytes=0")
                 .And.Contain("mcp_servers.kumi.url=\"https://pm.example.com/mcp\"")
                 .And.Contain("mcp_servers.kumi.bearer_token_env_var=\"KUMI_MCP_TOKEN\"")
-                .And.Contain("mcp_servers.kumi.http_headers={ \"X-Kumi-Project\" = \"DEMO\" }")
+                .And.Contain("mcp_servers.kumi.http_headers={ \"X-Kumi-Project\" = \"DEMO\", \"X-Kumi-Job\" = \"3f0c6a52-8a53-4a53-9d2e-0a7f4a1f9c11\" }")
                 .And.Contain("mcp_servers.kumi.required=true")
                 .And.Contain("mcp_servers.kumi.enabled_tools=[\"get_blueprint\",\"propose_changeset\"]")
                 .And.Contain("mcp_servers.kumi.default_tools_approval_mode=\"auto\""));

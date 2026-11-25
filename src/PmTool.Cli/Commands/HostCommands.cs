@@ -106,7 +106,10 @@ internal static class HostCommands
         Credentials.EnsureTransportAllowed(context, call.Arguments, state.Server!);
 
         var code = ReadCode(call, "請輸入登入碼：");
-        var api = new ApiClient(context.Http, state.Server!, state.Credential!);
+        var api = new ApiClient(context.Http, state.Server!, state.Credential!)
+        {
+            ExtraHeaders = HostMachineHeader.For(state.MachineKey ?? store.EnsureMachineKey()),
+        };
         var login = new HostLogin(store, api, new HostEngineProbe(context.GetEnvironmentVariable, context.AgentOptions), context.GetEnvironmentVariable, call.Error);
         await login.RunAsync(kind, code, call.CancellationToken);
         await call.Out.WriteLineAsync($"{EngineKinds.DisplayName(kind)} 登入完成，已經授權給 Kumi。服務會在一分鐘內回報。");

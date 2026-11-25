@@ -56,7 +56,7 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
         }
 
         arguments.AddRange(["-c", $"mcp_servers.kumi.url={Toml(job.McpUrl)}"]);
-        arguments.AddRange(["-c", $"mcp_servers.kumi.http_headers={{ \"X-Kumi-Project\" = {Toml(job.ProjectKey)} }}"]);
+        arguments.AddRange(["-c", $"mcp_servers.kumi.http_headers={{ \"X-Kumi-Project\" = {Toml(job.ProjectKey)}, \"X-Kumi-Job\" = {Toml(job.JobId.ToString())} }}"]);
         arguments.AddRange(["-c", $"mcp_servers.kumi.enabled_tools=[{string.Join(',', job.AllowedTools.Select(Toml))}]"]);
         if (job.Model != EngineModel.DefaultId)
         {

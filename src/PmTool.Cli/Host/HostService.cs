@@ -38,6 +38,7 @@ internal sealed class HostService(
     private string _loginSignature = string.Empty;
     private string? _checkedServer;
     private string? _announcedCredential;
+    private string? _pendingCredential;
 
     public async Task RunAsync(CancellationToken stop)
     {
@@ -94,7 +95,10 @@ internal sealed class HostService(
             return new StepResult(failures, hostOptions.StateRecheck);
         }
 
-        var api = new ApiClient(http, state.Server!, state.Credential!);
+        var api = new ApiClient(http, state.Server!, state.Credential!)
+        {
+            ExtraHeaders = HostMachineHeader.For(state.MachineKey ?? store.EnsureMachineKey()),
+        };
         var capacity = Math.Max(0, hostOptions.MaxConcurrentJobs - running.Count);
         try
         {
@@ -114,6 +118,7 @@ internal sealed class HostService(
             _rejectedCredential = null;
             Announce(state);
             var disabled = await HandleResponseAsync(response, api, state, running, stop);
+            AdoptRotatedCredential(state, running);
             return disabled ? new StepResult(0, hostOptions.DisabledCheckIn) : new StepResult(0, Idle: capacity);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
@@ -124,7 +129,7 @@ internal sealed class HostService(
         {
             _rejectedCredential = state.Credential;
             _retryAt = now() + hostOptions.InvalidCredentialRetry;
-            console.Notice("機器憑證失效，請組織擁有者在網頁重新配對。");
+            console.Notice($"伺服器不認這把機器憑證：這台主機代理被停用、憑證過期，或需要重新配對。請組織擁有者到網頁確認（必要時重新配對）；{hostOptions.InvalidCredentialRetry.TotalSeconds:0} 秒後再試。");
             return new StepResult(failures, hostOptions.StateRecheck);
         }
         catch (CliException exception) when (exception.Code == ApiClient.RedirectCode)
@@ -163,6 +168,9 @@ internal sealed class HostService(
             ["agentVersion"] = agentVersion,
             ["serverUrl"] = state.Server,
             ["capacity"] = capacity,
+            // 伺服器用機器編號認得這台電腦：憑證被拿到別台用時，這裡的編號對不上，伺服器會拒絕並警告擁有者。
+            ["machineKey"] = state.MachineKey ?? store.EnsureMachineKey(),
+            ["machineName"] = MachineIdentity.ResolveName(null),
             ["engines"] = new JsonArray([.. _probes.Select(engine => (JsonNode?)engine.ToReport(LoginIdOf(state, engine)))]),
         };
         return await api.PostAsync("host-agent/check-in", body, cancellation);
@@ -190,6 +198,11 @@ internal sealed class HostService(
         }
 
         _disabledNoticed = disabled;
+        if (response.Text("rotatedCredential") is { Length: > 0 } rotated)
+        {
+            _pendingCredential = rotated;
+        }
+
         foreach (var kind in response.List("logout").Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString()!))
         {
             if (AllKinds.Contains(kind))
@@ -204,6 +217,30 @@ internal sealed class HostService(
         }
 
         return disabled;
+    }
+
+    /// <summary>
+    /// 伺服器發了新的機器憑證（快到期）：沒有工作在跑的時候才存下來換掉。伺服器在新的一把第一次被用到時讓舊的作廢，
+    /// 而跑到一半的工作還拿著舊的回報，太早換會讓它們被拒絕。存的時候只換掉「發新憑證時的那一把」：
+    /// 這中間擁有者重新配對、狀態檔已經是別把了，就不蓋掉。寫入失敗只提醒，下一次登記伺服器會再發一把。
+    /// </summary>
+    private void AdoptRotatedCredential(HostState state, List<RunningJob> running)
+    {
+        if (_pendingCredential is not { } next || running.Any(job => !job.Task.IsCompleted))
+        {
+            return;
+        }
+
+        _pendingCredential = null;
+        try
+        {
+            store.Update(current => current.Credential == state.Credential ? current with { Credential = next } : current);
+            console.Notice("機器憑證快到期，已換成伺服器新發的一把。");
+        }
+        catch (CliException exception)
+        {
+            console.Notice($"存不下新的機器憑證：{exception.Message}");
+        }
     }
 
     /// <summary>擁有者在網頁登出：執行 CLI 的登出、清掉存的登入編號，之後的登記就報成沒登入。</summary>

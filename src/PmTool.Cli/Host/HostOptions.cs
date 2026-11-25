@@ -9,8 +9,11 @@ internal sealed record HostOptions
     /// <summary>還沒配對時，多久看一次狀態檔。</summary>
     public TimeSpan PairingPoll { get; init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>機器憑證失效（401）之後多久再試一次。</summary>
-    public TimeSpan InvalidCredentialRetry { get; init; } = TimeSpan.FromMinutes(5);
+    /// <summary>
+    /// 伺服器回 401（代理被停用、憑證過期、機器編號對不上，或配對的人不再是擁有者）之後多久再試一次。
+    /// 停用之後重新啟用，同一把憑證自己就接上，所以不能只等人換憑證。
+    /// </summary>
+    public TimeSpan InvalidCredentialRetry { get; init; } = TimeSpan.FromSeconds(60);
 
     /// <summary>憑證失效的等待期間，多久看一次狀態檔有沒有換成新的憑證。</summary>
     public TimeSpan StateRecheck { get; init; } = TimeSpan.FromSeconds(30);

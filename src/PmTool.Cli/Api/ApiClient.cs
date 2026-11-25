@@ -27,12 +27,17 @@ internal sealed class ApiClient(HttpClient http, string server, string token)
     /// <summary>一般回應最大讀多少：伺服器出錯或被代理換掉時，不能被一個無限大的回應塞爆記憶體。</summary>
     internal const int MaxResponseBytes = 4 * 1024 * 1024;
 
+    private static readonly IReadOnlyDictionary<string, string> EmptyHeaders = new Dictionary<string, string>();
+
     private static readonly TimeSpan DefaultRetryAfter = TimeSpan.FromSeconds(1);
 
     /// <summary>伺服器說要等更久時最多等一分鐘（時間窗就是一分鐘），再問一次。</summary>
     private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(60);
 
     public string Server { get; } = server;
+
+    /// <summary>每個請求都要多帶的標頭（主機 worker 的機器編號 <c>X-Kumi-Machine</c>）；null 是沒有。</summary>
+    internal IReadOnlyDictionary<string, string>? ExtraHeaders { get; init; }
 
     /// <summary>一般請求的時限；可以換掉，測試才不必真的等 100 秒。</summary>
     internal TimeSpan RequestTimeout { get; init; } = HttpSettings.Timeout;
@@ -206,6 +211,10 @@ internal sealed class ApiClient(HttpClient http, string server, string token)
 
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.UserAgent.ParseAdd("kumi-cli");
+        foreach (var (name, value) in ExtraHeaders ?? EmptyHeaders)
+        {
+            request.Headers.TryAddWithoutValidation(name, value);
+        }
 
         try
         {
