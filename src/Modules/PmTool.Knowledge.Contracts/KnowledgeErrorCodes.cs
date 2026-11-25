@@ -77,7 +77,10 @@ public static class KnowledgeErrorCodes
     /// </summary>
     public const string PagePositionInvalid = "knowledge.page_position_invalid";
 
-    /// <summary>底下有呼叫者看不到的頁面（409）：不能刪除，免得刪掉自己看不到的內容。</summary>
+    /// <summary>
+    /// 底下有呼叫者看不到的頁面（409）：不能刪除（免得刪掉自己看不到的內容）、搬移或改限制（會改變那些頁面誰看得到）。
+    /// 刪除只算還沒刪的頁面；搬移與改限制連垃圾桶裡的後代也算，因為垃圾桶裡的頁面沿現在的上層算誰看得到、復原後繼承什麼。
+    /// </summary>
     public const string PageHasHiddenDescendants = "knowledge.page_has_hidden_descendants";
 
     /// <summary>細項（422，路徑 people 或 people[i]）：人數超過 <see cref="KnowledgeRules.MaxRestrictedPeople"/>，或那個人不在組織裡。</summary>

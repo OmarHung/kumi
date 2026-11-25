@@ -45,7 +45,7 @@ public interface IKnowledgePageService
     /// <summary>
     /// 搬到別的位置（同一個空間裡），連同底下的頁面。新的上層不能是自己或自己底下的（<see cref="KnowledgeErrorCodes.PagePositionInvalid"/>），
     /// 其他位置的規則同新增；搬了之後最深的子頁面超過 <see cref="KnowledgeRules.MaxDepth"/> 層是 <see cref="KnowledgeErrorCodes.PageTooDeep"/>。
-    /// 底下有看不到的頁面照樣可以搬（它們自己的限制還在，見交接 4.4）。搬到原本的位置什麼都不做。revision 不變。回傳搬完的樹。
+    /// 底下有呼叫者看不到的頁面（垃圾桶裡的也算）是 <see cref="KnowledgeErrorCodes.PageHasHiddenDescendants"/>，什麼都不搬（搬出去會改變那些頁面誰看得到）；組織管理員不受限。搬到原本的位置什麼都不做。revision 不變。回傳搬完的樹。
     /// </summary>
     Task<Result<PageTree>> MoveAsync(Actor actor, string spaceKey, int pageNumber, PageMove move, CancellationToken cancellationToken);
 
@@ -59,6 +59,7 @@ public interface IKnowledgePageService
     /// 把這一頁所在的那一批從垃圾桶拿回來，回傳這一頁。放回原本的上層的最後面；原本的上層不在了（在垃圾桶裡）就放到最上層的最後面。
     /// 頁面不在垃圾桶裡時直接回傳它（重送不會失敗）。拿回來會超過 <see cref="KnowledgeRules.MaxPagesPerSpace"/> 是 <see cref="KnowledgeErrorCodes.PageLimitReached"/>。
     /// 看不到這一頁（照原本的位置算）是 NotFound。
+    /// 放不回原本的上層時，原本上層鏈上不再是祖先的那幾層的限制，取交集變成這一頁自己的限制（交集是空的只留執行的人），復原不會讓更多人看到。
     /// </summary>
     Task<Result<PageDetail>> RestoreAsync(Actor actor, string spaceKey, int pageNumber, CancellationToken cancellationToken);
 
@@ -70,6 +71,7 @@ public interface IKnowledgePageService
 
     /// <summary>
     /// 設定這一頁自己的限制（整份取代）。null 或空的是拿掉。有名單時一定包含設定的人（沒列也自動加在最前面），重複的去掉；
+    /// 底下有呼叫者看不到的頁面（垃圾桶裡的也算，它們沿現在的上層算誰看得到）是 <see cref="KnowledgeErrorCodes.PageHasHiddenDescendants"/>，什麼都不改（組織管理員不受限）。
     /// 人數（含自動加的）超過 <see cref="KnowledgeRules.MaxRestrictedPeople"/>、或有人不在這個組織，是 422 <see cref="KnowledgeErrorCodes.RestrictionInvalid"/>
     /// （路徑 people 或 people[i]）。名單上的人還要看得到空間才真的看得到（不另外檢查）。和現在一樣時什麼都不做。revision 不變。
     /// </summary>

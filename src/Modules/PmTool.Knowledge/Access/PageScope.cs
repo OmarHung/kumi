@@ -80,6 +80,45 @@ internal sealed class PageScope
         return new PageScope(pages, [.. listed], actor.IsOrganizationAdmin);
     }
 
+    /// <summary>
+    /// 在這一份（只有活的頁面）之上，補讀 <paramref name="root"/> 底下垃圾桶裡的頁面：沿 <c>parent_id</c> 一層一層往下查，
+    /// 不在已刪除的頁面停下。只讀這一棵子樹，不把整個垃圾桶讀進來（垃圾桶沒有上限）。
+    /// 垃圾桶裡的頁面誰看得到、復原後繼承什麼，都是沿現在的 <c>parent_id</c> 算的，所以改上層的操作要先算它們。
+    /// </summary>
+    public async Task<PageScope> WithTrashBelowAsync(
+        KnowledgeDbContext db, Actor actor, Guid spaceId, PageInfo root, CancellationToken cancellationToken)
+    {
+        var pages = _byId.Values.ToDictionary(p => p.Id);
+        var added = new List<Guid>();
+        var frontier = new List<Guid> { root.Id };
+        while (frontier.Count > 0)
+        {
+            var parents = frontier;
+            var children = await db.Pages.AsNoTracking()
+                .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == spaceId && p.ParentId != null && parents.Contains(p.ParentId.Value))
+                .Select(p => new PageInfo(
+                    p.Id, p.Number, p.ParentId, p.Position, p.Title, p.IsRestricted, p.UpdatedAt, p.UpdatedBy, p.DeletedAt, p.DeletedBy, p.DeletionId))
+                .ToListAsync(cancellationToken);
+            foreach (var child in children.Where(c => pages.TryAdd(c.Id, c)))
+            {
+                added.Add(child.Id);
+            }
+
+            frontier = [.. children.Select(c => c.Id)];
+        }
+
+        var listed = new HashSet<Guid>(_listedRestrictedPages);
+        if (added.Count > 0)
+        {
+            listed.UnionWith(await db.PageRestrictions.AsNoTracking()
+                .Where(r => r.OrganizationId == actor.OrganizationId && r.PersonId == actor.PersonId && added.Contains(r.PageId))
+                .Select(r => r.PageId)
+                .ToListAsync(cancellationToken));
+        }
+
+        return new PageScope([.. pages.Values], listed, _isAdmin);
+    }
+
     /// <summary>依編號找頁面（含垃圾桶裡的）；不存在或呼叫者看不到都是 null。</summary>
     public PageInfo? FindVisible(int number) => _byNumber.TryGetValue(number, out var page) && CanSee(page) ? page : null;
 
@@ -103,7 +142,8 @@ internal sealed class PageScope
 
         while (path.TryPop(out var next))
         {
-            var parentVisible = next.ParentId is not { } parentId || _visible.GetValueOrDefault(parentId, true);
+            // 找不到上層的資料不一致：寧可看不到，也不要因為缺一層就放寬。上層一定先算過，所以正常的樹不會走到預設值。
+            var parentVisible = next.ParentId is not { } parentId || _visible.GetValueOrDefault(parentId, false);
             _visible[next.Id] = parentVisible && (!next.IsRestricted || _listedRestrictedPages.Contains(next.Id));
         }
 
@@ -175,6 +215,35 @@ internal sealed class PageScope
 
     /// <summary>底下有沒有呼叫者看不到的、還沒刪的頁面。有的話不能刪（免得刪掉自己看不到的內容）。</summary>
     public bool HasHiddenDescendants(PageInfo page) => !_isAdmin && LiveDescendantsOf(page).Any(p => !CanSee(p));
+
+    /// <summary>
+    /// 底下有沒有呼叫者看不到的頁面，垃圾桶裡的也算（要用 <see cref="WithTrashBelowAsync"/> 補讀過的範圍）。
+    /// 搬移與改限制用它：這兩個操作會改變整棵子樹的上層鏈，垃圾桶裡的頁面也跟著變。
+    /// </summary>
+    public bool HasHiddenDescendantsIncludingTrash(PageInfo page)
+    {
+        if (_isAdmin)
+        {
+            return false;
+        }
+
+        var pending = new Stack<PageInfo>();
+        pending.Push(page);
+        while (pending.TryPop(out var current))
+        {
+            foreach (var child in _children[current.Id])
+            {
+                if (!CanSee(child))
+                {
+                    return true;
+                }
+
+                pending.Push(child);
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// 看得到的、還沒刪的頁面，先序：上層在它的子頁面前面，同一層依位置。看得到的頁面它的上層一定看得到，所以一定接得成一棵樹。

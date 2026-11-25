@@ -21,6 +21,11 @@ internal sealed partial class KnowledgePageService
 
         await using var transaction = opened.Value.Transaction;
         var target = opened.Value.Target;
+        if (await HasHiddenPagesBelowAsync(db, actor, target, cancellationToken))
+        {
+            return HiddenDescendantsConflict("搬移");
+        }
+
         var plan = PlanMove(target, move);
         if (plan.Failure is { } misplaced)
         {
@@ -62,8 +67,7 @@ internal sealed partial class KnowledgePageService
         var (space, scope, page) = opened.Value.Target;
         if (scope.HasHiddenDescendants(page))
         {
-            return KnowledgeFailures.Conflict(
-                KnowledgeErrorCodes.PageHasHiddenDescendants, "底下有你看不到的頁面，不能刪除。請找看得到它們的人處理。");
+            return HiddenDescendantsConflict("刪除");
         }
 
         // 之前就刪了的子頁面保留自己那一批（它們不在 LiveDescendantsOf 裡）。
@@ -127,13 +131,41 @@ internal sealed partial class KnowledgePageService
         return await BuildDetailAsync(db, new PageTarget(space, reloaded, reloaded.FindVisible(pageNumber)!), cancellationToken);
     }
 
-    /// <summary>拿回整批：清掉刪除的標記，最上面那一頁放到新的上層的最後面，整層重新編號。</summary>
+    /// <summary>
+    /// 底下有呼叫者看不到的頁面時，刪除、搬移、改限制都不能做：這些操作會改變那些頁面誰看得到、或把它們一起帶走。
+    /// 搬移與改限制會改變子樹的上層鏈，垃圾桶裡的頁面照樣沿現在的上層算誰看得到、復原後繼承什麼，所以也要算進去
+    /// （只讀這一棵子樹的垃圾桶）；刪除不改任何上層鏈，只看還沒刪的。已經在鎖裡，檢查與寫入之間沒有空窗。
+    /// </summary>
+    private static async Task<bool> HasHiddenPagesBelowAsync(
+        KnowledgeDbContext db, Actor actor, PageTarget target, CancellationToken cancellationToken)
+    {
+        if (actor.IsOrganizationAdmin)
+        {
+            return false;
+        }
+
+        var deep = await target.Scope.WithTrashBelowAsync(db, actor, target.Space.Space.Id, target.Page, cancellationToken);
+        return deep.HasHiddenDescendantsIncludingTrash(target.Page);
+    }
+
+    /// <summary>
+    /// 底下有呼叫者看不到的頁面時，刪除、搬移、改限制都不能做（回同一個 409）。
+    /// </summary>
+    private static Failure HiddenDescendantsConflict(string action) =>
+        KnowledgeFailures.Conflict(
+            KnowledgeErrorCodes.PageHasHiddenDescendants, $"底下有你看不到的頁面，不能{action}。請找看得到它們的人處理。");
+
+    /// <summary>
+    /// 拿回整批：清掉刪除的標記，最上面那一頁放到新的上層的最後面，整層重新編號。
+    /// 原本的上層鏈有限制、而放回去之後它們不再是祖先時，把那些限制變成最上面那一頁自己的。
+    /// </summary>
     private static async Task RestoreBatchAsync(
         KnowledgeDbContext db, Actor actor, Guid spaceId, PageScope scope, IReadOnlyList<PageInfo> batch, CancellationToken cancellationToken)
     {
         var top = PageScope.TopOfBatch(batch)!;
         var newParent = RestoreParent(scope, top, batch);
         var siblings = scope.LiveChildren(newParent?.Id);
+        var inherited = await RestoredRestriction.ComputeAsync(db, actor, scope, top, newParent, cancellationToken);
         var ids = batch.Select(p => p.Id).ToArray();
         await db.Pages.Where(p => p.OrganizationId == actor.OrganizationId && ids.Contains(p.Id))
             .ExecuteUpdateAsync(
@@ -146,6 +178,11 @@ internal sealed partial class KnowledgePageService
         {
             await db.Pages.Where(p => p.OrganizationId == actor.OrganizationId && p.Id == top.Id)
                 .ExecuteUpdateAsync(set => set.SetProperty(p => p.ParentId, newParentId), cancellationToken);
+        }
+
+        if (inherited is not null)
+        {
+            await RestoredRestriction.WriteAsync(db, actor.OrganizationId, top.Id, inherited, cancellationToken);
         }
 
         await PageOrder.RenumberAsync(

@@ -27,6 +27,11 @@ internal sealed partial class KnowledgePageService
 
         await using var transaction = opened.Value.Transaction;
         var target = opened.Value.Target;
+        if (await HasHiddenPagesBelowAsync(db, actor, target, cancellationToken))
+        {
+            return HiddenDescendantsConflict("改限制");
+        }
+
         var wanted = await CheckRestrictionAsync(actor, people, cancellationToken);
         if (wanted.Failure is { } invalid)
         {
