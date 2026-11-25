@@ -163,6 +163,7 @@ start_api() {
   # 連線字串裡有密碼，一樣在子 shell 裡用「-e 名稱」帶進去。
   # 兩個連線都用演練資料庫的超級使用者、不設 Database__RuntimeRole：演練的資料庫沒有 pmtool_app，也不需要。
   # 不設第一個擁有者（Bootstrap:*）：備份裡已經有帳號，用原本的帳號登入。
+  # 還原出來的資料裡有寄信設定，背景的寄信工作會照著寄：演練的 api 一律把它關掉。
   # 記錄格式與工作階段的金鑰都不用設：JSON 記錄是正式環境的預設，金鑰存在（演練的）資料庫裡。
   (
     export ConnectionStrings__Database="Host=${DRILL_DB};Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DRILL_DB_PASSWORD}"
@@ -173,6 +174,7 @@ start_api() {
       -e ConnectionStrings__Database \
       -e ConnectionStrings__Migrations \
       -e Database__MigrateOnStartup=true \
+      -e Notifications__Email__Worker__Enabled=false \
       -e Attachments__Provider=local \
       -e Attachments__Directory=/data/attachments \
       -v "$(drill_attachments_dir):/data/attachments" \

@@ -186,6 +186,7 @@ bash scripts/ops/restore-drill.sh --with-api
 ```
 
 - 開 <http://127.0.0.1:8081>，用原本的帳號登入。只看，不要改：演練的資料用完就丟。
+- 演練環境不會寄信（背景的寄信工作是關著的）。但它裡面有和正式環境相同的寄信設定與 AI 連線設定：用完就 `--down`，不要對外開放。
 - **用 `127.0.0.1`，不要用 `localhost`。** Cookie 不分連接埠，用 `localhost:8081` 登入會把 `localhost:8080` 的登入蓋掉。
 - **附件**：演練的 api 用自己的一份附件資料夾，放在暫存目錄（`$TMPDIR/<專案>-drill-attachments`，macOS 是 `/var/folders/…`），從備份目錄的 `attachments/` 複製來；演練的 api 的 `Attachments__Directory` 指到它，不碰正在用的那個資料夾。可以在演練的網頁上打開附件，確認備份裡的檔案真的讀得到。`--down` 時一起刪掉。
 - 它用 `deploy-local.sh` 建好的 API 映像檔（`pm-tool-api`）。找不到時會叫你先建置。

@@ -1,0 +1,18 @@
+#!/bin/bash
+# 提交前跑掃描：命中機密或內部資訊的樣式就擋下提交（掃描本身出錯也擋下）。
+# 只掃暫存區的內容：掃的就是會進這次提交的那一份，工作目錄裡尚未暫存的修改不影響結果。
+# 安裝：ln -s ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+# 掃描的輸出只在失敗時顯示；真的要略過一次（確定是假值）請先加進 scripts/precommit-scan-allowlist.txt。
+# 結束代碼：1 是有命中、2 是掃描本身出錯，兩種都擋下提交。
+root="$(git rev-parse --show-toplevel)" || exit 1
+out="$(bash "$root/scripts/precommit-scan.sh" --staged 2>&1)"
+status=$?
+if [ "$status" -ne 0 ]; then
+  printf '%s\n' "$out" >&2
+  if [ "$status" -eq 2 ]; then
+    echo "提交被擋下：掃描本身出錯，結果不可信。" >&2
+  else
+    echo "提交被擋下：掃描命中了上面的樣式。" >&2
+  fi
+  exit "$status"
+fi

@@ -10,11 +10,54 @@ on:
 permissions:
   contents: read
 
+# PR 有新的一輪就取消舊的。推到 main 的每一次都各自一組（group 帶提交的 SHA），不互相取消也不會有排隊中的
+# 一輪被後面的取代：直接推 main 時，中間那次推送也要掃到、跑完。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}', github.sha) || '' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 # 每個動作都固定到提交的 SHA，註解是當時的版本：標籤可以被移到別的提交，SHA 不行。
 # 怎麼更新見 docs/DEPLOYMENT.md 第 7 節。
 
 # 三個工作同時跑：後端的測試最久（執行器上約 15 分鐘），和網頁、映像檔排成一列會超過上限。
 jobs:
+  # 輕的一個：掃這次 PR 或 push 的差異（含中途加入又刪掉的內容），找機密與內部資訊的樣式（scripts/precommit-scan.sh）。
+  # 用基準提交的掃描腳本與允許清單來掃：一次推送或 PR 沒辦法靠同時改允許清單讓自己過關。
+  # 基準裡還沒有支援指定允許清單的腳本時（第一次推送這個改動），退回用這次檢出的版本。
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # 每個提交各自一組、不取消：就算整個 workflow 的排隊規則改了，每一次推送的掃描也不會被取代。
+    concurrency:
+      group: scan-${{ github.sha }}
+      cancel-in-progress: false
+    steps:
+      # 要比得出差異，需要完整的歷史。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 掃描差異
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          tool_dir="$(mktemp -d)"
+          scan="scripts/precommit-scan.sh"
+          allow="scripts/precommit-scan-allowlist.txt"
+          if git cat-file -e "${BASE_SHA}:${scan}" 2>/dev/null \
+            && git cat-file -e "${BASE_SHA}:${allow}" 2>/dev/null \
+            && git show "${BASE_SHA}:${scan}" | grep -q 'KUMI_SCAN_ALLOWLIST'; then
+            git show "${BASE_SHA}:${scan}" > "${tool_dir}/scan.sh"
+            git show "${BASE_SHA}:${allow}" > "${tool_dir}/allowlist.txt"
+            echo "用基準提交 ${BASE_SHA} 的掃描腳本與允許清單。"
+          else
+            cp "${scan}" "${tool_dir}/scan.sh"
+            cp "${allow}" "${tool_dir}/allowlist.txt"
+            echo "基準裡沒有可用的掃描腳本，改用這次檢出的版本。"
+          fi
+          KUMI_SCAN_ALLOWLIST="${tool_dir}/allowlist.txt" bash "${tool_dir}/scan.sh" --diff "${BASE_SHA}"
+
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 40

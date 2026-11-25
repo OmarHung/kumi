@@ -1,0 +1,40 @@
+# scripts/precommit-scan.sh 的允許清單：確認是假值（測試與文件裡的範例）才放進來。
+# 格式：每行三欄，欄位之間用 tab 或兩個以上的空白——
+#   路徑的 glob   樣式名稱   值的正規式
+# - 路徑從 repo 根目錄算起；glob 的 * 與 ** 都能跨資料夾。路徑不能只是 * 或 **。
+# - 樣式名稱是掃描輸出裡冒號後面那一段（例如 private-ip），一行只放一個樣式。
+# - 值的正規式（Perl 的語法）要「整段」符合比對到的那段文字才放行，所以只放行寫出來的那幾個值，
+#   同一個檔案裡出現別的值照樣命中。不能是空的或 .*。
+# - 以 # 開頭的行與空行會略過；有格式錯誤的行會讓掃描以結束代碼 2 失敗。
+# 範例：  tests/**    private-ip    10\.0\.0\.\d+
+# 要加的時候：先看掃描印出的檔案與行號，確定那是假的值（不是真的權杖、位址或路徑），值盡量寫窄。
+# 版本號（四段的數字）和私有位址長得一樣，會被 private-ip 誤報：用值的正規式放行那個版本號。
+# 這個檔案自己也會被掃，而且不套用這份清單。
+
+# 文件與設定範例：容器內連主機的名稱、範例的網段（CIDR 的寫法說明、Docker 內部網路）、備份複製的範例路徑、
+# 帳密寫法的說明（佔位的中文字）
+.env.example                                internal-host    docker\.internal
+docs/DEPLOYMENT.md                          internal-host    docker\.internal
+docs/DEPLOYMENT.md                          private-ip       10\.0\.0\.0
+docs/OPERATIONS.md                          internal-host    docker\.internal
+docs/OPERATIONS.md                          volumes-path     [/]Volumes[/]
+docs/deployment/vm.md                       private-ip       172\.30\.0\.\d{1,3}
+src/PmTool.Api/Security/ProxySettings.cs    private-ip       10\.0\.0\.[01]
+docs/CLI.md                                 url-credential   :\/\/帳號:密碼@
+src/PmTool.Cli/Settings/Credentials.cs      url-credential   :\/\/帳號:密碼@
+
+# 測試：私鑰的標頭（測「會擋下私鑰」，只有標頭、沒有金鑰本體）
+tests/PmTool.Api.Tests/RealStack/ProjectDescriptionFlowTests.cs    private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
+tests/PmTool.Knowledge.Tests/Pages/PageCreationTests.cs            private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
+tests/PmTool.Knowledge.Tests/Pages/PageUpdateTests.cs              private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
+tests/PmTool.Work.Tests/Projects/DescriptionTemplateTests.cs       private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
+tests/PmTool.Work.Tests/Projects/ProjectDescriptionTests.cs        private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
+
+# 測試：假的權杖（43 個同一個字元）
+tests/**    kumi-token       (?:pmt|pmr|kha|kjt)_(.)\1{42}
+
+# 測試：範例的私有網段（測位址檢查、信任的代理）、假的內部主機名、假的使用者路徑、假的帳密
+tests/**    private-ip       10\.(?:0\.0\.\d{1,3}|1\.2\.3|200\.0\.1|255\.255\.255)|172\.(?:16\.0\.1|31\.255\.255)|192\.168\.(?:0\.5|1\.1|1\.10)
+tests/**    internal-host    (?:ollama|db|api)\.internal
+tests/**    user-home-path   /Users/(?:example|someone)/
+tests/**    url-credential   :\/\/(?:user:(?:pw|pass|secret)|admin:hunter2)@

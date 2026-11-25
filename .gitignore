@@ -5,6 +5,15 @@
 
 # dotenv files
 .env
+.env.*
+!.env.example
+
+# 金鑰、憑證與資料庫傾印：不進版控
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
 
 # User-specific files
 *.rsuser
