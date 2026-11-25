@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using PmTool.Abstractions;
 using PmTool.Knowledge.Access;
 using PmTool.Knowledge.Common;
@@ -16,6 +17,7 @@ internal sealed partial class KnowledgeAttachmentService(
     IDbContextFactory<KnowledgeDbContext> contexts,
     SpaceAccess access,
     IFileStore store,
+    IStorageQuota quota,
     TimeProvider clock,
     ILogger<KnowledgeAttachmentService> logger) : IKnowledgeAttachmentService
 {
@@ -160,9 +162,14 @@ internal sealed partial class KnowledgeAttachmentService(
         }
 
         var pageId = target.Value.Page.Id;
-        return await CountAsync(db, actor, pageId, cancellationToken) >= KnowledgeRules.MaxAttachmentsPerPage
-            ? AttachmentFailures.LimitReached()
-            : pageId;
+        if (await CountAsync(db, actor, pageId, cancellationToken) >= KnowledgeRules.MaxAttachmentsPerPage)
+        {
+            return AttachmentFailures.LimitReached();
+        }
+
+        // 已經用滿就不必讀內容；沒滿的話寫完之後還會在交易裡用實際的大小再確認一次。
+        var room = await quota.CheckAsync(actor.OrganizationId, actor.PersonId, incomingBytes: 0, cancellationToken);
+        return room.IsAllowed ? pageId : AttachmentFailures.Quota(room);
     }
 
     private async Task<Result<PageAttachment>> RecordAsync(
@@ -198,6 +205,14 @@ internal sealed partial class KnowledgeAttachmentService(
             return AttachmentFailures.LimitReached();
         }
 
+        // 儲存空間的鎖是最後一把：和項目的上傳排在同一個隊伍，加總到的是已經提交的量。
+        await StorageLocks.OrganizationAsync(db, actor.OrganizationId, cancellationToken);
+        var room = await quota.CheckAsync(actor.OrganizationId, actor.PersonId, stored.SizeBytes, cancellationToken);
+        if (!room.IsAllowed)
+        {
+            return AttachmentFailures.Quota(room);
+        }
+
         var row = new PageAttachmentRow
         {
             Id = id,
@@ -211,7 +226,16 @@ internal sealed partial class KnowledgeAttachmentService(
             UploadedAt = Truncate(clock.GetUtcNow()),
         };
         db.PageAttachments.Add(row);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
+        {
+            // 確認之後、寫入之前，這一頁剛好被永久刪除：和找不到同一個回答。
+            return KnowledgeFailures.PageNotFound(pageNumber);
+        }
+
         await transaction.CommitAsync(cancellationToken);
         return ToContract(row);
     }

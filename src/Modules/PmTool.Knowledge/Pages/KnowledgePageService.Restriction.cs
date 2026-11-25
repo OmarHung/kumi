@@ -38,11 +38,21 @@ internal sealed partial class KnowledgePageService
             return invalid;
         }
 
-        var current = await BuildRestrictionAsync(db, target, cancellationToken);
+        var current = await BuildRestrictionAsync(db, actor, target, cancellationToken);
         if (SameList(current.People, wanted.Value))
         {
             return current;
         }
+
+        // 放寬要設定的人或管理者：在鎖裡、「底下有看不到的頁面」之後檢查，檢查與寫入之間沒有空窗。
+        if (IsRelaxing(current.People, wanted.Value) && !CanRelax(actor, target.Space, target.Page.RestrictedBy))
+        {
+            return KnowledgeFailures.RestrictionOwnerRequired();
+        }
+
+        // 沒有限制 → 有限制：執行的人是擁有者；拿掉：清掉；其餘（只刪人、換順序、管理者加人）不轉移：
+        // 乙把甲設的名單縮小之後若變成擁有者，就能再把別人加回去，等於繞過甲。
+        var owner = wanted.Value is null ? null : current.People is null ? actor.PersonId : target.Page.RestrictedBy;
 
         // 整份取代：先清掉舊的名單再寫新的，旗標跟著名單有沒有人。
         await db.PageRestrictions.Where(r => r.OrganizationId == actor.OrganizationId && r.PageId == target.Page.Id)
@@ -60,11 +70,17 @@ internal sealed partial class KnowledgePageService
 
         var isRestricted = wanted.Value is not null;
         await db.Pages.Where(p => p.OrganizationId == actor.OrganizationId && p.Id == target.Page.Id)
-            .ExecuteUpdateAsync(set => set.SetProperty(p => p.IsRestricted, isRestricted), cancellationToken);
+            .ExecuteUpdateAsync(
+                set => set.SetProperty(p => p.IsRestricted, isRestricted).SetProperty(p => p.RestrictedBy, owner),
+                cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new PageRestriction(wanted.Value, current.RestrictedAncestors);
+        return ComposeRestriction(actor, target.Space, wanted.Value, owner, current.RestrictedAncestors);
     }
+
+    /// <summary>原本有名單，新的是沒有、或多了原本沒有的人，就是放寬。原本沒有名單時任何新名單都是收緊。</summary>
+    private static bool IsRelaxing(IReadOnlyList<Guid>? current, IReadOnlyList<Guid>? wanted) =>
+        current is not null && (wanted is null || wanted.Any(person => !current.Contains(person)));
 
     /// <summary>
     /// 整理要設定的名單：空的是拿掉（null）；有名單時一定包含設定的人（沒列就加在最前面）、重複的去掉；

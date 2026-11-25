@@ -38,6 +38,25 @@ internal sealed record KnowledgePageMoveRequest(int? ParentNumber = null, int? B
 
 internal sealed record KnowledgeRestrictionRequest(IReadOnlyList<Guid>? People = null);
 
+/// <summary>
+/// 永久刪除垃圾桶，範圍一定要明講、而且剛好一個：<c>{ "deletionId": "…" }</c> 是那一批，<c>{ "expired": true }</c> 是刪除超過 30 天的批。
+/// 都沒帶、都帶、<c>expired:false</c> 都不接受：毀滅性的操作不用省略欄位當預設。
+/// </summary>
+internal sealed record KnowledgeTrashPurgeRequest(Guid? DeletionId = null, bool? Expired = null)
+{
+    public Result<TrashPurgeRequest> ToScope()
+    {
+        if (DeletionId is { } batch && Expired is null)
+        {
+            return TrashPurgeRequest.Batch(batch);
+        }
+
+        return DeletionId is null && Expired is true
+            ? TrashPurgeRequest.Expired()
+            : KnowledgeRoutes.PurgeScopeInvalid();
+    }
+}
+
 /// <summary>端點共用的小工具：路徑參數的解析與知識庫自己的 API 層失敗。</summary>
 internal static class KnowledgeRoutes
 {
@@ -49,6 +68,12 @@ internal static class KnowledgeRoutes
 
     public static Failure PageNotFound(string number) => new(
         FailureKind.NotFound, KnowledgeErrorCodes.PageNotFound, $"找不到第 {Shorten(number)} 頁。");
+
+    public static Failure PurgeScopeInvalid() => new(
+        FailureKind.Invalid, KnowledgeErrorCodes.PurgeScopeInvalid, "永久刪除要剛好帶 deletionId（這一批）或 expired:true（刪除超過 30 天的批）其中一個。")
+    {
+        Details = [new FailureDetail(KnowledgeErrorCodes.PurgeScopeInvalid, "deletionId", "永久刪除要剛好帶 deletionId（這一批）或 expired:true（刪除超過 30 天的批）其中一個。")],
+    };
 
     public static Failure AttachmentNotFound() => new(
         FailureKind.NotFound, KnowledgeErrorCodes.AttachmentNotFound, "找不到這個附件。");

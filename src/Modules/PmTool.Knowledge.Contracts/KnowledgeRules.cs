@@ -58,6 +58,9 @@ public static class KnowledgeRules
     /// <summary>清掉到期的批時，一次最多清幾批。</summary>
     public const int MaxBatchesPerPurge = 200;
 
+    /// <summary>清掉到期的批時，一次最多清幾頁：累計超過就停，但至少清一批（一批不能拆）。</summary>
+    public const int MaxPagesPerPurge = 2_000;
+
     /// <summary>刪除超過這麼久的批才會被「清掉到期的」永久刪除。</summary>
     public static readonly TimeSpan TrashPurgeAge = TimeSpan.FromDays(30);
 }

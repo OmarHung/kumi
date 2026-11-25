@@ -48,10 +48,11 @@ internal sealed class KnowledgeTestHost : IAsyncDisposable
 
     public IKnowledgePageService Pages => _scope.ServiceProvider.GetRequiredService<IKnowledgePageService>();
 
-    public static async Task<KnowledgeTestHost> StartAsync() =>
-        await StartAsync(new DatabaseConnections(await PostgresServer.CreateDatabaseAsync()));
+    /// <param name="configure">測試另外要換掉的服務，例如把附件的上限調小；在模組註冊之前套用。</param>
+    public static async Task<KnowledgeTestHost> StartAsync(Action<IServiceCollection>? configure = null) =>
+        await StartAsync(new DatabaseConnections(await PostgresServer.CreateDatabaseAsync()), configure);
 
-    public static async Task<KnowledgeTestHost> StartAsync(DatabaseConnections connections)
+    public static async Task<KnowledgeTestHost> StartAsync(DatabaseConnections connections, Action<IServiceCollection>? configure = null)
     {
         var people = new FakePeopleDirectory();
         var work = new FakeWorkAccessQueries();
@@ -62,6 +63,7 @@ internal sealed class KnowledgeTestHost : IAsyncDisposable
         services.AddSingleton<TimeProvider>(clock);
         services.AddSingleton<IOrganizationClock>(new FixedOrganizationClock(TimeZoneInfo.FindSystemTimeZoneById(OrganizationTime.DefaultTimeZoneId)));
         services.AddLogging();
+        configure?.Invoke(services);
         var attachmentDirectory = Path.Combine(Path.GetTempPath(), "kb-attachments-" + Guid.NewGuid().ToString("N"));
         services.AddKnowledgeModule(connections, new FileStoreSettings(FileStoreSettings.LocalProvider, attachmentDirectory));
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });

@@ -102,14 +102,14 @@ public sealed class PageRestrictionTests
         var restriction = await _host.Pages.GetRestrictionAsync(outsider, "HR", secret.Number, CancellationToken.None);
         var setRestriction = await _host.Pages.SetRestrictionAsync(outsider, "HR", secret.Number, null, CancellationToken.None);
         var createUnder = await _host.Pages.CreateAsync(outsider, "HR", new NewPage(secret.Number, "偷偷放", null), CancellationToken.None);
-        var trash = await _host.Pages.ListTrashAsync(outsider, "HR", CancellationToken.None);
+        var trash = await _host.Pages.ListTrashAsync(outsider, "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert：垃圾桶裡的子頁面照原本的位置算，也看不到。
         Assert.That(
             new[] { read.Failure?.Code, update.Failure?.Code, delete.Failure?.Code, restore.Failure?.Code, restriction.Failure?.Code, setRestriction.Failure?.Code },
             Is.All.EqualTo(KnowledgeErrorCodes.PageNotFound));
         Assert.That(createUnder.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PagePositionInvalid));
-        Assert.That(trash.Value, Is.Empty);
+        Assert.That(trash.Value.Items, Is.Empty);
     }
 
     [Test]
@@ -125,12 +125,12 @@ public sealed class PageRestrictionTests
         await _host.Pages.DeleteAsync(org.Admin, "HR", secret.Number, CancellationToken.None);
 
         // Act
-        var forInsider = await _host.Pages.ListTrashAsync(insider, "HR", CancellationToken.None);
-        var forOutsider = await _host.Pages.ListTrashAsync(outsider, "HR", CancellationToken.None);
-        var forAdmin = await _host.Pages.ListTrashAsync(org.Admin, "HR", CancellationToken.None);
+        var forInsider = await _host.Pages.ListTrashAsync(insider, "HR", new TrashQuery(), CancellationToken.None);
+        var forOutsider = await _host.Pages.ListTrashAsync(outsider, "HR", new TrashQuery(), CancellationToken.None);
+        var forAdmin = await _host.Pages.ListTrashAsync(org.Admin, "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert
-        Assert.That((forInsider.Value.Count, forOutsider.Value.Count, forAdmin.Value.Count), Is.EqualTo((1, 0, 1)));
+        Assert.That((forInsider.Value.Items.Count, forOutsider.Value.Items.Count, forAdmin.Value.Items.Count), Is.EqualTo((1, 0, 1)));
     }
 
     [Test]
@@ -181,7 +181,7 @@ public sealed class PageRestrictionTests
         var friend = org.Member();
         var other = org.Member();
         var page = await org.PageAsync("HR", "頁");
-        await _host.Pages.SetRestrictionAsync(org.Admin, "HR", page.Number, [friend.PersonId], CancellationToken.None);
+        await _host.Pages.SetRestrictionAsync(friend, "HR", page.Number, [friend.PersonId], CancellationToken.None);
 
         // Act
         var removed = await _host.Pages.SetRestrictionAsync(friend, "HR", page.Number, [], CancellationToken.None);
@@ -347,14 +347,14 @@ public sealed class PageRestrictionTests
         await _host.Pages.DeleteAsync(deleter, "HR", parent.Number, CancellationToken.None);
 
         // Act
-        var forDeleter = await _host.Pages.ListTrashAsync(deleter, "HR", CancellationToken.None);
-        var forOther = await _host.Pages.ListTrashAsync(other, "HR", CancellationToken.None);
-        var forAdmin = await _host.Pages.ListTrashAsync(org.Admin, "HR", CancellationToken.None);
+        var forDeleter = await _host.Pages.ListTrashAsync(deleter, "HR", new TrashQuery(), CancellationToken.None);
+        var forOther = await _host.Pages.ListTrashAsync(other, "HR", new TrashQuery(), CancellationToken.None);
+        var forAdmin = await _host.Pages.ListTrashAsync(org.Admin, "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert
-        Assert.That(forDeleter.Value.Single().PageCount, Is.EqualTo(2));
-        Assert.That(forOther.Value.Single().PageCount, Is.EqualTo(1), "看不到的頁數不能從垃圾桶洩漏出來");
-        Assert.That(forAdmin.Value.Single().PageCount, Is.EqualTo(2));
+        Assert.That(forDeleter.Value.Items.Single().PageCount, Is.EqualTo(2));
+        Assert.That(forOther.Value.Items.Single().PageCount, Is.EqualTo(1), "看不到的頁數不能從垃圾桶洩漏出來");
+        Assert.That(forAdmin.Value.Items.Single().PageCount, Is.EqualTo(2));
     }
 
     [Test]

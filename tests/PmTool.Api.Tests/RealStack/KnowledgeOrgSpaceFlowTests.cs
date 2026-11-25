@@ -230,7 +230,7 @@ public sealed class KnowledgeOrgSpaceFlowTests : RealStackTestBase
         using (Assert.EnterMultipleScope())
         {
             Assert.That(deletion?["pageCount"]?.GetValue<int>(), Is.EqualTo(2));
-            Assert.That(trash.AsArray().Select(e => e!["page"]!["number"]!.GetValue<int>()), Does.Contain(parent["number"]!.GetValue<int>()));
+            Assert.That(trash["items"]!.AsArray().Select(e => e!["page"]!["number"]!.GetValue<int>()), Does.Contain(parent["number"]!.GetValue<int>()));
             Assert.That(TitlesOf(tree), Does.Contain("要刪的上層").And.Contain("要刪的子頁"));
             Assert.That(childAfter["ancestors"]?[0]?["number"]?.GetValue<int>(), Is.EqualTo(parent["number"]!.GetValue<int>()));
         }

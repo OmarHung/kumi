@@ -127,8 +127,8 @@ internal sealed partial class KnowledgePageService
     {
         await KnowledgeLocks.PageAsync(db, actor.OrganizationId, target.Page.Id, cancellationToken);
         var row = await db.Pages.AsNoTracking()
-            .SingleAsync(p => p.OrganizationId == actor.OrganizationId && p.Id == target.Page.Id, cancellationToken);
-        if (row.DeletedAt is not null)
+            .FirstOrDefaultAsync(p => p.OrganizationId == actor.OrganizationId && p.Id == target.Page.Id, cancellationToken);
+        if (row is null || row.DeletedAt is not null)
         {
             return KnowledgeFailures.PageNotFound(target.Page.Number);
         }
@@ -155,7 +155,7 @@ internal sealed partial class KnowledgePageService
                     .SetProperty(p => p.UpdatedBy, actor.PersonId)
                     .SetProperty(p => p.UpdatedAt, now),
                 cancellationToken);
-        await PageVersions.RecordAsync(db, actor.OrganizationId, row.Id, title, body, actor.PersonId, now, cancellationToken);
+        await PageVersions.RecordAsync(db, await organizationClock.TimeZoneAsync(actor.OrganizationId, cancellationToken), actor.OrganizationId, row.Id, title, body, actor.PersonId, now, cancellationToken);
         return target.Page with { Title = title, UpdatedAt = now, UpdatedBy = actor.PersonId };
     }
 

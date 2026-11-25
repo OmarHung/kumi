@@ -127,6 +127,8 @@ internal sealed class FakeKnowledgePageService : IKnowledgePageService
     private readonly ConcurrentQueue<(Actor Actor, string SpaceKey, int Number, PageMove Move)> _moveCalls = new();
     private readonly ConcurrentQueue<(Actor Actor, string SpaceKey, int Number, IReadOnlyList<Guid>? People)> _restrictionCalls = new();
     private readonly ConcurrentQueue<(string Operation, string SpaceKey, int Number)> _calls = new();
+    private readonly ConcurrentQueue<(Actor Actor, string SpaceKey, TrashQuery Query)> _trashQueries = new();
+    private readonly ConcurrentQueue<(Actor Actor, string SpaceKey, TrashPurgeRequest Request)> _purgeCalls = new();
 
     public Func<Result<PageTree>> OnTree { get; set; } = () => KnowledgeSamples.Tree();
 
@@ -155,6 +157,14 @@ internal sealed class FakeKnowledgePageService : IKnowledgePageService
             TestUsers.Member.PersonId),
     ];
 
+    /// <summary>垃圾桶回應的游標與容量（清單內容由 <see cref="OnTrash"/> 給）。</summary>
+    public string? TrashNextCursor { get; set; }
+
+    public TrashCapacity? TrashCapacity { get; set; }
+
+    public Func<TrashPurgeRequest, Result<TrashPurge>> OnPurge { get; set; } = request =>
+        new TrashPurge(request.DeletionId is null ? 2 : 1, 5, 3, 0, HasMoreExpired: request.DeletionId is null);
+
     public Func<Result<PageRestriction>> OnGetRestriction { get; set; } = () =>
         new PageRestriction([TestUsers.Owner.PersonId, TestUsers.Member.PersonId], [KnowledgeSamples.Ref()]);
 
@@ -166,6 +176,10 @@ internal sealed class FakeKnowledgePageService : IKnowledgePageService
     public IReadOnlyList<(Actor Actor, string SpaceKey, int Number, PageChanges Changes)> UpdateCalls => _updateCalls.ToArray();
 
     public IReadOnlyList<(Actor Actor, string SpaceKey, int Number, PageMove Move)> MoveCalls => _moveCalls.ToArray();
+
+    public IReadOnlyList<(Actor Actor, string SpaceKey, TrashQuery Query)> TrashQueries => _trashQueries.ToArray();
+
+    public IReadOnlyList<(Actor Actor, string SpaceKey, TrashPurgeRequest Request)> PurgeCalls => _purgeCalls.ToArray();
 
     public IReadOnlyList<(Actor Actor, string SpaceKey, int Number, IReadOnlyList<Guid>? People)> RestrictionCalls => _restrictionCalls.ToArray();
 
@@ -215,8 +229,17 @@ internal sealed class FakeKnowledgePageService : IKnowledgePageService
         return Task.FromResult(OnRestore(pageNumber));
     }
 
-    public Task<Result<IReadOnlyList<TrashEntry>>> ListTrashAsync(Actor actor, string spaceKey, CancellationToken cancellationToken) =>
-        Task.FromResult<Result<IReadOnlyList<TrashEntry>>>(OnTrash().ToList());
+    public Task<Result<TrashPage>> ListTrashAsync(Actor actor, string spaceKey, TrashQuery query, CancellationToken cancellationToken)
+    {
+        _trashQueries.Enqueue((actor, spaceKey, query));
+        return Task.FromResult<Result<TrashPage>>(new TrashPage(OnTrash().ToList(), TrashNextCursor, TrashCapacity));
+    }
+
+    public Task<Result<TrashPurge>> PurgeTrashAsync(Actor actor, string spaceKey, TrashPurgeRequest request, CancellationToken cancellationToken)
+    {
+        _purgeCalls.Enqueue((actor, spaceKey, request));
+        return Task.FromResult(OnPurge(request));
+    }
 
     public Task<Result<PageRestriction>> GetRestrictionAsync(Actor actor, string spaceKey, int pageNumber, CancellationToken cancellationToken)
     {

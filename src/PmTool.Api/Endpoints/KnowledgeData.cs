@@ -136,17 +136,43 @@ internal sealed record KnowledgeTrashEntryData(
     }
 }
 
+internal sealed record KnowledgeTrashCapacityData(int Batches, int MaxBatches);
+
+/// <summary>垃圾桶的一頁：capacity 只有空間的管理者才有，其他人是 null。</summary>
+internal sealed record KnowledgeTrashPageData(
+    IReadOnlyList<KnowledgeTrashEntryData> Items, string? NextCursor, KnowledgeTrashCapacityData? Capacity)
+{
+    public static async Task<KnowledgeTrashPageData> FromAsync(
+        TrashPage page, IPeopleDirectory people, Guid organizationId, CancellationToken cancellationToken) =>
+        new(
+            await KnowledgeTrashEntryData.FromManyAsync(page.Items, people, organizationId, cancellationToken),
+            page.NextCursor,
+            page.Capacity is { } capacity ? new KnowledgeTrashCapacityData(capacity.Batches, capacity.MaxBatches) : null);
+}
+
+internal sealed record KnowledgeTrashPurgeData(int PurgedBatches, int PurgedPages, int PurgedAttachments, int RemainingBatches, bool HasMoreExpired)
+{
+    public static KnowledgeTrashPurgeData From(TrashPurge purge) =>
+        new(purge.PurgedBatches, purge.PurgedPages, purge.PurgedAttachments, purge.RemainingBatches, purge.HasMoreExpired);
+}
+
 /// <summary>限制的名單把人員編號換成 <c>{ personId, displayName }</c>；沒有設是 null。</summary>
 internal sealed record KnowledgePageRestrictionData(
-    IReadOnlyList<PersonReference>? People, IReadOnlyList<KnowledgePageRefData> RestrictedAncestors)
+    IReadOnlyList<PersonReference>? People,
+    IReadOnlyList<KnowledgePageRefData> RestrictedAncestors,
+    PersonReference? RestrictedBy,
+    bool CanRelax)
 {
     public static async Task<KnowledgePageRestrictionData> FromAsync(
         PageRestriction restriction, IPeopleDirectory people, Guid organizationId, CancellationToken cancellationToken)
     {
-        var names = await PeopleNames.LookupAsync(people, organizationId, restriction.People ?? [], cancellationToken);
+        var shown = (restriction.People ?? []).Concat(restriction.RestrictedBy is { } owner ? new[] { owner } : Array.Empty<Guid>());
+        var names = await PeopleNames.LookupAsync(people, organizationId, shown, cancellationToken);
         return new KnowledgePageRestrictionData(
             restriction.People is { } listed ? [.. listed.Select(names.Reference)] : null,
-            KnowledgePageRefData.FromMany(restriction.RestrictedAncestors));
+            KnowledgePageRefData.FromMany(restriction.RestrictedAncestors),
+            restriction.RestrictedBy is { } by ? names.Reference(by) : null,
+            restriction.CanRelax);
     }
 }
 

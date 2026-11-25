@@ -62,6 +62,9 @@ public static class KnowledgeErrorCodes
     /// <summary>修改頁面沒帶 expectedRevision（422，路徑 expectedRevision）。只有 API 這一層會遇到：服務的參數一定有值。</summary>
     public const string PageRevisionRequired = "knowledge.page_revision_required";
 
+    /// <summary>永久刪除沒有明講範圍（422，路徑 deletionId、expired）：要剛好帶 deletionId 或 expired:true 其中一個。只有 API 這一層會遇到。</summary>
+    public const string PurgeScopeInvalid = "knowledge.purge_scope_invalid";
+
     /// <summary>送來的 expectedRevision 和現在的不同：別人（或自己的另一個分頁）先存了（409），什麼都不改。</summary>
     public const string PageConflict = "knowledge.page_conflict";
 

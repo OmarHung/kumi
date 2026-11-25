@@ -76,13 +76,13 @@ public sealed class PageConcurrencyTests
             .Concat(toMove.Select(p => MoveToEndAsync(org, p.Number)));
         var outcomes = await Task.WhenAll(operations);
         var tree = await _host.Pages.GetTreeAsync(org.Admin, "HR", CancellationToken.None);
-        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", CancellationToken.None);
+        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert
         Assert.That(outcomes, Is.All.True);
         Assert.That(tree.Value.Pages.Select(p => p.Position), Is.EqualTo(Enumerable.Range(0, toMove.Count)));
         Assert.That(tree.Value.Pages.Select(p => p.Number).Order(), Is.EqualTo(toMove.Select(p => p.Number).Order()));
-        Assert.That(trash.Value.Select(t => t.Page.Number).Order(), Is.EqualTo(toDelete.Select(p => p.Number).Order()));
+        Assert.That(trash.Value.Items.Select(t => t.Page.Number).Order(), Is.EqualTo(toDelete.Select(p => p.Number).Order()));
     }
 
     [Test]

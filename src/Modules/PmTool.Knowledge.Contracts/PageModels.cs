@@ -141,7 +141,22 @@ public sealed record TrashCapacity(int Batches, int MaxBatches);
 /// <param name="Capacity">只有空間的管理者才有（他看得到全部）；其他人是 null，免得從批數知道有看不到的批。</param>
 public sealed record TrashPage(IReadOnlyList<TrashEntry> Items, string? NextCursor, TrashCapacity? Capacity);
 
-/// <param name="DeletionId">null：清掉刪除超過 <see cref="KnowledgeRules.TrashPurgeAge"/> 的批（一次最多 <see cref="KnowledgeRules.MaxBatchesPerPurge"/> 批）；有值：立刻永久刪除這一批。</param>
-public sealed record TrashPurgeRequest(Guid? DeletionId);
+/// <summary>
+/// 永久刪除的範圍一定要明講：<see cref="Batch"/> 是立刻永久刪除這一批；<see cref="Expired"/> 是清掉刪除超過
+/// <see cref="KnowledgeRules.TrashPurgeAge"/> 的批（一次最多 <see cref="KnowledgeRules.MaxBatchesPerPurge"/> 批、
+/// <see cref="KnowledgeRules.MaxPagesPerPurge"/> 頁）。沒有「什麼都不帶」的預設。
+/// </summary>
+public sealed record TrashPurgeRequest
+{
+    private TrashPurgeRequest(Guid? deletionId) => DeletionId = deletionId;
 
-public sealed record TrashPurge(int PurgedBatches, int PurgedPages, int PurgedAttachments, int RemainingBatches);
+    /// <summary>要永久刪除的那一批；null 是「清掉到期的」。</summary>
+    public Guid? DeletionId { get; }
+
+    public static TrashPurgeRequest Batch(Guid deletionId) => new(deletionId);
+
+    public static TrashPurgeRequest Expired() => new((Guid?)null);
+}
+
+/// <param name="HasMoreExpired">這次沒清到、但已經到期而且清得掉的批還有沒有（一次的量有上限）。</param>
+public sealed record TrashPurge(int PurgedBatches, int PurgedPages, int PurgedAttachments, int RemainingBatches, bool HasMoreExpired = false);

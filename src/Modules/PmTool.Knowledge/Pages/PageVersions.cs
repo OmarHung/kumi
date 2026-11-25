@@ -13,9 +13,13 @@ internal static class PageVersions
     public static void AddFirst(KnowledgeDbContext db, Guid organizationId, Guid pageId, string title, string body, Guid author, DateTimeOffset now) =>
         db.PageVersions.Add(NewVersion(organizationId, pageId, 1, title, body, author, now));
 
-    /// <summary>存檔寫版本：併進最新的一版，或新增一版；超過上限時刪掉最舊的。呼叫端在交易裡，並且已經鎖住那一頁。</summary>
+    /// <summary>
+    /// 存檔寫版本：併進最新的一版，或新增一版；超過上限時依 <see cref="Trim"/> 刪掉幾版。呼叫端在交易裡，並且已經鎖住那一頁。
+    /// <paramref name="zone"/> 是組織的時區：保留每一天的第一版與最後一版要依組織的日子算。
+    /// </summary>
     public static async Task RecordAsync(
         KnowledgeDbContext db,
+        TimeZoneInfo zone,
         Guid organizationId,
         Guid pageId,
         string title,
@@ -25,12 +29,12 @@ internal static class PageVersions
         CancellationToken cancellationToken)
     {
         var latest = await db.PageVersions.AsNoTracking()
-            .Where(v => v.PageId == pageId)
+            .Where(v => v.OrganizationId == organizationId && v.PageId == pageId)
             .OrderByDescending(v => v.Number)
             .FirstOrDefaultAsync(cancellationToken);
         if (latest is not null && latest.AuthorId == author && latest.RestoredFrom is null && now - latest.SavedAt <= KnowledgeRules.VersionMergeWindow)
         {
-            await db.PageVersions.Where(v => v.Id == latest.Id)
+            await db.PageVersions.Where(v => v.OrganizationId == organizationId && v.Id == latest.Id)
                 .ExecuteUpdateAsync(
                     set => set.SetProperty(v => v.Title, title).SetProperty(v => v.Body, body).SetProperty(v => v.SavedAt, now),
                     cancellationToken);
@@ -40,14 +44,52 @@ internal static class PageVersions
         var number = (latest?.Number ?? 0) + 1;
         db.PageVersions.Add(NewVersion(organizationId, pageId, number, title, body, author, now));
         await db.SaveChangesAsync(cancellationToken);
-
-        // 版本的編號只增不減、只從最舊的刪，所以保留的永遠是最新的 MaxVersionsPerPage 個。
-        var oldest = number - KnowledgeRules.MaxVersionsPerPage;
-        if (oldest > 0)
-        {
-            await db.PageVersions.Where(v => v.PageId == pageId && v.Number <= oldest).ExecuteDeleteAsync(cancellationToken);
-        }
+        await TrimAsync(db, zone, organizationId, pageId, cancellationToken);
     }
+
+    /// <summary>
+    /// 版本超過 <see cref="KnowledgeRules.MaxVersionsPerPage"/> 時刪掉多出來的。第 1 版、最新的一版、組織時區每一天裡最早與最晚的一版受保護：
+    /// 先刪最舊的沒受保護的；只剩受保護的時，從最舊的那一天開始刪「當天最早的一版」，再不夠才刪「當天最晚的一版」；
+    /// 第 1 版與最新的一版一直留著。兩個帳號輪流存檔，只洗得掉當天的中間版本，以前每一天開頭與結尾的樣子都在。
+    /// </summary>
+    private static async Task TrimAsync(
+        KnowledgeDbContext db, TimeZoneInfo zone, Guid organizationId, Guid pageId, CancellationToken cancellationToken)
+    {
+        var versions = await db.PageVersions.AsNoTracking()
+            .Where(v => v.OrganizationId == organizationId && v.PageId == pageId)
+            .OrderBy(v => v.Number)
+            .Select(v => new VersionStamp(v.Id, v.Number, v.StartedAt))
+            .Take(KnowledgeRules.MaxVersionsPerPage * 2)
+            .ToListAsync(cancellationToken);
+        var surplus = versions.Count - KnowledgeRules.MaxVersionsPerPage;
+        if (surplus <= 0)
+        {
+            return;
+        }
+
+        var doomed = Trim(versions, zone, surplus);
+        await db.PageVersions.Where(v => v.OrganizationId == organizationId && v.PageId == pageId && doomed.Contains(v.Id))
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <summary>要刪的 <paramref name="surplus"/> 個版本的編號；<paramref name="versions"/> 依版本號由小到大。</summary>
+    internal static IReadOnlyList<Guid> Trim(IReadOnlyList<VersionStamp> versions, TimeZoneInfo zone, int surplus)
+    {
+        var alwaysKept = new HashSet<Guid> { versions[0].Id, versions[^1].Id };
+        var days = versions
+            .GroupBy(v => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(v.StartedAt, zone).DateTime))
+            .ToList();
+        var earliest = days.Select(day => day.OrderBy(v => v.StartedAt).ThenBy(v => v.Number).First()).ToList();
+        var latest = days.Select(day => day.OrderByDescending(v => v.StartedAt).ThenByDescending(v => v.Number).First()).ToList();
+        var edgeIds = earliest.Concat(latest).Select(v => v.Id).ToHashSet();
+        var earliestIds = earliest.Select(v => v.Id).ToHashSet();
+        var plain = versions.Where(v => !alwaysKept.Contains(v.Id) && !edgeIds.Contains(v.Id));
+        var firstsOfDays = earliest.Where(v => !alwaysKept.Contains(v.Id)).OrderBy(v => v.StartedAt).ThenBy(v => v.Number);
+        var lastsOfDays = latest.Where(v => !alwaysKept.Contains(v.Id) && !earliestIds.Contains(v.Id)).OrderBy(v => v.StartedAt).ThenBy(v => v.Number);
+        return [.. plain.Concat(firstsOfDays).Concat(lastsOfDays).Take(surplus).Select(v => v.Id)];
+    }
+
+    internal sealed record VersionStamp(Guid Id, int Number, DateTimeOffset StartedAt);
 
     private static PageVersionRow NewVersion(
         Guid organizationId, Guid pageId, int number, string title, string body, Guid author, DateTimeOffset now) =>

@@ -27,13 +27,13 @@ public sealed class PageTrashGuardTests
 
         // Act：乙看不到考核，拿掉人事的限制。
         var refused = await _host.Pages.SetRestrictionAsync(scene.B, "HR", scene.Hr.Number, null, CancellationToken.None);
-        var trashOfC = await _host.Pages.ListTrashAsync(scene.C, "HR", CancellationToken.None);
+        var trashOfC = await _host.Pages.ListTrashAsync(scene.C, "HR", new TrashQuery(), CancellationToken.None);
         var after = await _host.Pages.GetRestrictionAsync(scene.Org.Admin, "HR", scene.Hr.Number, CancellationToken.None);
 
         // Assert
         Assert.That(refused.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PageHasHiddenDescendants));
         Assert.That(after.Value.People, Is.EqualTo(new[] { scene.A.PersonId, scene.B.PersonId }));
-        Assert.That(trashOfC.Value, Is.Empty);
+        Assert.That(trashOfC.Value.Items, Is.Empty);
     }
 
     [Test]
@@ -105,6 +105,45 @@ public sealed class PageTrashGuardTests
         // Assert
         Assert.That(restricted.Succeeded, Is.True);
         Assert.That(moved.Succeeded, Is.True);
+    }
+
+    [Test]
+    public async Task SetRestrictionAndMove_WhenAHiddenPageSitsDeeperInTheTrashThanTheTreeCanBe_AreRefused()
+    {
+        // Arrange：垃圾桶裡的一串（刪掉時最深 10 層）後來被搬到 9 層的深處，連起來比活的樹允許的還深；最底下那一頁只有乙看得到。
+        var org = new Org(_host);
+        await org.CreateSpaceAsync("HR");
+        var (caller, other) = (org.Member(), org.Member());
+        var root = await org.PageAsync("HR", "Q");
+        var chain = new List<PageDetail>();
+        for (var level = 1; level <= KnowledgeRules.MaxDepth - 1; level++)
+        {
+            chain.Add(await org.PageAsync("HR", $"D{level}", parent: (chain.Count == 0 ? root : chain[^1]).Number));
+        }
+
+        await _host.Pages.SetRestrictionAsync(org.Admin, "HR", chain[^1].Number, [other.PersonId], CancellationToken.None);
+        await _host.Pages.DeleteAsync(org.Admin, "HR", chain[0].Number, CancellationToken.None);
+        var top = await org.PageAsync("HR", "T1");
+        var live = new List<PageDetail> { top };
+        for (var level = 2; level <= KnowledgeRules.MaxDepth - 1; level++)
+        {
+            live.Add(await org.PageAsync("HR", $"T{level}", parent: live[^1].Number));
+        }
+
+        var moved = await _host.Pages.MoveAsync(org.Admin, "HR", root.Number, new PageMove(live[^1].Number, null), CancellationToken.None);
+        Assert.That(moved.Succeeded, Is.True, () => moved.Failure?.Message ?? string.Empty);
+        var elsewhere = await org.PageAsync("HR", "別處");
+
+        // Act
+        var restricted = await _host.Pages.SetRestrictionAsync(caller, "HR", top.Number, [caller.PersonId], CancellationToken.None);
+        var relocated = await _host.Pages.MoveAsync(caller, "HR", top.Number, new PageMove(elsewhere.Number, null), CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(restricted.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PageHasHiddenDescendants));
+            Assert.That(relocated.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PageHasHiddenDescendants));
+        }
     }
 
     private async Task<Scene> SceneAsync(bool withMiddle = false)

@@ -70,6 +70,7 @@ public sealed class ModuleTests
         // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IPeopleDirectory>(new FakePeopleDirectory());
+        services.AddSingleton<IOrganizationClock>(new FixedOrganizationClock(TimeZoneInfo.Utc));
         services.AddSingleton<IWorkAccessQueries>(new FakeWorkAccessQueries());
         services.AddLogging();
 
@@ -187,6 +188,7 @@ public sealed class ModuleTests
     {
         var services = new ServiceCollection();
         services.AddSingleton<IPeopleDirectory>(new FakePeopleDirectory());
+        services.AddSingleton<IOrganizationClock>(new FixedOrganizationClock(TimeZoneInfo.Utc));
         services.AddSingleton<IWorkAccessQueries>(new FakeWorkAccessQueries());
         services.AddLogging();
         services.AddKnowledgeModule(connections);

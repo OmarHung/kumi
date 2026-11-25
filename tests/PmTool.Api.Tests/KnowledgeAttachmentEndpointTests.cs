@@ -135,6 +135,8 @@ public sealed class KnowledgeAttachmentEndpointTests
 
     [TestCase(FailureKind.Invalid, KnowledgeErrorCodes.AttachmentTooLarge, HttpStatusCode.RequestEntityTooLarge)]
     [TestCase(FailureKind.Conflict, KnowledgeErrorCodes.AttachmentLimitReached, HttpStatusCode.Conflict)]
+    [TestCase(FailureKind.Conflict, KnowledgeErrorCodes.AttachmentQuotaExceeded, HttpStatusCode.Conflict)]
+    [TestCase(FailureKind.Conflict, KnowledgeErrorCodes.AttachmentDailyQuotaExceeded, HttpStatusCode.Conflict)]
     [TestCase(FailureKind.Conflict, KnowledgeErrorCodes.SpaceArchived, HttpStatusCode.Conflict)]
     [TestCase(FailureKind.Forbidden, KnowledgeErrorCodes.Forbidden, HttpStatusCode.Forbidden)]
     [TestCase(FailureKind.NotFound, KnowledgeErrorCodes.PageNotFound, HttpStatusCode.NotFound)]

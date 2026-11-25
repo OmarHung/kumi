@@ -115,12 +115,15 @@ internal sealed class SpaceAccess(IPeopleDirectory people, IWorkAccessQueries wo
         return new SpaceContext(space, null, new SpacePermissions(!isReadOnly, !isReadOnly, actor.IsOrganizationAdmin), isReadOnly);
     }
 
-    /// <summary>專案空間：權限沿用專案裡的（工作引擎已經把組織管理員與封存算進去）。</summary>
+    /// <summary>
+    /// 專案空間：權限沿用專案裡的（工作引擎已經把組織管理員與封存算進去）。能寫要同時能新增項目、而且看得到全部的項目：
+    /// 只看自己項目的角色（內建的「執行者」）看得到整個專案空間，卻不能改它，包括自己寫過的頁面。
+    /// </summary>
     internal static SpaceContext ForProjectSpace(SpaceRow space, ProjectAccessSummary project)
     {
         var isReadOnly = space.ArchivedAt is not null || project.IsArchived;
         var permissions = new SpacePermissions(
-            !isReadOnly && project.Permissions.Contains(WorkPermissions.ItemCreate),
+            !isReadOnly && project.Permissions.Contains(WorkPermissions.ItemCreate) && project.Permissions.Contains(WorkPermissions.ItemRead),
             !isReadOnly && project.Permissions.Contains(WorkPermissions.CommentCreate),
             project.Permissions.Contains(WorkPermissions.ProjectManage));
         return new SpaceContext(space, project, permissions, isReadOnly);

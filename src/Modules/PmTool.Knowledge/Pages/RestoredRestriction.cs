@@ -13,11 +13,14 @@ namespace PmTool.Knowledge.Pages;
 /// </summary>
 internal static class RestoredRestriction
 {
+    /// <summary>復原後這一頁自己的名單，與設定它的人：參與交集的每一層都是同一個人設的才用他，否則是 null（只有管理者能放寬）。</summary>
+    public sealed record Inherited(IReadOnlyList<Guid> People, Guid? RestrictedBy);
+
     /// <summary>
     /// 復原之後這一頁自己該有的名單；不需要加任何限制時是 null。順序依這一頁自己的名單、再由近到遠的上層。
-    /// 交集是空的時只留執行復原的人。
+    /// 交集是空的時只留執行復原的人。擁有者不是執行復原的人：不然他就能拿掉原本別人設的限制。
     /// </summary>
-    public static async Task<IReadOnlyList<Guid>?> ComputeAsync(
+    public static async Task<Inherited?> ComputeAsync(
         KnowledgeDbContext db, Actor actor, PageScope scope, PageInfo top, PageInfo? newParent, CancellationToken cancellationToken)
     {
         var kept = scope.ChainTo(newParent?.Id).Select(p => p.Id).ToHashSet();
@@ -27,7 +30,8 @@ internal static class RestoredRestriction
             return null;
         }
 
-        var layerIds = (top.IsRestricted ? lost.Prepend(top) : lost).Select(p => p.Id).ToList();
+        var layers = (top.IsRestricted ? lost.Prepend(top) : lost).ToList();
+        var layerIds = layers.Select(p => p.Id).ToList();
         var rows = await db.PageRestrictions.AsNoTracking()
             .Where(r => r.OrganizationId == actor.OrganizationId && layerIds.Contains(r.PageId))
             .OrderBy(r => r.Position)
@@ -35,15 +39,16 @@ internal static class RestoredRestriction
             .ToListAsync(cancellationToken);
         var lists = rows.ToLookup(r => r.PageId, r => r.PersonId);
         var common = lists[layerIds[0]].Where(person => layerIds.Skip(1).All(id => lists[id].Contains(person))).ToList();
-        return common.Count > 0 ? common : [actor.PersonId];
+        var owners = layers.Select(p => p.RestrictedBy).Distinct().ToList();
+        return new Inherited(common.Count > 0 ? common : [actor.PersonId], owners.Count == 1 ? owners[0] : null);
     }
 
     /// <summary>整份取代這一頁自己的名單，並標成有限制。</summary>
     public static async Task WriteAsync(
-        KnowledgeDbContext db, Guid organizationId, Guid pageId, IReadOnlyList<Guid> people, CancellationToken cancellationToken)
+        KnowledgeDbContext db, Guid organizationId, Guid pageId, Inherited inherited, CancellationToken cancellationToken)
     {
         await db.PageRestrictions.Where(r => r.OrganizationId == organizationId && r.PageId == pageId).ExecuteDeleteAsync(cancellationToken);
-        db.PageRestrictions.AddRange(people.Select((person, position) => new PageRestrictionRow
+        db.PageRestrictions.AddRange(inherited.People.Select((person, position) => new PageRestrictionRow
         {
             OrganizationId = organizationId,
             PageId = pageId,
@@ -51,7 +56,7 @@ internal static class RestoredRestriction
             Position = position,
         }));
         await db.Pages.Where(p => p.OrganizationId == organizationId && p.Id == pageId)
-            .ExecuteUpdateAsync(set => set.SetProperty(p => p.IsRestricted, true), cancellationToken);
+            .ExecuteUpdateAsync(set => set.SetProperty(p => p.IsRestricted, true).SetProperty(p => p.RestrictedBy, inherited.RestrictedBy), cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
     }
 }

@@ -10,10 +10,6 @@ namespace PmTool.Knowledge.Common;
 /// </summary>
 internal static partial class KnowledgeText
 {
-    private static readonly Regex PrivateKeyPattern = PrivateKeyRegex();
-
-    private static readonly Regex PuttyPattern = PuttyRegex();
-
     /// <summary>代號：去掉頭尾空白、轉大寫，要整段都合 <see cref="KnowledgeRules.SpaceKeyPattern"/>。</summary>
     public static bool TryNormalizeKey(string? key, out string normalized)
     {
@@ -62,7 +58,7 @@ internal static partial class KnowledgeText
             : normalized;
     }
 
-    /// <summary>頁面的內文：換行統一成 \n，不去掉頭尾空白（縮排是內容）。私鑰一律擋下，知識庫是全組織看得到、搜尋得到的地方。</summary>
+    /// <summary>頁面的內文：換行統一成 \n，不去掉頭尾空白（縮排是內容）。私鑰與已知格式的權杖一律擋下（只是防呆），知識庫是全組織看得到、搜尋得到的地方。</summary>
     public static Result<string> CheckBody(string? body)
     {
         var normalized = NormalizeLineBreaks(body) ?? string.Empty;
@@ -80,8 +76,8 @@ internal static partial class KnowledgeText
                 KnowledgeErrorCodes.PageBodyInvalid, "body", "內容不能有 NUL、換行與 Tab 以外的控制字元，或無效的字元。");
         }
 
-        return ContainsPrivateKey(normalized)
-            ? KnowledgeFailures.Invalid(KnowledgeErrorCodes.PageBodySecret, "body", "內容裡有私鑰。私鑰不能存在知識庫，請改寫密碼管理器裡的項目名稱。")
+        return SecretText.ContainsSecret(normalized)
+            ? KnowledgeFailures.Invalid(KnowledgeErrorCodes.PageBodySecret, "body", "內容裡有私鑰或存取權杖。請改寫密碼管理器裡的項目名稱。")
             : normalized;
     }
 
@@ -121,12 +117,6 @@ internal static partial class KnowledgeText
         return problems.Count > 0 ? KnowledgeFailures.Invalid(problems) : (checkedTitle, checkedBody);
     }
 
-    /// <summary>
-    /// 只認兩種，行內任何位置都算：「-----BEGIN …PRIVATE KEY-----」（含 PGP 的 PRIVATE KEY BLOCK），以及 PuTTY 的檔頭。
-    /// 密碼字串猜不準，誤判的代價比漏掉高。
-    /// </summary>
-    internal static bool ContainsPrivateKey(string text) => PrivateKeyPattern.IsMatch(text) || PuttyPattern.IsMatch(text);
-
     /// <summary>落單的代理字元轉不成 UTF-8、NUL 存不進 PostgreSQL；其他控制字元出現在名稱裡只會造成顯示問題。</summary>
     internal static bool HasForbiddenCharacters(string text, bool allowLineBreaks)
     {
@@ -158,10 +148,4 @@ internal static partial class KnowledgeText
 
     [GeneratedRegex(KnowledgeRules.SpaceKeyPattern, RegexOptions.CultureInvariant)]
     private static partial Regex KeyRegex();
-
-    [GeneratedRegex("-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----", RegexOptions.CultureInvariant)]
-    private static partial Regex PrivateKeyRegex();
-
-    [GeneratedRegex("PuTTY-User-Key-File-[0-9]+:", RegexOptions.CultureInvariant)]
-    private static partial Regex PuttyRegex();
 }

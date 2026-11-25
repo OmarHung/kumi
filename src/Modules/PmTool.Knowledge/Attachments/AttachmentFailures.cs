@@ -1,4 +1,5 @@
 using PmTool.Abstractions;
+using PmTool.Storage;
 
 namespace PmTool.Knowledge.Attachments;
 
@@ -13,4 +14,10 @@ internal static class AttachmentFailures
 
     public static Failure LimitReached() =>
         new(FailureKind.Conflict, KnowledgeErrorCodes.AttachmentLimitReached, $"一頁最多 {KnowledgeRules.MaxAttachmentsPerPage} 個附件。");
+
+    /// <summary>超過的是組織的總量還是這個人的每日量，代碼不同、說的話也不同。</summary>
+    public static Failure Quota(StorageQuotaCheck check) =>
+        check.Verdict == StorageQuotaVerdict.PersonDailyFull
+            ? new(FailureKind.Conflict, KnowledgeErrorCodes.AttachmentDailyQuotaExceeded, StorageQuotaMessages.PersonDailyFull(check))
+            : new(FailureKind.Conflict, KnowledgeErrorCodes.AttachmentQuotaExceeded, StorageQuotaMessages.OrganizationFull(check));
 }

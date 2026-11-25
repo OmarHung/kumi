@@ -37,7 +37,8 @@ public interface IKnowledgePageService
     /// 改標題或內文。先比對 <see cref="PageChanges.ExpectedRevision"/>，不同是 <see cref="KnowledgeErrorCodes.PageConflict"/>，什麼都不改。
     /// 內容和現在一樣時什麼都不做（版本、更新的時刻與人都不變）。有改時 revision 加一、更新的時刻與人換成這次的，並寫版本：
     /// 最新的一版是同一個人在 <see cref="KnowledgeRules.VersionMergeWindow"/> 內存的（而且不是還原出來的）就更新那一版，不然新增一版；
-    /// 超過 <see cref="KnowledgeRules.MaxVersionsPerPage"/> 版時刪掉最舊的。
+    /// 超過 <see cref="KnowledgeRules.MaxVersionsPerPage"/> 版時刪掉多出來的：第 1 版、最新的一版、組織時區每一天最早與最晚的一版最後才動，
+    /// 一天裡被大量存檔洗掉的只有中間的版本。
     /// 內文換行統一成 \n，不去掉頭尾空白（縮排是內容）。
     /// </summary>
     Task<Result<PageDetail>> UpdateAsync(Actor actor, string spaceKey, int pageNumber, PageChanges changes, CancellationToken cancellationToken);
@@ -51,7 +52,8 @@ public interface IKnowledgePageService
 
     /// <summary>
     /// 把這一頁連同底下的頁面放進垃圾桶，同一批（<see cref="PageDeletion.DeletionId"/>）。之前已經在垃圾桶裡的子頁面維持它們自己那一批。
-    /// 底下有看不到的頁面是 <see cref="KnowledgeErrorCodes.PageHasHiddenDescendants"/>，什麼都不刪。沒有永久刪除。
+    /// 底下有看不到的頁面是 <see cref="KnowledgeErrorCodes.PageHasHiddenDescendants"/>，什麼都不刪。
+    /// 垃圾桶已經有 <see cref="KnowledgeRules.MaxTrashBatchesPerSpace"/> 批、或頁數會超過 <see cref="KnowledgeRules.MaxTrashPagesPerSpace"/> 頁是 <see cref="KnowledgeErrorCodes.TrashFull"/>，要先永久刪除（<see cref="PurgeTrashAsync"/>）。
     /// </summary>
     Task<Result<PageDeletion>> DeleteAsync(Actor actor, string spaceKey, int pageNumber, CancellationToken cancellationToken);
 
@@ -63,8 +65,23 @@ public interface IKnowledgePageService
     /// </summary>
     Task<Result<PageDetail>> RestoreAsync(Actor actor, string spaceKey, int pageNumber, CancellationToken cancellationToken);
 
-    /// <summary>垃圾桶：看得到的每一批，新刪的在前。</summary>
-    Task<Result<IReadOnlyList<TrashEntry>>> ListTrashAsync(Actor actor, string spaceKey, CancellationToken cancellationToken);
+    /// <summary>
+    /// 垃圾桶：看得到的每一批，新刪的在前，分頁（只讀每一批最上面那一頁，不把整個垃圾桶讀進來）。
+    /// <see cref="TrashQuery.Cursor"/> 格式不對、或 <see cref="TrashQuery.Limit"/> 不在 1～<see cref="KnowledgeRules.MaxTrashPageSize"/>，是 422 <c>query.invalid</c>。
+    /// 批數與上限（<see cref="TrashPage.Capacity"/>）只有空間的管理者看得到。
+    /// </summary>
+    Task<Result<TrashPage>> ListTrashAsync(Actor actor, string spaceKey, TrashQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 永久刪除垃圾桶裡的頁面（含版本、限制名單、附件的資料與檔案），不能復原。只有空間的管理者能做（<see cref="KnowledgeErrorCodes.Forbidden"/>），
+    /// 空間唯讀時是 <see cref="KnowledgeErrorCodes.SpaceArchived"/>。
+    /// <see cref="TrashPurgeRequest.Batch"/> 只刪那一批（不在垃圾桶裡是 <see cref="KnowledgeErrorCodes.PageNotFound"/>）；
+    /// <see cref="TrashPurgeRequest.Expired"/> 清掉刪除超過 <see cref="KnowledgeRules.TrashPurgeAge"/> 的批，最舊的在前，
+    /// 一次最多 <see cref="KnowledgeRules.MaxBatchesPerPurge"/> 批、累計超過 <see cref="KnowledgeRules.MaxPagesPerPurge"/> 頁就停（至少清一批，一批不拆）；
+    /// 還有到期而清得掉的批時 <see cref="TrashPurge.HasMoreExpired"/> 是 true，可以再清一次。
+    /// 刪了之後會讓還留著的頁面找不到原本上層的批這次不刪（指定的那一批底下還有留著的頁面時，結果是什麼都沒刪、計數是 0）。
+    /// </summary>
+    Task<Result<TrashPurge>> PurgeTrashAsync(Actor actor, string spaceKey, TrashPurgeRequest request, CancellationToken cancellationToken);
 
     /// <summary>讀一頁的限制。看得到這一頁就能讀。</summary>
     Task<Result<PageRestriction>> GetRestrictionAsync(Actor actor, string spaceKey, int pageNumber, CancellationToken cancellationToken);
@@ -74,6 +91,9 @@ public interface IKnowledgePageService
     /// 底下有呼叫者看不到的頁面（垃圾桶裡的也算，它們沿現在的上層算誰看得到）是 <see cref="KnowledgeErrorCodes.PageHasHiddenDescendants"/>，什麼都不改（組織管理員不受限）。
     /// 人數（含自動加的）超過 <see cref="KnowledgeRules.MaxRestrictedPeople"/>、或有人不在這個組織，是 422 <see cref="KnowledgeErrorCodes.RestrictionInvalid"/>
     /// （路徑 people 或 people[i]）。名單上的人還要看得到空間才真的看得到（不另外檢查）。和現在一樣時什麼都不做。revision 不變。
+    /// 放寬（拿掉限制、名單裡加了原本沒有的人）只有設定這個限制的人（<see cref="PageRestriction.RestrictedBy"/>）與空間的管理者能做，
+    /// 其他人是 403 <see cref="KnowledgeErrorCodes.RestrictionOwnerRequired"/>；收緊（只刪人）名單上的人都能做，而且不換擁有者。
+    /// 搬移也一樣：搬出有限制的範圍、讓更多人看得到時，不是設定那些限制的人（或管理者）是 403 <see cref="KnowledgeErrorCodes.RestrictionOwnerRequired"/>。
     /// </summary>
     Task<Result<PageRestriction>> SetRestrictionAsync(
         Actor actor, string spaceKey, int pageNumber, IReadOnlyList<Guid>? people, CancellationToken cancellationToken);

@@ -38,6 +38,12 @@ internal sealed partial class KnowledgePageService
             return BuildTree(target.Space, target.Scope);
         }
 
+        // 換了上層才可能改變誰看得到；搬出別人設定的限制，要設定那些限制的人或管理者。
+        if (oldOrder is not null && IsMoveLeavingSomeoneElsesRestriction(actor, target, newParent))
+        {
+            return KnowledgeFailures.RestrictionOwnerRequired();
+        }
+
         var spaceId = target.Space.Space.Id;
         if (oldOrder is not null)
         {
@@ -72,6 +78,11 @@ internal sealed partial class KnowledgePageService
 
         // 之前就刪了的子頁面保留自己那一批（它們不在 LiveDescendantsOf 裡）。
         var batch = new[] { page.Id }.Concat(scope.LiveDescendantsOf(page).Select(p => p.Id)).ToArray();
+        if (await TrashFullAsync(db, actor.OrganizationId, space.Space.Id, batch.Length, cancellationToken) is { } full)
+        {
+            return full;
+        }
+
         var deletionId = Guid.CreateVersion7(clock.GetUtcNow());
         var now = clock.GetUtcNow();
         await db.Pages.Where(p => p.OrganizationId == actor.OrganizationId && batch.Contains(p.Id))
@@ -99,8 +110,8 @@ internal sealed partial class KnowledgePageService
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await KnowledgeLocks.SpaceAsync(db, space.Space.Id, cancellationToken);
 
-        // 只有復原要連垃圾桶一起讀：要找到那一批、算它放回去的位置。
-        var scope = await PageScope.LoadWithTrashAsync(db, actor, space, cancellationToken);
+        // 復原只讀它要的那一批（連同往上在垃圾桶裡的上層鏈），不讀整個垃圾桶。
+        var scope = await LoadForRestoreAsync(db, actor, space, pageNumber, cancellationToken);
         var page = scope.FindVisible(pageNumber);
         if (page is null)
         {
@@ -127,8 +138,74 @@ internal sealed partial class KnowledgePageService
         await RestoreBatchAsync(db, actor, space.Space.Id, scope, batch, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        // 提交之後重讀：這一刻頁面不見了（同時被永久刪除）就是找不到，不是 500。
         var reloaded = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
-        return await BuildDetailAsync(db, new PageTarget(space, reloaded, reloaded.FindVisible(pageNumber)!), cancellationToken);
+        return reloaded.FindVisible(pageNumber) is { } restored
+            ? await BuildDetailAsync(db, new PageTarget(space, reloaded, restored), cancellationToken)
+            : KnowledgeFailures.PageNotFound(pageNumber);
+    }
+
+    /// <summary>
+    /// 活的範圍，加上這一頁所在的那一批（它在垃圾桶裡時）與往上的上層鏈。頁面不存在、或沒有刪除的標記時就是活的範圍。
+    /// </summary>
+    private static async Task<PageScope> LoadForRestoreAsync(
+        KnowledgeDbContext db, Actor actor, SpaceContext space, int pageNumber, CancellationToken cancellationToken)
+    {
+        var live = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
+        var deletionId = await db.Pages.AsNoTracking()
+            .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == space.Space.Id && p.Number == pageNumber)
+            .Select(p => p.DeletionId)
+            .FirstOrDefaultAsync(cancellationToken);
+        return deletionId is { } batch
+            ? await live.WithTrashBatchesAsync(db, actor, space.Space.Id, [batch], cancellationToken)
+            : live;
+    }
+
+    /// <summary>
+    /// 垃圾桶滿了（批數或頁數到上限）就不能再刪：要空間的管理者先永久刪除。在空間的鎖裡數，同時的兩次刪除不會一起超過。
+    /// </summary>
+    private async Task<Failure?> TrashFullAsync(
+        KnowledgeDbContext db, Guid organizationId, Guid spaceId, int incomingPages, CancellationToken cancellationToken)
+    {
+        var batches = await db.Pages.AsNoTracking()
+            .Where(p => p.OrganizationId == organizationId && p.SpaceId == spaceId && p.DeletionId != null)
+            .Select(p => p.DeletionId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+        if (batches >= limits.MaxTrashBatchesPerSpace)
+        {
+            return KnowledgeFailures.Conflict(
+                KnowledgeErrorCodes.TrashFull,
+                $"垃圾桶已經有 {limits.MaxTrashBatchesPerSpace:N0} 批，請空間的管理者先清掉 30 天以上的，或永久刪除不要的。");
+        }
+
+        var pages = await db.Pages.CountAsync(p => p.OrganizationId == organizationId && p.SpaceId == spaceId && p.DeletionId != null, cancellationToken);
+        return pages + incomingPages > limits.MaxTrashPagesPerSpace
+            ? KnowledgeFailures.Conflict(
+                KnowledgeErrorCodes.TrashFull,
+                $"垃圾桶的頁面會超過 {limits.MaxTrashPagesPerSpace:N0} 頁，請空間的管理者先清掉 30 天以上的，或永久刪除不要的。")
+            : null;
+    }
+
+    /// <summary>
+    /// 搬移有沒有離開別人設定的限制，而且執行的人不是設定那些限制的人、也不是空間的管理者。
+    /// 令 R_old、R_new 是搬移前後上層鏈裡有限制的頁面：R_old 都還在 R_new 裡（只是多套了一層、或原地換順序）就沒有離開；
+    /// 否則離開的那幾層（R_old 裡不在 R_new 的）每一層都要是執行的人設定的，不看名單的大小：
+    /// 保護這一頁的限制不能換成自己設的另一個限制就算過關。設定的人不明（舊資料）的限制只有管理者能離開。
+    /// 整棵子樹的上層鏈變化都一樣，所以只判斷這一次。
+    /// </summary>
+    private static bool IsMoveLeavingSomeoneElsesRestriction(Actor actor, PageTarget target, PageInfo? newParent)
+    {
+        if (target.Space.Permissions.CanManage || target.Scope.SeesAll)
+        {
+            return false;
+        }
+
+        var scope = target.Scope;
+        var stillThere = scope.ChainTo(newParent?.Id).Where(p => p.IsRestricted).Select(p => p.Id).ToHashSet();
+        return scope.AncestorsOf(target.Page)
+            .Where(p => p.IsRestricted && !stillThere.Contains(p.Id))
+            .Any(p => p.RestrictedBy != actor.PersonId);
     }
 
     /// <summary>
@@ -209,12 +286,13 @@ internal sealed partial class KnowledgePageService
     {
         var children = batch.ToLookup(p => p.ParentId);
         var deepest = 0;
+        var seen = new HashSet<Guid> { top.Id };
         var pending = new Stack<(Guid Id, int Depth)>();
         pending.Push((top.Id, 1));
         while (pending.TryPop(out var current))
         {
             deepest = Math.Max(deepest, current.Depth);
-            foreach (var child in children[current.Id])
+            foreach (var child in children[current.Id].Where(c => seen.Add(c.Id)))
             {
                 pending.Push((child.Id, current.Depth + 1));
             }

@@ -136,7 +136,7 @@ internal sealed class KnowledgeSpaceService(
         }
 
         var now = clock.GetUtcNow();
-        await db.Spaces.Where(s => s.Id == context.Space.Id)
+        await db.Spaces.Where(s => s.OrganizationId == actor.OrganizationId && s.Id == context.Space.Id)
             .ExecuteUpdateAsync(
                 set => set.SetProperty(s => s.Name, name)
                     .SetProperty(s => s.Description, description)
@@ -169,7 +169,7 @@ internal sealed class KnowledgeSpaceService(
         var now = clock.GetUtcNow();
         DateTimeOffset? archivedAt = archived ? now : null;
         Guid? archivedBy = archived ? actor.PersonId : null;
-        await db.Spaces.Where(s => s.Id == context.Space.Id)
+        await db.Spaces.Where(s => s.OrganizationId == actor.OrganizationId && s.Id == context.Space.Id)
             .ExecuteUpdateAsync(
                 set => set.SetProperty(s => s.ArchivedAt, archivedAt)
                     .SetProperty(s => s.ArchivedBy, archivedBy)

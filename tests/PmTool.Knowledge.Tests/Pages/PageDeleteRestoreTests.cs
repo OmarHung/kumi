@@ -67,11 +67,11 @@ public sealed class PageDeleteRestoreTests
 
         // Act
         var second = await _host.Pages.DeleteAsync(org.Admin, "HR", a.Number, CancellationToken.None);
-        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", CancellationToken.None);
+        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert：第二批只有 A 與 A2，A1 還在第一批。
         Assert.That(second.Value.PageCount, Is.EqualTo(2));
-        Assert.That(trash.Value.Select(t => (t.Page.Title, t.PageCount, t.DeletionId)), Is.EqualTo(new[] { ("A", 2, second.Value.DeletionId), ("A1", 1, first.Value.DeletionId) }));
+        Assert.That(trash.Value.Items.Select(t => (t.Page.Title, t.PageCount, t.DeletionId)), Is.EqualTo(new[] { ("A", 2, second.Value.DeletionId), ("A1", 1, first.Value.DeletionId) }));
     }
 
     [Test]
@@ -274,11 +274,11 @@ public sealed class PageDeleteRestoreTests
 
         // Act：現有 4,999 頁，整批是 2 頁。
         var restored = await _host.Pages.RestoreAsync(org.Admin, "HR", a.Number, CancellationToken.None);
-        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", CancellationToken.None);
+        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert
         Assert.That(restored.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PageLimitReached));
-        Assert.That(trash.Value.Single().PageCount, Is.EqualTo(2));
+        Assert.That(trash.Value.Items.Single().PageCount, Is.EqualTo(2));
     }
 
     [Test]
@@ -322,14 +322,14 @@ public sealed class PageDeleteRestoreTests
         await _host.Pages.DeleteAsync(org.Admin, "HR", b.Number, CancellationToken.None);
 
         // Act
-        var trash = await _host.Pages.ListTrashAsync(org.Member(), "HR", CancellationToken.None);
+        var trash = await _host.Pages.ListTrashAsync(org.Member(), "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert
-        Assert.That(trash.Value.Select(t => t.Page.Title), Is.EqualTo(new[] { "B", "A1" }));
-        Assert.That(trash.Value[1].PageCount, Is.EqualTo(2));
-        Assert.That(trash.Value[1].FormerParent?.Title, Is.EqualTo("A"));
-        Assert.That(trash.Value[0].FormerParent, Is.Null);
-        Assert.That(trash.Value[0].DeletedBy, Is.EqualTo(org.Admin.PersonId));
+        Assert.That(trash.Value.Items.Select(t => t.Page.Title), Is.EqualTo(new[] { "B", "A1" }));
+        Assert.That(trash.Value.Items[1].PageCount, Is.EqualTo(2));
+        Assert.That(trash.Value.Items[1].FormerParent?.Title, Is.EqualTo("A"));
+        Assert.That(trash.Value.Items[0].FormerParent, Is.Null);
+        Assert.That(trash.Value.Items[0].DeletedBy, Is.EqualTo(org.Admin.PersonId));
     }
 
     [Test]
@@ -340,7 +340,7 @@ public sealed class PageDeleteRestoreTests
         await org.CreateSpaceAsync("HR");
 
         // Act
-        var guest = await _host.Pages.ListTrashAsync(org.Guest(), "HR", CancellationToken.None);
+        var guest = await _host.Pages.ListTrashAsync(org.Guest(), "HR", new TrashQuery(), CancellationToken.None);
 
         // Assert
         Assert.That(guest.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.SpaceNotFound));
@@ -370,7 +370,7 @@ public sealed class PageDeleteRestoreTests
         var underDeleted = await _host.Pages.CreateAsync(org.Admin, "HR", new NewPage(deletedNumbers[1], "放在垃圾桶裡的頁面底下", null), CancellationToken.None);
         var moveDeleted = await _host.Pages.MoveAsync(org.Admin, "HR", deletedNumbers[2], new PageMove(null, null), CancellationToken.None);
         var newPage = await _host.Pages.CreateAsync(org.Admin, "HR", new NewPage(live.Number, "新的", null), CancellationToken.None);
-        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", CancellationToken.None);
+        var trash = await _host.Pages.ListTrashAsync(org.Admin, "HR", new TrashQuery(), CancellationToken.None);
         var restored = await _host.Pages.RestoreAsync(org.Admin, "HR", deletedNumbers[5], CancellationToken.None);
 
         // Assert
@@ -380,8 +380,8 @@ public sealed class PageDeleteRestoreTests
         Assert.That(underDeleted.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PagePositionInvalid));
         Assert.That(moveDeleted.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PageNotFound));
         Assert.That(newPage.Value.Number, Is.GreaterThan(deletedNumbers[^1] + 1), "編號不重複使用");
-        Assert.That(trash.Value, Has.Count.EqualTo(30));
-        Assert.That(trash.Value.Select(t => t.PageCount), Is.All.EqualTo(2));
+        Assert.That(trash.Value.Items, Has.Count.EqualTo(30));
+        Assert.That(trash.Value.Items.Select(t => t.PageCount), Is.All.EqualTo(2));
         Assert.That(restored.Succeeded, Is.True);
         Assert.That(restored.Value.Ancestors.Select(b => b.Title), Is.EqualTo(new[] { "活的" }));
     }

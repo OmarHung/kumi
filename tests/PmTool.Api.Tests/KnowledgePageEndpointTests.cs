@@ -291,6 +291,143 @@ public sealed class KnowledgePageEndpointTests
     }
 
     [Test]
+    public async Task Delete_TrashFull_Returns409()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.KnowledgePages.OnDelete = _ => new Failure(FailureKind.Conflict, KnowledgeErrorCodes.TrashFull, "垃圾桶滿了");
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.DeleteAsync($"{Space}/pages/2");
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Conflict, KnowledgeErrorCodes.TrashFull);
+    }
+
+    [Test]
+    public async Task Trash_PassesTheLimitAndCursorAndShowsTheNextCursorAndCapacity()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.KnowledgePages.TrashNextCursor = "下一頁";
+        factory.Modules.KnowledgePages.TrashCapacity = new TrashCapacity(812, 1000);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync($"{Space}/trash?limit=20&cursor=abc");
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(factory.Modules.KnowledgePages.TrashQueries.Single().Query, Is.EqualTo(new TrashQuery("abc", 20)));
+            Assert.That(data?["nextCursor"]?.GetValue<string>(), Is.EqualTo("下一頁"));
+            Assert.That(JsonNode.DeepEquals(data?["capacity"], JsonNode.Parse("""{"batches":812,"maxBatches":1000}""")), Is.True);
+        }
+    }
+
+    [Test]
+    public async Task Trash_WithoutQueryParameters_UsesTheDefaultLimit()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync($"{Space}/trash");
+        await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(factory.Modules.KnowledgePages.TrashQueries.Single().Query, Is.EqualTo(new TrashQuery(null, KnowledgeRules.DefaultTrashPageSize)));
+    }
+
+    [TestCase("limit=abc")]
+    [TestCase("limit=1&limit=2")]
+    [TestCase("cursor=a&cursor=b")]
+    public async Task Trash_MalformedQuery_Returns422WithoutCallingTheService(string query)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync($"{Space}/trash?{query}");
+
+        // Assert
+        await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, "query.invalid");
+        Assert.That(factory.Modules.KnowledgePages.TrashQueries, Is.Empty);
+    }
+
+    [Test]
+    public async Task TrashPurge_ReturnsTheCountsAndPassesTheScope()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        var batch = Guid.NewGuid();
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var one = await client.PostAsync($"{Space}/trash/purge", ApiRequests.Json(new { deletionId = batch }));
+        var oneData = await ApiRequests.AssertSuccessEnvelopeAsync(one, HttpStatusCode.OK);
+        using var expired = await client.PostAsync($"{Space}/trash/purge", ApiRequests.Json(new { expired = true }));
+        var expiredData = await ApiRequests.AssertSuccessEnvelopeAsync(expired, HttpStatusCode.OK);
+
+        // Assert
+        var calls = factory.Modules.KnowledgePages.PurgeCalls;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(calls.Select(c => c.Request.DeletionId), Is.EqualTo(new Guid?[] { batch, null }));
+            Assert.That(
+                JsonNode.DeepEquals(oneData, JsonNode.Parse("""{"purgedBatches":1,"purgedPages":5,"purgedAttachments":3,"remainingBatches":0,"hasMoreExpired":false}""")),
+                Is.True,
+                oneData?.ToJsonString());
+            Assert.That(
+                JsonNode.DeepEquals(expiredData, JsonNode.Parse("""{"purgedBatches":2,"purgedPages":5,"purgedAttachments":3,"remainingBatches":0,"hasMoreExpired":true}""")),
+                Is.True,
+                expiredData?.ToJsonString());
+        }
+    }
+
+    [TestCase("{}")]
+    [TestCase("""{"expired":false}""")]
+    [TestCase("""{"deletionId":null}""")]
+    [TestCase("""{"deletionId":null,"expired":false}""")]
+    [TestCase("""{"deletionId":"6f1f0e5a-8f3c-4a5e-9d35-0f2f2f2f2f2f","expired":true}""")]
+    [TestCase("""{"deletionId":"6f1f0e5a-8f3c-4a5e-9d35-0f2f2f2f2f2f","expired":false}""")]
+    public async Task TrashPurge_WithoutExactlyOneScope_IsRejectedAndDeletesNothing(string json)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        // Act
+        using var response = await client.PostAsync($"{Space}/trash/purge", content);
+
+        // Assert
+        await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, KnowledgeErrorCodes.PurgeScopeInvalid);
+        Assert.That(factory.Modules.KnowledgePages.PurgeCalls, Is.Empty);
+    }
+
+    [TestCase(FailureKind.NotFound, KnowledgeErrorCodes.PageNotFound, HttpStatusCode.NotFound)]
+    [TestCase(FailureKind.Forbidden, KnowledgeErrorCodes.Forbidden, HttpStatusCode.Forbidden)]
+    [TestCase(FailureKind.Conflict, KnowledgeErrorCodes.SpaceArchived, HttpStatusCode.Conflict)]
+    public async Task TrashPurge_Failures_MapToTheirStatus(FailureKind kind, string code, HttpStatusCode status)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.KnowledgePages.OnPurge = _ => new Failure(kind, code, "失敗");
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync($"{Space}/trash/purge", ApiRequests.Json(new { expired = true }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, status, code);
+    }
+
+    [Test]
     public async Task Restore_ReturnsThePage()
     {
         // Arrange
@@ -320,8 +457,9 @@ public sealed class KnowledgePageEndpointTests
         // Assert
         var expected = JsonNode.Parse(
             $$$"""
-            [{"deletionId":"0190a000-0000-7000-8000-0000000000e1","page":{"id":"{{{KnowledgeSamples.PageId}}}","number":2,"title":"舊頁"},
-              "pageCount":3,"formerParent":{{{ParentRef}}},"deletedAt":"2026-11-20T03:00:00Z","deletedBy":{{{MemberJson}}}}]
+            {"items":[{"deletionId":"0190a000-0000-7000-8000-0000000000e1","page":{"id":"{{{KnowledgeSamples.PageId}}}","number":2,"title":"舊頁"},
+              "pageCount":3,"formerParent":{{{ParentRef}}},"deletedAt":"2026-11-20T03:00:00Z","deletedBy":{{{MemberJson}}}}],
+             "nextCursor":null,"capacity":null}
             """);
         Assert.That(JsonNode.DeepEquals(data, expected), Is.True, data?.ToJsonString());
     }
@@ -340,7 +478,7 @@ public sealed class KnowledgePageEndpointTests
         var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
 
         // Assert
-        Assert.That(data?[0]?["formerParent"], Is.Null);
+        Assert.That(data?["items"]?[0]?["formerParent"], Is.Null);
     }
 
     [Test]
@@ -359,8 +497,44 @@ public sealed class KnowledgePageEndpointTests
 
         // Assert
         var expected = JsonNode.Parse(
-            $$$"""{"people":[{{{MemberJson}}},{"personId":"{{{gone}}}","displayName":"（已不在組織）"},{{{OwnerJson}}}],"restrictedAncestors":[{{{ParentRef}}}]}""");
+            $$$"""{"people":[{{{MemberJson}}},{"personId":"{{{gone}}}","displayName":"（已不在組織）"},{{{OwnerJson}}}],"restrictedAncestors":[{{{ParentRef}}}],"restrictedBy":null,"canRelax":false}""");
         Assert.That(JsonNode.DeepEquals(data, expected), Is.True, data?.ToJsonString());
+    }
+
+    [Test]
+    public async Task Restriction_Get_ShowsWhoSetTheRestrictionAndWhetherTheCallerCanRelaxIt()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.KnowledgePages.OnGetRestriction = () =>
+            new PageRestriction([TestUsers.Owner.PersonId, TestUsers.Member.PersonId], []) { RestrictedBy = TestUsers.Owner.PersonId, CanRelax = true };
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync($"{Space}/pages/2/restriction");
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(JsonNode.DeepEquals(data?["restrictedBy"], JsonNode.Parse(OwnerJson)), Is.True, data?.ToJsonString());
+            Assert.That(data?["canRelax"]?.GetValue<bool>(), Is.True);
+        }
+    }
+
+    [Test]
+    public async Task Restriction_Put_NotTheOwner_Returns403WithTheOwnerRequiredCode()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.KnowledgePages.OnSetRestriction = _ => new Failure(FailureKind.Forbidden, KnowledgeErrorCodes.RestrictionOwnerRequired, "只有設定的人");
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PutAsync($"{Space}/pages/2/restriction", ApiRequests.Json(new { people = (Guid[]?)null }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Forbidden, KnowledgeErrorCodes.RestrictionOwnerRequired);
     }
 
     [Test]

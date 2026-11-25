@@ -16,6 +16,9 @@ internal static class KnowledgeFailures
     public static Failure SpaceArchived(string name) =>
         new(FailureKind.Conflict, KnowledgeErrorCodes.SpaceArchived, $"空間「{Shorten(name)}」已經封存（或它的專案已封存），只能看不能改。");
 
+    public static Failure RestrictionOwnerRequired() =>
+        new(FailureKind.Forbidden, KnowledgeErrorCodes.RestrictionOwnerRequired, "只有設定這個限制的人或空間的管理者能放寬（拿掉限制、加人、搬出有限制的範圍）。");
+
     public static Failure Conflict(string code, string message) => new(FailureKind.Conflict, code, message);
 
     public static Failure Invalid(string code, string path, string message) => Invalid([new FailureDetail(code, path, message)]);

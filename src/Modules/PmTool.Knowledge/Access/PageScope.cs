@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Knowledge.Persistence;
@@ -16,7 +17,8 @@ internal sealed record PageInfo(
     Guid UpdatedBy,
     DateTimeOffset? DeletedAt,
     Guid? DeletedBy,
-    Guid? DeletionId)
+    Guid? DeletionId,
+    Guid? RestrictedBy = null)
 {
     public bool IsDeleted => DeletedAt is not null;
 
@@ -28,22 +30,36 @@ internal sealed record PageInfo(
 /// <summary>
 /// 呼叫者在一個空間裡看得到哪些頁面。規則只有這一份：看得到頁面 = 組織管理員，或者這一頁與它每一層上層裡
 /// 自己設了限制的，每一份名單都有呼叫者（限制往下繼承，只能更嚴）。垃圾桶裡的頁面照原本的位置算。
-/// 一次讀出空間裡頁面的骨架與呼叫者所在的名單（最多 <see cref="KnowledgeRules.MaxPagesPerSpace"/> 頁），
+/// 一次讀出空間裡還沒刪的頁面的骨架與呼叫者所在的名單（最多 <see cref="KnowledgeRules.MaxPagesPerSpace"/> 頁），
 /// 之後都在記憶體裡算，不是一頁一個查詢。呼叫者要先確認看得到這個空間。
 /// 平常的路只讀沒刪的頁面（<see cref="LoadLiveAsync"/>）：垃圾桶沒有上限，不能讓每個請求都跟著變慢；
 /// 活的頁面的上層一定是活的（刪除連底下一起刪、復原時上層不在就放最上層），所以不讀垃圾桶也算得出可見性。
-/// 只有垃圾桶的清單與復原才連刪除的一起讀（<see cref="LoadWithTrashAsync"/>）。
+/// 垃圾桶的清單、復原、改上層鏈的操作只補讀它們要的那幾批（<see cref="WithTrashBatchesAsync"/>、<see cref="WithTrashBelowAsync"/>），不讀整個垃圾桶。
+/// 資料庫的複合外鍵只保證上層在同一個空間，擋不住兩頁互為上層：每一個沿著 <c>parent_id</c> 走的迴圈都記走過的頁面
+/// 並限制層數，成環的頁面對一般人當作不存在。
 /// </summary>
 internal sealed class PageScope
 {
+    /// <summary>沿 parent_id 最多走幾步：正常的樹不超過 <see cref="KnowledgeRules.MaxDepth"/> 層，多留一倍給資料不一致時也走得完。</summary>
+    private const int WalkLimit = KnowledgeRules.MaxDepth * 2;
+
+    /// <summary>往下補讀垃圾桶時最多走幾頁：活的加上垃圾桶各自的上限，正常的資料不會碰到。</summary>
+    private const int WalkPageLimit = KnowledgeRules.MaxPagesPerSpace + KnowledgeRules.MaxTrashPagesPerSpace;
+
+    private static readonly Expression<Func<PageRow, PageInfo>> ToInfo = p => new PageInfo(
+        p.Id, p.Number, p.ParentId, p.Position, p.Title, p.IsRestricted, p.UpdatedAt, p.UpdatedBy, p.DeletedAt, p.DeletedBy, p.DeletionId, p.RestrictedBy);
+
     private readonly Dictionary<Guid, PageInfo> _byId;
     private readonly Dictionary<int, PageInfo> _byNumber;
     private readonly ILookup<Guid?, PageInfo> _children;
     private readonly HashSet<Guid> _listedRestrictedPages;
     private readonly Dictionary<Guid, bool> _visible = [];
 
-    private PageScope(IReadOnlyList<PageInfo> pages, HashSet<Guid> listedRestrictedPages, bool seesAll)
+    private readonly bool _walkTruncated;
+
+    private PageScope(IReadOnlyList<PageInfo> pages, HashSet<Guid> listedRestrictedPages, bool seesAll, bool walkTruncated = false)
     {
+        _walkTruncated = walkTruncated;
         _byId = pages.ToDictionary(p => p.Id);
         _byNumber = pages.ToDictionary(p => p.Number);
         _children = pages.ToLookup(p => p.ParentId);
@@ -61,26 +77,17 @@ internal sealed class PageScope
     public int LiveCount => _byId.Values.Count(p => !p.IsDeleted);
 
     /// <summary>只讀還沒刪的頁面：樹、單頁、修改、新增、搬移、刪除、限制、附件都用它。刪除的頁面當作不存在。</summary>
-    public static Task<PageScope> LoadLiveAsync(KnowledgeDbContext db, Actor actor, SpaceContext space, CancellationToken cancellationToken) =>
-        LoadAsync(db, actor, space, includeTrash: false, cancellationToken);
-
-    /// <summary>連垃圾桶裡的頁面一起讀：只有垃圾桶的清單與復原需要。</summary>
-    public static Task<PageScope> LoadWithTrashAsync(KnowledgeDbContext db, Actor actor, SpaceContext space, CancellationToken cancellationToken) =>
-        LoadAsync(db, actor, space, includeTrash: true, cancellationToken);
-
-    private static async Task<PageScope> LoadAsync(
-        KnowledgeDbContext db, Actor actor, SpaceContext space, bool includeTrash, CancellationToken cancellationToken)
+    public static async Task<PageScope> LoadLiveAsync(KnowledgeDbContext db, Actor actor, SpaceContext space, CancellationToken cancellationToken)
     {
         var spaceId = space.Space.Id;
         var pages = await db.Pages.AsNoTracking()
-            .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == spaceId && (includeTrash || p.DeletedAt == null))
-            .Select(p => new PageInfo(
-                p.Id, p.Number, p.ParentId, p.Position, p.Title, p.IsRestricted, p.UpdatedAt, p.UpdatedBy, p.DeletedAt, p.DeletedBy, p.DeletionId))
+            .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == spaceId && p.DeletedAt == null)
+            .Select(ToInfo)
             .ToListAsync(cancellationToken);
         var listed = await db.PageRestrictions.AsNoTracking()
             .Where(r => r.OrganizationId == actor.OrganizationId
                 && r.PersonId == actor.PersonId
-                && db.Pages.Any(p => p.Id == r.PageId && p.SpaceId == spaceId && (includeTrash || p.DeletedAt == null)))
+                && db.Pages.Any(p => p.OrganizationId == actor.OrganizationId && p.Id == r.PageId && p.SpaceId == spaceId && p.DeletedAt == null))
             .Select(r => r.PageId)
             .ToListAsync(cancellationToken);
         return new PageScope(pages, [.. listed], SeesEverything(actor, space));
@@ -90,32 +97,87 @@ internal sealed class PageScope
         actor.IsOrganizationAdmin || (space.Project is not null && space.Permissions.CanManage);
 
     /// <summary>
-    /// 在這一份（只有活的頁面）之上，補讀 <paramref name="root"/> 底下垃圾桶裡的頁面：沿 <c>parent_id</c> 一層一層往下查，
-    /// 不在已刪除的頁面停下。只讀這一棵子樹，不把整個垃圾桶讀進來（垃圾桶沒有上限）。
+    /// 在這一份（只有活的頁面）之上，補讀 <paramref name="root"/> 底下垃圾桶裡的頁面：一個遞迴查詢沿 <c>parent_id</c> 往下走。
+    /// 只讀這一棵子樹，不把整個垃圾桶讀進來。垃圾桶裡的樹可以比活的樹深（搬移只算活的頁面的深度），所以不用層數限制，
+    /// 改限制走過的頁面數（<see cref="WalkPageLimit"/>）；成環時走過的頁面不會再走。超過上限就停，並且當作底下有看不到的頁面：寧可擋下，不放行。
     /// 垃圾桶裡的頁面誰看得到、復原後繼承什麼，都是沿現在的 <c>parent_id</c> 算的，所以改上層的操作要先算它們。
     /// </summary>
     public async Task<PageScope> WithTrashBelowAsync(
         KnowledgeDbContext db, Actor actor, Guid spaceId, PageInfo root, CancellationToken cancellationToken)
     {
+        var organizationId = actor.OrganizationId;
+        var reached = await db.Database
+            .SqlQuery<Guid>(
+                $"""
+                WITH RECURSIVE below(id) AS (
+                    SELECT p.id FROM knowledge.pages p
+                    WHERE p.organization_id = {organizationId} AND p.space_id = {spaceId} AND p.parent_id = {root.Id}
+                    UNION
+                    SELECT c.id FROM knowledge.pages c JOIN below ON c.parent_id = below.id
+                    WHERE c.organization_id = {organizationId} AND c.space_id = {spaceId}
+                )
+                SELECT id AS "Value" FROM below LIMIT {WalkPageLimit + 1}
+                """)
+            .ToListAsync(cancellationToken);
+        var truncated = reached.Count > WalkPageLimit;
+        var missing = reached.Take(WalkPageLimit).Where(id => !_byId.ContainsKey(id)).ToList();
+        var fetched = missing.Count == 0
+            ? []
+            : await db.Pages.AsNoTracking()
+                .Where(p => p.OrganizationId == organizationId && p.SpaceId == spaceId && missing.Contains(p.Id))
+                .Select(ToInfo)
+                .ToListAsync(cancellationToken);
         var pages = _byId.Values.ToDictionary(p => p.Id);
         var added = new List<Guid>();
-        var frontier = new List<Guid> { root.Id };
-        while (frontier.Count > 0)
+        foreach (var page in fetched.Where(p => pages.TryAdd(p.Id, p)))
         {
-            var parents = frontier;
-            var children = await db.Pages.AsNoTracking()
-                .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == spaceId && p.ParentId != null && parents.Contains(p.ParentId.Value))
-                .Select(p => new PageInfo(
-                    p.Id, p.Number, p.ParentId, p.Position, p.Title, p.IsRestricted, p.UpdatedAt, p.UpdatedBy, p.DeletedAt, p.DeletedBy, p.DeletionId))
-                .ToListAsync(cancellationToken);
-            foreach (var child in children.Where(c => pages.TryAdd(c.Id, c)))
-            {
-                added.Add(child.Id);
-            }
-
-            frontier = [.. children.Select(c => c.Id)];
+            added.Add(page.Id);
         }
 
+        return new PageScope([.. pages.Values], await ListedAsync(db, actor, added, cancellationToken), SeesAll, _walkTruncated || truncated);
+    }
+
+    /// <summary>
+    /// 在這一份（只有活的頁面）之上，補讀 <paramref name="deletionIds"/> 這幾批的頁面，以及它們往上的上層鏈裡在垃圾桶裡的頁面
+    /// （沿 <c>parent_id</c> 往上；垃圾桶裡的鏈可以比活的樹深，所以只受 <see cref="WalkPageLimit"/> 限制，每一輪都有新的頁面才會繼續），再補讀呼叫者所在的名單。
+    /// 垃圾桶的清單與復原只讀它們要的那幾批，不讀整個垃圾桶。
+    /// </summary>
+    public async Task<PageScope> WithTrashBatchesAsync(
+        KnowledgeDbContext db, Actor actor, Guid spaceId, IReadOnlyCollection<Guid> deletionIds, CancellationToken cancellationToken)
+    {
+        var pages = _byId.Values.ToDictionary(p => p.Id);
+        var added = new List<Guid>();
+        var batchPages = await db.Pages.AsNoTracking()
+            .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == spaceId && p.DeletionId != null && deletionIds.Contains(p.DeletionId.Value))
+            .Select(ToInfo)
+            .ToListAsync(cancellationToken);
+        foreach (var page in batchPages.Where(p => pages.TryAdd(p.Id, p)))
+        {
+            added.Add(page.Id);
+        }
+
+        var pending = MissingParents(pages, batchPages);
+        for (var round = 0; round < WalkPageLimit && pending.Count > 0; round++)
+        {
+            var ids = pending;
+            var parents = await db.Pages.AsNoTracking()
+                .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == spaceId && ids.Contains(p.Id))
+                .Select(ToInfo)
+                .ToListAsync(cancellationToken);
+            var fresh = parents.Where(p => pages.TryAdd(p.Id, p)).ToList();
+            added.AddRange(fresh.Select(p => p.Id));
+            pending = MissingParents(pages, fresh);
+        }
+
+        return new PageScope([.. pages.Values], await ListedAsync(db, actor, added, cancellationToken), SeesAll, _walkTruncated);
+    }
+
+    private static List<Guid> MissingParents(Dictionary<Guid, PageInfo> known, IEnumerable<PageInfo> from) =>
+        [.. from.Where(p => p.ParentId is { } parent && !known.ContainsKey(parent)).Select(p => p.ParentId!.Value).Distinct()];
+
+    /// <summary>目前已經讀到的名單，再加上新讀進來的頁面裡呼叫者所在的。</summary>
+    private async Task<HashSet<Guid>> ListedAsync(KnowledgeDbContext db, Actor actor, List<Guid> added, CancellationToken cancellationToken)
+    {
         var listed = new HashSet<Guid>(_listedRestrictedPages);
         if (added.Count > 0)
         {
@@ -125,7 +187,7 @@ internal sealed class PageScope
                 .ToListAsync(cancellationToken));
         }
 
-        return new PageScope([.. pages.Values], listed, SeesAll);
+        return listed;
     }
 
     /// <summary>依編號找頁面（含垃圾桶裡的）；不存在或呼叫者看不到都是 null。</summary>
@@ -143,9 +205,21 @@ internal sealed class PageScope
         }
 
         // 往上走到有答案（或最上層）為止，再由上往下填：每一頁只算一次。
+        // 走到走過的頁面是成環：整條路（含通向環的）都當作看不到，不是無限地走下去。
         var path = new Stack<PageInfo>();
+        var seen = new HashSet<Guid>();
         for (var current = page; current is not null && !_visible.ContainsKey(current.Id); current = ById(current.ParentId))
         {
+            if (!seen.Add(current.Id) || seen.Count > WalkLimit)
+            {
+                foreach (var onPath in path)
+                {
+                    _visible[onPath.Id] = false;
+                }
+
+                return false;
+            }
+
             path.Push(current);
         }
 
@@ -166,7 +240,8 @@ internal sealed class PageScope
     public IReadOnlyList<PageInfo> ChainTo(Guid? pageId)
     {
         var chain = new List<PageInfo>();
-        for (var current = ById(pageId); current is not null; current = ById(current.ParentId))
+        var seen = new HashSet<Guid>();
+        for (var current = ById(pageId); current is not null && chain.Count < WalkLimit && seen.Add(current.Id); current = ById(current.ParentId))
         {
             chain.Add(current);
         }
@@ -182,38 +257,45 @@ internal sealed class PageScope
     public IReadOnlyList<PageInfo> LiveChildren(Guid? parentId) =>
         [.. _children[parentId].Where(p => !p.IsDeleted).OrderBy(p => p.Position).ThenBy(p => p.Number)];
 
-    /// <summary>底下還沒刪的頁面（不含自己），先序。</summary>
+    /// <summary>底下還沒刪的頁面（不含自己），先序。成環時走過的頁面不再走。</summary>
     public IReadOnlyList<PageInfo> LiveDescendantsOf(PageInfo page)
     {
         var result = new List<PageInfo>();
+        var seen = new HashSet<Guid> { page.Id };
         var pending = new Stack<PageInfo>();
-        pending.Push(page);
+        foreach (var child in LiveChildren(page.Id).Reverse().Where(c => seen.Add(c.Id)))
+        {
+            pending.Push(child);
+        }
+
         while (pending.TryPop(out var current))
         {
-            foreach (var child in LiveChildren(current.Id).Reverse())
+            result.Add(current);
+            foreach (var child in LiveChildren(current.Id).Reverse().Where(c => seen.Add(c.Id)))
             {
                 pending.Push(child);
-            }
-
-            if (current != page)
-            {
-                result.Add(current);
             }
         }
 
         return result;
     }
 
-    /// <summary>這一頁底下（還沒刪的）最深的相對層數：沒有子頁面是 0。</summary>
+    /// <summary>這一頁底下（還沒刪的）最深的相對層數：沒有子頁面是 0。成環時走過的頁面不再走，層數也有上限。</summary>
     public int MaxRelativeDepth(PageInfo page)
     {
         var deepest = 0;
+        var seen = new HashSet<Guid> { page.Id };
         var pending = new Stack<(PageInfo Page, int Depth)>();
         pending.Push((page, 0));
         while (pending.TryPop(out var current))
         {
             deepest = Math.Max(deepest, current.Depth);
-            foreach (var child in LiveChildren(current.Page.Id))
+            if (current.Depth >= WalkLimit)
+            {
+                continue;
+            }
+
+            foreach (var child in LiveChildren(current.Page.Id).Where(c => seen.Add(c.Id)))
             {
                 pending.Push((child, current.Depth + 1));
             }
@@ -236,6 +318,13 @@ internal sealed class PageScope
             return false;
         }
 
+        // 往下補讀到上限還沒走完：看不到有沒有看不到的頁面，當作有。
+        if (_walkTruncated)
+        {
+            return true;
+        }
+
+        var seen = new HashSet<Guid> { page.Id };
         var pending = new Stack<PageInfo>();
         pending.Push(page);
         while (pending.TryPop(out var current))
@@ -247,7 +336,10 @@ internal sealed class PageScope
                     return true;
                 }
 
-                pending.Push(child);
+                if (seen.Add(child.Id))
+                {
+                    pending.Push(child);
+                }
             }
         }
 
@@ -283,34 +375,15 @@ internal sealed class PageScope
         }
     }
 
-    /// <summary>
-    /// 垃圾桶裡的每一批：所在的批次是同一個 <see cref="PageInfo.DeletionId"/>。只列看得到最上面那一頁的；
-    /// 頁數只算呼叫者看得到的（底下有別人才看得到的頁面時，不能從總數洩漏）。
-    /// </summary>
-    public IReadOnlyList<(PageInfo Top, int PageCount)> VisibleTrash()
-    {
-        var batches = _byId.Values.Where(p => p.DeletionId is not null).GroupBy(p => p.DeletionId!.Value);
-        var entries = new List<(PageInfo Top, int PageCount)>();
-        foreach (var batch in batches)
-        {
-            var top = TopOfBatch(batch);
-            if (top is not null && CanSee(top))
-            {
-                entries.Add((top, batch.Count(CanSee)));
-            }
-        }
-
-        return [.. entries.OrderByDescending(e => e.Top.DeletedAt).ThenByDescending(e => e.Top.Number)];
-    }
-
     /// <summary>這一批的所有頁面（同一個 <see cref="PageInfo.DeletionId"/>）。</summary>
     public IReadOnlyList<PageInfo> BatchOf(Guid deletionId) => [.. _byId.Values.Where(p => p.DeletionId == deletionId)];
 
-    /// <summary>一批裡最上面的一頁：它的上層不在這一批裡。</summary>
+    /// <summary>一批裡最上面的一頁：它的上層不在這一批裡。資料成環、整批都有上層時退而取編號最小的。</summary>
     public static PageInfo? TopOfBatch(IEnumerable<PageInfo> batch)
     {
         var pages = batch.ToList();
         var ids = pages.Select(p => p.Id).ToHashSet();
-        return pages.Where(p => p.ParentId is not { } parent || !ids.Contains(parent)).OrderBy(p => p.Number).FirstOrDefault();
+        return pages.Where(p => p.ParentId is not { } parent || !ids.Contains(parent)).OrderBy(p => p.Number).FirstOrDefault()
+            ?? pages.OrderBy(p => p.Number).FirstOrDefault();
     }
 }

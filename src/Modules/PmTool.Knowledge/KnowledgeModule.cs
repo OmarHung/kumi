@@ -5,6 +5,7 @@ using PmTool.Abstractions;
 using PmTool.Knowledge.Access;
 using PmTool.Knowledge.Attachments;
 using PmTool.Knowledge.Pages;
+using PmTool.Knowledge.Common;
 using PmTool.Knowledge.Persistence;
 using PmTool.Knowledge.Spaces;
 using PmTool.Storage;
@@ -39,6 +40,7 @@ public static class KnowledgeModule
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton(new KnowledgeDatabase(connections));
+        services.TryAddSingleton(KnowledgeLimits.Default);
         services.AddDbContextFactory<KnowledgeDbContext>(options => KnowledgeDbContext.Configure(options, connections.Runtime));
         services.TryAddScoped<SpaceAccess>();
         services.TryAddScoped<IKnowledgeSpaceService, KnowledgeSpaceService>();
