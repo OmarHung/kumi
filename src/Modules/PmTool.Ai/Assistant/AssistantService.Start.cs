@@ -105,7 +105,6 @@ internal sealed partial class AssistantService
         var session = runner.Start(new ReplyRequest(
             actor,
             project.Value.Project.Key,
-            project.Value.Project.Name,
             project.Value.MyPermissions,
             conversationId,
             assistantMessageId,

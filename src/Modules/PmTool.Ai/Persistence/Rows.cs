@@ -22,6 +22,15 @@ internal sealed record AiSettingsRow
 
     /// <summary>成員能不能接自己的 AI 帳號；預設不行（專案的設定會送到成員自己的供應商帳號，由管理員決定）。</summary>
     public bool AllowPersonalConnections { get; init; }
+
+    /// <summary>組織連線每人每天最多幾則回覆（組織的時區）；null 是不限。新的組織與既有的都從 <see cref="AiRules.DefaultDailyRequestsPerPerson"/> 開始。</summary>
+    public int? DailyRequestsPerPerson { get; init; } = AiRules.DefaultDailyRequestsPerPerson;
+
+    /// <summary>組織連線全組織每月最多幾則回覆；null 是不限。</summary>
+    public int? MonthlyRequests { get; init; }
+
+    /// <summary>組織連線全組織每月最多多少 token（輸入加輸出）；null 是不限。</summary>
+    public long? MonthlyTokens { get; init; }
 }
 
 /// <summary>
@@ -90,6 +99,12 @@ internal sealed record AiConversationRow
     /// 正在回覆的租約到什麼時候；null 或已經過了就是沒在回覆。用條件式的 UPDATE 拿，好幾個 API 程序之間也只有一個在回覆。
     /// </summary>
     public DateTimeOffset? RunningUntil { get; init; }
+
+    /// <summary>
+    /// 有沒有在「看得到專案全部項目」（<c>item.read</c>）的時候回覆過。之後這個人只剩自己的項目（或看不到專案）時，
+    /// 這則對話整個刪掉：歷史裡可能有當時工具讀到、他現在看不到的內容。
+    /// </summary>
+    public bool SawAllItems { get; init; }
 }
 
 /// <summary><c>ai.messages</c> 的一列：對話裡的一則訊息。</summary>
@@ -138,4 +153,37 @@ internal sealed record AiMessageRow
 
     /// <summary>使用者的訊息才有：送出時選的項目編號。</summary>
     public string? ItemKey { get; init; }
+}
+
+/// <summary>
+/// <c>ai.connection_usage</c> 的一列：用組織連線的一則回覆（編號就是助理那則訊息的編號）。形狀照 <c>host_usage</c>：
+/// 送出時預留（<c>reserved</c>），回覆結束時記下 token（<c>settled</c>），送出沒有完成就退還（<c>released</c>）。
+/// 對話刪掉之後還在，配額才不會因為刪對話而歸零。個人的連線、本機代理與主機來源不記在這裡。
+/// </summary>
+internal sealed record AiConnectionUsageRow
+{
+    public required Guid Id { get; init; }
+
+    public required Guid OrganizationId { get; init; }
+
+    public required Guid ConnectionId { get; init; }
+
+    public required Guid PersonId { get; init; }
+
+    public required string ProjectKey { get; init; }
+
+    /// <summary>reserved、settled、released（同 <c>HostUsageStates</c>）。</summary>
+    public required string State { get; init; }
+
+    /// <summary>complete、stopped、failed；還沒結束是 null。</summary>
+    public string? FinishStatus { get; init; }
+
+    public long InputTokens { get; init; }
+
+    public long OutputTokens { get; init; }
+
+    /// <summary>預留的時間：每天、每月的則數都依它算。</summary>
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    public DateTimeOffset? SettledAt { get; init; }
 }

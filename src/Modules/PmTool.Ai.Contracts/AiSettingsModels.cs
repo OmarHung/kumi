@@ -171,13 +171,41 @@ public sealed record AiSettings(
     /// 由組織管理員決定。和 <see cref="Enabled"/> 互相獨立：組織沒接任何供應商，成員也可以用自己的。
     /// </summary>
     public bool AllowPersonalConnections { get; init; }
+
+    /// <summary>組織連線的用量上限（只算組織的連線；自己的連線、本機代理、主機來源不算）。沒存過時是預設（每人每天 <see cref="AiRules.DefaultDailyRequestsPerPerson"/> 則，其餘不限）。</summary>
+    public AiUsageLimits Limits { get; init; } = AiUsageLimits.Default;
+
+    /// <summary>組織連線這個月（組織的時區）全組織的用量，和 <see cref="Limits"/> 的每月上限比。</summary>
+    public AiMonthUsage MonthUsage { get; init; } = new(string.Empty, 0, 0);
 }
 
 public sealed record AiSettingsInput(bool Enabled, AiSelection? Default)
 {
     /// <summary>同 <see cref="AiSettings.AllowPersonalConnections"/>。</summary>
     public bool AllowPersonalConnections { get; init; }
+
+    /// <summary>
+    /// 新的上限；null 是沿用存的（舊的用戶端不送這一欄，不會被清成不限）。每一項 null 是不限；
+    /// 則數要是 1～<see cref="AiRules.MaxHostRequestLimit"/>、token 要是 1～<see cref="AiRules.MaxHostTokenLimit"/>，
+    /// 不然 <see cref="AiErrorCodes.SettingsInvalid"/>（細項 <see cref="AiErrorCodes.FieldInvalid"/>，路徑 <c>limits.dailyRequestsPerPerson</c> 這類）。
+    /// </summary>
+    public AiUsageLimits? Limits { get; init; }
 }
+
+/// <summary>組織連線的用量上限。每一項 null 是不限。</summary>
+/// <param name="DailyRequestsPerPerson">每人每天（組織的時區）最多幾則回覆。</param>
+/// <param name="MonthlyRequests">全組織每月最多幾則回覆。</param>
+/// <param name="MonthlyTokens">全組織每月最多多少 token（輸入加輸出）。到了上限之後的下一則才擋，進行中的那則照樣做完。</param>
+public sealed record AiUsageLimits(int? DailyRequestsPerPerson, int? MonthlyRequests, long? MonthlyTokens)
+{
+    public static AiUsageLimits Default { get; } = new(AiRules.DefaultDailyRequestsPerPerson, null, null);
+}
+
+/// <summary>組織連線某個月的全組織用量。</summary>
+/// <param name="Month">例如 <c>2026-11</c>。</param>
+/// <param name="Requests">回覆的則數（含失敗與中斷的；送出沒有完成而退還的不算）。</param>
+/// <param name="Tokens">輸入加輸出。</param>
+public sealed record AiMonthUsage(string Month, int Requests, long Tokens);
 
 /// <summary>要存的連線。</summary>
 /// <param name="Name">畫面上的名稱，例如「Anthropic（公司帳號）」；組織裡不能重複（不分大小寫）。</param>

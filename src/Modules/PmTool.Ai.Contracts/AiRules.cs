@@ -149,4 +149,31 @@ public static class AiRules
 
     /// <summary>錯誤原因（我們的說明加上供應商回的一小段話）最多存這麼長。</summary>
     public const int MaxErrorLength = 500;
+
+    /// <summary>組織連線每人每天的則數上限的預設（管理員在「AI 設定」頁可調、可設成不限）。偏寬：正常使用碰不到，只擋腳本。</summary>
+    public const int DefaultDailyRequestsPerPerson = 200;
+
+    /// <summary>內建助理一則回覆裡最多提出幾份變更集（propose_changeset）。</summary>
+    public const int MaxChangeSetsPerReply = 1;
+
+    /// <summary>本機代理與主機代理的一件工作最多呼叫幾次工具（伺服器端計，和引擎拿到的上限無關）。</summary>
+    public const int MaxAgentToolCallsPerJob = 13;
+
+    /// <summary>本機代理與主機代理的一件工作最多成功提出幾份（變更集與修改建議合計）。</summary>
+    public const int MaxAgentProposalsPerJob = 2;
+
+    /// <summary>對話多久沒有更新就刪掉（整則，含訊息）。</summary>
+    public static readonly TimeSpan ConversationRetention = TimeSpan.FromDays(180);
+
+    /// <summary>主機代理的機器憑證（<c>kha_</c>）發出後多久過期。</summary>
+    public static readonly TimeSpan HostCredentialLifetime = TimeSpan.FromDays(90);
+
+    /// <summary>機器憑證剩下不到這麼久時，登記的回應帶一把新的（<see cref="HostCheckInResult.RotatedCredential"/>）。</summary>
+    public static readonly TimeSpan HostCredentialRenewBefore = TimeSpan.FromDays(30);
+
+    /// <summary>個人的 OpenAI 相容端點只能連這個連接埠（而且只能 https）。</summary>
+    public const int PersonalEndpointPort = 443;
+
+    /// <summary>從供應商讀的回應（模型清單、非串流的錯誤內文、串流的整則回覆）最多讀多少位元組，超過就中斷。</summary>
+    public const long MaxProviderResponseBytes = 16 * 1024 * 1024;
 }

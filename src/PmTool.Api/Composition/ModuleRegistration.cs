@@ -74,6 +74,13 @@ internal static class ModuleRegistration
             services.AddHostedService(provider => provider.GetRequiredService<EmailWorker>());
         }
 
+        // AI 的定期清理（過期的對話、留著的工作內容），開關同上。
+        if (SettingValues.ReadFlag(configuration, AiMaintenanceWorker.EnabledSetting, defaultValue: true))
+        {
+            services.AddSingleton<AiMaintenanceWorker>();
+            services.AddHostedService(provider => provider.GetRequiredService<AiMaintenanceWorker>());
+        }
+
         // 工作階段 Cookie 的金鑰存在身分模組的資料庫，所有容器共用。名稱與憑證在 SessionAuthentication 設定。
         services.AddDataProtection().PersistKeysToIdentityModule();
         return services;

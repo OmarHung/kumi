@@ -12,7 +12,6 @@ namespace PmTool.Ai.Assistant;
 internal sealed record ReplyRequest(
     Actor Actor,
     string ProjectKey,
-    string ProjectName,
     IReadOnlyList<string> Permissions,
     Guid ConversationId,
     Guid AssistantMessageId,

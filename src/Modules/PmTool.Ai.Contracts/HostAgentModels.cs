@@ -269,7 +269,32 @@ public sealed record HostAgent(
     IReadOnlyList<HostEngineStatus> Engines,
     IReadOnlyList<HostLogin> Logins,
     DateTimeOffset? PairingExpiresAt,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt)
+{
+    /// <summary>機器憑證什麼時候過期（worker 在線時會自己換新）；還沒配對是 null。</summary>
+    public DateTimeOffset? CredentialExpiresAt { get; init; }
+
+    /// <summary>要擁有者處理的狀況（要重新配對）；沒有是 null。</summary>
+    public HostAgentWarning? Warning { get; init; }
+}
+
+/// <summary>主機代理要擁有者處理的狀況。三種都讓機器憑證暫時不能用，重新配對後清掉。</summary>
+/// <param name="MachineName">只有 <see cref="HostAgentWarningKind.OtherMachine"/> 有：那台報的電腦名稱。</param>
+/// <param name="At">發生的時間（過期是過期的時間）。</param>
+public sealed record HostAgentWarning(HostAgentWarningKind Kind, string? MachineName, DateTimeOffset At);
+
+/// <summary>JSON 是 snake_case：other_machine、paired_by_former_owner、credential_expired。</summary>
+public enum HostAgentWarningKind
+{
+    /// <summary>有人拿這台的憑證、從另一台電腦（不同的機器編號）登記，被拒絕了。憑證可能外流，請重新配對。</summary>
+    OtherMachine,
+
+    /// <summary>配對這台的人已經不是組織擁有者：憑證不再被接受，要由現在的擁有者重新配對。</summary>
+    PairedByFormerOwner,
+
+    /// <summary>憑證過期了（worker 太久沒登記，沒來得及換新）。</summary>
+    CredentialExpired,
+}
 
 public sealed record HostAgentInput(string Name)
 {
@@ -409,7 +434,17 @@ public sealed record HostPairingResult(Guid AgentId, string AgentName, string Cr
 
 /// <param name="ServerUrl">worker 連 Kumi 用的網址（例如 compose 裡的 <c>http://api:8080</c>）：http 或 https、沒有帳密、query 與 fragment，最長 <see cref="AiRules.MaxBaseUrlLength"/>。</param>
 /// <param name="Engines">兩個引擎各一筆（沒裝也要報，<see cref="HostEngineReport.Installed"/> 是 false）；不能重複。</param>
-public sealed record HostAgentCheckIn(string AgentVersion, string ServerUrl, IReadOnlyList<HostEngineReport> Engines);
+public sealed record HostAgentCheckIn(string AgentVersion, string ServerUrl, IReadOnlyList<HostEngineReport> Engines)
+{
+    /// <summary>
+    /// 這台 worker 的機器編號（配對時報的同一個，存在資料卷）。必填，格式同配對（不然 <see cref="AiErrorCodes.HostAgentInvalid"/>）。
+    /// 和配對時存的不同時拒絕登記（當作憑證不對，401），記下報來的編號、電腦名稱與時間，擁有者在管理頁看到警告（<see cref="HostAgent.Warning"/>）。
+    /// </summary>
+    public string? MachineKey { get; init; }
+
+    /// <summary>電腦名稱（同配對的格式）；只有機器編號不同、要記下警告時用到。</summary>
+    public string? MachineName { get; init; }
+}
 
 /// <param name="Supported">版本與安全用的旗標都可以（本機代理探測的同一套規則）。</param>
 /// <param name="LoginId">這份登入是哪一次 Kumi 登入完成的（<see cref="HostLoginCompleted.LoginId"/>，worker 存在持久資料夾）；CLI 是在 Kumi 以外登入的是 null。</param>
@@ -429,7 +464,17 @@ public sealed record HostEngineReport(
 /// <param name="Job">領到的工作；沒有是 null。</param>
 /// <param name="Logout">擁有者登出（撤銷授權）的引擎：worker 執行 CLI 的登出並清掉存的登入編號。</param>
 /// <param name="Disabled">代理被停用：照樣保持登記，不會派工作。</param>
-public sealed record HostCheckInResult(HostJob? Job, IReadOnlyList<AiProviderKind> Logout, bool Disabled);
+public sealed record HostCheckInResult(HostJob? Job, IReadOnlyList<AiProviderKind> Logout, bool Disabled)
+{
+    /// <summary>
+    /// 機器憑證快過期（剩不到 <see cref="AiRules.HostCredentialRenewBefore"/>）時發的新憑證（<c>kha_…</c>），明文只在這個回應裡。
+    /// worker 存好（取代舊的，權限 600）之後下一次請求就用它；伺服器在它第一次被用到時讓舊的作廢。沒有要換是 null。
+    /// </summary>
+    public string? RotatedCredential { get; init; }
+
+    public override string ToString() =>
+        $"HostCheckInResult {{ Job = {Job?.JobId}, Logout = [{string.Join(", ", Logout)}], Disabled = {Disabled}, RotatedCredential = {(RotatedCredential is null ? "null" : "***")} }}";
+}
 
 /// <summary>
 /// 派給 worker 的一件工作。和本機代理的 <see cref="LocalAgentJob"/> 一樣跑（同一套隔離），差別：

@@ -135,6 +135,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         // 模組都是假的，沒有事件流可以讀；背景處理不跑，以免它每兩秒去連不存在的資料庫。
         builder.UseSetting(NotificationWorker.EnabledSetting, "false");
         builder.UseSetting(EmailWorker.EnabledSetting, "false");
+        builder.UseSetting(AiMaintenanceWorker.EnabledSetting, "false");
 
         // 即時連線預設關著（和背景處理一樣）；要測它的測試用 Settings 打開，並自己決定什麼時候讀事件。
         builder.UseSetting(PmTool.Api.Live.LiveRegistration.EnabledSetting, "false");

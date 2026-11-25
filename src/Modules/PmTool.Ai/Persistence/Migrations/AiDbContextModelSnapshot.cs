@@ -105,6 +105,69 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.ToTable("connections", "ai");
                 });
 
+            modelBuilder.Entity("PmTool.Ai.Persistence.AiConnectionUsageRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("connection_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FinishStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("finish_status");
+
+                    b.Property<long>("InputTokens")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_tokens");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<long>("OutputTokens")
+                        .HasColumnType("bigint")
+                        .HasColumnName("output_tokens");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("project_key");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("settled_at");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id")
+                        .HasName("pk_connection_usage");
+
+                    b.HasIndex("OrganizationId", "CreatedAt")
+                        .HasDatabaseName("ix_connection_usage_organization_id_created_at");
+
+                    b.HasIndex("OrganizationId", "PersonId", "CreatedAt")
+                        .HasDatabaseName("ix_connection_usage_organization_id_person_id_created_at");
+
+                    b.ToTable("connection_usage", "ai");
+                });
+
             modelBuilder.Entity("PmTool.Ai.Persistence.AiConversationRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -135,6 +198,10 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("running_until");
 
+                    b.Property<bool>("SawAllItems")
+                        .HasColumnType("boolean")
+                        .HasColumnName("saw_all_items");
+
                     b.Property<string>("Title")
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)")
@@ -146,6 +213,9 @@ namespace PmTool.Ai.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_conversations");
+
+                    b.HasIndex("UpdatedAt")
+                        .HasDatabaseName("ix_conversations_updated_at");
 
                     b.HasIndex("OrganizationId", "PersonId", "RunningUntil")
                         .HasDatabaseName("ix_conversations_organization_id_person_id_running_until");
@@ -260,6 +330,10 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("allow_personal_connections");
 
+                    b.Property<int?>("DailyRequestsPerPerson")
+                        .HasColumnType("integer")
+                        .HasColumnName("daily_requests_per_person");
+
                     b.Property<Guid?>("DefaultConnectionId")
                         .HasColumnType("uuid")
                         .HasColumnName("default_connection_id");
@@ -277,6 +351,14 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean")
                         .HasColumnName("enabled");
+
+                    b.Property<int?>("MonthlyRequests")
+                        .HasColumnType("integer")
+                        .HasColumnName("monthly_requests");
+
+                    b.Property<long?>("MonthlyTokens")
+                        .HasColumnType("bigint")
+                        .HasColumnName("monthly_tokens");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -310,6 +392,10 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
+
+                    b.Property<DateTimeOffset?>("CredentialExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("credential_expires_at");
 
                     b.Property<string>("CredentialHash")
                         .HasMaxLength(64)
@@ -352,6 +438,15 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("character varying(60)")
                         .HasColumnName("name_key");
 
+                    b.Property<DateTimeOffset?>("NextCredentialExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_credential_expires_at");
+
+                    b.Property<string>("NextCredentialHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("next_credential_hash");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
@@ -380,6 +475,20 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("state");
 
+                    b.Property<string>("SuspectMachineKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("suspect_machine_key");
+
+                    b.Property<string>("SuspectMachineName")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("suspect_machine_name");
+
+                    b.Property<DateTimeOffset?>("SuspectSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("suspect_seen_at");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -394,6 +503,10 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.HasIndex("CredentialHash")
                         .IsUnique()
                         .HasDatabaseName("ix_host_agents_credential_hash");
+
+                    b.HasIndex("NextCredentialHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_host_agents_next_credential_hash");
 
                     b.HasIndex("PairingCodeHash")
                         .IsUnique()
@@ -522,6 +635,10 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("project_key");
 
+                    b.Property<int>("Proposals")
+                        .HasColumnType("integer")
+                        .HasColumnName("proposals");
+
                     b.Property<DateTimeOffset?>("QueuedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("queued_at");
@@ -542,6 +659,10 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("state");
+
+                    b.Property<int>("ToolCalls")
+                        .HasColumnType("integer")
+                        .HasColumnName("tool_calls");
 
                     b.Property<DateTimeOffset?>("ToolTokenExpiresAt")
                         .HasColumnType("timestamp with time zone")
@@ -1111,11 +1232,19 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("person_id");
 
+                    b.Property<int>("Proposals")
+                        .HasColumnType("integer")
+                        .HasColumnName("proposals");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("state");
+
+                    b.Property<int>("ToolCalls")
+                        .HasColumnType("integer")
+                        .HasColumnName("tool_calls");
 
                     b.HasKey("Id")
                         .HasName("pk_local_agent_jobs");

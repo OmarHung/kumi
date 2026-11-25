@@ -87,6 +87,12 @@ internal sealed record LocalJobRow
     /// <summary>已經存下幾則進度；下一則的流水號是它加一。回報時鎖住這一列，流水號才不會重複。</summary>
     public int EventCount { get; init; }
 
+    /// <summary>同 <see cref="HostJobRow.ToolCalls"/>：MCP 的請求帶 <c>X-Kumi-Job</c> 時計在這一件。</summary>
+    public int ToolCalls { get; init; }
+
+    /// <summary>同 <see cref="HostJobRow.Proposals"/>。</summary>
+    public int Proposals { get; init; }
+
     /// <summary>結束的種類（<c>complete</c>、<c>stopped</c>、<c>failed</c>）；還沒結束是 null。</summary>
     public string? FinishStatus { get; init; }
 

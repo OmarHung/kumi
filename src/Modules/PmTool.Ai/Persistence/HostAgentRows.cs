@@ -34,6 +34,27 @@ internal sealed record HostAgentRow
 
     public string? CredentialHash { get; init; }
 
+    /// <summary>機器憑證什麼時候過期（發出後 <see cref="AiRules.HostCredentialLifetime"/>）。過了 <c>AuthenticateAsync</c> 就不認。</summary>
+    public DateTimeOffset? CredentialExpiresAt { get; init; }
+
+    /// <summary>
+    /// 換新時發出、worker 還沒用過的下一把憑證（雜湊）。worker 第一次用它認證時換成正式的、舊的作廢；
+    /// worker 沒存好、還在用舊的，下一次登記再發一把新的（覆蓋這一欄）。
+    /// </summary>
+    public string? NextCredentialHash { get; init; }
+
+    public DateTimeOffset? NextCredentialExpiresAt { get; init; }
+
+    /// <summary>
+    /// 最近一次有人拿這台的憑證、卻報了不同的機器編號來登記（被拒絕）：那時報的編號、電腦名稱與時間。
+    /// 擁有者在管理頁看到警告；重新配對時清掉。
+    /// </summary>
+    public string? SuspectMachineKey { get; init; }
+
+    public string? SuspectMachineName { get; init; }
+
+    public DateTimeOffset? SuspectSeenAt { get; init; }
+
     public string? PairingCodeHash { get; init; }
 
     public DateTimeOffset? PairingExpiresAt { get; init; }
@@ -214,6 +235,12 @@ internal sealed record HostJobRow
 
     /// <summary>結束是 worker 自己送的（重送結束不算錯）；伺服器結束的（逾時、取消）不是。</summary>
     public bool FinishedByWorker { get; init; }
+
+    /// <summary>這件工作用了幾次工具（伺服器端計，上限 <see cref="AiRules.MaxAgentToolCallsPerJob"/>）。</summary>
+    public int ToolCalls { get; init; }
+
+    /// <summary>這件工作成功提出了幾份（變更集加修改建議，上限 <see cref="AiRules.MaxAgentProposalsPerJob"/>）。</summary>
+    public int Proposals { get; init; }
 
     public string? FinishStatus { get; init; }
 

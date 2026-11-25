@@ -21,6 +21,9 @@ internal sealed partial class AiDbContext
             agent.Property(a => a.MachineName).HasMaxLength(AiRules.MaxMachineNameLength);
             agent.Property(a => a.CredentialHash).HasMaxLength(MaxHashLength);
             agent.Property(a => a.PairingCodeHash).HasMaxLength(MaxHashLength);
+            agent.Property(a => a.NextCredentialHash).HasMaxLength(MaxHashLength);
+            agent.Property(a => a.SuspectMachineKey).HasMaxLength(HostLimits.MaxMachineKeyLength);
+            agent.Property(a => a.SuspectMachineName).HasMaxLength(AiRules.MaxMachineNameLength);
             agent.Property(a => a.AgentVersion).HasMaxLength(HostLimits.MaxVersionLength);
             agent.Property(a => a.ServerUrl).HasMaxLength(AiRules.MaxBaseUrlLength);
             agent.Property(a => a.Engines).HasColumnType(Jsonb);
@@ -28,6 +31,7 @@ internal sealed partial class AiDbContext
             agent.HasIndex(a => new { a.OrganizationId, a.NameKey }).IsUnique();
             agent.HasIndex(a => a.CredentialHash).IsUnique();
             agent.HasIndex(a => a.PairingCodeHash).IsUnique();
+            agent.HasIndex(a => a.NextCredentialHash).IsUnique();
         });
 
         modelBuilder.Entity<HostSourceRow>(source =>

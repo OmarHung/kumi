@@ -19,9 +19,12 @@ internal static class AssistantPrompt
 
     public static string SystemPrompt => Composed.Value;
 
-    /// <summary>這則對話的專案與使用者權限的一句說明，放在系統提示之後。</summary>
-    public static string ProjectNote(string projectName, string projectKey, IReadOnlyList<string> permissions) =>
-        $"這則對話在專案「{projectName}」（代號 {projectKey}）。使用者在這個專案：能讀設定；"
+    /// <summary>
+    /// 這則對話的專案與使用者權限的一句說明，放在系統提示之後。只放代號：專案名稱是專案管理者寫的內容，
+    /// 放進系統訊息等於讓它有系統提示的份量（和 <see cref="ItemNote"/> 不放標題是同一個理由）。
+    /// </summary>
+    public static string ProjectNote(string projectKey, IReadOnlyList<string> permissions) =>
+        $"這則對話在專案代號 {projectKey} 的專案。使用者在這個專案：能讀設定；"
         + $"{(permissions.Contains(WorkPermissions.BlueprintPropose) ? "能" : "不能")}提出變更集；"
         + $"{(permissions.Contains(WorkPermissions.BlueprintApply) ? "能" : "不能")}核准。";
 

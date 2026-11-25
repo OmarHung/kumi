@@ -86,6 +86,7 @@ public static class AiModule
         services.TryAddScoped<IHostToolGrants, HostToolGrants>();
 
         // 修改建議：助理（內建與本機代理）只建立建議，使用者按套用時才以自己的身分寫入。
+        services.TryAddScoped<IAiMaintenance, Maintenance.AiMaintenance>();
         services.TryAddScoped<IItemProposalCreator, ItemProposalCreator>();
         services.TryAddScoped<ItemProposalApplier>();
         services.TryAddScoped<IItemProposalService, ItemProposalService>();

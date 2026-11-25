@@ -12,6 +12,9 @@ public enum AccountEventKind
     CliLoginTokensIssued,
     OAuthAppAuthorized,
     CliLoginCodeReused,
+
+    /// <summary>本機代理第一次從一台新的電腦登記（同一個人、沒見過的機器編號）。帶 <see cref="AccountEvent.MachineName"/> 與 <see cref="AccountEvent.SourceAddress"/>。</summary>
+    LocalAgentMachineAdded,
 }
 
 /// <param name="EventId">等於同一件事的稽核紀錄編號；通知用它去重。</param>

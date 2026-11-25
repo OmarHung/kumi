@@ -46,6 +46,8 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
     public DbSet<HostToolCallRow> HostToolCalls => Set<HostToolCallRow>();
 
+    public DbSet<AiConnectionUsageRow> ConnectionUsage => Set<AiConnectionUsageRow>();
+
     /// <summary>執行時與設計時（產生遷移）共用同一套設定，兩邊才不會產生不一樣的模型。</summary>
     public static DbContextOptionsBuilder Configure(DbContextOptionsBuilder options, string connectionString) =>
         options
@@ -94,6 +96,9 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
             // 一個人同時在回覆的對話數。
             conversation.HasIndex(c => new { c.OrganizationId, c.PersonId, c.RunningUntil });
+
+            // 保存期限的清理：依最後更新的時間找過期的對話。
+            conversation.HasIndex(c => c.UpdatedAt);
         });
 
         modelBuilder.Entity<AiMessageRow>(message =>
@@ -132,6 +137,20 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
             proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
             proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
             proposal.HasIndex(p => new { p.OrganizationId, p.PersonId, p.CreatedAt });
+        });
+
+        modelBuilder.Entity<AiConnectionUsageRow>(usage =>
+        {
+            usage.ToTable("connection_usage");
+            usage.HasKey(u => u.Id);
+            usage.Property(u => u.Id).ValueGeneratedNever();
+            usage.Property(u => u.ProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
+            usage.Property(u => u.State).HasMaxLength(MaxEnumLength);
+            usage.Property(u => u.FinishStatus).HasMaxLength(MaxEnumLength);
+
+            // 每人每天的則數、全組織每月的則數與 token：都依組織與預留的時間找。
+            usage.HasIndex(u => new { u.OrganizationId, u.PersonId, u.CreatedAt });
+            usage.HasIndex(u => new { u.OrganizationId, u.CreatedAt });
         });
 
         ConfigureLocalAgents(modelBuilder);

@@ -18,21 +18,21 @@ internal static class LocalPromptBuilder
 
     /// <summary>內建助理的系統提示，加上這個專案與權限的一句說明、本機用 MCP 工具的說法。</summary>
     public static string SystemPrompt(
-        string projectName, string projectKey, IReadOnlyList<string> permissions, string? itemKey = null) =>
+        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null) =>
         string.Join(
             "\n\n",
             AssistantPrompt.SystemPrompt,
-            AssistantPrompt.ProjectNote(projectName, projectKey, permissions),
+            AssistantPrompt.ProjectNote(projectKey, permissions),
             AssistantPrompt.ReadResource("local-agent.md").Trim(),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
 
     /// <summary>主機代理（組織來源）的版本：工具的說法和本機相同，只是引擎跑在 Kumi 主機上、代替發問的人操作，不提「你的電腦」。</summary>
     public static string HostSystemPrompt(
-        string projectName, string projectKey, IReadOnlyList<string> permissions, string? itemKey = null) =>
+        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null) =>
         string.Join(
             "\n\n",
             AssistantPrompt.SystemPrompt,
-            AssistantPrompt.ProjectNote(projectName, projectKey, permissions),
+            AssistantPrompt.ProjectNote(projectKey, permissions),
             AssistantPrompt.ReadResource("host-agent.md").Trim(),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
 

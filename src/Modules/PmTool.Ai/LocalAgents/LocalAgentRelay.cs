@@ -72,7 +72,7 @@ internal sealed class LocalAgentRelay(
             selection.Model,
             selection.Effort,
             request.ProjectKey,
-            LocalPromptBuilder.SystemPrompt(request.ProjectName, request.ProjectKey, request.Permissions, request.ItemKey),
+            LocalPromptBuilder.SystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey),
             LocalPromptBuilder.Prompt(request.History, request.UserText),
             LocalAgentTools.Allowed,
             request.McpUrl ?? string.Empty,

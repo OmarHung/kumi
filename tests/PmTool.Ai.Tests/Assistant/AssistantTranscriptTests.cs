@@ -74,7 +74,7 @@ public sealed class AssistantTranscriptTests
                 "system", "system", "user", "assistant", "tool", "assistant", "user",
             }));
             Assert.That(messages[0].Text, Is.EqualTo(AssistantPrompt.SystemPrompt));
-            Assert.That(messages[1].Text, Does.Contain("網站改版").And.Contain("WEB"));
+            Assert.That(messages[1].Text, Does.Contain("WEB").And.Not.Contain("網站改版"));
             Assert.That(messages[2].Text, Is.EqualTo("第一個問題"));
             Assert.That(messages[3].Text, Is.EqualTo("先讀。"));
             Assert.That(messages[5].Text, Is.EqualTo("好了。"));
@@ -242,9 +242,9 @@ public sealed class AssistantTranscriptTests
         }
 
         // Act
-        var note = AssistantPrompt.ProjectNote("網站改版", "WEB", permissions);
+        var note = AssistantPrompt.ProjectNote("WEB", permissions);
 
-        // Assert
-        Assert.That(note, Is.EqualTo($"這則對話在專案「網站改版」（代號 WEB）。使用者在這個專案：能讀設定；{expected}。"));
+        // Assert：專案名稱是專案管理者寫的內容，不放進 system 訊息，只放代號。
+        Assert.That(note, Is.EqualTo($"這則對話在專案代號 WEB 的專案。使用者在這個專案：能讀設定；{expected}。"));
     }
 }
