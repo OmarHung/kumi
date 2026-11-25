@@ -222,6 +222,11 @@ mkdir -m 700 pmtool-dp
    - **之後要調高單檔上限，不能超過 32 MiB 再扣掉 multipart 的負擔**（留 2 MiB 左右）；要更大，得換成瀏覽器直接上傳到 Cloud Storage（簽名網址的可續傳上傳），那是另一個設計，目前沒有做。
    - VM 前面的反向代理也有請求大小的限制：nginx 的 `client_max_body_size`（預設 1 MB）要設成 26m 以上（`docs/deployment/vm.md` 的範例是 30m），Caddy 預設沒有上限。
    - Cloud Run 的請求逾時預設 300 秒，25 MiB 的檔案在一般網路上夠用。
+6. **容量的上限**：項目的附件與知識庫的附件合在一起算，每個組織的總量預設 20 GiB（`Attachments__Quota__OrganizationGiB`），每個人過去 24 小時上傳的量預設 2 GiB（`Attachments__Quota__PersonDailyGiB`）。到了上限，新的上傳回 409（項目是 `attachment.quota_exceeded`、`attachment.daily_quota_exceeded`，知識庫是 `knowledge.attachment_quota_exceeded`、`knowledge.attachment_daily_quota_exceeded`），訊息寫得出是哪一個上限、用了多少；已經上傳的不受影響。
+   - 兩個值都是 0 以上的整數（單位 GiB），`0` 是不限；寫成別的東西啟動失敗。
+   - 組織管理員在網頁的「設定 → 儲存空間」看得到用量與上限。
+   - **既有的部署升級之前先看用量**：已經超過 20 GiB 的組織，升級之後新的上傳會被擋，先把上限調高。
+   - 上限管的是資料庫裡記錄的大小；bucket 或磁碟實際還有多少空間要另外看（本機是 `status.sh` 的「附件」那一列）。
 
 ### 1.7 寄信（Email 通知）
 
@@ -230,6 +235,9 @@ mkdir -m 700 pmtool-dp
 - **對外的 25 埠通常被擋**：GCP 一律擋對外的 25，其他雲端多半也是。用 587（STARTTLS）或 465（SSL／TLS）。Gmail 固定走 587。
 - **主機要連得到寄信服務**：防火牆只擋進來的話不用動；有限制對外連線的，要放行寄信主機的 587 或 465。
 - **SMTP 密碼和 Cookie 的金鑰是同一套 Data Protection**：沒有設 DataProtection 的憑證（第 1.4 節）時，金鑰是明文存在資料庫裡，備份外流就等於 SMTP 密碼外流。上線一定要設憑證；弄丟憑證的話，除了所有人重新登入，寄信設定也要重新輸入密碼（設定頁會顯示「存的密碼解不開，請重新輸入」）。
+- **寄信的主機預設不能在內網**：設定頁填的主機是私有網段、本機或 link-local 的 IP 時不給存；填主機名稱的，在每次連線的當下檢查它解析出來的位址，是內網的就不連、設定頁顯示原因（伺服器會照管理員填的主機去連，不擋的話等於讓人拿它探內網）。公司內網的轉信主機才設 `Notifications__Email__AllowPrivateHosts=true`。**既有的部署升級之前先看現在的寄信主機**：是內網的位址而沒有打開這個設定，升級之後信寄不出去（設定頁會顯示原因）。
+- 寄送失敗時，設定頁顯示的原因是整理過的分類（連不上、帳號密碼不對、憑證有問題、對方拒收），不帶對方主機回的原文；原文在 api 的記錄裡。
+- 同一封信在極少數的情況下會寄兩次：信已經交給寄信主機、但回應在逾時之後才到，下一輪會再寄。寧可多寄也不漏寄。
 - 只開一個容器的限制和寄信無關：同時只有一個程序在寄（資料庫的 advisory lock），之後開多個容器也不會重複寄。
 
 ### 1.8 AI（供應商與 AI 助理）
@@ -260,7 +268,11 @@ mkdir -m 700 pmtool-dp
 
 - **反向代理要轉 WebSocket**：nginx 要加升級的標頭（`docs/deployment/vm.md` 的範例）；Caddy、Cloud Run 不用另外設定。少了的話還能用（退回長輪詢），但每個開著的分頁一直佔住一條連線；VM 的反向代理只用 HTTP/1.1，瀏覽器對同一個網站最多 6 條，分頁一多整個網站就卡住。
 - **Cloud Run**：一條連線最長是服務的請求逾時（預設 5 分鐘，最多 60 分鐘），到了會被切斷，網頁自己重連、把畫面上的資料重抓一次。建議把請求逾時調到 60 分鐘（`--timeout=3600`）。開著的連線會讓執行個體一直算在使用中。
-- **多個容器**：每個 api 程序自己讀事件流、推給自己的連線，項目的變動不需要 Redis。只有收件匣的即時更新只會從跑通知背景工作的那一個程序送出；開多個容器之前要補分送（Redis 或 PostgreSQL 的 LISTEN/NOTIFY）。
+- **多個容器**：每個 api 程序自己讀事件流、推給自己的連線，項目的變動不需要 Redis。程序之間另外要互相通知三件事——憑證作廢（登出、改密碼、停用帳號，別的程序的工作階段快取要立刻清掉）、權限變動（即時連線的群組要重算）、收件匣有新東西——走 PostgreSQL 的 `LISTEN/NOTIFY`（`Cluster__Signals__Enabled`，預設開著），不用另外架東西。
+  - 每個 api 程序多一條一直開著的資料庫連線（用執行的角色，不需要額外的權限）。算連線數的上限時要算進去。
+  - **連線池的代理要能轉 `LISTEN`**：PgBouncer 的 transaction 模式不行（收不到通知），要用 session 模式，或讓 api 直接連資料庫。Cloud SQL Auth Proxy 沒有這個問題。
+  - 那條連線斷了會自己重連；重連之後這個程序把工作階段的快取整個清掉、即時連線全部重算一次（中間漏掉的訊號補不回來）。
+  - 關掉（`false`）時退回舊的行為：別的程序作廢的工作階段最多再認 30 秒，權限變動最多 2 分鐘才反映到即時連線，收件匣的即時更新只從跑通知背景工作的那一個程序送出。只開一個容器時關不關都一樣。
 - 每個開著連線的 api 程序每 500 毫秒查一次事件流。
 
 ### 1.11 命令列工具的下載
@@ -324,11 +336,15 @@ docker buildx build --platform linux/amd64 -t "$IMAGE" --push .
 | `Attachments__Provider` | （必填） | `local` 或 `gcs`。雲端一律 `gcs`（第 1.6 節）。缺了或不認得時啟動失敗。 |
 | `Attachments__Bucket` | 無 | `gcs` 用：bucket 名稱。 |
 | `Attachments__Directory` | 無 | `local` 用：資料夾，要存在而且 UID 1654 寫得進去。本機的 `compose.yaml` 設成 `/data/attachments`。 |
+| `Attachments__Quota__OrganizationGiB` | `20` | 每個組織的附件總量上限（GiB，項目與知識庫合計）。0 以上的整數，`0` 是不限（第 1.6 節）。 |
+| `Attachments__Quota__PersonDailyGiB` | `2` | 每個人過去 24 小時能上傳的量（GiB）。0 以上的整數，`0` 是不限。 |
+| `Notifications__Email__AllowPrivateHosts` | `false` | 寄信的主機能不能在私有網段、本機與 link-local（第 1.7 節）。內網的轉信主機才打開。 |
+| `Cluster__Signals__Enabled` | `true` | api 程序之間用 PostgreSQL 的 `LISTEN/NOTIFY` 互相通知（第 1.10 節）。每個程序多一條資料庫連線；連線池的代理不能轉 `LISTEN` 時關掉。 |
 | `Cli__PackagesPath` | `/app/cli` | 放 kumi 執行檔的資料夾（第 1.11 節）。資料夾不存在或是空的，就是不提供下載。 |
 | `Ai__AllowPrivateEndpoints` | `false` | 組織的 AI 連線（OpenAI 相容端點）能不能連到私有網段、本機與 link-local 的位址（第 1.8 節）。自架的模型服務在內網時才打開；成員自己的 AI 帳號不受影響，一律不准。 |
 | `TZ` | UTC | 只影響記錄裡的時間，例如 `Asia/Taipei`。 |
 
-- 設定不合規定時，啟動直接失敗，訊息說得出是哪個設定。例如打開了 `ForwardedHeaders__Enabled` 卻沒有任何信任的代理、網段格式錯、憑證讀不到或密碼錯、角色名稱不合規定、`DataProtection__RequireCertificate=true` 卻沒有憑證、正式環境打開 `Security__RequireHttps` 卻沒有 `Security__PublicHost`。
+- 設定不合規定時，啟動直接失敗，訊息說得出是哪個設定。例如打開了 `ForwardedHeaders__Enabled` 卻沒有任何信任的代理、網段格式錯、憑證讀不到或密碼錯、角色名稱不合規定、`DataProtection__RequireCertificate=true` 卻沒有憑證、正式環境打開 `Security__RequireHttps` 卻沒有 `Security__PublicHost`、`Attachments__Quota__*` 不是 0 以上的整數。
 - **改了 `Security__RequireHttps` 之後，Cookie 的名稱跟著變**（`pmtool_session` 與 `__Host-pmtool_session`）：已經登入的人會被登出一次，重新登入即可。
 - **放在反向代理或平台的前端後面時，`Security__RequireHttps=true` 一定要搭配 `ForwardedHeaders__*`。** 沒讀轉送的標頭，api 看到的永遠是代理送來的 http，每個請求都被轉到 https，瀏覽器會一直轉址打不開。程式不擋這個組合（api 自己提供 HTTPS 時不需要轉送的標頭），要自己確認。
 - 映像檔聽 8080（`ASPNETCORE_HTTP_PORTS`），不用改。

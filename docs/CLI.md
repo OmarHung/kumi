@@ -209,7 +209,7 @@ kumi item update WEB-12 --title "改首頁（第二版）" --assignee none
 kumi item move WEB-12 --to doing
 kumi item comment WEB-12 -m "已經改好，請看"
 kumi item comments WEB-12                            # 列出留言：完整編號、作者、時間、（已編輯）、第一行；回覆縮排
-kumi item comment-edit WEB-12 <留言編號> -m "新的內容"   # 只有作者能編輯，舊的版本伺服器留著
+kumi item comment-edit WEB-12 <留言編號> -m "新的內容"   # 只有作者能編輯，舊的版本伺服器留著；匯入的留言不能編輯
 kumi item comment-delete WEB-12 <留言編號>             # 作者或專案管理者；留言留在原位標「已刪除」
 kumi item comment-restore WEB-12 <留言編號>            # 復原已刪除的留言
 kumi item delete WEB-12 WEB-13                       # 刪除（一個或多個）
@@ -310,7 +310,7 @@ kumi changeset reject 3 --project AGY
 
 ### 從 monday 匯入
 
-把 monday 的看板搬進來：項目保留建立的人與時間，留言與回覆保留作者與時間，留言裡的圖片與檔案搬成附件，**一則通知都不發**，時間軸上標「從 monday 匯入」。可以重跑：已經匯入的略過，只補新的。規格與規則見 `internal/HANDOFF-monday-import.md`。
+把 monday 的看板搬進來：項目保留建立的人與時間，留言與回覆保留作者與時間，留言裡的圖片與檔案搬成附件，**一則通知都不發**，時間軸上標「從 monday 匯入」。匯入的留言之後誰都不能編輯（`comment.imported`），只有專案管理者能刪。可以重跑：已經匯入的略過，只補新的。規格與規則見 `internal/HANDOFF-monday-import.md`。
 
 ```bash
 export MONDAY_API_TOKEN=…     # monday 的個人 API 權杖（Profile → Developers）；只放在環境變數，kumi 不寫進任何檔案

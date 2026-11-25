@@ -116,7 +116,7 @@ kumi item delete WEB-12 --json
 kumi item restore WEB-12 --json
 ```
 
-- **編輯、刪除留言之前先問人**，別人的留言尤其要問：編輯只有作者能做（舊的版本伺服器會留著），刪除之後可以用 `comment-restore` 復原，但留言會先在畫面上消失。留言編號用 `item comments` 取得。
+- **編輯、刪除留言之前先問人**，別人的留言尤其要問：編輯只有作者能做（舊的版本伺服器會留著；從別的系統匯入的留言誰都不能編輯，回 `comment.imported`，只有專案管理者能刪），刪除之後可以用 `comment-restore` 復原，但留言會先在畫面上消失。留言編號用 `item comments` 取得。
 - `--assignee`：`@me`、同事的 email；修改時 `none` 是清掉。
 - `--set 欄位=值` 可以重複。`priority`、`startDate`、`dueDate`、`estimate`、`parentKey`、`description` 是項目本身的屬性，其他的是藍圖的自訂欄位，`kumi` 會依欄位型別轉換。值寫 `null` 是清掉。多選寫 `'tags=["a","b"]'`。
 - 說明（`description`）與留言是 Markdown。多行的內容用 heredoc 傳，不要自己跳脫換行：
