@@ -22,6 +22,9 @@ internal sealed class McpToolRunner(
 {
     private const string UnexpectedError = "工具執行時出錯了，請稍後再試。";
 
+    // 提出類的寫入不跟著請求取消，但不能無限等：資料庫卡住時最多等這麼久。
+    private static readonly TimeSpan ProposalWriteLimit = TimeSpan.FromSeconds(60);
+
     // 和同意頁的說法一樣（internal/HANDOFF-mcp.md 6.1），使用者在兩個地方看到的是同一組詞。
     private static readonly IReadOnlyDictionary<AccessTokenScope, string> ScopeLabels = new Dictionary<AccessTokenScope, string>
     {
@@ -93,7 +96,75 @@ internal sealed class McpToolRunner(
         {
             ScopedProject = scope,
         };
-        return Render(await RunAsync(tool, context, request.Params?.Arguments, cancellationToken));
+        if (scope is null)
+        {
+            return Render(await RunAsync(tool, context, request.Params?.Arguments, cancellationToken));
+        }
+
+        return Render(await CallForLocalAgentAsync(tool, context, scope, http, request.Params?.Arguments, cancellationToken));
+    }
+
+    /// <summary>
+    /// 本機代理（<c>agent:run</c>）的工具呼叫：每次先在伺服器端計這件工作的額度（<see cref="IAgentToolBudget"/>），
+    /// 工作編號來自 <c>X-Kumi-Job</c>（kumi 寫進引擎的 MCP 設定，模型改不了）。提出類的工具沒有成功時退還提出的名額。
+    /// </summary>
+    private async Task<McpToolResult> CallForLocalAgentAsync(
+        McpTool tool, McpToolContext context, string projectKey, HttpContext http, IDictionary<string, JsonElement>? arguments,
+        CancellationToken cancellationToken)
+    {
+        var jobId = McpProjectScope.ReadJob(http.Request);
+        if (jobId is null)
+        {
+            return McpToolResult.Error(
+                http.Request.Headers.ContainsKey(McpProjectScope.JobHeader) ? McpProjectScope.UnknownJobMessage : McpProjectScope.MissingJobMessage);
+        }
+
+        var budget = http.RequestServices.GetRequiredService<IAgentToolBudget>();
+        var isProposal = HostProposalTools.IsProposal(tool.Name);
+        var outcome = await budget.UseLocalAsync(context.Actor, jobId.Value, projectKey, isProposal, cancellationToken);
+        if (BudgetRefusal(outcome) is { } refusal)
+        {
+            return refusal;
+        }
+
+        var ticket = new BudgetTicket(budget, AgentJobKind.Local, jobId.Value, isProposal);
+        return isProposal
+            ? await RunProposalAsync(tool, context, arguments, ticket)
+            : await RunAsync(tool, context, arguments, cancellationToken);
+    }
+
+    private static McpToolResult? BudgetRefusal(AgentToolBudgetOutcome outcome) => outcome switch
+    {
+        AgentToolBudgetOutcome.Allowed => null,
+        AgentToolBudgetOutcome.ToolCallsExhausted =>
+            McpToolResult.Error($"這件工作的工具呼叫已經用完了（每件工作最多 {AiRules.MaxAgentToolCallsPerJob} 次），請用手上已有的資料回答。"),
+        AgentToolBudgetOutcome.ProposalsExhausted =>
+            McpToolResult.Error($"這件工作提出的建議已經達到上限（每件工作最多 {AiRules.MaxAgentProposalsPerJob} 份），請先請使用者處理，不要再提出。"),
+        _ => McpToolResult.Error(McpProjectScope.UnknownJobMessage),
+    };
+
+    /// <summary>
+    /// 提出類的工具（本機代理）：寫入一旦成功就不能被請求的取消影響。SDK 傳進來的是請求的取消權杖（無狀態的 HTTP 模式下，
+    /// 用戶端斷線就取消），寫入成功後才被取消會讓名額被誤退、結果也丟了；所以這一步不跟著請求取消，只受一個固定的上限約束。
+    /// 沒有成功（工具的錯誤、例外）退還提出的名額。
+    /// </summary>
+    private async Task<McpToolResult> RunProposalAsync(
+        McpTool tool, McpToolContext context, IDictionary<string, JsonElement>? arguments, BudgetTicket ticket)
+    {
+        using var bound = new CancellationTokenSource(ProposalWriteLimit);
+        McpToolResult? result = null;
+        try
+        {
+            result = await RunAsync(tool, context, arguments, bound.Token);
+            return result;
+        }
+        finally
+        {
+            if (result is not { IsError: false })
+            {
+                await ticket.RefundAsync();
+            }
+        }
     }
 
     /// <summary>
@@ -117,9 +188,20 @@ internal sealed class McpToolRunner(
         {
             ScopedProject = grant.ProjectKey,
         };
-        return Render(HostProposalTools.IsProposal(tool.Name)
-            ? await RunOnceAsync(tool, context, grant, http.RequestServices.GetRequiredService<IHostToolGrants>(), arguments, cancellationToken)
-            : await RunAsync(tool, context, arguments, cancellationToken));
+        var budget = http.RequestServices.GetRequiredService<IAgentToolBudget>();
+        var isProposal = HostProposalTools.IsProposal(tool.Name);
+        if (BudgetRefusal(await budget.UseHostAsync(grant.JobId, isProposal, cancellationToken)) is { } refusal)
+        {
+            return Render(refusal);
+        }
+
+        if (!isProposal)
+        {
+            return Render(await RunAsync(tool, context, arguments, cancellationToken));
+        }
+
+        var ticket = new BudgetTicket(budget, AgentJobKind.Host, grant.JobId, IsProposal: true);
+        return Render(await RunOnceAsync(tool, context, grant, http.RequestServices.GetRequiredService<IHostToolGrants>(), arguments, ticket));
     }
 
     private async Task<McpToolResult> RunOnceAsync(
@@ -128,32 +210,58 @@ internal sealed class McpToolRunner(
         HostToolGrant grant,
         IHostToolGrants grants,
         IDictionary<string, JsonElement>? arguments,
-        CancellationToken cancellationToken)
+        BudgetTicket ticket)
     {
         var hash = McpArgumentHash.Of(arguments);
-        var replay = await grants.BeginWriteAsync(grant.JobId, tool.Name, hash, cancellationToken);
+
+        // 開始與結束都不跟著請求取消（見 RunProposalAsync）：寫入成功之後一定要把結果記下來，重送才會拿到同一份而不是再建一份。
+        using var bound = new CancellationTokenSource(ProposalWriteLimit);
+        HostToolReplay replay;
+        try
+        {
+            replay = await grants.BeginWriteAsync(grant.JobId, tool.Name, hash, bound.Token);
+        }
+        catch
+        {
+            // 還沒開始寫就失敗（資料庫斷線、逾時）：這次沒有提出任何東西，名額要還，模型重試才有名額（審查 L-11）。
+            await ticket.RefundAsync();
+            throw;
+        }
+
         switch (replay.Kind)
         {
             case HostToolReplayKind.Replay when replay.ResultJson is { } stored:
+                // 重播已經建立的那一份，沒有新增提案：名額退還。
+                await ticket.RefundAsync();
                 return new McpToolResult(IsError: false, stored);
             case HostToolReplayKind.Proceed:
                 break;
             default:
+                await ticket.RefundAsync();
                 return McpToolResult.Error("同樣的提案正在建立，請稍候。");
         }
 
         string? resultJson = null;
         try
         {
-            var result = await RunAsync(tool, context, arguments, cancellationToken);
+            var result = await RunAsync(tool, context, arguments, bound.Token);
             resultJson = result.IsError ? null : result.Json;
             return result;
         }
         finally
         {
-            // 取消了也要放掉「進行中」：不然模型修正後再試會永遠看到「正在建立」。
+            // 寫入成功就立刻記下；沒有成功（錯誤、例外）放掉「進行中」並退還名額，模型修正後才能再試。
             await grants.CompleteWriteAsync(grant.JobId, tool.Name, hash, resultJson, CancellationToken.None);
+            if (resultJson is null)
+            {
+                await ticket.RefundAsync();
+            }
         }
+    }
+
+    private sealed record BudgetTicket(IAgentToolBudget Budget, AgentJobKind Kind, Guid JobId, bool IsProposal)
+    {
+        public Task RefundAsync() => IsProposal ? Budget.RefundProposalAsync(Kind, JobId) : Task.CompletedTask;
     }
 
     private static bool IsVisibleToToken((Guid TokenId, IReadOnlyList<AccessTokenScope> Scopes)? token, McpTool tool) =>

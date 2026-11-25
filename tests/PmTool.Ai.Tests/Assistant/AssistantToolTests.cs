@@ -276,6 +276,93 @@ public sealed class AssistantToolTests
     }
 
     [Test]
+    public async Task ProposeChangeSet_SecondCallInTheSameReply_IsAToolErrorTheModelCanRead()
+    {
+        // Arrange
+        var conversation = await _h.NewConversationAsync();
+        var arguments = new { changeset = new { baseVersion = 3, summary = "改名" } };
+        _h.Script
+            .Enqueue(Turn.Create().Call("p1", "propose_changeset", arguments))
+            .Enqueue(Turn.Create().Call("p2", "propose_changeset", arguments))
+            .Reply("好");
+
+        // Act
+        await _h.SendAsync(conversation.Id);
+
+        // Assert
+        var results = _h.Script.Calls.Last().Messages
+            .SelectMany(m => m.Contents).OfType<FunctionResultContent>().ToList();
+        using var second = JsonDocument.Parse((string)results.Last().Result!);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_h.Changes.Proposals, Has.Count.EqualTo(1));
+            Assert.That(second.RootElement.GetProperty("ok").GetBoolean(), Is.False);
+            Assert.That(second.RootElement.GetProperty("error").GetString(), Does.Contain("最多只能提出 1 份"));
+        }
+    }
+
+    [Test]
+    public async Task ProposeChangeSet_TwoCallsAtOnce_OnlyOneReachesTheService()
+    {
+        // Arrange：第一個呼叫卡在服務裡，第二個同時進來。
+        using var gate = new ManualResetEventSlim();
+        _h.Changes.OnPropose = _ =>
+        {
+            gate.Wait(TimeSpan.FromSeconds(10));
+            return WorkSamples.ProposedDetail(12);
+        };
+        var tool = NewProposeTool();
+        var arguments = new AIFunctionArguments { ["changeset"] = JsonDocument.Parse("""{"baseVersion":3,"summary":"改名"}""").RootElement };
+
+        // Act
+        var first = Task.Run(async () => (string)(await tool.InvokeAsync(arguments))!);
+        while (_h.Changes.Proposals.Count == 0)
+        {
+            await Task.Delay(10);
+        }
+
+        var second = (string)(await tool.InvokeAsync(arguments))!;
+        gate.Set();
+        var firstResult = await first;
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_h.Changes.Proposals, Has.Count.EqualTo(1));
+            Assert.That(second, Does.Contain("最多只能提出 1 份"));
+            Assert.That(firstResult, Does.Contain("\"ok\":true"));
+        }
+    }
+
+    [Test]
+    public async Task ProposeChangeSet_AFailedAttempt_GivesTheSlotBack()
+    {
+        // Arrange
+        var attempts = 0;
+        _h.Changes.OnPropose = _ => ++attempts == 1
+            ? WorkSamples.Failure(FailureKind.Conflict, WorkErrorCodes.ChangeSetOutdated, "版本太舊。")
+            : WorkSamples.ProposedDetail(12);
+        var tool = NewProposeTool();
+        var arguments = new AIFunctionArguments { ["changeset"] = JsonDocument.Parse("""{"baseVersion":3,"summary":"改名"}""").RootElement };
+
+        // Act
+        var failed = (string)(await tool.InvokeAsync(arguments))!;
+        var retried = (string)(await tool.InvokeAsync(arguments))!;
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(failed, Does.Contain("\"ok\":false"));
+            Assert.That(retried, Does.Contain("\"ok\":true"));
+        }
+    }
+
+    private AIFunction NewProposeTool() => new PmTool.Ai.Assistant.Tools.ProposeChangeSetTool(new PmTool.Ai.Assistant.Tools.AssistantToolContext(
+        _h.Actor, "WEB", _h.Projects, _h.Changes, _h.Usage, new FakeTemplateLibrary(),
+        _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), Guid.NewGuid(),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance));
+
+    [Test]
     public async Task ProposeChangeSet_WithoutProposePermission_SaysSoInPlainWords()
     {
         // Arrange

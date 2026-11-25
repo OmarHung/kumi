@@ -130,6 +130,13 @@ internal static class AiConnectionValidator
             return null;
         }
 
+        // 自己的端點：只收 https 的 443。http 會把金鑰與對話明文送出去，其他連接埠讓人拿來探測網路上的服務。
+        if (personal && !(uri.Scheme == Uri.UriSchemeHttps && uri.Port == AiRules.PersonalEndpointPort))
+        {
+            problems.Add(Invalid(BaseUrlPath, $"自己的 AI 帳號的端點只能用 https 與 {AiRules.PersonalEndpointPort} 連接埠。"));
+            return null;
+        }
+
         var normalized = text.TrimEnd('/');
         if (normalized.Length > AiRules.MaxBaseUrlLength)
         {

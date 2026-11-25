@@ -101,6 +101,12 @@ internal static class HostAgentWorkerEndpoints
 
         // 長輪詢：呼叫端斷線時（RequestAborted）模組立刻回，什麼都不領。
         var result = await workers.CheckInAsync(AgentOf(http), request.ToCheckIn(), request.Capacity, cancellationToken);
+        if (result.Failure?.Code == AiErrorCodes.HostMachineMismatch)
+        {
+            // 對外和憑證不對一樣（401）：不告訴對方是哪一項不對。
+            return ApiFailure.AuthRequired.ToResult();
+        }
+
         return result.Failure is { } failure ? EndpointResults.Fail(failure) : EndpointResults.Ok(HostCheckInData.From(result.Value));
     }
 

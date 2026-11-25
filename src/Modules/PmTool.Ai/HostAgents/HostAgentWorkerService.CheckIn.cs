@@ -20,27 +20,23 @@ internal sealed partial class HostAgentWorkerService
             return invalid;
         }
 
-        HostCheckInResult? registered;
+        Result<HostCheckInResult> registration;
         try
         {
-            registered = await RegisterAsync(agent, valid.Value, cancellationToken);
+            registration = await RegisterAsync(agent, valid.Value, cancellationToken);
         }
         catch (OperationCanceledException)
         {
             return new HostCheckInResult(null, [], false);
         }
 
-        if (registered is null)
+        if (registration.Failure is { } refused)
         {
-            return HostFailures.AgentNotFound();
+            return refused;
         }
 
-        if (registered.Disabled && capacity > 0)
-        {
-            await WaitWhileDisabledAsync(agent, cancellationToken);
-            return registered;
-        }
-
+        var registered = registration.Value;
+        // 停用的代理認證就過不了；這裡只會是認證之後才被停用的那一瞬間，直接回，不等。
         if (registered.Disabled || capacity <= 0)
         {
             return registered;
@@ -52,24 +48,42 @@ internal sealed partial class HostAgentWorkerService
 
     /// <summary>
     /// 記下在線時間、版本、網址與兩個引擎的回報；算出要它登出的引擎（擁有者要求、而且它還說登入著的），
-    /// worker 回報已經沒登入的就把要求清掉。順手清掉殘留的工作。代理被移除了是 null。
+    /// worker 回報已經沒登入的就把要求清掉。順手清掉殘留的工作。代理被移除了是 <see cref="HostFailures.AgentNotFound"/>；
+    /// 機器編號和配對時的不同：什麼都不登記，只記下警告（<see cref="HostFailures.MachineMismatch"/>）。
+    /// 機器憑證剩不到 <see cref="AiRules.HostCredentialRenewBefore"/> 時發下一把（雜湊存起來，明文只在回應裡）。
     /// </summary>
-    private async Task<HostCheckInResult?> RegisterAsync(HostAgentIdentity identity, ValidatedCheckIn checkIn, CancellationToken cancellationToken)
+    private async Task<Result<HostCheckInResult>> RegisterAsync(HostAgentIdentity identity, ValidatedCheckIn checkIn, CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var row = await db.HostAgents.AsNoTracking()
             .SingleOrDefaultAsync(a => a.Id == identity.AgentId && a.OrganizationId == identity.OrganizationId, cancellationToken);
         if (row is null)
         {
-            return null;
+            return HostFailures.AgentNotFound();
         }
 
         var now = time.GetUtcNow();
+        if (!string.Equals(row.MachineKey, checkIn.MachineKey, StringComparison.Ordinal))
+        {
+            // 條件帶著狀態與讀到的憑證：這次登記讀完之後被重新配對、停用的，警告不能寫進新的配對。
+            var readCredential = row.CredentialHash;
+            await db.HostAgents.Where(a => a.Id == row.Id && a.State == HostAgentStates.Active && a.CredentialHash == readCredential).ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(a => a.SuspectMachineKey, checkIn.MachineKey)
+                    .SetProperty(a => a.SuspectMachineName, checkIn.MachineName)
+                    .SetProperty(a => a.SuspectSeenAt, now),
+                cancellationToken);
+            return HostFailures.MachineMismatch();
+        }
+
         var requested = HostEnginesJson.DeserializeNames(row.LogoutRequested);
         var stillLoggedIn = checkIn.Engines.Where(e => e.LoggedIn).Select(e => AiEnumNames.NameOf(e.Kind)).ToHashSet();
         var logout = requested.Where(stillLoggedIn.Contains).ToList();
         var engines = HostEnginesJson.Serialize(checkIn.Engines);
         var remaining = HostEnginesJson.SerializeNames(logout);
+        var rotated = row.CredentialExpiresAt is { } expires && expires - now < AiRules.HostCredentialRenewBefore
+            ? HostSecrets.NewToken(HostSecrets.CredentialPrefix)
+            : null;
         await db.HostAgents.Where(a => a.Id == row.Id).ExecuteUpdateAsync(
             set => set
                 .SetProperty(a => a.LastSeenAt, now)
@@ -78,8 +92,39 @@ internal sealed partial class HostAgentWorkerService
                 .SetProperty(a => a.Engines, engines)
                 .SetProperty(a => a.LogoutRequested, remaining),
             cancellationToken);
+        if (rotated is not null && !await TryStoreNextCredentialAsync(db, row, rotated, now, cancellationToken))
+        {
+            rotated = null;
+        }
+
         await HostJobSweeper.SweepAsync(db, identity.OrganizationId, now, timings, assistantTimings.ReplyTimeout, cancellationToken);
-        return new HostCheckInResult(null, [.. logout.Select(AiEnumNames.ParseKind)], row.State == HostAgentStates.Disabled);
+        return new HostCheckInResult(null, [.. logout.Select(AiEnumNames.ParseKind)], row.State == HostAgentStates.Disabled)
+        {
+            RotatedCredential = rotated,
+        };
+    }
+
+    /// <summary>
+    /// 單獨更新，不拿剛讀的舊值回寫（別的請求剛好把下一把升成目前的時，不會又寫回來）。條件：還是啟用中、
+    /// 目前的憑證和下一把都和讀到的一樣（null 也比對）：讀完之後被重新配對、撤銷，或另一個登記已經先發了下一把的，
+    /// 更新 0 筆、這次就不發（回 false），不會留下一把沒人拿得到、或屬於舊配對的有效憑證。
+    /// </summary>
+    private static async Task<bool> TryStoreNextCredentialAsync(
+        AiDbContext db, HostAgentRow row, string rotated, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var readCredential = row.CredentialHash;
+        var readNext = row.NextCredentialHash;
+        var nextHash = HostSecrets.Hash(rotated);
+        var nextExpires = now + AiRules.HostCredentialLifetime;
+        var updated = await db.HostAgents
+            .Where(a => a.Id == row.Id && a.State == HostAgentStates.Active
+                && a.CredentialHash == readCredential && a.NextCredentialHash == readNext)
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(a => a.NextCredentialHash, nextHash)
+                    .SetProperty(a => a.NextCredentialExpiresAt, nextExpires),
+                cancellationToken);
+        return updated > 0;
     }
 
     /// <summary>
@@ -114,15 +159,6 @@ internal sealed partial class HostAgentWorkerService
         {
             return null;
         }
-    }
-
-    /// <summary>
-    /// 停用的代理照長輪詢的節奏等（重新啟用時的訊號會叫醒它），不要立刻回：worker 會馬上再登記，
-    /// 每次登記都跑一遍殘留工作的清理，停用期間就變成每秒一次的空轉。
-    /// </summary>
-    private async Task WaitWhileDisabledAsync(HostAgentIdentity agent, CancellationToken cancellationToken)
-    {
-        await Task.WhenAny(signals.Next(agent.AgentId), Task.Delay(timings.PollWait, cancellationToken));
     }
 
     private async Task<bool> HasClaimableAsync(HostAgentIdentity agent, CancellationToken cancellationToken)

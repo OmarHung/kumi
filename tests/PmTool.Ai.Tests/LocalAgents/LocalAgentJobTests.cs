@@ -40,7 +40,7 @@ public sealed class LocalAgentJobTests
             Assert.That(job.ProjectKey, Is.EqualTo("WEB"));
             Assert.That(job.McpUrl, Is.EqualTo(LocalAgentHarness.McpUrl));
             Assert.That(job.MaxTurns, Is.EqualTo(AiRules.MaxToolCallsPerReply + 1));
-            Assert.That(job.Prompt, Does.EndWith("使用者：把待辦改名"));
+            Assert.That(job.Prompt, Does.EndWith("<<<使用者>>>\n把待辦改名\n<<<結束>>>"));
             Assert.That(
                 job.AllowedTools,
                 Is.EquivalentTo(new[]

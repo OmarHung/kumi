@@ -48,6 +48,7 @@ public static class AiModule
         // 工作包 A2（助理）。回覆的執行器是單例：它自己開 DI 範圍，回覆比請求活得久。
         services.TryAddSingleton(AssistantTimings.Default);
         services.TryAddSingleton<AssistantReplyRunner>();
+        services.TryAddScoped<ConnectionUsageLedger>();
         services.TryAddScoped<IAssistantService, AssistantService>();
 
         // 工作包 A1（供應商、設定）。gateway 與 protector 用 TryAdd：測試先放假的，就不會真的連出去。
@@ -69,6 +70,8 @@ public static class AiModule
         services.TryAddSingleton<LocalAgentSignals>();
         services.TryAddSingleton<LocalAgentRelay>();
         services.TryAddScoped<IMcpUrlProvider, ConfiguredMcpUrlProvider>();
+        services.TryAddSingleton<IRequestSource>(NullRequestSource.Instance);
+        services.TryAddScoped<LocalAgentMachineNotice>();
         services.TryAddScoped<ILocalAgentService, LocalAgentService>();
         services.TryAddScoped<ILocalAgentDirectory, LocalAgentDirectory>();
 
@@ -84,6 +87,7 @@ public static class AiModule
         services.TryAddScoped<IHostAgentAdminService, HostAgentAdminService>();
         services.TryAddScoped<IHostAgentWorkerService, HostAgentWorkerService>();
         services.TryAddScoped<IHostToolGrants, HostToolGrants>();
+        services.TryAddScoped<IAgentToolBudget, AgentToolBudget>();
 
         // 修改建議：助理（內建與本機代理）只建立建議，使用者按套用時才以自己的身分寫入。
         services.TryAddScoped<IAiMaintenance, Maintenance.AiMaintenance>();

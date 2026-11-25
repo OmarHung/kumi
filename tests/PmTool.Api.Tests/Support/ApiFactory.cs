@@ -269,6 +269,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<IHostAgentAdminService>();
         services.RemoveAll<IHostAgentWorkerService>();
         services.RemoveAll<IHostToolGrants>();
+        services.RemoveAll<IAgentToolBudget>();
         services.RemoveAll<IWorkAccessQueries>();
         services.RemoveAll<IModuleInitializer>();
         services.RemoveAll<IReadinessProbe>();
@@ -315,6 +316,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<IHostAgentAdminService>(Modules.HostAdmin);
         services.AddSingleton<IHostAgentWorkerService>(Modules.HostWorker);
         services.AddSingleton<IHostToolGrants>(Modules.HostGrants);
+        services.AddSingleton<IAgentToolBudget>(Modules.AgentBudget);
         services.AddSingleton<IWorkAccessQueries>(Modules.Access);
         services.AddSingleton<TimeProvider>(Modules.Time);
         foreach (var initializer in Modules.Initializers)

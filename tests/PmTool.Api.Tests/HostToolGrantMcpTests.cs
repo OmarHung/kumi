@@ -275,6 +275,7 @@ public sealed class HostToolGrantMcpTests
 
         using var grantBlocked = await McpTesting.PostRawAsync(http, "kjt_stale-again");
         var checkIn = AccessTokenAuthenticationTests.Bearer(HttpMethod.Post, "/v1/host-agent/check-in", FakeHostAgentWorkerService.Credential);
+        checkIn.Headers.TryAddWithoutValidation("X-Kumi-Machine", FakeHostAgentWorkerService.MachineKey);
         checkIn.Content = ApiRequests.Json(new { agentVersion = "0.9.0", serverUrl = "http://api:8080", capacity = 0, engines = Array.Empty<object>() });
         var ordinary = AccessTokenAuthenticationTests.Bearer(HttpMethod.Get, "/v1/session", "pmt_" + new string('x', 20));
 

@@ -124,6 +124,7 @@ public abstract class HostAgentFlowBase : RealStackTestBase
         Credential = data!["credential"]!.GetValue<string>();
         var worker = Factory.CreateClient();
         worker.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Credential);
+        worker.DefaultRequestHeaders.TryAddWithoutValidation("X-Kumi-Machine", "machine-0001");
         worker.Timeout = TimeSpan.FromSeconds(60);
         _owned.Add(worker);
         _worker = worker;
@@ -145,6 +146,8 @@ public abstract class HostAgentFlowBase : RealStackTestBase
     {
         agentVersion = "0.9.0",
         serverUrl = ServerUrl,
+        machineKey = "machine-0001",
+        machineName = "host-01",
         capacity,
         engines = new object[]
         {

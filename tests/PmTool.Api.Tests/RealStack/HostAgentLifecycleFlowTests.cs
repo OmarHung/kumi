@@ -27,6 +27,7 @@ public sealed class HostAgentLifecycleFlowTests : HostAgentFlowBase
         var credential = (await ApiRequests.AssertSuccessEnvelopeAsync(paired, HttpStatusCode.OK))!["credential"]!.GetValue<string>();
         using var worker = Factory.CreateClient();
         worker.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {credential}");
+        worker.DefaultRequestHeaders.TryAddWithoutValidation("X-Kumi-Machine", "machine-0002");
         var start = await PostOwnerAsync($"{Root}/agents/{agentId}/engines/claude_code/login", null, HttpStatusCode.OK);
         using var claim = await worker.PostAsync("/v1/host-agent/logins/claim", ApiRequests.Json(new { code = start["code"]!.GetValue<string>() }));
         var loginId = (await ApiRequests.AssertSuccessEnvelopeAsync(claim, HttpStatusCode.OK))!["loginId"]!.GetValue<Guid>();
@@ -76,6 +77,7 @@ public sealed class HostAgentLifecycleFlowTests : HostAgentFlowBase
         var repair = await PostOwnerAsync($"{Root}/agents/{agentId}/pairing", null, HttpStatusCode.OK);
         using var oldWorker = Factory.CreateClient();
         oldWorker.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {oldCredential}");
+        oldWorker.DefaultRequestHeaders.TryAddWithoutValidation("X-Kumi-Machine", "machine-0003");
         using var oldCheckIn = await oldWorker.PostAsync("/v1/host-agent/check-in", ApiRequests.Json(CheckInBody(capacity: 0)));
 
         // Assert

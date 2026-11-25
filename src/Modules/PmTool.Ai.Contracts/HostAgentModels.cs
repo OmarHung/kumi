@@ -86,8 +86,14 @@ public interface IHostAgentAdminService
 /// </summary>
 public interface IHostAgentWorkerService
 {
-    /// <summary>機器憑證對應的代理；格式不對、不存在、被換掉或代理被移除時是 null（API 回 401）。停用的代理照樣認得（登記時回 <see cref="HostCheckInResult.Disabled"/>）。</summary>
-    Task<HostAgentIdentity?> AuthenticateAsync(string credential, CancellationToken cancellationToken);
+    /// <summary>
+    /// 機器憑證對應的代理；格式不對、不存在、被換掉、過期、代理被移除、<b>代理被停用</b>，配對這台的人現在不是組織擁有者，
+    /// 或<b>機器編號沒帶、和配對時的不同</b>時是 null（API 回 401）。機器編號不同時記下報來的編號與時間（管理頁的警告，
+    /// 憑證沒有被撤銷：原本那台照常可用）。<paramref name="machineKey"/> 是 worker 每個請求都帶的 <c>X-Kumi-Machine</c>。
+    /// 重新啟用之後同一把憑證自己恢復（worker 收到 401 時每 60 秒重試）。目前的與換新發出的「下一把」都認；
+    /// 用下一把認證時它升成目前的、舊的作廢。
+    /// </summary>
+    Task<HostAgentIdentity?> AuthenticateAsync(string credential, string? machineKey, CancellationToken cancellationToken);
 
     /// <summary>
     /// 用配對碼換機器憑證。配對碼要對、沒過期、沒用過，而且開始配對的人現在還是那個組織的擁有者；不然
@@ -99,7 +105,8 @@ public interface IHostAgentWorkerService
     /// 登記（記下在線、引擎的狀態），然後等最多 <see cref="AiRules.HostPollWait"/>，有可以派給這台的工作就領走一件回傳
     /// （同一件只會被領一次，每個來源同時最多 <see cref="AiRules.HostSourceMaxConcurrent"/> 件、每台最多 <see cref="AiRules.HostWorkerMaxConcurrent"/> 件）。<paramref name="capacity"/> 是這台<b>現在還能多跑幾件</b>（worker 自己數，和本機代理相同），0 時只登記。
     /// 領的時候建立這件工作的工具授權（<see cref="HostJob.ToolToken"/>），並再確認發問的人還是組織裡有效的成員（不是的話那件工作直接失敗、不派）。
-    /// 內容不對：<see cref="AiErrorCodes.HostAgentInvalid"/>。
+    /// 內容不對（包括沒帶機器編號）：<see cref="AiErrorCodes.HostAgentInvalid"/>；機器編號和配對時的不同：
+    /// <see cref="AiErrorCodes.HostMachineMismatch"/>（記下警告，API 回 401）。剩不到 <see cref="AiRules.HostCredentialRenewBefore"/> 時帶一把新的憑證。
     /// </summary>
     Task<Result<HostCheckInResult>> CheckInAsync(
         HostAgentIdentity agent, HostAgentCheckIn checkIn, int capacity, CancellationToken cancellationToken);
@@ -278,7 +285,10 @@ public sealed record HostAgent(
     public HostAgentWarning? Warning { get; init; }
 }
 
-/// <summary>主機代理要擁有者處理的狀況。三種都讓機器憑證暫時不能用，重新配對後清掉。</summary>
+/// <summary>
+/// 主機代理要擁有者處理的狀況，重新配對後清掉。<see cref="HostAgentWarningKind.PairedByFormerOwner"/> 與 <see cref="HostAgentWarningKind.CredentialExpired"/>
+/// 讓機器憑證不能用；<see cref="HostAgentWarningKind.OtherMachine"/> 只是警告：別台電腦被拒絕，原本那台照常可用。
+/// </summary>
 /// <param name="MachineName">只有 <see cref="HostAgentWarningKind.OtherMachine"/> 有：那台報的電腦名稱。</param>
 /// <param name="At">發生的時間（過期是過期的時間）。</param>
 public sealed record HostAgentWarning(HostAgentWarningKind Kind, string? MachineName, DateTimeOffset At);
@@ -286,7 +296,10 @@ public sealed record HostAgentWarning(HostAgentWarningKind Kind, string? Machine
 /// <summary>JSON 是 snake_case：other_machine、paired_by_former_owner、credential_expired。</summary>
 public enum HostAgentWarningKind
 {
-    /// <summary>有人拿這台的憑證、從另一台電腦（不同的機器編號）登記，被拒絕了。憑證可能外流，請重新配對。</summary>
+    /// <summary>
+/// 有人拿這台的憑證、從另一台電腦（不同的機器編號）發請求，被拒絕了。憑證可能外流，請重新配對。
+/// 憑證<b>沒有</b>因此失效：原本那台電腦照常可用，直到擁有者重新配對。
+/// </summary>
     OtherMachine,
 
     /// <summary>配對這台的人已經不是組織擁有者：憑證不再被接受，要由現在的擁有者重新配對。</summary>
@@ -463,7 +476,7 @@ public sealed record HostEngineReport(
 
 /// <param name="Job">領到的工作；沒有是 null。</param>
 /// <param name="Logout">擁有者登出（撤銷授權）的引擎：worker 執行 CLI 的登出並清掉存的登入編號。</param>
-/// <param name="Disabled">代理被停用：照樣保持登記，不會派工作。</param>
+/// <param name="Disabled">代理被停用（只有認證之後、登記之前剛被停用的那一瞬間會看到；停用之後機器憑證就不認了）：不會派工作。</param>
 public sealed record HostCheckInResult(HostJob? Job, IReadOnlyList<AiProviderKind> Logout, bool Disabled)
 {
     /// <summary>

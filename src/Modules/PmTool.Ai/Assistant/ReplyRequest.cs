@@ -27,6 +27,9 @@ internal sealed record ReplyRequest(
     /// <summary>主機來源：送出時預留的工作編號（<c>HostReservations</c>）；其他是 null。</summary>
     public Guid? HostJobId { get; init; }
 
+    /// <summary>用組織的連線：送出時在 <c>connection_usage</c> 預留過，回覆結束要記帳（編號就是 <see cref="AssistantMessageId"/>）。</summary>
+    public bool CountsUsage { get; init; }
+
     /// <summary>這則訊息選的項目編號；沒選是 null。</summary>
     public string? ItemKey { get; init; }
 }

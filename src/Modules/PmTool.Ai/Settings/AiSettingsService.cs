@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
+using PmTool.Ai.Assistant;
 using PmTool.Ai.Persistence;
 
 namespace PmTool.Ai.Settings;
@@ -13,6 +14,7 @@ internal sealed class AiSettingsService(
     IDbContextFactory<AiDbContext> contexts,
     AiConnectionStore store,
     AiConnectionMapper mapper,
+    ConnectionUsageLedger usageLedger,
     TimeProvider clock) : IAiSettingsService
 {
     private const string DefaultPath = "default";
@@ -44,6 +46,7 @@ internal sealed class AiSettingsService(
 
         var connections = await db.Connections.AsNoTracking().OwnedBy(ConnectionOwner.Organization(actor.OrganizationId)).ToListAsync(cancellationToken);
         var problems = CheckDefault(input, connections);
+        problems.AddRange(CheckLimits(input.Limits));
         if (problems.Count > 0)
         {
             return new Failure(FailureKind.Invalid, AiErrorCodes.SettingsInvalid, "AI 設定有幾個欄位不對。") { Details = problems };
@@ -60,6 +63,15 @@ internal sealed class AiSettingsService(
             UpdatedAt = clock.GetUtcNow(),
             UpdatedBy = actor.PersonId,
             AllowPersonalConnections = input.AllowPersonalConnections,
+        };
+
+        // 沒帶上限是沿用存的（舊的用戶端不送這一欄）；從來沒存過就是預設。
+        var limits = input.Limits ?? ConnectionUsageLedger.ToLimits(existing);
+        row = row with
+        {
+            DailyRequestsPerPerson = limits.DailyRequestsPerPerson,
+            MonthlyRequests = limits.MonthlyRequests,
+            MonthlyTokens = limits.MonthlyTokens,
         };
         if (existing is null)
         {
@@ -108,11 +120,34 @@ internal sealed class AiSettingsService(
         return problems;
     }
 
+    private static List<FailureDetail> CheckLimits(AiUsageLimits? limits)
+    {
+        var problems = new List<FailureDetail>();
+        if (limits is null)
+        {
+            return problems;
+        }
+
+        CheckLimit(problems, limits.DailyRequestsPerPerson, AiRules.MaxHostRequestLimit, "limits.dailyRequestsPerPerson");
+        CheckLimit(problems, limits.MonthlyRequests, AiRules.MaxHostRequestLimit, "limits.monthlyRequests");
+        CheckLimit(problems, limits.MonthlyTokens, AiRules.MaxHostTokenLimit, "limits.monthlyTokens");
+        return problems;
+    }
+
+    private static void CheckLimit(List<FailureDetail> problems, long? value, long max, string path)
+    {
+        if (value is { } v && (v < 1 || v > max))
+        {
+            problems.Add(new FailureDetail(AiErrorCodes.FieldInvalid, path, $"要是 1～{max} 之間的整數，或留空代表不限。"));
+        }
+    }
+
     private async Task<AiSettings> ReadSettingsAsync(AiDbContext db, Guid organizationId, CancellationToken cancellationToken)
     {
         var row = await db.Settings.AsNoTracking().SingleOrDefaultAsync(s => s.OrganizationId == organizationId, cancellationToken);
         var rows = await db.Connections.AsNoTracking().OwnedBy(ConnectionOwner.Organization(organizationId)).ToListAsync(cancellationToken);
         var usage = await mapper.ReadUsageAsync(db, organizationId, cancellationToken);
+        var monthUsage = await usageLedger.MonthAsync(db, organizationId, cancellationToken);
         var connections = rows
             .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(c => c.Id)
@@ -120,7 +155,7 @@ internal sealed class AiSettingsService(
             .ToList();
         if (row is null)
         {
-            return new AiSettings(false, null, connections, null, null);
+            return new AiSettings(false, null, connections, null, null) { MonthUsage = monthUsage };
         }
 
         AiSelection? selection = row.DefaultConnectionId is { } id && row.DefaultModel is { } model
@@ -129,6 +164,8 @@ internal sealed class AiSettingsService(
         return new AiSettings(row.Enabled, selection, connections, row.UpdatedAt, row.UpdatedBy)
         {
             AllowPersonalConnections = row.AllowPersonalConnections,
+            Limits = ConnectionUsageLedger.ToLimits(row),
+            MonthUsage = monthUsage,
         };
     }
 

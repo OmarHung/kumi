@@ -4,7 +4,8 @@ using PmTool.Ai.LocalAgents;
 namespace PmTool.Ai.HostAgents;
 
 /// <summary>檢查過的登記內容。</summary>
-internal sealed record ValidatedCheckIn(string AgentVersion, string ServerUrl, IReadOnlyList<StoredHostEngine> Engines);
+internal sealed record ValidatedCheckIn(
+    string AgentVersion, string ServerUrl, IReadOnlyList<StoredHostEngine> Engines, string MachineKey, string? MachineName);
 
 /// <summary>
 /// worker 送來的內容的檢查（internal/HANDOFF-host-agent.md 第 6.4 節）。worker 是自己的程式，但內容會存進資料庫、顯示在擁有者的畫面上，
@@ -59,7 +60,16 @@ internal static class HostValidator
             engines.Add(checkedEngine.Value);
         }
 
-        return new ValidatedCheckIn(version, serverUrl, engines);
+        // 機器編號放最後檢查：其他欄位的錯誤先報。
+        if (!LocalAgentValidator.IsMachineKey(input.MachineKey))
+        {
+            return HostFailures.AgentInvalid(
+                "machineKey", $"登記要帶機器編號（{HostLimits.MinMachineKeyLength}～{HostLimits.MaxMachineKeyLength} 個英數字與「-」）。");
+        }
+
+        // 電腦名稱只用在警告：壞的當作沒有，不因此讓登記失敗。
+        var machineName = LocalAgentValidator.CleanLine(input.MachineName, AiRules.MaxMachineNameLength);
+        return new ValidatedCheckIn(version, serverUrl, engines, input.MachineKey!, machineName);
     }
 
     private static string? CleanServerUrl(string? raw)

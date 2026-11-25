@@ -342,6 +342,31 @@ public sealed class AccountNoticeTests
         }
     }
 
+    [Test]
+    public async Task A_new_local_agent_machine_becomes_a_notice_with_the_machine_name_and_source()
+    {
+        // Arrange
+        var (organization, person) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var accountEvent = new AccountEvent(Guid.CreateVersion7(), organization, person, AccountEventKind.LocalAgentMachineAdded, At)
+        {
+            MachineName = "辦公室的 Mac",
+            SourceAddress = "198.51.100.9",
+        };
+
+        // Act
+        await _sink.PublishAsync(accountEvent, CancellationToken.None);
+
+        // Assert
+        var account = (await OnlyNoticeAsync(organization, person)).Account!;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(account.Event, Is.EqualTo(AccountNoticeEvent.LocalAgentMachineAdded));
+            Assert.That(account.MachineName, Is.EqualTo("辦公室的 Mac"));
+            Assert.That(account.SourceAddress, Is.EqualTo("198.51.100.9"));
+            Assert.That(account.Tokens, Is.Empty);
+        }
+    }
+
     private sealed class RecordingObserver : INotificationObserver
     {
         private readonly List<IReadOnlyCollection<NotifiedRecipient>> _calls = [];

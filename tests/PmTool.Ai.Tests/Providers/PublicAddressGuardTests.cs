@@ -206,7 +206,7 @@ public sealed class PublicAddressGuardTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(failure.Message, Does.Contain("自己的 AI 帳號不能連內部網路的位址").And.Contain("組織的連線"));
+            Assert.That(failure.Message, Is.EqualTo(AiProviderFailures.PersonalUnreachable));
             Assert.That(server.Connections, Is.Zero);
         }
     }
@@ -232,7 +232,7 @@ public sealed class PublicAddressGuardTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(AiProviderFailures.Describe(thrown!, null, null, personal: true), Does.Contain("自己的 AI 帳號不能連內部網路的位址"));
+            Assert.That(AiProviderFailures.Describe(thrown!, null, null, personal: true), Is.EqualTo(AiProviderFailures.PersonalUnreachable));
             Assert.That(server.Connections, Is.Zero);
         }
     }

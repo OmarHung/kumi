@@ -40,7 +40,9 @@ public sealed class AiSettingsEndpointTests
                "modelsCheckedAt":"2026-11-23T03:00:00Z",
                "usage":{"month":"2026-11","inputTokens":120000,"outputTokens":8000,"replies":12},
                "createdAt":"2026-11-22T03:00:00Z","updatedAt":"2026-11-23T03:00:00Z","updatedBy":{{updatedBy}}}],
-             "updatedAt":"2026-11-23T03:00:00Z","updatedBy":{{updatedBy}}}
+             "updatedAt":"2026-11-23T03:00:00Z","updatedBy":{{updatedBy}},
+             "limits":{"dailyRequestsPerPerson":200,"monthlyRequests":null,"monthlyTokens":null},
+             "monthUsage":{"month":"2026-11","requests":12,"tokens":128000} }
             """);
         Assert.That(JsonNode.DeepEquals(data, expected), Is.True, data?.ToJsonString());
     }
@@ -362,6 +364,67 @@ public sealed class AiSettingsEndpointTests
             Assert.That(factory.Modules.AiSettings.SaveCalls.Single().Input.AllowPersonalConnections, Is.True);
             Assert.That(data?["allowPersonalConnections"]?.GetValue<bool>(), Is.True);
         }
+    }
+
+    [Test]
+    public async Task Put_Limits_ArePassedToTheModuleAndEchoed()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+
+        // Act
+        using var response = await client.PutAsync(Route, ApiRequests.Json(new
+        {
+            enabled = false,
+            limits = new { dailyRequestsPerPerson = 50, monthlyRequests = (int?)null, monthlyTokens = 3000000L },
+        }));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(factory.Modules.AiSettings.SaveCalls.Single().Input.Limits, Is.EqualTo(new AiUsageLimits(50, null, 3000000)));
+            Assert.That(data?["limits"]?["dailyRequestsPerPerson"]?.GetValue<int>(), Is.EqualTo(50));
+            Assert.That(data?["limits"]?["monthlyRequests"], Is.Null);
+            Assert.That(data?["limits"]?["monthlyTokens"]?.GetValue<long>(), Is.EqualTo(3000000));
+        }
+    }
+
+    [Test]
+    public async Task Put_LimitsOmitted_PassesNullSoTheModuleKeepsTheStoredOnes()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+
+        // Act
+        using var response = await client.PutAsync(Route, ApiRequests.Json(new { enabled = false }));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(factory.Modules.AiSettings.SaveCalls.Single().Input.Limits, Is.Null);
+        }
+    }
+
+    [Test]
+    public async Task Put_LimitOutOfRange_Returns422WithThePath()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.AiSettings.OnSave = (_, _) => new Failure(FailureKind.Invalid, AiErrorCodes.SettingsInvalid, "AI 設定有幾個欄位不對。")
+        {
+            Details = [new FailureDetail(AiErrorCodes.FieldInvalid, "limits.monthlyTokens", "要是 1～100000000000 之間的整數，或留空代表不限。")],
+        };
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+
+        // Act
+        using var response = await client.PutAsync(Route, ApiRequests.Json(new { enabled = false, limits = new { dailyRequestsPerPerson = (int?)null, monthlyRequests = (int?)null, monthlyTokens = 0L } }));
+
+        // Assert
+        await ApiRequests.AssertFailureEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, AiErrorCodes.SettingsInvalid);
     }
 
     [TestCase(true)]

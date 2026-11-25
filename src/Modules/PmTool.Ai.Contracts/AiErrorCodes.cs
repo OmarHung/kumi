@@ -129,6 +129,12 @@ public static class AiErrorCodes
     /// <summary>worker 送來的內容不對（422）：網址、引擎、模型、流水號的格式或範圍。訊息說明哪裡不對。</summary>
     public const string HostAgentInvalid = "ai.host_agent_invalid";
 
+    /// <summary>
+    /// 登記報的機器編號和配對時的不同（worker 端點回 401，和憑證不對一樣）：憑證可能被拿到別台電腦用。
+    /// 只在模組與 API 之間用；對外就是 401 <c>auth.required</c>。
+    /// </summary>
+    public const string HostMachineMismatch = "ai.host_machine_mismatch";
+
     /// <summary>組織連線的用量到了上限（409；每人每天、全組織每月的則數或 token）。訊息說明是哪一種、什麼時候恢復；什麼都不存。</summary>
     public const string UsageLimitReached = "ai.usage_limit_reached";
 }

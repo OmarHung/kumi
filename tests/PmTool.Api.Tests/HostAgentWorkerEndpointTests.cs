@@ -26,6 +26,8 @@ public sealed class HostAgentWorkerEndpointTests
     {
         agentVersion = "0.9.0",
         serverUrl = "http://api:8080",
+        machineKey = "machine-0001",
+        machineName = "host-01",
         capacity,
         engines = new object[]
         {
@@ -47,8 +49,21 @@ public sealed class HostAgentWorkerEndpointTests
 
     private static HttpRequestMessage Post(string route, string? secret, object body)
     {
-        var request = secret is null ? new HttpRequestMessage(HttpMethod.Post, route) : Bearer(HttpMethod.Post, route, secret);
+        var request = secret is null ? new HttpRequestMessage(HttpMethod.Post, route) : WorkerBearer(HttpMethod.Post, route, secret);
         request.Content = ApiRequests.Json(body);
+        return request;
+    }
+
+    /// <summary>帶機器憑證的請求：預設帶配對時的機器編號（<c>X-Kumi-Machine</c>）；<paramref name="machineKey"/> 給 null 就不帶。</summary>
+    private static HttpRequestMessage WorkerBearer(
+        HttpMethod method, string route, string secret, string? machineKey = FakeHostAgentWorkerService.MachineKey)
+    {
+        var request = Bearer(method, route, secret);
+        if (machineKey is not null)
+        {
+            request.Headers.TryAddWithoutValidation("X-Kumi-Machine", machineKey);
+        }
+
         return request;
     }
 
@@ -70,12 +85,13 @@ public sealed class HostAgentWorkerEndpointTests
         var (checkIn, capacity) = ((HostAgentCheckIn, int))argument!;
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(JsonNode.DeepEquals(data, JsonNode.Parse("""{"job":null,"logout":[],"disabled":false}""")), Is.True, data?.ToJsonString());
+            Assert.That(JsonNode.DeepEquals(data, JsonNode.Parse("""{"job":null,"logout":[],"disabled":false,"rotatedCredential":null}""")), Is.True, data?.ToJsonString());
             Assert.That(method, Is.EqualTo("CheckInAsync"));
             Assert.That(agent, Is.EqualTo(FakeHostAgentWorkerService.Identity));
             Assert.That(capacity, Is.EqualTo(2));
             Assert.That(checkIn.AgentVersion, Is.EqualTo("0.9.0"));
             Assert.That(checkIn.ServerUrl, Is.EqualTo("http://api:8080"));
+            Assert.That((checkIn.MachineKey, checkIn.MachineName), Is.EqualTo(("machine-0001", "host-01")));
             var claude = checkIn.Engines[0];
             Assert.That(claude.Kind, Is.EqualTo(AiProviderKind.ClaudeCode));
             Assert.That((claude.Installed, claude.Supported, claude.LoggedIn, claude.Billing), Is.EqualTo((true, true, true, HostBilling.Api)));
@@ -105,7 +121,7 @@ public sealed class HostAgentWorkerEndpointTests
             {"job":{"jobId":"77777777-7777-7777-7777-777777777771","lease":3,"engine":"claude_code","model":"default","effort":"high",
             "projectKey":"WEB","systemPrompt":"系統提示","prompt":"使用者：嗨","allowedTools":["get_blueprint","propose_item_changes"],
             "mcpUrl":"http://api:8080/mcp","maxTurns":13,"toolToken":"kjt_secret-tool-token","toolTokenExpiresAt":"2026-11-24T03:06:00Z"},
-            "logout":["codex"],"disabled":false}
+            "logout":["codex"],"disabled":false,"rotatedCredential":null}
             """;
         Assert.That(JsonNode.DeepEquals(data, JsonNode.Parse(expected)), Is.True, data?.ToJsonString());
     }
@@ -154,7 +170,7 @@ public sealed class HostAgentWorkerEndpointTests
         // Arrange：元素是 null 時轉換會丟 NullReferenceException，回 500；要回和其他欄位一樣的 422。
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
         using var client = factory.CreateClient();
-        var request = Bearer(HttpMethod.Post, CheckInRoute, FakeHostAgentWorkerService.Credential);
+        var request = WorkerBearer(HttpMethod.Post, CheckInRoute, FakeHostAgentWorkerService.Credential);
         request.Content = ApiRequests.Document($$"""{"agentVersion":"0.9.0","serverUrl":"http://api:8080","capacity":1,"engines":{{engines}}}""");
 
         // Act
@@ -175,7 +191,7 @@ public sealed class HostAgentWorkerEndpointTests
         // Arrange
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
         using var client = factory.CreateClient();
-        var request = Bearer(HttpMethod.Post, EventsRoute, FakeHostAgentWorkerService.Credential);
+        var request = WorkerBearer(HttpMethod.Post, EventsRoute, FakeHostAgentWorkerService.Credential);
         request.Content = ApiRequests.Document("""{"lease":3,"firstSeq":1,"events":[{"type":"text","delta":"ok"},null]}""");
 
         // Act
@@ -188,6 +204,86 @@ public sealed class HostAgentWorkerEndpointTests
             Assert.That(ApiRequests.Describe(details), Is.EqualTo(new[] { "ai.field_invalid|events[1]" }));
             Assert.That(factory.Modules.HostWorker.Calls, Is.Empty);
         }
+    }
+
+    [Test]
+    public async Task CheckIn_ModuleHandsBackARotatedCredential_ReturnsItOnce()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.HostWorker.OnCheckIn = (_, _, _) => new HostCheckInResult(null, [], false) { RotatedCredential = "kha_next-credential" };
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(Worker(CheckInRoute, CheckInBody()));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(data?["rotatedCredential"]?.GetValue<string>(), Is.EqualTo("kha_next-credential"));
+    }
+
+    [Test]
+    public async Task CheckIn_MachineKeyMismatch_Is401LikeABadCredential()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.HostWorker.OnCheckIn = (_, _, _) => new Failure(FailureKind.Forbidden, AiErrorCodes.HostMachineMismatch, "機器編號不同。");
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(Worker(CheckInRoute, CheckInBody()));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Unauthorized, ApiErrorCodes.AuthRequired);
+    }
+
+    [TestCase(null, TestName = "沒帶機器編號")]
+    [TestCase("machine-9999", TestName = "機器編號和配對時的不同")]
+    public async Task EveryWorkerEndpoint_WithoutTheRightMachineKey_Is401AndTheModuleIsNotAsked(string? machineKey)
+    {
+        // Arrange：機器編號綁在每個 kha_ 請求上，不只是登記：領登入碼、回報、結束也都要擋。
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        var routes = new[]
+        {
+            CheckInRoute, EventsRoute, FinishRoute, "/v1/host-agent/logins/claim",
+            $"/v1/host-agent/logins/{FakeHostAgentAdminService.LoginId}/complete",
+        };
+
+        foreach (var route in routes)
+        {
+            // Act
+            var request = WorkerBearer(HttpMethod.Post, route, FakeHostAgentWorkerService.Credential, machineKey);
+            request.Content = ApiRequests.Json(new { });
+            using var response = await client.SendAsync(request);
+
+            // Assert
+            await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Unauthorized, ApiErrorCodes.AuthRequired);
+        }
+
+        Assert.That(factory.Modules.HostWorker.Calls, Is.Empty);
+    }
+
+    [Test]
+    public async Task WorkerEndpoints_WithTheWrongMachineKey_CountAgainstTheFailureLimit()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        for (var i = 0; i < ApiLimits.BearerFailuresPerWindow; i++)
+        {
+            var wrong = WorkerBearer(HttpMethod.Post, EventsRoute, FakeHostAgentWorkerService.Credential, "machine-9999");
+            wrong.Content = ApiRequests.Json(new { });
+            using var failed = await client.SendAsync(wrong);
+        }
+
+        // Act
+        var blocked = WorkerBearer(HttpMethod.Post, EventsRoute, FakeHostAgentWorkerService.Credential, "machine-9999");
+        blocked.Content = ApiRequests.Json(new { });
+        using var response = await client.SendAsync(blocked);
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.TooManyRequests));
     }
 
     [Test]
@@ -661,7 +757,7 @@ public sealed class HostAgentWorkerEndpointTests
         // Arrange
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
         using var client = factory.CreateClient();
-        var request = Bearer(HttpMethod.Post, EventsRoute, FakeHostAgentWorkerService.Credential);
+        var request = WorkerBearer(HttpMethod.Post, EventsRoute, FakeHostAgentWorkerService.Credential);
         request.Content = ApiRequests.Document("{\"lease\":1,\"firstSeq\":1,\"events\":[]}" + new string(' ', 1024 * 1024));
 
         // Act

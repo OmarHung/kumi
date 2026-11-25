@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Maintenance;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Settings;
 
@@ -46,6 +47,7 @@ internal sealed partial class LocalAgentService
                 set => set
                     .SetProperty(j => j.State, LocalJobStates.Finished)
                     .SetProperty(j => j.CancelRequested, true)
+                    .SetProperty(j => j.Payload, LocalJobRetention.EmptyPayload)
                     .SetProperty(j => j.FinishStatus, AssistantMessageMapper.StatusName(AssistantMessageStatus.Failed)),
                 cancellationToken);
             await transaction.CommitAsync(cancellationToken);

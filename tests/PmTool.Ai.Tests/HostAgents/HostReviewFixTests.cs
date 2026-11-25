@@ -113,28 +113,19 @@ public sealed class HostReviewFixTests
     }
 
     [Test]
-    public async Task Disabled_agent_check_in_waits_the_poll_time_before_saying_disabled_and_can_be_cancelled()
+    public async Task Disabled_agent_check_in_that_slips_through_answers_at_once_without_waiting()
     {
-        // Arrange
+        // Arrange：認證之後才被停用的那一瞬間；停用之後的請求在認證就被擋掉（HostCredentialLifecycleTests）。
         await _h.Service.UpdateAgentAsync(_h.Owner, _setup.Worker.AgentId, new HostAgentInput("主機代理") { Enabled = false }, default);
         var started = DateTimeOffset.UtcNow;
 
         // Act
-        var waited = await _h.CheckInAsync(_setup.Worker, capacity: 1);
-        var elapsed = DateTimeOffset.UtcNow - started;
-        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-        var cancelledAt = DateTimeOffset.UtcNow;
-        var cancelled = await _h.CheckInAsync(_setup.Worker, capacity: 1, cancel.Token);
-        var cancelledAfter = DateTimeOffset.UtcNow - cancelledAt;
-        var noWait = DateTimeOffset.UtcNow;
-        await _h.CheckInAsync(_setup.Worker, capacity: 0);
+        var result = await _h.CheckInAsync(_setup.Worker, capacity: 1);
 
         // Assert
-        Assert.That(waited.Disabled, Is.True);
-        Assert.That(elapsed, Is.GreaterThanOrEqualTo(TimeSpan.FromMilliseconds(400)));
-        Assert.That(cancelled.Disabled, Is.True);
-        Assert.That(cancelledAfter, Is.LessThan(TimeSpan.FromMilliseconds(400)));
-        Assert.That(DateTimeOffset.UtcNow - noWait, Is.LessThan(TimeSpan.FromMilliseconds(300)));
+        Assert.That(result.Disabled, Is.True);
+        Assert.That(result.Job, Is.Null);
+        Assert.That(DateTimeOffset.UtcNow - started, Is.LessThan(TimeSpan.FromMilliseconds(300)));
     }
 
     public static IEnumerable<TestCaseData> AgentChanges() =>

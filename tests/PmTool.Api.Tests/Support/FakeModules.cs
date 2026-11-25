@@ -91,6 +91,8 @@ internal sealed class FakeModules
 
     public FakeHostToolGrants HostGrants { get; } = new();
 
+    public FakeAgentToolBudget AgentBudget { get; } = new();
+
     public FakeWorkAccessQueries Access { get; } = new();
 
     public ManualTimeProvider Time { get; } = new();

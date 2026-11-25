@@ -13,6 +13,12 @@ internal static partial class AiProviderFailures
 {
     private const int MaxSnippetLength = 300;
 
+    /// <summary>
+    /// 自己的連線連不上時的唯一一句話（AI-04／05）：位址被擋、解析不到、連線被拒、被擋的連接埠都是它。
+    /// 成員填的端點不能被拿來分辨「內網有沒有這台機器」，詳細的原因只寫記錄。
+    /// </summary>
+    internal const string PersonalUnreachable = "連不上這個端點，請確認網址是從網路上連得到的 https 位址。";
+
     /// <summary>繁體中文，不超過 <see cref="AiRules.MaxErrorLength"/>，不含金鑰。</summary>
     public static string Describe(Exception exception) => Describe(exception, host: null);
 
@@ -43,7 +49,7 @@ internal static partial class AiProviderFailures
         if (chain.OfType<BlockedAddressException>().FirstOrDefault() is { } blocked)
         {
             return personal
-                ? $"{Clean(blocked.Host)} 是內網或本機的位址，自己的 AI 帳號不能連內部網路的位址，請組織管理員接成組織的連線。"
+                ? PersonalUnreachable
                 : $"{Clean(blocked.Host)} 是內網或本機的位址，這個部署不允許連（Ai:AllowPrivateEndpoints）。";
         }
 
@@ -51,7 +57,8 @@ internal static partial class AiProviderFailures
         {
             if (StatusOf(exception) is { } status)
             {
-                return DescribeStatus(status, SnippetOf(exception, secret));
+                // 自己的端點是成員填的網址：對方回的話不原樣轉出來（它可以拿來回顯內網探測到的內容）。
+                return DescribeStatus(status, personal ? null : SnippetOf(exception, secret));
             }
         }
 
@@ -62,6 +69,11 @@ internal static partial class AiProviderFailures
 
         if (chain.Any(e => e is HttpRequestException or SocketException))
         {
+            if (personal)
+            {
+                return PersonalUnreachable;
+            }
+
             return string.IsNullOrWhiteSpace(host) ? "連不上供應商。" : $"連不上 {Clean(host)}。";
         }
 

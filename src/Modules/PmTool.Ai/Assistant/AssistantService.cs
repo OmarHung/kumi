@@ -21,6 +21,7 @@ internal sealed partial class AssistantService(
     IMcpUrlProvider mcpUrls,
     HostSourceOptions hostSources,
     HostReservations hostReservations,
+    ConnectionUsageLedger usageLedger,
     TimeProvider time,
     AssistantTimings timings,
     HostTimings hostTimings) : IAssistantService
@@ -37,9 +38,16 @@ internal sealed partial class AssistantService(
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var now = time.GetUtcNow();
+        var canSeeAll = CanReadAllItems(project.Value);
+        if (!canSeeAll)
+        {
+            await DeleteSeenAllAsync(db, actor, project.Value.Project.Id, null, now, cancellationToken);
+        }
+
         var rows = await db.Conversations
             .AsNoTracking()
-            .Where(c => c.OrganizationId == actor.OrganizationId && c.ProjectId == project.Value.Project.Id && c.PersonId == actor.PersonId)
+            .Where(c => c.OrganizationId == actor.OrganizationId && c.ProjectId == project.Value.Project.Id && c.PersonId == actor.PersonId
+                && (canSeeAll || !c.SawAllItems))
             .OrderByDescending(c => c.UpdatedAt)
             .ThenByDescending(c => c.Id)
             .Take(AiRules.MaxConversationsListed)
@@ -93,7 +101,7 @@ internal sealed partial class AssistantService(
         }
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        var conversation = await FindConversationAsync(db, actor, project.Value.Project.Id, conversationId, cancellationToken);
+        var conversation = await FindVisibleConversationAsync(db, actor, project.Value, conversationId, cancellationToken);
         if (conversation is null)
         {
             return AssistantFailures.ConversationNotFound();
@@ -143,6 +151,36 @@ internal sealed partial class AssistantService(
 
         return project.Value.MyPermissions.Contains(WorkPermissions.BlueprintRead) ? project : AssistantFailures.Forbidden();
     }
+
+    private static bool CanReadAllItems(ProjectDetail project) => project.MyPermissions.Contains(WorkPermissions.ItemRead);
+
+    /// <summary>
+    /// 找對話，並套用 AI-06：這則對話是在「看得到全部項目」時回覆過的，而他現在只剩自己的項目，歷史裡可能有他現在看不到的內容，
+    /// 所以整則刪掉、當作不存在（不回內容）。正在回覆的刪不掉（回覆還要存），這次一樣當作不存在，之後再刪。
+    /// </summary>
+    private async Task<AiConversationRow?> FindVisibleConversationAsync(
+        AiDbContext db, Actor actor, ProjectDetail project, Guid conversationId, CancellationToken cancellationToken)
+    {
+        var conversation = await FindConversationAsync(db, actor, project.Project.Id, conversationId, cancellationToken);
+        if (conversation is null || !conversation.SawAllItems || CanReadAllItems(project))
+        {
+            return conversation;
+        }
+
+        await DeleteSeenAllAsync(db, actor, project.Project.Id, conversationId, time.GetUtcNow(), cancellationToken);
+        return null;
+    }
+
+    private static Task<int> DeleteSeenAllAsync(
+        AiDbContext db, Actor actor, Guid projectId, Guid? conversationId, DateTimeOffset now, CancellationToken cancellationToken) =>
+        db.Conversations
+            .Where(c => c.OrganizationId == actor.OrganizationId
+                && c.ProjectId == projectId
+                && c.PersonId == actor.PersonId
+                && c.SawAllItems
+                && (conversationId == null || c.Id == conversationId)
+                && (c.RunningUntil == null || c.RunningUntil < now))
+            .ExecuteDeleteAsync(cancellationToken);
 
     private static Task<AiConversationRow?> FindConversationAsync(
         AiDbContext db, Actor actor, Guid projectId, Guid conversationId, CancellationToken cancellationToken) =>

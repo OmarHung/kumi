@@ -24,6 +24,7 @@ internal static class AccountNoticeMapper
         AccountEventKind.CliLoginTokensIssued => AccountNoticeEvent.CliLoginTokensIssued,
         AccountEventKind.OAuthAppAuthorized => AccountNoticeEvent.OauthAppAuthorized,
         AccountEventKind.CliLoginCodeReused => AccountNoticeEvent.CliLoginCodeReused,
+        AccountEventKind.LocalAgentMachineAdded => AccountNoticeEvent.LocalAgentMachineAdded,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "不認得的帳號事件種類。"),
     };
 }

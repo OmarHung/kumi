@@ -23,9 +23,11 @@ internal sealed record HostPairData(Guid AgentId, string AgentName, string Crede
 
 /// <summary>
 /// 登記。<c>capacity</c> 是這台現在還能同時多跑幾件，0 時只登記、不領。
-/// <c>engines</c> 兩個引擎各一筆（沒裝也要報）。
+/// <c>engines</c> 兩個引擎各一筆（沒裝也要報）。<c>machineKey</c> 必填（模組檢查，沒帶是 422），
+/// 和配對時的不同就是 401；<c>machineName</c> 只在機器編號不同時用來寫警告。
 /// </summary>
-internal sealed record HostCheckInRequest(string AgentVersion, string ServerUrl, int Capacity, IReadOnlyList<HostEngineRequest?> Engines)
+internal sealed record HostCheckInRequest(
+    string AgentVersion, string ServerUrl, int Capacity, IReadOnlyList<HostEngineRequest?> Engines, string? MachineKey = null, string? MachineName = null)
 {
     /// <summary>一次最多領幾件的上限：worker 同時最多跑 <see cref="AiRules.HostWorkerMaxConcurrent"/> 件，給寬一點，只是擋掉不合理的數字。</summary>
     public const int MaxCapacity = 16;
@@ -33,7 +35,8 @@ internal sealed record HostCheckInRequest(string AgentVersion, string ServerUrl,
     /// <summary>陣列裡有 null 的元素時的失敗（要在 <see cref="ToCheckIn"/> 之前檢查）；沒有就是 null。</summary>
     public Failure? FindNullElement() => NullElementChecks.InEngines(Engines, engine => engine.Models, AiErrorCodes.HostAgentInvalid);
 
-    public HostAgentCheckIn ToCheckIn() => new(AgentVersion, ServerUrl, [.. Engines.Select(engine => engine!.ToReport())]);
+    public HostAgentCheckIn ToCheckIn() =>
+        new(AgentVersion, ServerUrl, [.. Engines.Select(engine => engine!.ToReport())]) { MachineKey = MachineKey, MachineName = MachineName };
 }
 
 /// <param name="Kind">snake_case：claude_code、codex。</param>
@@ -53,11 +56,17 @@ internal sealed record HostEngineRequest(
         new(Kind, Installed, Version, Supported, LoggedIn, Billing, LoginId, [.. Models.Select(model => model!.ToOption())], Problem);
 }
 
-/// <summary>領到的工作與要登出的引擎。<c>job</c> 沒有是 null（寫出 null，不省略）。</summary>
-internal sealed record HostCheckInData(HostJobData? Job, IReadOnlyList<AiProviderKind> Logout, bool Disabled)
+/// <summary>
+/// 領到的工作與要登出的引擎。<c>job</c> 沒有是 null（寫出 null，不省略）。<c>rotatedCredential</c> 是快到期時發的新機器憑證（只在這個回應裡），
+/// 沒有要換是 null；<see cref="ToString"/> 不印它。
+/// </summary>
+internal sealed record HostCheckInData(HostJobData? Job, IReadOnlyList<AiProviderKind> Logout, bool Disabled, string? RotatedCredential)
 {
     public static HostCheckInData From(HostCheckInResult result) =>
-        new(result.Job is null ? null : HostJobData.From(result.Job), result.Logout, result.Disabled);
+        new(result.Job is null ? null : HostJobData.From(result.Job), result.Logout, result.Disabled, result.RotatedCredential);
+
+    public override string ToString() =>
+        $"HostCheckInData {{ Job = {Job?.JobId}, Disabled = {Disabled}, RotatedCredential = {(RotatedCredential is null ? "null" : "***")} }}";
 }
 
 /// <summary>領到的工作。<c>toolToken</c> 是這件工作專用的授權，只在這個回應裡；<see cref="ToString"/> 不印它。</summary>

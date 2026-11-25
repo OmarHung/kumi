@@ -40,6 +40,9 @@ internal static class HostFailures
     public static Failure LeaseLost() =>
         new(FailureKind.Conflict, AiErrorCodes.HostJobLeaseLost, "這件工作的租約不對，或已經被伺服器結束，請停下引擎、不要再回報。");
 
+    public static Failure MachineMismatch() =>
+        new(FailureKind.Forbidden, AiErrorCodes.HostMachineMismatch, "登記的機器編號和配對時的不同。");
+
     public static Failure AgentInvalid(string path, string message) =>
         new(FailureKind.Invalid, AiErrorCodes.HostAgentInvalid, message)
         {

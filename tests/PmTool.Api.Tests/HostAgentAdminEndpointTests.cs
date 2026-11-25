@@ -68,7 +68,10 @@ public sealed class HostAgentAdminEndpointTests
                 "problem":null,"authorizedAt":"2026-11-24T03:00:00Z","authorizedBy":{{owner}}}],
               "logins":[{"id":"{{FakeHostAgentAdminService.LoginId}}","engine":"claude_code","state":"pending","expiresAt":"2026-11-24T03:15:00Z",
                 "error":null,"startedBy":{{owner}},"createdAt":"2026-11-24T03:00:00Z"}],
-              "pairingExpiresAt":null,"createdAt":"2026-11-23T03:00:00Z"}],
+              "pairingExpiresAt":null,"createdAt":"2026-11-23T03:00:00Z",
+              "credentialExpiresAt":"2027-01-23T03:00:00Z",
+              "warning":{"kind":"other_machine","machineName":"別台電腦","at":"2026-11-24T02:00:00Z"}
+             }],
              "sources":[{"id":"{{FakeHostAgentAdminService.SourceId}}","agentId":"{{FakeHostAgentAdminService.AgentId}}","engine":"claude_code",
               "name":"主機上的 Claude Code","enabled":true,"status":"ready","statusMessage":null,
               "models":[{"id":"default","displayName":"預設","efforts":["low","high"],"enabled":true,"custom":false}],

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Persistence;
 
@@ -159,30 +160,22 @@ public sealed class AiSettingsTests
     }
 
     [Test]
-    public async Task Get_Usage_SumsThisMonthsAssistantRepliesOfEachConnectionInTheOrganizationTimeZone()
+    public async Task Get_Usage_SumsThisMonthsCountedUsageOfEachConnectionInTheOrganizationTimeZone()
     {
         // Arrange
         var (host, service, connection) = await StartWithConnectionAsync();
         await using var _ = host;
-        var conversationId = Guid.CreateVersion7();
         await using (var db = await host.CreateDbContextAsync())
         {
-            db.Conversations.Add(new AiConversationRow
-            {
-                Id = conversationId, OrganizationId = AiTestData.OrganizationId, ProjectId = Guid.CreateVersion7(),
-                PersonId = AiTestData.Admin.PersonId, MessageCount = 0, CreatedAt = host.Get<TimeProvider>().GetUtcNow(),
-                UpdatedAt = host.Get<TimeProvider>().GetUtcNow(),
-            });
-            await db.SaveChangesAsync();
-
-            // 時鐘是 2026-11-18；台北時間的 11 月從 10-31 16:00 UTC 開始。
-            db.Messages.AddRange(
-                Reply(conversationId, 1, connection.Id, new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero), 100, 10),
-                Reply(conversationId, 2, connection.Id, new DateTimeOffset(2026, 10, 31, 16, 0, 0, TimeSpan.Zero), 200, 20),
-                Reply(conversationId, 3, connection.Id, new DateTimeOffset(2026, 10, 31, 15, 59, 0, TimeSpan.Zero), 9999, 9999),
-                Reply(conversationId, 4, connection.Id, new DateTimeOffset(2026, 11, 30, 15, 59, 0, TimeSpan.Zero), 300, 30),
-                Reply(conversationId, 5, connection.Id, new DateTimeOffset(2026, 11, 30, 16, 0, 0, TimeSpan.Zero), 9999, 9999),
-                Reply(conversationId, 6, Guid.CreateVersion7(), new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero), 7777, 7777));
+            // 時鐘是 2026-11-18；台北時間的 11 月從 10-31 16:00 UTC 開始。退還的不算。
+            db.ConnectionUsage.AddRange(
+                UsageRow(connection.Id, new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero), 100, 10),
+                UsageRow(connection.Id, new DateTimeOffset(2026, 10, 31, 16, 0, 0, TimeSpan.Zero), 200, 20),
+                UsageRow(connection.Id, new DateTimeOffset(2026, 10, 31, 15, 59, 0, TimeSpan.Zero), 9999, 9999),
+                UsageRow(connection.Id, new DateTimeOffset(2026, 11, 30, 15, 59, 0, TimeSpan.Zero), 300, 30),
+                UsageRow(connection.Id, new DateTimeOffset(2026, 11, 30, 16, 0, 0, TimeSpan.Zero), 9999, 9999),
+                UsageRow(connection.Id, new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero), 8888, 8888) with { State = "released" },
+                UsageRow(Guid.CreateVersion7(), new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero), 7777, 7777));
             await db.SaveChangesAsync();
         }
 
@@ -192,6 +185,50 @@ public sealed class AiSettingsTests
         // Assert
         Assert.That(settings.Value.Connections.Single().Usage, Is.EqualTo(new AiUsage("2026-11", 600, 60, 3)));
     }
+
+    [Test]
+    public async Task Get_Usage_OfAnOrganizationConnection_DoesNotDropWhenTheConversationIsDeleted()
+    {
+        // Arrange：對話被刪（保存期限、降成只看自己）之後，訊息跟著不見；連線的用量要和配額用同一份紀錄。
+        var (host, service, connection) = await StartWithConnectionAsync();
+        await using var _ = host;
+        var conversationId = Guid.CreateVersion7();
+        var now = host.Get<TimeProvider>().GetUtcNow();
+        await using (var db = await host.CreateDbContextAsync())
+        {
+            db.Conversations.Add(new AiConversationRow
+            {
+                Id = conversationId, OrganizationId = AiTestData.OrganizationId, ProjectId = Guid.CreateVersion7(),
+                PersonId = AiTestData.Admin.PersonId, MessageCount = 0, CreatedAt = now, UpdatedAt = now,
+            });
+            await db.SaveChangesAsync();
+            var reply = Reply(conversationId, 1, connection.Id, now, 100, 10);
+            db.Messages.Add(reply);
+            db.ConnectionUsage.Add(UsageRow(connection.Id, now, 100, 10) with { Id = reply.Id });
+            await db.SaveChangesAsync();
+            db.Conversations.Remove(await db.Conversations.SingleAsync(c => c.Id == conversationId));
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var settings = await service.GetAsync(AiTestData.Admin, CancellationToken.None);
+
+        // Assert
+        Assert.That(settings.Value.Connections.Single().Usage, Is.EqualTo(new AiUsage("2026-11", 100, 10, 1)));
+    }
+
+    private static AiConnectionUsageRow UsageRow(Guid connectionId, DateTimeOffset at, long input, long output) => new()
+    {
+        Id = Guid.CreateVersion7(),
+        OrganizationId = AiTestData.OrganizationId,
+        ConnectionId = connectionId,
+        PersonId = AiTestData.Admin.PersonId,
+        ProjectKey = "WEB",
+        State = "settled",
+        InputTokens = input,
+        OutputTokens = output,
+        CreatedAt = at,
+    };
 
     [Test]
     public async Task Get_UsageWithoutReplies_IsZero()

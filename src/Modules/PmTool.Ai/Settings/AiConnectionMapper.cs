@@ -13,7 +13,17 @@ internal sealed class AiConnectionMapper(IOrganizationClock organizationClock, T
         var today = OrganizationTime.Today(zone, clock.GetUtcNow());
         var start = LocalMidnight(zone, new DateTime(today.Year, today.Month, 1));
         var end = LocalMidnight(zone, new DateTime(today.Year, today.Month, 1).AddMonths(1));
-        var totals = await db.Messages
+
+        // 組織的連線讀用量表（和配額同一份紀錄）：對話被刪（保存期限、降成只看自己）時訊息跟著不見，用量不能跟著變少。
+        var counted = await db.ConnectionUsage
+            .AsNoTracking()
+            .Where(u => u.OrganizationId == organizationId && u.State != HostUsageStates.Released && u.CreatedAt >= start && u.CreatedAt < end)
+            .GroupBy(u => u.ConnectionId)
+            .Select(g => new { Id = g.Key, Input = g.Sum(u => u.InputTokens), Output = g.Sum(u => u.OutputTokens), Replies = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        // 自己的連線不記用量表（不受組織的上限管），照舊從回覆加總。
+        var replied = await db.Messages
             .AsNoTracking()
             .Where(m => m.OrganizationId == organizationId && m.Role == "assistant" && m.ConnectionId != null
                 && m.CreatedAt >= start && m.CreatedAt < end)
@@ -22,12 +32,14 @@ internal sealed class AiConnectionMapper(IOrganizationClock organizationClock, T
             .ToListAsync(cancellationToken);
         return new UsageWindow(
             $"{today.Year:D4}-{today.Month:D2}",
-            totals.ToDictionary(t => t.Id!.Value, t => (t.Input, t.Output, t.Replies)));
+            counted.ToDictionary(t => t.Id, t => (t.Input, t.Output, t.Replies)),
+            replied.ToDictionary(t => t.Id!.Value, t => (t.Input, t.Output, t.Replies)));
     }
 
     public static AiConnection ToConnection(AiConnectionRow row, UsageWindow usage)
     {
-        var (input, output, replies) = usage.Totals.GetValueOrDefault(row.Id);
+        var totals = row.OwnerPersonId is null ? usage.Organization : usage.Personal;
+        var (input, output, replies) = totals.GetValueOrDefault(row.Id);
         return new AiConnection(
             row.Id,
             row.Name,
@@ -47,5 +59,8 @@ internal sealed class AiConnectionMapper(IOrganizationClock organizationClock, T
         new DateTimeOffset(local, zone.GetUtcOffset(local)).ToUniversalTime();
 }
 
-/// <summary>這個月的用量，依連線編號加總。</summary>
-internal sealed record UsageWindow(string Month, IReadOnlyDictionary<Guid, (long Input, long Output, int Replies)> Totals);
+/// <summary>這個月的用量，依連線編號加總：組織的連線來自用量表，自己的連線來自回覆。</summary>
+internal sealed record UsageWindow(
+    string Month,
+    IReadOnlyDictionary<Guid, (long Input, long Output, int Replies)> Organization,
+    IReadOnlyDictionary<Guid, (long Input, long Output, int Replies)> Personal);

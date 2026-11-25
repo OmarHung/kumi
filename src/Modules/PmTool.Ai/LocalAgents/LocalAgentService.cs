@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Maintenance;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Settings;
 
@@ -15,7 +16,8 @@ internal sealed partial class LocalAgentService(
     TimeProvider time,
     LocalAgentTimings timings,
     AssistantTimings assistantTimings,
-    LocalAgentSignals signals) : ILocalAgentService
+    LocalAgentSignals signals,
+    LocalAgentMachineNotice machineNotice) : ILocalAgentService
 {
     public async Task<Result<LocalAgentJob?>> CheckInAsync(
         Actor actor, LocalAgentCheckIn checkIn, int capacity, CancellationToken cancellationToken)
@@ -36,7 +38,12 @@ internal sealed partial class LocalAgentService(
         Guid agentId;
         try
         {
-            agentId = await RegisterAsync(actor, valid.Value, cancellationToken);
+            var registered = await RegisterAsync(actor, valid.Value, cancellationToken);
+            agentId = registered.AgentId;
+            if (registered.ShouldNotify)
+            {
+                await machineNotice.PublishAsync(actor, valid.Value.MachineName, time.GetUtcNow());
+            }
         }
         catch (OperationCanceledException)
         {
@@ -50,7 +57,7 @@ internal sealed partial class LocalAgentService(
     /// 在這個人的 advisory lock 裡登記電腦與引擎：同一個人的兩次登記（或兩台電腦同時登記）排隊，
     /// 「超過台數時換掉最舊的」才數得準。
     /// </summary>
-    private async Task<Guid> RegisterAsync(Actor actor, LocalAgentCheckIn checkIn, CancellationToken cancellationToken)
+    private async Task<(Guid AgentId, bool ShouldNotify)> RegisterAsync(Actor actor, LocalAgentCheckIn checkIn, CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -59,16 +66,30 @@ internal sealed partial class LocalAgentService(
             cancellationToken);
 
         var now = time.GetUtcNow();
-        var agent = await UpsertAgentAsync(db, actor, checkIn, now, cancellationToken);
+        var (agent, isNew) = await UpsertAgentAsync(db, actor, checkIn, now, cancellationToken);
+        var shouldNotify = isNew && !await AnotherMachineAddedRecentlyAsync(db, actor, agent.Id, now, cancellationToken);
         await SyncEnginesAsync(db, actor, agent.Id, checkIn.Engines, cancellationToken);
         await TrimMachinesAsync(db, actor, agent.Id, cancellationToken);
         await ExpireAbandonedJobsAsync(db, actor, now, cancellationToken);
         await DeleteStaleJobsAsync(db, actor, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return agent.Id;
+        return (agent.Id, shouldNotify);
     }
 
-    private static async Task<LocalAgentRow> UpsertAgentAsync(
+    /// <summary>
+    /// 同一個人 <see cref="LocalAgentMachineNotice.Interval"/> 內只發一則「新電腦」的通知（審查 L-9）：拿到權杖的人
+    /// 用一連串機器編號登記，不能用它洗本人的收件匣與信。用電腦自己的建立時間判斷，不另外記；在這個人的鎖裡數，同時兩個登記不會都通過。
+    /// </summary>
+    private static async Task<bool> AnotherMachineAddedRecentlyAsync(
+        AiDbContext db, Actor actor, Guid agentId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var since = now - LocalAgentMachineNotice.Interval;
+        return await db.LocalAgents.AsNoTracking().AnyAsync(
+            a => a.OrganizationId == actor.OrganizationId && a.PersonId == actor.PersonId && a.Id != agentId && a.CreatedAt >= since,
+            cancellationToken);
+    }
+
+    private static async Task<(LocalAgentRow Agent, bool IsNew)> UpsertAgentAsync(
         AiDbContext db, Actor actor, LocalAgentCheckIn checkIn, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var existing = await db.LocalAgents.SingleOrDefaultAsync(
@@ -89,7 +110,7 @@ internal sealed partial class LocalAgentService(
             };
             db.LocalAgents.Add(created);
             await db.SaveChangesAsync(cancellationToken);
-            return created;
+            return (created, true);
         }
 
         await db.LocalAgents.Where(a => a.Id == existing.Id).ExecuteUpdateAsync(
@@ -98,7 +119,7 @@ internal sealed partial class LocalAgentService(
                 .SetProperty(a => a.AgentVersion, checkIn.AgentVersion)
                 .SetProperty(a => a.LastSeenAt, now),
             cancellationToken);
-        return existing with { Name = checkIn.MachineName, AgentVersion = checkIn.AgentVersion, LastSeenAt = now };
+        return (existing with { Name = checkIn.MachineName, AgentVersion = checkIn.AgentVersion, LastSeenAt = now }, false);
     }
 
     // 引擎的編號就是能選清單裡的連線編號：同一台電腦的同一種引擎一直用同一個，網頁選著的模型才不會因為重新登記而失效。
@@ -165,6 +186,7 @@ internal sealed partial class LocalAgentService(
                 set => set
                     .SetProperty(j => j.State, LocalJobStates.Finished)
                     .SetProperty(j => j.CancelRequested, true)
+                    .SetProperty(j => j.Payload, LocalJobRetention.EmptyPayload)
                     .SetProperty(j => j.FinishStatus, AssistantMessageMapper.StatusName(AssistantMessageStatus.Failed)),
                 cancellationToken);
     }
@@ -263,6 +285,8 @@ internal sealed partial class LocalAgentService(
         await db.LocalJobs.Where(j => j.Id == row.Id).ExecuteUpdateAsync(
             set => set
                 .SetProperty(j => j.State, LocalJobStates.Claimed)
+                // 整段對話只經這一次回應交給本機代理，領走之後伺服器不再留著（AG-16）；上面已經讀進 row。
+                .SetProperty(j => j.Payload, LocalJobRetention.EmptyPayload)
                 .SetProperty(j => j.ClaimedAt, now)
                 .SetProperty(j => j.LastReportAt, now),
             cancellationToken);

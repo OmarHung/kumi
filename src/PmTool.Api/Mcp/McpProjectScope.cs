@@ -12,6 +12,13 @@ internal static partial class McpProjectScope
 {
     public const string Header = "X-Kumi-Project";
 
+    /// <summary>本機代理這一件工作的編號（GUID）：伺服器用它計工具的額度（AG-07）。和專案標頭一樣由 kumi 寫進引擎的 MCP 設定。</summary>
+    public const string JobHeader = "X-Kumi-Job";
+
+    public const string MissingJobMessage = "本機代理的請求沒有 X-Kumi-Job 標頭：你的 kumi 太舊了，請執行 kumi update 更新到最新版再試。";
+
+    public const string UnknownJobMessage = "找不到這件工作：它可能已經結束、不是你的，或專案和 X-Kumi-Project 不同。";
+
     public const string MissingMessage = "本機代理要帶專案：請求要有 X-Kumi-Project 標頭（這則對話的專案代號）。";
 
     /// <summary>這把權杖是不是本機代理的（要受專案限制）。</summary>
@@ -29,6 +36,12 @@ internal static partial class McpProjectScope
         var key = text.Trim();
         return KeyPattern().IsMatch(key) ? key.ToUpperInvariant() : null;
     }
+
+    /// <summary>標頭裡的工作編號；沒帶、帶了好幾個或不是 GUID 是 null。</summary>
+    public static Guid? ReadJob(HttpRequest request) =>
+        request.Headers.TryGetValue(JobHeader, out var values) && values.Count == 1 && Guid.TryParse(values[0]?.Trim(), out var id) && id != Guid.Empty
+            ? id
+            : null;
 
     [GeneratedRegex("^[A-Za-z][A-Za-z0-9]{1,9}$", RegexOptions.CultureInvariant)]
     private static partial Regex KeyPattern();

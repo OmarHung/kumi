@@ -26,6 +26,9 @@ internal static class HostCredentials
 
     private const string AgentItem = "pmtool.host-agent";
 
+    /// <summary>worker 每個請求都帶的機器編號（配對時存下的那個）；伺服器在認證時比對。</summary>
+    public const string MachineHeader = "X-Kumi-Machine";
+
     private const string GrantItem = "pmtool.host-tool-grant";
 
     public static bool IsMachineCredential(string secret) =>
@@ -85,7 +88,16 @@ internal static class HostCredentials
         if (secret?.StartsWith(AgentPrefix, StringComparison.Ordinal) == true)
         {
             var workers = context.RequestServices.GetRequiredService<IHostAgentWorkerService>();
-            identity = await workers.AuthenticateAsync(secret, context.RequestAborted);
+            // 機器編號綁在每個 kha_ 請求上（不只是登記）：憑證被拿到別台電腦，領登入碼、回報、結束也都 401。
+            var machineKey = context.Request.Headers[MachineHeader].ToString();
+            identity = await workers.AuthenticateAsync(secret, machineKey.Length == 0 ? null : machineKey, context.RequestAborted);
+            if (identity is null)
+            {
+                // 不帶憑證，只記有沒有帶機器編號：排查「憑證被拿去別台用」或「kumi 太舊沒帶標頭」時看得出來。
+                context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("PmTool.Api.HostCredentials")
+                    .LogWarning("機器憑證驗證失敗（路徑 {Path}，{MachineHeader} {HasMachineKey}）。",
+                        context.Request.Path.Value, MachineHeader, machineKey.Length > 0 ? "有帶" : "沒帶");
+            }
         }
 
         if (identity is null)

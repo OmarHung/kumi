@@ -9,7 +9,8 @@ internal static class HostAgentMapper
         HostAgentRow row,
         IReadOnlyDictionary<(Guid AgentId, string Engine), HostAuthorization> auths,
         IEnumerable<HostLoginRow> logins,
-        DateTimeOffset now) => new(
+        DateTimeOffset now,
+        IReadOnlySet<Guid> currentOwners) => new(
         row.Id,
         row.Name,
         HostEnums.ParseState(row.State),
@@ -25,7 +26,37 @@ internal static class HostAgentMapper
         })],
         [.. logins.Where(l => l.AgentId == row.Id && IsVisible(l, now)).OrderBy(l => l.CreatedAt).Select(ToLogin)],
         row.State == HostAgentStates.AwaitingPairing ? row.PairingExpiresAt : null,
-        row.CreatedAt);
+        row.CreatedAt)
+    {
+        CredentialExpiresAt = row.State == HostAgentStates.AwaitingPairing ? null : row.CredentialExpiresAt,
+        Warning = WarningOf(row, now, currentOwners),
+    };
+
+    /// <summary>
+    /// 三種都讓機器憑證不能用，重新配對後清掉；同時成立時先說最需要動作的原因（配對的人不是擁有者，
+    /// 重新配對要換人）。還沒配對的代理沒有憑證，不顯示。
+    /// </summary>
+    private static HostAgentWarning? WarningOf(HostAgentRow row, DateTimeOffset now, IReadOnlySet<Guid> currentOwners)
+    {
+        if (row.State == HostAgentStates.AwaitingPairing || row.CredentialHash is null)
+        {
+            return null;
+        }
+
+        if (row.PairingStartedBy is not { } pairedBy || !currentOwners.Contains(pairedBy))
+        {
+            return new HostAgentWarning(HostAgentWarningKind.PairedByFormerOwner, null, row.UpdatedAt);
+        }
+
+        if (row.SuspectSeenAt is { } seen)
+        {
+            return new HostAgentWarning(HostAgentWarningKind.OtherMachine, row.SuspectMachineName, seen);
+        }
+
+        return row.CredentialExpiresAt is { } expires && expires <= now
+            ? new HostAgentWarning(HostAgentWarningKind.CredentialExpired, null, expires)
+            : null;
+    }
 
     public static HostLogin ToLogin(HostLoginRow row) => new(
         row.Id,

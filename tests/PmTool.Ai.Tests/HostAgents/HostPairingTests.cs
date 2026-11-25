@@ -30,7 +30,7 @@ public sealed class HostPairingTests
         // Assert
         Assert.That(paired.Succeeded, Is.True);
         Assert.That(paired.Value.Credential, Does.StartWith("kha_"));
-        var identity = await _h.Worker.AuthenticateAsync(paired.Value.Credential, default);
+        var identity = await _h.Worker.AuthenticateAsync(paired.Value.Credential, HostHarness.DefaultMachineKey, default);
         Assert.That(identity, Is.EqualTo(new HostAgentIdentity(_h.Assistant.OrganizationId, pairing.Agent.Id)));
         var agent = await _h.AgentAsync(pairing.Agent.Id);
         Assert.That(agent.State, Is.EqualTo(HostAgentState.Active));
@@ -65,7 +65,7 @@ public sealed class HostPairingTests
 
         // Assert
         Assert.That(replay.Failure?.Code, Is.EqualTo(AiErrorCodes.HostPairingInvalid));
-        Assert.That(await _h.Worker.AuthenticateAsync(first.Value.Credential, default), Is.Not.Null);
+        Assert.That(await _h.Worker.AuthenticateAsync(first.Value.Credential, HostHarness.DefaultMachineKey, default), Is.Not.Null);
     }
 
     [Test]
@@ -180,12 +180,12 @@ public sealed class HostPairingTests
         var reset = await _h.Service.ResetPairingAsync(_h.Owner, worker.AgentId, default);
 
         // Assert
-        Assert.That(await _h.Worker.AuthenticateAsync(worker.Credential, default), Is.Null);
+        Assert.That(await _h.Worker.AuthenticateAsync(worker.Credential, HostHarness.DefaultMachineKey, default), Is.Null);
         Assert.That(reset.Value.Agent.State, Is.EqualTo(HostAgentState.AwaitingPairing));
         var paired = await PairWithAsync(reset.Value.PairingCode);
         Assert.That(paired.Succeeded, Is.True);
         Assert.That(paired.Value.AgentId, Is.EqualTo(worker.AgentId));
-        Assert.That(await _h.Worker.AuthenticateAsync(paired.Value.Credential, default), Is.Not.Null);
+        Assert.That(await _h.Worker.AuthenticateAsync(paired.Value.Credential, HostHarness.DefaultMachineKey, default), Is.Not.Null);
     }
 
     [Test]
@@ -199,24 +199,22 @@ public sealed class HostPairingTests
 
         // Assert
         Assert.That(removed.Succeeded, Is.True);
-        Assert.That(await _h.Worker.AuthenticateAsync(worker.Credential, default), Is.Null);
+        Assert.That(await _h.Worker.AuthenticateAsync(worker.Credential, HostHarness.DefaultMachineKey, default), Is.Null);
         var overview = await _h.Service.GetAsync(_h.Owner, default);
         Assert.That(overview.Value.Agents, Is.Empty);
     }
 
     [Test]
-    public async Task Disabled_agent_still_authenticates_but_check_in_says_disabled_and_gives_no_job()
+    public async Task Check_in_that_slips_through_after_the_agent_was_disabled_says_disabled_and_gives_no_job()
     {
         // Arrange
         var worker = await _h.PairAsync();
         await _h.Service.UpdateAgentAsync(_h.Owner, worker.AgentId, new HostAgentInput("主機代理") { Enabled = false }, default);
 
         // Act
-        var identity = await _h.Worker.AuthenticateAsync(worker.Credential, default);
         var checkedIn = await _h.CheckInAsync(worker, capacity: 1);
 
         // Assert
-        Assert.That(identity, Is.Not.Null);
         Assert.That(checkedIn.Disabled, Is.True);
         Assert.That(checkedIn.Job, Is.Null);
     }
@@ -232,7 +230,7 @@ public sealed class HostPairingTests
         await _h.PairAsync();
 
         // Act
-        var identity = await _h.Worker.AuthenticateAsync(credential!, default);
+        var identity = await _h.Worker.AuthenticateAsync(credential!, HostHarness.DefaultMachineKey, default);
 
         // Assert
         Assert.That(identity, Is.Null);

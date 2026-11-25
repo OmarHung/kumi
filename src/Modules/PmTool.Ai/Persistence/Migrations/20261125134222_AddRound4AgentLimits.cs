@@ -128,7 +128,8 @@ namespace PmTool.Ai.Persistence.Migrations
             // 之後這個人只剩自己的項目時整則刪掉；沒讀過項目的不受影響。
             migrationBuilder.Sql(
                 "UPDATE ai.conversations c SET saw_all_items = true WHERE EXISTS (SELECT 1 FROM ai.messages m "
-                + "WHERE m.conversation_id = c.id AND (m.transcript::text LIKE '%get_item%' OR m.transcript::text LIKE '%search_items%'));");
+                + "WHERE m.conversation_id = c.id AND (m.transcript::text LIKE '%get_item%' OR m.transcript::text LIKE '%search_items%' "
+                + "OR m.parts::text LIKE '%get_item%' OR m.parts::text LIKE '%search_items%'));");
 
             migrationBuilder.CreateTable(
                 name: "connection_usage",
@@ -151,6 +152,16 @@ namespace PmTool.Ai.Persistence.Migrations
                 {
                     table.PrimaryKey("pk_connection_usage", x => x.id);
                 });
+
+            // 既有的組織連線回覆補進用量表：這個月的上限與連線的用量從同一份紀錄算（專案代號當時沒記，留空）。
+            migrationBuilder.Sql(
+                "INSERT INTO ai.connection_usage (id, organization_id, connection_id, person_id, project_key, state, finish_status, "
+                + "input_tokens, output_tokens, created_at, settled_at) "
+                + "SELECT m.id, m.organization_id, m.connection_id, c.person_id, '', 'settled', m.status, "
+                + "coalesce(m.input_tokens, 0), coalesce(m.output_tokens, 0), m.created_at, m.created_at "
+                + "FROM ai.messages m JOIN ai.conversations c ON c.id = m.conversation_id "
+                + "JOIN ai.connections k ON k.id = m.connection_id AND k.owner_person_id IS NULL "
+                + "WHERE m.role = 'assistant';");
 
             migrationBuilder.CreateIndex(
                 name: "ix_host_agents_next_credential_hash",

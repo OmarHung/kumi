@@ -142,7 +142,7 @@ public sealed class LocalAgentReplyTests
         var secondJob = await _h.ClaimAsync();
 
         // Assert
-        Assert.That(secondJob.Prompt, Does.Contain("使用者：第一句").And.Contain("助理：答一").And.EndWith("使用者：第二句"));
+        Assert.That(secondJob.Prompt, Does.Contain("<<<使用者>>>\n第一句\n<<<結束>>>").And.Contain("<<<助理>>>\n答一\n<<<結束>>>").And.EndWith("<<<使用者>>>\n第二句\n<<<結束>>>"));
     }
 
     [Test]

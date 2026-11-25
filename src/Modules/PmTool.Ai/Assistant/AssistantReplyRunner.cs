@@ -81,6 +81,7 @@ internal sealed class AssistantReplyRunner(
             }
 
             var message = await FinishAsync(request, recorder, outcome, session);
+            await SettleUsageQuietlyAsync(request, recorder, outcome);
             if (localRecorder.JobId is { } jobId)
             {
                 await (isHosted ? hostRelay.DeleteJobQuietlyAsync(jobId) : relay.DeleteJobQuietlyAsync(jobId));
@@ -200,6 +201,26 @@ internal sealed class AssistantReplyRunner(
             logger.LogError("助理的回覆收不了尾：{ExceptionType}", exception.GetType().Name);
             await ReleaseLeaseQuietlyAsync(request);
             return FailedMessage(request, row);
+        }
+    }
+
+    // 不管回覆怎麼結束（完成、停止、失敗）都要記帳，不然預留一直是 reserved、token 沒算進月上限；記不了只寫記錄，不能讓讀的人收不到結束的事件。
+    private async Task SettleUsageQuietlyAsync(ReplyRequest request, IReplyRecorder recorder, ReplyOutcome outcome)
+    {
+        if (!request.CountsUsage)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var db = await contexts.CreateDbContextAsync(CancellationToken.None);
+            await ConnectionUsageLedger.SettleAsync(
+                db, request.AssistantMessageId, outcome.Status, recorder.InputTokens, recorder.OutputTokens, time.GetUtcNow());
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            logger.LogError("助理的用量記不了帳：{ExceptionType}", exception.GetType().Name);
         }
     }
 

@@ -41,8 +41,9 @@ internal sealed partial class HostAgentAdminService(
         var logins = await db.HostLogins.AsNoTracking().Where(l => l.OrganizationId == org).ToListAsync(cancellationToken);
         var auths = await HostReadiness.AuthorizationsAsync(db, org, [.. agents.Select(a => a.Id)], cancellationToken);
         var sourceView = await SourceMapper(db, org, month, cancellationToken);
+        var ownerIds = await CurrentOwnersAsync(org, agents, cancellationToken);
         return new HostAgentOverview(
-            [.. agents.Select(a => HostAgentMapper.ToAgent(a, auths, logins, now))],
+            [.. agents.Select(a => HostAgentMapper.ToAgent(a, auths, logins, now, ownerIds))],
             // 兩次讀取之間別人新增的來源（它的代理不在第一次讀到的清單裡）略過，下一次讀就有。
             [.. sources
                 .Select(s => (Source: s, Agent: agents.FirstOrDefault(a => a.Id == s.AgentId)))
@@ -102,7 +103,7 @@ internal sealed partial class HostAgentAdminService(
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new HostAgentPairing(
-            HostAgentMapper.ToAgent(row, new Dictionary<(Guid, string), HostAuthorization>(), [], now), code, row.PairingExpiresAt!.Value);
+            HostAgentMapper.ToAgent(row, new Dictionary<(Guid, string), HostAuthorization>(), [], now, new HashSet<Guid>()), code, row.PairingExpiresAt!.Value);
     }
 
     public async Task<Result<HostAgent>> UpdateAgentAsync(
@@ -188,6 +189,12 @@ internal sealed partial class HostAgentAdminService(
             set => set
                 .SetProperty(a => a.State, HostAgentStates.AwaitingPairing)
                 .SetProperty(a => a.CredentialHash, (string?)null)
+                .SetProperty(a => a.CredentialExpiresAt, (DateTimeOffset?)null)
+                .SetProperty(a => a.NextCredentialHash, (string?)null)
+                .SetProperty(a => a.NextCredentialExpiresAt, (DateTimeOffset?)null)
+                .SetProperty(a => a.SuspectMachineKey, (string?)null)
+                .SetProperty(a => a.SuspectMachineName, (string?)null)
+                .SetProperty(a => a.SuspectSeenAt, (DateTimeOffset?)null)
                 .SetProperty(a => a.PairingCodeHash, hash)
                 .SetProperty(a => a.PairingExpiresAt, expires)
                 .SetProperty(a => a.PairingStartedBy, actor.PersonId)
@@ -247,12 +254,28 @@ internal sealed partial class HostAgentAdminService(
             .Where(l => l.AgentId == agentId && (l.State == HostLoginStates.Pending || l.State == HostLoginStates.Claimed))
             .ExecuteUpdateAsync(set => set.SetProperty(l => l.State, HostLoginStates.Cancelled), cancellationToken);
 
+    /// <summary>各代理「開始配對的人」裡現在還是擁有者的（警告「配對的人不再是擁有者」要用）。</summary>
+    private async Task<IReadOnlySet<Guid>> CurrentOwnersAsync(Guid organizationId, IEnumerable<HostAgentRow> agents, CancellationToken cancellationToken)
+    {
+        var owners = new HashSet<Guid>();
+        foreach (var person in agents.Select(a => a.PairingStartedBy).OfType<Guid>().Distinct())
+        {
+            if (await people.IsOwnerAsync(organizationId, person, cancellationToken))
+            {
+                owners.Add(person);
+            }
+        }
+
+        return owners;
+    }
+
     private async Task<Result<HostAgent>> ReadAgentAsync(HostAgentRow row, CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var auths = await HostReadiness.AuthorizationsAsync(db, row.OrganizationId, [row.Id], cancellationToken);
         var logins = await db.HostLogins.AsNoTracking().Where(l => l.AgentId == row.Id).ToListAsync(cancellationToken);
         var fresh = await db.HostAgents.AsNoTracking().SingleAsync(a => a.Id == row.Id, cancellationToken);
-        return HostAgentMapper.ToAgent(fresh, auths, logins, time.GetUtcNow());
+        var ownerIds = await CurrentOwnersAsync(row.OrganizationId, [fresh], cancellationToken);
+        return HostAgentMapper.ToAgent(fresh, auths, logins, time.GetUtcNow(), ownerIds);
     }
 }

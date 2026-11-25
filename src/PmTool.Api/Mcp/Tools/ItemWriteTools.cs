@@ -22,7 +22,7 @@ internal static class ItemWriteTools
                 ("type", McpSchemas.Text("項目類型的 key。")),
                 ("title", McpSchemas.Text("標題。")),
                 ("description", McpSchemas.Text("說明，Markdown。")),
-                ("assignee", McpSchemas.Text("負責人：me、none 或組織成員的 Email。沒給是沒有負責人。")),
+                ("assignee", McpSchemas.Text("負責人：me、none 或專案成員的 Email。沒給是沒有負責人。")),
                 ("priority", McpSchemas.Enum<Priority>("優先順序。沒給是 none。")),
                 ("startDate", McpSchemas.Text("開始日，YYYY-MM-DD。")),
                 ("dueDate", McpSchemas.Text("到期日，YYYY-MM-DD。")),
@@ -38,7 +38,7 @@ internal static class ItemWriteTools
                 ("title", McpSchemas.Text("新標題。")),
                 ("description", McpSchemas.Text("新說明，Markdown。null 或空字串是清掉。")),
                 ("expectedDescriptionRevision", McpSchemas.Text("改說明時帶 get_item 回的 descriptionRevision。")),
-                ("assignee", McpSchemas.Text("負責人：me、none 或組織成員的 Email。")),
+                ("assignee", McpSchemas.Text("負責人：me、none 或專案成員的 Email。")),
                 ("priority", McpSchemas.Enum<Priority>("優先順序；none 是清掉。")),
                 ("startDate", McpSchemas.Text("開始日，YYYY-MM-DD；null 是清掉。")),
                 ("dueDate", McpSchemas.Text("到期日，YYYY-MM-DD；null 是清掉。")),
@@ -70,7 +70,7 @@ internal static class ItemWriteTools
             Type = arguments.RequiredPlain("type"),
             Title = arguments.RequiredString("title"),
             Description = arguments.OptionalString("description"),
-            AssigneeId = assigneeText is null ? null : await McpAssignees.ResolveAsync(context, "assignee", assigneeText, cancellationToken),
+            AssigneeId = assigneeText is null ? null : await McpAssignees.ResolveAsync(context, projectKey, "assignee", assigneeText, cancellationToken),
             Priority = arguments.OptionalEnum<Priority>("priority") ?? Priority.None,
             StartDate = arguments.OptionalDate("startDate"),
             DueDate = arguments.OptionalDate("dueDate"),
@@ -84,12 +84,13 @@ internal static class ItemWriteTools
     private static async Task<McpToolResult> UpdateItemAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {
         var itemKey = context.Item(arguments.RequiredPlain("itemKey"));
-        var patch = await ReadPatchAsync(context, arguments, cancellationToken);
+        var patch = await ReadPatchAsync(context, itemKey, arguments, cancellationToken);
         var result = await context.Services.Items.UpdateAsync(context.Actor, itemKey, patch, cancellationToken);
         return await ItemResultAsync(context, result, cancellationToken);
     }
 
-    private static async Task<WorkItemPatch> ReadPatchAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
+    private static async Task<WorkItemPatch> ReadPatchAsync(
+        McpToolContext context, string itemKey, McpArguments arguments, CancellationToken cancellationToken)
     {
         var patch = new WorkItemPatch
         {
@@ -108,7 +109,7 @@ internal static class ItemWriteTools
         if (arguments.Has("assignee"))
         {
             var text = arguments.OptionalPlain("assignee");
-            var id = text is null ? null : await McpAssignees.ResolveAsync(context, "assignee", text, cancellationToken);
+            var id = text is null ? null : await McpAssignees.ResolveAsync(context, McpAssignees.ProjectKeyOf(itemKey), "assignee", text, cancellationToken);
             patch = patch with { AssigneeId = new Optional<Guid?>(id) };
         }
 

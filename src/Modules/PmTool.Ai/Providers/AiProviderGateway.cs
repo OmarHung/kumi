@@ -25,9 +25,11 @@ internal sealed partial class AiProviderGateway : IAiProviderGateway, IDisposabl
     public AiProviderGateway(AiModuleOptions options, HttpMessageHandler? handlerOverride = null)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _fixedHost = handlerOverride ?? PublicAddressGuard.CreateHandler(options.AllowPrivateEndpoints, guarded: false);
-        _compatible = handlerOverride ?? PublicAddressGuard.CreateHandler(options.AllowPrivateEndpoints, guarded: true);
-        _compatibleStrict = handlerOverride ?? PublicAddressGuard.CreateHandler(allowPrivateEndpoints: false, guarded: true);
+        // 每一種都包一層讀取上限（AI-05）；自己的相容端點再加一層只准 https:443（AI-04）。
+        _fixedHost = new LimitedResponseHandler(handlerOverride ?? PublicAddressGuard.CreateHandler(options.AllowPrivateEndpoints, guarded: false));
+        _compatible = new LimitedResponseHandler(handlerOverride ?? PublicAddressGuard.CreateHandler(options.AllowPrivateEndpoints, guarded: true));
+        _compatibleStrict = new PersonalEndpointHandler(
+            new LimitedResponseHandler(handlerOverride ?? PublicAddressGuard.CreateHandler(allowPrivateEndpoints: false, guarded: true)));
         _openRouter = new OpenRouterHandler(_fixedHost, options.PublicUrl);
         OwnsHandlers = handlerOverride is null;
     }
@@ -52,6 +54,7 @@ internal sealed partial class AiProviderGateway : IAiProviderGateway, IDisposabl
 
     public void Dispose()
     {
+        // 包的那幾層沒有自己的資源，釋放時連同裡面真正的 handler 一起放掉；測試給的 handler 不歸這裡管。
         if (OwnsHandlers)
         {
             _fixedHost.Dispose();

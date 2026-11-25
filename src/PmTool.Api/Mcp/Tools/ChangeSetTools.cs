@@ -67,9 +67,21 @@ internal static class ChangeSetTools
     {
         var result = await context.Services.Changes.GetAsync(
             context.Actor, context.Project(arguments.RequiredPlain("projectKey")), arguments.RequiredLong("number"), cancellationToken);
-        return result.Failure is { } failure
-            ? McpToolResult.FromFailure(failure)
-            : McpToolResult.Ok(await DetailOfAsync(context, result.Value, cancellationToken));
+        if (result.Failure is { } failure)
+        {
+            return McpToolResult.FromFailure(failure);
+        }
+
+        var detail = await DetailOfAsync(context, result.Value, cancellationToken);
+        return McpToolResult.Ok(new
+        {
+            notice = BlueprintReadTools.ContentNotice,
+            detail.ChangeSet,
+            detail.CanApply,
+            detail.Changes,
+            detail.Impacts,
+            detail.Blockers,
+        });
     }
 
     private static async Task<McpToolResult> ProposeAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
@@ -85,6 +97,7 @@ internal static class ChangeSetTools
         var detail = await DetailOfAsync(context, result.Value, cancellationToken);
         return McpToolResult.Ok(new
         {
+            notice = BlueprintReadTools.ContentNotice,
             detail.ChangeSet,
             url = ChangeSetUrl(context.Issuer, projectKey, result.Value.ChangeSet.Number),
             detail.CanApply,

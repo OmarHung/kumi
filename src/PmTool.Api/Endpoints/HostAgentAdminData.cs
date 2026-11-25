@@ -69,6 +69,12 @@ internal sealed record HostLoginData(
         login.Id, login.Engine, login.State, login.ExpiresAt, login.Error, new PersonReference(login.StartedBy, names.NameOf(login.StartedBy)), login.CreatedAt);
 }
 
+/// <param name="Kind">snake_case：other_machine、paired_by_former_owner、credential_expired。</param>
+internal sealed record HostAgentWarningData(HostAgentWarningKind Kind, string? MachineName, DateTimeOffset At)
+{
+    public static HostAgentWarningData From(HostAgentWarning warning) => new(warning.Kind, warning.MachineName, warning.At);
+}
+
 internal sealed record HostAgentData(
     Guid Id,
     string Name,
@@ -81,7 +87,9 @@ internal sealed record HostAgentData(
     IReadOnlyList<HostEngineStatusData> Engines,
     IReadOnlyList<HostLoginData> Logins,
     DateTimeOffset? PairingExpiresAt,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? CredentialExpiresAt,
+    HostAgentWarningData? Warning)
 {
     public static HostAgentData From(HostAgent agent, PeopleNames names) => new(
         agent.Id,
@@ -95,7 +103,9 @@ internal sealed record HostAgentData(
         [.. agent.Engines.Select(engine => HostEngineStatusData.From(engine, names))],
         [.. agent.Logins.Select(login => HostLoginData.From(login, names))],
         agent.PairingExpiresAt,
-        agent.CreatedAt);
+        agent.CreatedAt,
+        agent.CredentialExpiresAt,
+        agent.Warning is { } warning ? HostAgentWarningData.From(warning) : null);
 
     public static IEnumerable<Guid> PeopleOf(HostAgent agent) =>
         agent.Engines.Select(engine => engine.AuthorizedBy).OfType<Guid>().Concat(agent.Logins.Select(login => login.StartedBy));

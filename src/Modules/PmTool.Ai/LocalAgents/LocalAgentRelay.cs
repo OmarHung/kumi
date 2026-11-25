@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Maintenance;
 using PmTool.Ai.Persistence;
 
 namespace PmTool.Ai.LocalAgents;
@@ -209,6 +210,7 @@ internal sealed class LocalAgentRelay(
             .ExecuteUpdateAsync(
                 set => set
                     .SetProperty(j => j.State, LocalJobStates.Finished)
+                    .SetProperty(j => j.Payload, LocalJobRetention.EmptyPayload)
                     .SetProperty(j => j.FinishStatus, AssistantMessageMapper.StatusName(AssistantMessageStatus.Stopped)),
                 CancellationToken.None);
     }
@@ -224,6 +226,7 @@ internal sealed class LocalAgentRelay(
                 set => set
                     .SetProperty(j => j.State, LocalJobStates.Finished)
                     .SetProperty(j => j.CancelRequested, true)
+                    .SetProperty(j => j.Payload, LocalJobRetention.EmptyPayload)
                     .SetProperty(j => j.FinishStatus, name)
                     .SetProperty(j => j.FinishError, cut),
                 CancellationToken.None);

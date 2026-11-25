@@ -41,7 +41,11 @@ internal sealed class FakeHostAgentAdminService : IHostAgentAdminService
         new(LoginId, AiProviderKind.ClaudeCode, HostLoginState.Pending, Now.AddMinutes(15), null, TestUsers.Owner.PersonId, Now);
 
     public static HostAgent Agent() => new(
-        AgentId, "主機一號", HostAgentState.Active, true, Now, "host-01", "0.9.0", "http://api:8080", [Engine()], [Login()], null, Now.AddDays(-1));
+        AgentId, "主機一號", HostAgentState.Active, true, Now, "host-01", "0.9.0", "http://api:8080", [Engine()], [Login()], null, Now.AddDays(-1))
+    {
+        CredentialExpiresAt = Now.AddDays(60),
+        Warning = new HostAgentWarning(HostAgentWarningKind.OtherMachine, "別台電腦", Now.AddHours(-1)),
+    };
 
     public static HostSource Source() => new(
         SourceId,
@@ -114,6 +118,9 @@ internal sealed class FakeHostAgentWorkerService : IHostAgentWorkerService
 {
     public const string Credential = "kha_valid-credential-for-tests";
 
+    /// <summary>配對時存下的機器編號：每個 kha_ 請求的 <c>X-Kumi-Machine</c> 要等於它。</summary>
+    public const string MachineKey = "machine-0001";
+
     public static readonly Guid JobId = Guid.Parse("77777777-7777-7777-7777-777777777771");
 
     public static readonly Guid OtherOrganizationId = Guid.Parse("0190a000-0000-7000-8000-0000000000ff");
@@ -161,10 +168,10 @@ internal sealed class FakeHostAgentWorkerService : IHostAgentWorkerService
         "kjt_secret-tool-token",
         FakeHostAgentAdminService.Now.AddMinutes(6));
 
-    public Task<HostAgentIdentity?> AuthenticateAsync(string credential, CancellationToken cancellationToken)
+    public Task<HostAgentIdentity?> AuthenticateAsync(string credential, string? machineKey, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _authenticateCalls);
-        return Task.FromResult<HostAgentIdentity?>(credential == Credential ? Identity : null);
+        return Task.FromResult<HostAgentIdentity?>(credential == Credential && machineKey == MachineKey ? Identity : null);
     }
 
     public Task<Result<HostPairingResult>> PairAsync(HostPairingRequest request, CancellationToken cancellationToken)
@@ -230,6 +237,9 @@ internal sealed class FakeHostToolGrants : IHostToolGrants
     /// <summary>不為 null 時 <see cref="BeginWriteAsync"/> 一律回它（模擬另一個請求正在建立同樣的提案）。</summary>
     public HostToolReplay? ForcedReplay { get; set; }
 
+    /// <summary>true 時 <see cref="BeginWriteAsync"/> 丟例外（模擬資料庫斷線）。</summary>
+    public bool ThrowOnBegin { get; set; }
+
     public IReadOnlyList<string> ResolveCalls => _resolveCalls.ToArray();
 
     public IReadOnlyList<(string Tool, string Hash)> BeginCalls => _begun.ToArray();
@@ -245,6 +255,11 @@ internal sealed class FakeHostToolGrants : IHostToolGrants
     public Task<HostToolReplay> BeginWriteAsync(Guid jobId, string tool, string argumentsHash, CancellationToken cancellationToken)
     {
         _begun.Enqueue((tool, argumentsHash));
+        if (ThrowOnBegin)
+        {
+            throw new InvalidOperationException("資料庫斷線（測試）。");
+        }
+
         if (ForcedReplay is { } forced)
         {
             return Task.FromResult(forced);

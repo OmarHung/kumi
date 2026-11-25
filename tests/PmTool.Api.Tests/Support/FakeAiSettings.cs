@@ -75,7 +75,11 @@ internal sealed class FakeAiSettingsService : IAiSettingsService
         input is null ? new AiSelection(ConnectionId, "claude-opus-5-5", AiEffort.High) : input.Default,
         [Stored(Input(), updatedBy: updatedBy)],
         new DateTimeOffset(2026, 11, 23, 3, 0, 0, TimeSpan.Zero),
-        updatedBy ?? TestUsers.Owner.PersonId);
+        updatedBy ?? TestUsers.Owner.PersonId)
+    {
+        Limits = input?.Limits ?? AiUsageLimits.Default,
+        MonthUsage = new AiMonthUsage("2026-11", 12, 128000),
+    };
 
     public Task<Result<AiSettings>> GetAsync(Actor actor, CancellationToken cancellationToken)
     {

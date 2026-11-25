@@ -70,6 +70,7 @@ internal static partial class EmailComposer
         AccountNoticeEvent.CliLoginTokensIssued => "命令列登入了你的帳號",
         AccountNoticeEvent.OauthAppAuthorized => "你的帳號授權了 AI 用戶端",
         AccountNoticeEvent.CliLoginCodeReused => "你的登入碼被重複使用",
+        AccountNoticeEvent.LocalAgentMachineAdded => "你的本機代理出現在新的電腦",
         _ => "你的帳號有新的安全通知",
     };
 
@@ -102,6 +103,9 @@ internal static partial class EmailComposer
             : $"命令列登入，建立了 {notice.Tokens.Count} 把存取權杖",
         AccountNoticeEvent.OauthAppAuthorized => $"授權了「{notice.ClientName ?? "AI 用戶端"}」連到你的帳號",
         AccountNoticeEvent.CliLoginCodeReused => $"登入碼被重複使用，已撤銷 {notice.RevokedTokens} 把存取權杖",
+        AccountNoticeEvent.LocalAgentMachineAdded => notice.MachineName is { Length: > 0 } added
+            ? $"本機代理第一次從新的電腦「{added}」登記"
+            : "本機代理第一次從新的電腦登記",
         _ => "帳號有新的安全通知",
     };
 

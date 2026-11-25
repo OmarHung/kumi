@@ -19,7 +19,7 @@ internal static class ItemProposalTools
             "對一個項目提出修改建議（不會真的改）：使用者在 Kumi 網頁上看到後按「套用」才會寫入。changes 是 [{field, value}]，" +
             $"field 可以是 title、description（Markdown）、status（狀態的 key）、assignee（人員編號，null 清掉）、priority（none、low、medium、high、urgent）、" +
             $"startDate、dueDate（yyyy-MM-dd，null 清掉）、estimate（數字，null 清掉）、fields.<自訂欄位的 key>；同一個欄位只能出現一次，最多 {AiRules.MaxItemProposalChanges} 個。" +
-            "comment 是要一併加上的留言。改說明時一定要帶 descriptionRevision（get_item 回的那個），沒帶會被擋下；說明超過 20000 字的項目不能改說明，請改用留言。assignee 的值可以寫 me、none 或組織成員的 Email。提出之後告訴使用者「請按套用」，不要說已經改好了。",
+            "comment 是要一併加上的留言。改說明時一定要帶 descriptionRevision（get_item 回的那個），沒帶會被擋下；說明超過 20000 字的項目不能改說明，請改用留言。assignee 的值可以寫 me、none 或專案成員的 Email。提出之後告訴使用者「請按套用」，不要說已經改好了。",
             McpSchemas.Object(
                 required: ["projectKey", "itemKey"],
                 ("projectKey", McpSchemas.Text("這一則對話的專案代號，項目要在這個專案裡。")),
@@ -37,6 +37,7 @@ internal static class ItemProposalTools
 
     private static async Task<McpToolResult> ProposeAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {
+        var projectKey = context.Project(arguments.RequiredPlain("projectKey"));
         var changes = new List<ItemFieldChange>();
         foreach (var element in arguments.OptionalArray("changes") ?? [])
         {
@@ -49,11 +50,11 @@ internal static class ItemProposalTools
 
             var name = field.GetString()!;
             var raw = element.TryGetProperty("value", out var value) ? value : default;
-            changes.Add(new ItemFieldChange(name, name == "assignee" ? await ResolveAssigneeAsync(context, raw, cancellationToken) : raw));
+            changes.Add(new ItemFieldChange(name, name == "assignee" ? await ResolveAssigneeAsync(context, projectKey, raw, cancellationToken) : raw));
         }
 
         var draft = new ItemProposalDraft(
-            context.Project(arguments.RequiredPlain("projectKey")), context.Item(arguments.RequiredPlain("itemKey")), changes, arguments.OptionalString("comment"))
+            projectKey, context.Item(arguments.RequiredPlain("itemKey")), changes, arguments.OptionalString("comment"))
         {
             DescriptionRevision = arguments.OptionalPlain("descriptionRevision"),
         };
@@ -71,18 +72,20 @@ internal static class ItemProposalTools
             changes = proposal.Changes.Select(change => new { field = change.Field, value = change.Value }),
             comment = proposal.Comment,
             note = CreatedNote,
+            notice = ItemReadTools.UserContentNotice,
         });
     }
 
     // 代理不知道人員編號：assignee 和其他 MCP 工具一樣收 me、none、Email，在這裡換成人員編號；已經是編號的照舊交給模組檢查。
-    private static async Task<JsonElement> ResolveAssigneeAsync(McpToolContext context, JsonElement value, CancellationToken cancellationToken)
+    private static async Task<JsonElement> ResolveAssigneeAsync(
+        McpToolContext context, string projectKey, JsonElement value, CancellationToken cancellationToken)
     {
         if (value.ValueKind != JsonValueKind.String || Guid.TryParse(value.GetString(), out _))
         {
             return value;
         }
 
-        var id = await McpAssignees.ResolveAsync(context, "assignee", value.GetString()!, cancellationToken);
+        var id = await McpAssignees.ResolveAsync(context, projectKey, "assignee", value.GetString()!, cancellationToken);
         return JsonSerializer.SerializeToElement(id?.ToString());
     }
 }

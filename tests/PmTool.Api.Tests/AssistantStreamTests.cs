@@ -384,6 +384,7 @@ public sealed class AssistantStreamTests
     [TestCase(FailureKind.Conflict, AiErrorCodes.ConversationBusy, HttpStatusCode.Conflict)]
     [TestCase(FailureKind.Conflict, AiErrorCodes.TooManyRuns, HttpStatusCode.Conflict)]
     [TestCase(FailureKind.Conflict, AiErrorCodes.ConversationTooLong, HttpStatusCode.Conflict)]
+    [TestCase(FailureKind.Conflict, AiErrorCodes.UsageLimitReached, HttpStatusCode.Conflict)]
     [TestCase(FailureKind.Invalid, AiErrorCodes.MessageInvalid, HttpStatusCode.UnprocessableEntity)]
     [TestCase(FailureKind.Invalid, AiErrorCodes.SelectionInvalid, HttpStatusCode.UnprocessableEntity)]
     [TestCase(FailureKind.Invalid, AiErrorCodes.Unavailable, HttpStatusCode.UnprocessableEntity)]

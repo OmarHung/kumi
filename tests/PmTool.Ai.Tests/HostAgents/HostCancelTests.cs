@@ -154,7 +154,7 @@ public sealed class HostCancelTests
         await _h.Service.RemoveAgentAsync(_h.Owner, _setup.Worker.AgentId, default);
 
         // Act
-        var identity = await _h.Worker.AuthenticateAsync(_setup.Worker.Credential, default);
+        var identity = await _h.Worker.AuthenticateAsync(_setup.Worker.Credential, HostHarness.DefaultMachineKey, default);
         var checkIn = await _h.Worker.CheckInAsync(_setup.Worker.Identity, new HostAgentCheckIn("0.9.0", HostHarness.ServerUrl, []), 0, default);
 
         // Assert

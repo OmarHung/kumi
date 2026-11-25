@@ -37,7 +37,7 @@ internal sealed partial class AssistantService
         }
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        var conversation = await FindConversationAsync(db, actor, project.Value.Project.Id, conversationId, cancellationToken);
+        var conversation = await FindVisibleConversationAsync(db, actor, project.Value, conversationId, cancellationToken);
         if (conversation is null)
         {
             return AssistantFailures.ConversationNotFound();
@@ -84,20 +84,30 @@ internal sealed partial class AssistantService
             hostJobId = reserved.Value;
         }
 
+        // 組織的連線：在存使用者的訊息之前預留用量（每人每天、全組織每月）；到了上限什麼都不存。
+        var countsUsage = hostSourceId is null && !isLocal && !selection.Value.Endpoint.Personal;
+        if (countsUsage
+            && await usageLedger.ReserveAsync(
+                actor, selection.Value.Selection.ConnectionId, project.Value.Project.Key, assistantMessageId, cancellationToken) is { } overLimit)
+        {
+            return overLimit;
+        }
+
         Result<BegunRun> begun;
         try
         {
-            begun = await BeginRunAsync(db, actor, conversation, text.Value, item?.Key, hostSourceId is not null, cancellationToken);
+            begun = await BeginRunAsync(
+                db, actor, conversation, text.Value, item?.Key, hostSourceId is not null, CanReadAllItems(project.Value), cancellationToken);
         }
         catch
         {
-            await ReleaseHostJobAsync(hostJobId);
+            await ReleaseReservationsAsync(hostJobId, countsUsage ? assistantMessageId : null);
             throw;
         }
 
         if (begun.Failure is { } notBegun)
         {
-            await ReleaseHostJobAsync(hostJobId);
+            await ReleaseReservationsAsync(hostJobId, countsUsage ? assistantMessageId : null);
             return notBegun;
         }
 
@@ -117,11 +127,23 @@ internal sealed partial class AssistantService
             McpUrl = mcpUrl,
             ItemKey = item?.Key,
             HostJobId = hostJobId,
+            CountsUsage = countsUsage,
         });
         return new AssistantRun(AssistantMessageMapper.ToMessage(started.User), assistantMessageId, session);
     }
 
-    private Task ReleaseHostJobAsync(Guid? hostJobId) => hostJobId is { } id ? hostReservations.ReleaseAsync(id) : Task.CompletedTask;
+    private async Task ReleaseReservationsAsync(Guid? hostJobId, Guid? usageId)
+    {
+        if (hostJobId is { } jobId)
+        {
+            await hostReservations.ReleaseAsync(jobId);
+        }
+
+        if (usageId is { } id)
+        {
+            await usageLedger.ReleaseAsync(id);
+        }
+    }
 
     private static Result<string> CheckText(string? text)
     {
@@ -147,7 +169,8 @@ internal sealed partial class AssistantService
     /// 條件式的 UPDATE 是真正的互斥（好幾個 API 程序之間也只有一個拿得到）；advisory lock 只讓「數出來的數量」不被同時的請求搶先。
     /// </summary>
     private async Task<Result<BegunRun>> BeginRunAsync(
-        AiDbContext db, Actor actor, AiConversationRow conversation, string text, string? itemKey, bool queued, CancellationToken cancellationToken)
+        AiDbContext db, Actor actor, AiConversationRow conversation, string text, string? itemKey, bool queued, bool seesAllItems,
+        CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -192,7 +215,8 @@ internal sealed partial class AssistantService
                 set => set
                     .SetProperty(c => c.MessageCount, sequence)
                     .SetProperty(c => c.UpdatedAt, now)
-                    .SetProperty(c => c.Title, c => c.Title ?? title),
+                    .SetProperty(c => c.Title, c => c.Title ?? title)
+                    .SetProperty(c => c.SawAllItems, c => c.SawAllItems || seesAllItems),
                 cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new BegunRun(user, replay, until);

@@ -13,6 +13,9 @@ internal static class McpTesting
 {
     public const string Route = "/mcp";
 
+    /// <summary>本機代理的請求帶的工作編號（<c>X-Kumi-Job</c>）。假的額度不看它，只記下來。</summary>
+    public static readonly Guid JobId = Guid.Parse("77777777-7777-7777-7777-777777777771");
+
     /// <summary>OAuth 授權能發的全部範圍（沒有 agent:run：它只給本機代理的個人存取權杖，而且一定要帶專案標頭）。</summary>
     public static readonly AccessTokenScope[] AllScopes = [.. AccessTokenScopes.Grantable];
 
@@ -21,12 +24,16 @@ internal static class McpTesting
         factory.Modules.AccessTokens.IssueForGrant(user, Guid.NewGuid(), scopes);
 
     /// <summary>用 SDK 的用戶端連到 /mcp，帶 Bearer 權杖。用完要 DisposeAsync。</summary>
-    public static async Task<McpClient> ConnectAsync(ApiFactory factory, string secret, string? project = null)
+    public static async Task<McpClient> ConnectAsync(ApiFactory factory, string secret, string? project = null, Guid? job = null, bool sendJob = true)
     {
         var headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {secret}" };
         if (project is not null)
         {
             headers["X-Kumi-Project"] = project;
+            if (sendJob)
+            {
+                headers["X-Kumi-Job"] = (job ?? JobId).ToString();
+            }
         }
 
         var http = factory.CreateClient();

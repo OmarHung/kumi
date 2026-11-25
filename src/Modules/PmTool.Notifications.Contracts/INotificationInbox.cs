@@ -109,6 +109,9 @@ public enum AccountNoticeEvent
     CliLoginTokensIssued,
     OauthAppAuthorized,
     CliLoginCodeReused,
+
+    /// <summary>本機代理第一次從一台新的電腦登記：有電腦名稱與來源位址。不是本人做的，權杖可能外流。</summary>
+    LocalAgentMachineAdded,
 }
 
 /// <summary>

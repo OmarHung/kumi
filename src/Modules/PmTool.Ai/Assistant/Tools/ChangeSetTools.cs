@@ -66,24 +66,71 @@ internal sealed class ProposeChangeSetTool(AssistantToolContext context) : Chang
 {
     private const string NoPermissionError = "你沒有提出變更集的權限。";
 
+    private static readonly string TooManyError = $"這一則回覆已經提出過變更集了，一則回覆最多只能提出 {AiRules.MaxChangeSetsPerReply} 份。請先請使用者看過、核准，再請他在下一則訊息裡要你繼續。";
+
+    // 每則回覆建一組工具，所以這個計數就是「這則回覆」的份數；模型一次提出一大堆變更集會洗版變更集頁。
+    // 模型可能同時呼叫好幾次：先用 CompareExchange 佔位再提出，沒成功就放回去，不然兩個呼叫會一起通過檢查。
+    private int _proposed;
+
     protected override async Task<string> RunAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        if (!TryReserveSlot())
+        {
+            return ToolResults.Error(TooManyError);
+        }
+
+        var proposed = false;
+        try
+        {
+            var result = await ProposeAsync(arguments, cancellationToken);
+            proposed = result.Proposed;
+            return result.Text;
+        }
+        finally
+        {
+            if (!proposed)
+            {
+                Interlocked.Decrement(ref _proposed);
+            }
+        }
+    }
+
+    private bool TryReserveSlot()
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _proposed);
+            if (current >= AiRules.MaxChangeSetsPerReply)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _proposed, current + 1, current) == current)
+            {
+                return true;
+            }
+        }
+    }
+
+    private async Task<(string Text, bool Proposed)> ProposeAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         if (DocumentOf(arguments) is not { } document)
         {
-            return ToolResults.Error(MissingChangeSetError);
+            return (ToolResults.Error(MissingChangeSetError), false);
         }
 
         var result = await Context.Changes.ProposeAsync(
             Context.Actor, Context.ProjectKey, document, DocumentFormat.Json, ChangeSetOrigin.Assistant, cancellationToken);
         if (result.Failure is { } failure)
         {
-            return failure.Kind == FailureKind.Forbidden && !await CanProposeAsync(cancellationToken)
+            var text = failure.Kind == FailureKind.Forbidden && !await CanProposeAsync(cancellationToken)
                 ? ToolResults.Error(NoPermissionError)
                 : FailureResult(failure);
+            return (text, false);
         }
 
         var detail = result.Value;
-        return ToolResults.Ok(new
+        return (ToolResults.Ok(new
         {
             changeSet = new
             {
@@ -92,7 +139,7 @@ internal sealed class ProposeChangeSetTool(AssistantToolContext context) : Chang
                 canApply = detail.CanApply,
                 impacts = detail.Impacts.Select(ChangeSetShape.Impact),
             },
-        });
+        }), true);
     }
 
     // 失敗是 Forbidden 時才多查一次：區分「沒有提出的權限」與其他被擋的原因（例如要看得到全部項目）。

@@ -41,7 +41,14 @@ internal sealed class McpHarness : IAsyncDisposable
     public static Task<McpHarness> StartForAgentAsync(string? project, params AccessTokenScope[] scopes) =>
         StartAsync(TestUsers.Member, project, scopes);
 
-    public static async Task<McpHarness> StartAsync(AuthenticatedUser user, string? project, params AccessTokenScope[] scopes)
+    /// <summary>本機代理的連線，但不帶 <c>X-Kumi-Job</c>（舊版 kumi）。</summary>
+    public static Task<McpHarness> StartForAgentWithoutJobAsync(string project, params AccessTokenScope[] scopes) =>
+        StartAsync(TestUsers.Member, project, scopes, sendJob: false);
+
+    public static Task<McpHarness> StartAsync(AuthenticatedUser user, string? project, params AccessTokenScope[] scopes) =>
+        StartAsync(user, project, scopes, sendJob: true);
+
+    private static async Task<McpHarness> StartAsync(AuthenticatedUser user, string? project, AccessTokenScope[] scopes, bool sendJob)
     {
         var usage = new FakeBlueprintUsageService();
         var factory = new ApiFactory(
@@ -57,8 +64,15 @@ internal sealed class McpHarness : IAsyncDisposable
                     services.AddSingleton<ITemplateLibrary>(new FakeTemplateLibrary());
                 },
             });
+
+        // 負責人只在專案的成員裡找：專案有 Owner 與 Member 兩位成員，Guest 在組織裡卻不是成員。
+        factory.Modules.Projects.OnGet = (_, key) => new ProjectDetail(
+            TestData.Project(key),
+            TestData.Blueprint(),
+            [new ProjectMember(TestUsers.Owner.PersonId, "editor"), new ProjectMember(TestUsers.Member.PersonId, "editor")],
+            [WorkPermissions.ItemRead, WorkPermissions.ProjectManage]);
         var secret = McpTesting.GrantToken(factory, user, scopes.Length == 0 ? McpTesting.AllScopes : scopes);
-        return new McpHarness(factory, usage, await McpTesting.ConnectAsync(factory, secret, project), user);
+        return new McpHarness(factory, usage, await McpTesting.ConnectAsync(factory, secret, project, sendJob: sendJob), user);
     }
 
     public Task<(bool IsError, JsonNode Body)> CallAsync(string tool, object? arguments = null) =>

@@ -4,11 +4,29 @@ namespace PmTool.Api.Endpoints;
 
 /// <summary>要存的 AI 開關與預設。<c>default</c> 是 null 或省略時不指定預設。</summary>
 /// <c>allowPersonalConnections</c> 省略（null）時沿用目前存的值：只改開關與預設的舊用戶端，不能無聲無息地把它重設成「不允許」。
-internal sealed record AiSettingsRequest(bool Enabled, AiSelectionData? Default = null, bool? AllowPersonalConnections = null)
+/// <c>limits</c> 省略（null）時沿用存的上限；裡面每一項 null 是不限。
+internal sealed record AiSettingsRequest(
+    bool Enabled, AiSelectionData? Default = null, bool? AllowPersonalConnections = null, AiUsageLimitsData? Limits = null)
 {
     public AiSettingsInput ToInput(bool currentAllowPersonal) =>
-        new(Enabled, Default?.ToSelection()) { AllowPersonalConnections = AllowPersonalConnections ?? currentAllowPersonal };
+        new(Enabled, Default?.ToSelection())
+        {
+            AllowPersonalConnections = AllowPersonalConnections ?? currentAllowPersonal,
+            Limits = Limits?.ToLimits(),
+        };
 }
+
+/// <summary>組織連線的用量上限；每一項 null 是不限。</summary>
+internal sealed record AiUsageLimitsData(int? DailyRequestsPerPerson, int? MonthlyRequests, long? MonthlyTokens)
+{
+    public AiUsageLimits ToLimits() => new(DailyRequestsPerPerson, MonthlyRequests, MonthlyTokens);
+
+    public static AiUsageLimitsData From(AiUsageLimits limits) =>
+        new(limits.DailyRequestsPerPerson, limits.MonthlyRequests, limits.MonthlyTokens);
+}
+
+/// <summary>組織連線這個月全組織的用量。</summary>
+internal sealed record AiMonthUsageData(string Month, int Requests, long Tokens);
 
 /// <summary>選了哪個連線的哪個模型、多深的思考（<c>effort</c> 是 null 時用模型自己的預設）。</summary>
 internal sealed record AiSelectionData(Guid ConnectionId, string Model, AiEffort? Effort = null)
@@ -54,7 +72,9 @@ internal sealed record AiSettingsData(
     AiSelectionData? Default,
     IReadOnlyList<AiConnectionData> Connections,
     DateTimeOffset? UpdatedAt,
-    PersonReference? UpdatedBy)
+    PersonReference? UpdatedBy,
+    AiUsageLimitsData Limits,
+    AiMonthUsageData MonthUsage)
 {
     public static AiSettingsData From(AiSettings settings, PeopleNames names) => new(
         settings.Enabled,
@@ -62,7 +82,9 @@ internal sealed record AiSettingsData(
         AiSelectionData.From(settings.Default),
         [.. settings.Connections.Select(c => AiConnectionData.From(c, names))],
         settings.UpdatedAt,
-        settings.UpdatedBy is { } person ? new PersonReference(person, names.NameOf(person)) : null);
+        settings.UpdatedBy is { } person ? new PersonReference(person, names.NameOf(person)) : null,
+        AiUsageLimitsData.From(settings.Limits),
+        new AiMonthUsageData(settings.MonthUsage.Month, settings.MonthUsage.Requests, settings.MonthUsage.Tokens));
 
     public static IEnumerable<Guid> PeopleOf(AiSettings settings) =>
         settings.Connections.Select(c => c.UpdatedBy).Concat(settings.UpdatedBy is { } person ? [person] : []);

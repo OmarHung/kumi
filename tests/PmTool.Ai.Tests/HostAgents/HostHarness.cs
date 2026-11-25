@@ -21,6 +21,11 @@ internal sealed class HostWorker(HostAgentIdentity identity, string credential, 
 
     public string Name => name;
 
+    /// <summary>配對時報的機器編號；之後每次登記都要帶同一個。</summary>
+    public string MachineKey { get; init; } = HostHarness.DefaultMachineKey;
+
+    public HostAgentCheckIn CheckIn() => new("0.9.0", HostHarness.ServerUrl, Reports) { MachineKey = MachineKey, MachineName = "主機" };
+
     public IReadOnlyList<HostEngineReport> Reports { get; set; } = [];
 }
 
@@ -35,6 +40,8 @@ internal sealed record HostSetup(HostWorker Worker, HostSource Source, Guid Logi
 internal sealed class HostHarness : IAsyncDisposable
 {
     public const string ServerUrl = "http://api:8080";
+
+    public const string DefaultMachineKey = "machine-0001";
 
     private readonly List<LocalRun> _runs = [];
 
@@ -141,9 +148,9 @@ internal sealed class HostHarness : IAsyncDisposable
     public async Task<HostWorker> PairAsync(string name = "主機代理")
     {
         var pairing = await CreateAgentAsync(name);
-        var paired = await Worker.PairAsync(new HostPairingRequest(pairing.PairingCode, "machine-0001", "主機", "0.9.0"), CancellationToken.None);
+        var paired = await Worker.PairAsync(new HostPairingRequest(pairing.PairingCode, DefaultMachineKey, "主機", "0.9.0"), CancellationToken.None);
         Assert.That(paired.Succeeded, Is.True, () => paired.Failure?.Message ?? string.Empty);
-        var identity = await Worker.AuthenticateAsync(paired.Value.Credential, CancellationToken.None);
+        var identity = await Worker.AuthenticateAsync(paired.Value.Credential, HostHarness.DefaultMachineKey, CancellationToken.None);
         Assert.That(identity, Is.Not.Null);
         return new HostWorker(identity!, paired.Value.Credential, name);
     }
@@ -189,7 +196,7 @@ internal sealed class HostHarness : IAsyncDisposable
     public async Task<HostCheckInResult> CheckInAsync(HostWorker worker, int capacity = 0, CancellationToken cancellationToken = default)
     {
         var result = await Worker.CheckInAsync(
-            worker.Identity, new HostAgentCheckIn("0.9.0", ServerUrl, worker.Reports), capacity, cancellationToken);
+            worker.Identity, worker.CheckIn(), capacity, cancellationToken);
         Assert.That(result.Succeeded, Is.True, () => result.Failure?.Message ?? string.Empty);
         return result.Value;
     }
@@ -201,7 +208,7 @@ internal sealed class HostHarness : IAsyncDisposable
         while (!timeout.IsCancellationRequested)
         {
             var result = await Worker.CheckInAsync(
-                worker.Identity, new HostAgentCheckIn("0.9.0", ServerUrl, worker.Reports), capacity, timeout.Token);
+                worker.Identity, worker.CheckIn(), capacity, timeout.Token);
             if (result.Succeeded && result.Value.Job is { } job)
             {
                 return job;

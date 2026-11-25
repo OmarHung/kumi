@@ -51,6 +51,32 @@ public sealed class AccountNoticeEmailTests : EmailTestBase
     }
 
     [Test]
+    public async Task Dispatch_LocalAgentMachineAdded_SaysWhichComputerAndFromWhere()
+    {
+        // Arrange
+        var me = NewPerson();
+        await EnableEmailAsync();
+        await Sink.PublishAsync(
+            new AccountEvent(Guid.CreateVersion7(), Organization, me, AccountEventKind.LocalAgentMachineAdded, Clock.GetUtcNow())
+            {
+                MachineName = "辦公室的 Mac",
+                SourceAddress = "203.0.113.5",
+            },
+            CancellationToken.None);
+
+        // Act
+        await DispatchAsync();
+
+        // Assert
+        var mail = Transport.Sent.Single();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.Subject, Is.EqualTo("Kumi：你的本機代理出現在新的電腦"));
+            Assert.That(mail.TextBody, Does.Contain("辦公室的 Mac").And.Contain("203.0.113.5"));
+        }
+    }
+
+    [Test]
     public async Task Dispatch_AccountNoticeAlreadyRead_IsStillSent()
     {
         // Arrange

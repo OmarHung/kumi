@@ -25,6 +25,8 @@ internal static class AssistantFailures
     public static Failure Unreadable() =>
         new(FailureKind.Conflict, AiErrorCodes.ConversationUnreadable, "這則對話之前的內容讀不出來，沒辦法接著聊，請開一則新的對話。");
 
+    public static Failure UsageLimit(string message) => new(FailureKind.Conflict, AiErrorCodes.UsageLimitReached, message);
+
     public static Failure MessageInvalid(string message) => new(FailureKind.Invalid, AiErrorCodes.MessageInvalid, message);
 
     public static Failure Unavailable() =>
