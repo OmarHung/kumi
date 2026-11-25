@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using PmTool.Abstractions;
 using PmTool.Identity.Persistence;
 
@@ -115,5 +117,38 @@ public sealed class IdentityModuleTests
         // Assert：產生遷移時的模型要和執行時一樣
         Assert.That(db.Model.GetDefaultSchema(), Is.EqualTo(IdentityDbContext.Schema));
         Assert.That(db.Database.ProviderName, Is.EqualTo("Npgsql.EntityFrameworkCore.PostgreSQL"));
+    }
+
+    [Test]
+    public void PasswordHashIterations_IsTwoHundredTenThousand() =>
+        Assert.That(IdentityRules.PasswordHashIterations, Is.EqualTo(210_000));
+
+    [Test]
+    public async Task PasswordHasher_UsesTheConfiguredIterations()
+    {
+        // Arrange
+        await using var host = await IdentityTestHost.StartAsync();
+
+        // Act
+        var options = host.Services.GetRequiredService<IOptions<PasswordHasherOptions>>().Value;
+
+        // Assert
+        Assert.That(options.IterationCount, Is.EqualTo(IdentityRules.PasswordHashIterations));
+    }
+
+    [Test]
+    public async Task NewAccount_StoresAPasswordHashWithTheConfiguredIterations()
+    {
+        // Arrange
+        await using var host = await IdentityTestHost.StartAsync();
+
+        // Act：新增帳號時算出來的雜湊，格式第 6～9 個位元組是次數（ASP.NET Core Identity 的 V3，大端序）
+        var owner = await host.StartWithOwnerAsync();
+        await using var db = await host.CreateDbContextAsync();
+        var hash = Convert.FromBase64String((await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == owner.AccountId)).PasswordHash);
+        var iterations = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(hash.AsSpan(5, 4));
+
+        // Assert
+        Assert.That(iterations, Is.EqualTo((uint)IdentityRules.PasswordHashIterations));
     }
 }

@@ -27,6 +27,12 @@ public interface IAccessTokenService
     /// 同一個程序裡撤銷的立刻失效（和工作階段一樣）。
     /// </summary>
     Task<ActiveAccessToken?> FindAsync(string token, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 只看程序裡的快取，不查資料庫：有可用的、還有效的結果才回，其他一律 null（包含沒查過的）。
+    /// 來源被擋下時，用它放行剛用過的有效權杖，又不讓假權杖每個都查一次資料庫。
+    /// </summary>
+    ActiveAccessToken? TryFindCached(string token);
 }
 
 /// <summary>權杖能做的事。對外的名稱（<c>items:read</c> 這些）見 <see cref="AccessTokenScopes"/>，是合約，不能改。</summary>
@@ -133,6 +139,12 @@ public sealed record AccessTokenSummary(
     /// 網頁的清單用它寫「從 MacBook-Pro 的 kumi 登入」，設定精靈用它判斷「命令列已經登入過」。
     /// </summary>
     public string? MachineName { get; init; }
+
+    /// <summary>
+    /// 建立這把權杖時伺服器看到的位址（走過轉送標頭）。瀏覽器登入是兌換的那台電腦；在網頁上建的是瀏覽器。
+    /// 舊的權杖是 null。
+    /// </summary>
+    public string? CreatedFrom { get; init; }
 }
 
 /// <param name="Secret">權杖的明文，只在這裡出現一次。</param>

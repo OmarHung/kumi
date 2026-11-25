@@ -64,4 +64,13 @@ public static class IdentityErrorCodes
 
     /// <summary>只要本機代理的權杖，但組織不允許成員使用自己的 AI 帳號（Forbidden）。</summary>
     public const string CliLoginAgentNotAllowed = "cli_login.agent_not_allowed";
+
+    /// <summary>
+    /// 瀏覽器登入核准時沒給確認碼、或和終端機上顯示的不一樣（Invalid，細項路徑 <c>confirmationCode</c>）。
+    /// 這時還沒建立碼，沒有東西要作廢。
+    /// </summary>
+    public const string CliLoginConfirmationMismatch = "cli_login.confirmation_mismatch";
+
+    /// <summary>稽核紀錄的查詢參數不對（Invalid，細項路徑 <c>limit</c> 或 <c>cursor</c>）。</summary>
+    public const string AuditQueryInvalid = "audit.query_invalid";
 }

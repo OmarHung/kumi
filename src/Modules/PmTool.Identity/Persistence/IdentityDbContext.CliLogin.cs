@@ -17,6 +17,7 @@ internal sealed partial class IdentityDbContext
             code.Property(c => c.CodeChallenge).HasMaxLength(MaxCodeChallengeLength);
             code.Property(c => c.MachineName).HasMaxLength(CliLoginRules.MaxMachineNameLength);
             code.Property(c => c.OriginKey).HasMaxLength(CliLoginRules.MaxOriginLength).HasDefaultValue(string.Empty);
+            code.Property(c => c.IssuedTokenIds).HasDefaultValueSql("'{}'");
             code.HasIndex(c => c.CodeHash).IsUnique();
             code.HasIndex(c => new { c.OrganizationId, c.ExpiresAt });
             code.HasOne<AccountRow>().WithMany().HasForeignKey(c => c.AccountId).OnDelete(DeleteBehavior.Restrict);

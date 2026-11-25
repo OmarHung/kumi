@@ -37,4 +37,9 @@ internal sealed record CliLoginCodeRow
     public required DateTimeOffset ExpiresAt { get; init; }
 
     public DateTimeOffset? UsedAt { get; init; }
+
+    /// <summary>
+    /// 這個碼兌換出來的權杖。同一個碼再出現時（有人重放）靠它撤銷已經發出去的；撤銷之後清空，第三次不重複處理。
+    /// </summary>
+    public Guid[] IssuedTokenIds { get; init; } = [];
 }

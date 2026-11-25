@@ -60,6 +60,20 @@ internal sealed class SessionCache(TimeProvider time, SessionCacheLimits limits)
     }
 
     /// <summary>
+    /// 只看已經有的結果，不查：有可用的（已完成、沒過期、沒被作廢）才回，其他一律 null。
+    /// 沒有東西會因為它而被查或被存，所以任意編的權杖也不會佔掉快取。
+    /// </summary>
+    public SessionLookup? TryPeek(string key)
+    {
+        if (!_entries.TryGetValue(key, out var entry) || !IsUsable(entry, time.GetUtcNow()) || !entry.Result.Task.IsCompletedSuccessfully)
+        {
+            return null;
+        }
+
+        return entry.Result.Task.Result;
+    }
+
+    /// <summary>
     /// 這個帳號的工作階段剛在資料庫裡作廢了：之前的查詢結果都不能再用。要在寫進資料庫（交易提交）之後才呼叫，
     /// 否則在這之後才開始的查詢可能讀到還沒提交的舊狀態，又把「還有效」存回來。
     /// </summary>

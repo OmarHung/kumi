@@ -19,6 +19,14 @@ internal sealed class FakeAccessTokenService(FakeAuthenticationService accounts,
 
     public IReadOnlyList<string> FindCalls => _findCalls.ToArray();
 
+    /// <summary>查過而且當時有效的權杖，模擬真的服務程序裡的快取；<see cref="TryFindCached"/> 只看它。</summary>
+    private readonly ConcurrentDictionary<string, bool> _cached = new();
+
+    private readonly ConcurrentQueue<string> _cacheLookups = new();
+
+    /// <summary><see cref="TryFindCached"/> 被問過哪些權杖（依序）。</summary>
+    public IReadOnlyList<string> CacheLookups => _cacheLookups.ToArray();
+
     /// <summary>直接替帳號發一把權杖，回傳明文。測試準備權杖用。</summary>
     public string Issue(AuthenticatedUser user, params AccessTokenScope[] scopes) =>
         Issue(user, null, scopes);
@@ -103,8 +111,21 @@ internal sealed class FakeAccessTokenService(FakeAuthenticationService accounts,
             return Task.FromResult<ActiveAccessToken?>(null);
         }
 
+        _cached[token] = true;
         return Task.FromResult<ActiveAccessToken?>(
             new ActiveAccessToken(found.Summary.TokenId, user, found.Summary.Scopes) { GrantId = found.GrantId });
+    }
+
+    public ActiveAccessToken? TryFindCached(string token)
+    {
+        _cacheLookups.Enqueue(token);
+        var found = _tokens.Values.FirstOrDefault(t => t.Secret == token);
+        if (!_cached.ContainsKey(token) || found is null || !IsUsable(found) || accounts.Current(found.AccountId) is not { } user)
+        {
+            return null;
+        }
+
+        return new ActiveAccessToken(found.Summary.TokenId, user, found.Summary.Scopes) { GrantId = found.GrantId };
     }
 
     private FakeAccessToken Create(Guid accountId, NewAccessToken token, Guid? grantId = null, string? machineName = null)

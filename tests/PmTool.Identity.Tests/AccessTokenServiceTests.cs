@@ -82,6 +82,49 @@ public sealed class AccessTokenServiceTests
     }
 
     [Test]
+    public async Task TryFindCached_TokenUsedJustNow_ReturnsItWithoutTheDatabase()
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var created = (await _host.AccessTokens.CreateAsync(user.ToActor(), new NewAccessToken("快取", Read, 30), CancellationToken.None)).Value;
+        await _host.AccessTokens.FindAsync(created.Secret, CancellationToken.None);
+
+        // Act
+        var cached = _host.AccessTokens.TryFindCached(created.Secret);
+
+        // Assert
+        Assert.That(cached?.TokenId, Is.EqualTo(created.Token.TokenId));
+    }
+
+    [Test]
+    public async Task TryFindCached_ValidTokenNeverLookedUp_ReturnsNull()
+    {
+        // Arrange：只看快取，不替沒查過的權杖去查資料庫
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var created = (await _host.AccessTokens.CreateAsync(user.ToActor(), new NewAccessToken("沒查過", Read, 30), CancellationToken.None)).Value;
+
+        // Act & Assert
+        Assert.That(_host.AccessTokens.TryFindCached(created.Secret), Is.Null);
+    }
+
+    [Test]
+    public async Task TryFindCached_RevokedToken_ReturnsNull()
+    {
+        // Arrange
+        var user = await _host.AddUserAsync(_owner.ToActor());
+        var created = (await _host.AccessTokens.CreateAsync(user.ToActor(), new NewAccessToken("撤銷", Read, 30), CancellationToken.None)).Value;
+        await _host.AccessTokens.FindAsync(created.Secret, CancellationToken.None);
+        await _host.AccessTokens.RevokeAsync(user.ToActor(), created.Token.TokenId, CancellationToken.None);
+
+        // Act & Assert
+        Assert.That(_host.AccessTokens.TryFindCached(created.Secret), Is.Null);
+    }
+
+    [Test]
+    public void TryFindCached_MalformedToken_ReturnsNull() =>
+        Assert.That(_host.AccessTokens.TryFindCached("not-a-token"), Is.Null);
+
+    [Test]
     public async Task Create_WithoutExpiry_NeverExpires()
     {
         // Arrange

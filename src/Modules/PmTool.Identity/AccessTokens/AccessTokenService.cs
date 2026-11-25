@@ -117,6 +117,14 @@ internal sealed class AccessTokenService(
         return found.Token;
     }
 
+    public ActiveAccessToken? TryFindCached(string token)
+    {
+        ArgumentNullException.ThrowIfNull(token);
+        return AccessTokenSecret.TryHash(token, out var hash)
+            ? cache.TryPeek(SessionToken.AccessTokenCacheKeyOf(hash))?.Token
+            : null;
+    }
+
     /// <summary>
     /// 快取沒有可用的結果時才走到這裡。不給取消權杖：這次查詢由所有在等的請求共用，
     /// 不能因為觸發它的那一個斷線就中止。
@@ -165,5 +173,5 @@ internal sealed class AccessTokenService(
         [.. row.Scopes.Select(name => AccessTokenScopes.TryParse(name, out var scope) ? (AccessTokenScope?)scope : null).OfType<AccessTokenScope>()];
 
     internal static AccessTokenSummary Summarize(AccessTokenRow row) =>
-        new(row.Id, row.Name, row.DisplayPrefix, ScopesOf(row), row.CreatedAt, row.LastUsedAt, row.ExpiresAt) { MachineName = row.MachineName };
+        new(row.Id, row.Name, row.DisplayPrefix, ScopesOf(row), row.CreatedAt, row.LastUsedAt, row.ExpiresAt) { MachineName = row.MachineName, CreatedFrom = row.CreatedFrom };
 }

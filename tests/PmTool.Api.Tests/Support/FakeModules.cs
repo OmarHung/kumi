@@ -25,6 +25,8 @@ internal sealed class FakeModules
 
     public FakeCliLoginService CliLogin { get; } = new();
 
+    public FakeAuditLog Audit { get; } = new();
+
     public FakePeopleDirectory People { get; } = new();
 
     public FakeIdentityBootstrapper Bootstrapper { get; } = new();

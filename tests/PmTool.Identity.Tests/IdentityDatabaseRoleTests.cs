@@ -151,6 +151,87 @@ public sealed class IdentityDatabaseRoleTests
         Assert.That(rejected?.SqlState, Is.EqualTo(InsufficientPrivilege), () => $"應該被拒絕：{rejected}");
     }
 
+    private const string InsertAuditEventSql =
+        "INSERT INTO identity.audit_events (id, organization_id, occurred_at, action, outcome) " +
+        "SELECT '0190b000-0000-7000-8000-000000000001', id, {0}, 'sign_in', 'succeeded' FROM identity.organizations LIMIT 1";
+
+    [TestCase("UPDATE identity.audit_events SET action = 'x'", TestName = "RuntimeRole_UpdateAnAuditEvent_IsRejected")]
+    [TestCase("DELETE FROM identity.audit_events", TestName = "RuntimeRole_DeleteAnAuditEvent_IsRejected")]
+    [TestCase("TRUNCATE identity.audit_events", TestName = "RuntimeRole_TruncateTheAuditEvents_IsRejected")]
+    public async Task RuntimeRole_ChangingAuditEvents_IsRejected(string sql)
+    {
+        // Arrange：稽核紀錄只新增與讀取，被攻破的執行角色不能改掉或抹掉自己做過的事。
+        var (host, runtime, _) = await StartWithRuntimeRoleAsync();
+        await using var _ = host;
+        await host.StartWithOwnerAsync();
+        Assert.That(await TryExecuteAsync(runtime, string.Format(InsertAuditEventSql, "now()")), Is.Null);
+
+        // Act
+        var rejected = await TryExecuteAsync(runtime, sql);
+
+        // Assert
+        Assert.That(rejected?.SqlState, Is.EqualTo(InsufficientPrivilege), () => $"應該被拒絕：{rejected}");
+    }
+
+    [Test]
+    public async Task RuntimeRole_AddingAndReadingAuditEvents_IsAllowed()
+    {
+        // Arrange
+        var (host, runtime, _) = await StartWithRuntimeRoleAsync();
+        await using var _ = host;
+        await host.StartWithOwnerAsync();
+
+        // Act
+        var inserted = await TryExecuteAsync(runtime, string.Format(InsertAuditEventSql, "now()"));
+        var selected = await TryExecuteAsync(runtime, "SELECT * FROM identity.audit_events");
+
+        // Assert
+        Assert.That((inserted, selected), Is.EqualTo(((PostgresException?)null, (PostgresException?)null)));
+    }
+
+    [Test]
+    public async Task Initialize_AuditEventsOlderThanTheRetention_AreDeletedByTheOwnerRole()
+    {
+        // Arrange：執行的角色刪不掉稽核紀錄，保存期限的清理在遷移時由擁有者的連線做
+        var (host, runtime, owner) = await StartWithRuntimeRoleAsync();
+        await using var _ = host;
+        await host.StartWithOwnerAsync();
+        await using (var connection = new NpgsqlConnection(runtime))
+        {
+            await connection.OpenAsync();
+            foreach (var (id, daysAgo) in new[] { ("0190b000-0000-7000-8000-00000000000a", AuditRules.RetentionDays + 1), ("0190b000-0000-7000-8000-00000000000b", AuditRules.RetentionDays - 1) })
+            {
+                await using var insert = new NpgsqlCommand(
+                    "INSERT INTO identity.audit_events (id, organization_id, occurred_at, action, outcome) " +
+                    "SELECT @id, id, now() - make_interval(days => @days), 'sign_in', 'succeeded' FROM identity.organizations LIMIT 1", connection);
+                insert.Parameters.AddWithValue("id", Guid.Parse(id));
+                insert.Parameters.AddWithValue("days", daysAgo);
+                await insert.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Act：下一次部署的遷移
+        foreach (var initializer in host.Services.GetServices<IModuleInitializer>())
+        {
+            await initializer.InitializeAsync(CancellationToken.None);
+        }
+
+        // Assert
+        await using var check = new NpgsqlConnection(owner);
+        await check.OpenAsync();
+        await using var select = new NpgsqlCommand("SELECT id FROM identity.audit_events ORDER BY id", check);
+        var remaining = new List<Guid>();
+        await using (var reader = await select.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                remaining.Add(reader.GetGuid(0));
+            }
+        }
+
+        Assert.That(remaining, Is.EqualTo(new[] { Guid.Parse("0190b000-0000-7000-8000-00000000000b") }));
+    }
+
     [Test]
     public async Task RuntimeRole_AddingAndReadingKeys_IsAllowed()
     {

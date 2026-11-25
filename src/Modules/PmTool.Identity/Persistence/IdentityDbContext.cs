@@ -115,6 +115,7 @@ internal sealed partial class IdentityDbContext(DbContextOptions<IdentityDbConte
             token.Property(t => t.DisplayPrefix).HasMaxLength(MaxDisplayPrefixLength);
             token.Property(t => t.MachineName).HasMaxLength(CliLoginRules.MaxMachineNameLength);
             token.Property(t => t.RevokedReason).HasMaxLength(MaxRevokedReasonLength);
+            token.Property(t => t.CreatedFrom).HasMaxLength(RequestSourceText.MaxAddressLength);
             token.HasIndex(t => t.TokenHash).IsUnique();
             token.HasIndex(t => new { t.OrganizationId, t.AccountId });
             token.HasOne<AccountRow>().WithMany().HasForeignKey(t => t.AccountId).OnDelete(DeleteBehavior.Restrict);
@@ -125,6 +126,7 @@ internal sealed partial class IdentityDbContext(DbContextOptions<IdentityDbConte
 
         ConfigureOAuth(modelBuilder);
         ConfigureCliLogin(modelBuilder);
+        ConfigureAudit(modelBuilder);
 
         modelBuilder.Entity<DataProtectionKeyRow>(key =>
         {

@@ -14,6 +14,7 @@ using PmTool.Abstractions;
 using PmTool.Ai;
 using PmTool.Api.Composition;
 using PmTool.Api.Endpoints;
+using PmTool.Api.RateLimiting;
 using PmTool.Blueprint;
 using PmTool.Identity;
 using PmTool.Knowledge;
@@ -160,6 +161,10 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         ReplaceValidator(services);
         ReplaceModules(services);
 
+        // 登入的節流預設關掉：連錯好幾次的測試（例如限流的）不該因為它改變行為。要測節流的在 ConfigureServices 換回來。
+        services.RemoveAll<SignInThrottleLimits>();
+        services.AddSingleton(SignInThrottleLimits.Disabled);
+
         if (_options.LoadLimits is { } loadLimits)
         {
             services.RemoveAll<ValidationLoadLimits>();
@@ -209,6 +214,7 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         services.RemoveAll<IAccessTokenService>();
         services.RemoveAll<IOAuthService>();
         services.RemoveAll<ICliLoginService>();
+        services.RemoveAll<IAuditLog>();
         services.RemoveAll<IPeopleDirectory>();
         services.RemoveAll<IIdentityBootstrapper>();
         services.RemoveAll<IProjectService>();
@@ -251,6 +257,7 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         services.AddSingleton<IAccessTokenService>(Modules.AccessTokens);
         services.AddSingleton<IOAuthService>(Modules.OAuth);
         services.AddSingleton<ICliLoginService>(Modules.CliLogin);
+        services.AddSingleton<IAuditLog>(Modules.Audit);
         services.AddSingleton<IPeopleDirectory>(Modules.People);
         services.AddSingleton<IIdentityBootstrapper>(Modules.Bootstrapper);
         services.AddSingleton<IProjectService>(Modules.Projects);

@@ -40,4 +40,7 @@ internal sealed record AccessTokenRow
 
     /// <summary>用瀏覽器登入（<c>ICliLoginService</c>）建立的權杖才有：kumi 報的電腦名稱。在網頁上自己建的是 null。</summary>
     public string? MachineName { get; init; }
+
+    /// <summary>建立時伺服器看到的位址（走過轉送標頭）；舊的權杖是 null。</summary>
+    public string? CreatedFrom { get; init; }
 }

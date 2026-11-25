@@ -24,6 +24,14 @@ internal sealed class IdentityTestHost : IAsyncDisposable
         ConnectionString = connectionString;
     }
 
+    /// <summary>目前的請求來源。預設沒有請求（<see cref="FakeRequestSource.Current"/> 是 null），測試要設才有。</summary>
+    public FakeRequestSource Request => _services.GetRequiredService<FakeRequestSource>();
+
+    /// <summary>身分模組發出的帳號事件，依發出的順序。</summary>
+    public RecordingAccountEventSink Events => _services.GetRequiredService<RecordingAccountEventSink>();
+
+    public IAuditLog Audit => _services.GetRequiredService<IAuditLog>();
+
     public string ConnectionString { get; }
 
     public IServiceProvider Services => _services;
@@ -56,6 +64,7 @@ internal sealed class IdentityTestHost : IAsyncDisposable
     public static async Task<IdentityTestHost> StartAsync(DatabaseConnections connections, Action<IServiceCollection>? configure)
     {
         var services = new ServiceCollection();
+        AddTestSupport(services);
         services.AddIdentityModule(connections);
         configure?.Invoke(services);
         var provider = services.BuildServiceProvider(StrictOptions);
@@ -75,9 +84,21 @@ internal sealed class IdentityTestHost : IAsyncDisposable
     public static IdentityTestHost StartWithoutDatabase(Action<IServiceCollection>? configure)
     {
         var services = new ServiceCollection();
+        AddTestSupport(services);
         services.AddIdentityModule(UnreachableConnectionString);
         configure?.Invoke(services);
         return new IdentityTestHost(services.BuildServiceProvider(StrictOptions), UnreachableConnectionString);
+    }
+
+    /// <summary>
+    /// 在模組之前先註冊，模組的預設（沒有請求）就不會蓋掉它；測試之後再註冊同一個介面照樣可以換掉。
+    /// </summary>
+    private static void AddTestSupport(IServiceCollection services)
+    {
+        services.AddSingleton<FakeRequestSource>();
+        services.AddSingleton<IRequestSource>(provider => provider.GetRequiredService<FakeRequestSource>());
+        services.AddSingleton<RecordingAccountEventSink>();
+        services.AddSingleton<IAccountEventSink>(provider => provider.GetRequiredService<RecordingAccountEventSink>());
     }
 
     public async Task<IdentityDbContext> CreateDbContextAsync() =>

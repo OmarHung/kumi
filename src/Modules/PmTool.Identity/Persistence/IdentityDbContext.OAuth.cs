@@ -24,6 +24,9 @@ internal sealed partial class IdentityDbContext
             client.Property(c => c.ClientId).HasMaxLength(MaxOAuthTextLength);
             client.Property(c => c.Name).HasMaxLength(OAuthRules.MaxClientNameLength);
             client.HasIndex(c => c.ClientId).IsUnique();
+
+            // 數過去一段時間註冊了幾個、清掉沒人用的，都依種類加時間查。
+            client.HasIndex(c => new { c.Kind, c.CreatedAt });
         });
 
         modelBuilder.Entity<OAuthGrantRow>(grant =>

@@ -20,6 +20,7 @@ var builder = WebApplication.CreateBuilder(MigrateCommand.HostArguments(args));
 builder.Services.AddOpenApi();
 builder.Services.AddApiJson();
 builder.Services.AddApiRateLimiting();
+builder.Services.AddSignInThrottle();
 builder.Services.AddValidationEndpoints();
 builder.Services.AddClientErrorReporting();
 builder.Services.AddReadinessCheck();

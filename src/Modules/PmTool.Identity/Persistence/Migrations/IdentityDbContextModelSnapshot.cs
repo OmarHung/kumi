@@ -36,6 +36,11 @@ namespace PmTool.Identity.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("CreatedFrom")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("created_from");
+
                     b.Property<string>("DisplayPrefix")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -163,6 +168,80 @@ namespace PmTool.Identity.Persistence.Migrations
                     b.ToTable("accounts", "identity");
                 });
 
+            modelBuilder.Entity("PmTool.Identity.Persistence.AuditEventRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_person_id");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("outcome");
+
+                    b.Property<string>("SourceAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_address");
+
+                    b.Property<Guid?>("TargetPersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_person_id");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id")
+                        .HasName("pk_audit_events");
+
+                    b.HasIndex("OrganizationId", "ActorPersonId", "OccurredAt")
+                        .IsDescending(false, false, true)
+                        .HasDatabaseName("ix_audit_events_organization_id_actor_person_id_occurred_at")
+                        .HasFilter("actor_person_id IS NOT NULL");
+
+                    b.HasIndex("OrganizationId", "OccurredAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("ix_audit_events_organization_id_occurred_at_id");
+
+                    b.HasIndex("OrganizationId", "TargetPersonId", "OccurredAt")
+                        .IsDescending(false, false, true)
+                        .HasDatabaseName("ix_audit_events_organization_id_target_person_id_occurred_at")
+                        .HasFilter("target_person_id IS NOT NULL");
+
+                    b.ToTable("audit_events", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_events_outcome", "outcome IN ('succeeded', 'failed')");
+                        });
+                });
+
             modelBuilder.Entity("PmTool.Identity.Persistence.CliLoginCodeRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -208,6 +287,13 @@ namespace PmTool.Identity.Persistence.Migrations
                     b.Property<bool>("IncludeAgent")
                         .HasColumnType("boolean")
                         .HasColumnName("include_agent");
+
+                    b.PrimitiveCollection<Guid[]>("IssuedTokenIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("issued_token_ids")
+                        .HasDefaultValueSql("'{}'");
 
                     b.Property<string>("MachineName")
                         .IsRequired()
@@ -333,6 +419,9 @@ namespace PmTool.Identity.Persistence.Migrations
                     b.HasIndex("ClientId")
                         .IsUnique()
                         .HasDatabaseName("ix_oauth_clients_client_id");
+
+                    b.HasIndex("Kind", "CreatedAt")
+                        .HasDatabaseName("ix_oauth_clients_kind_created_at");
 
                     b.ToTable("oauth_clients", "identity");
                 });
@@ -716,6 +805,16 @@ namespace PmTool.Identity.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_accounts_people_person_id");
+                });
+
+            modelBuilder.Entity("PmTool.Identity.Persistence.AuditEventRow", b =>
+                {
+                    b.HasOne("PmTool.Identity.Persistence.OrganizationRow", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_audit_events_organizations_organization_id");
                 });
 
             modelBuilder.Entity("PmTool.Identity.Persistence.CliLoginCodeRow", b =>

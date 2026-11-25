@@ -145,9 +145,10 @@ public sealed class AuthenticationServiceTests
     public async Task SignInAsync_HashMadeWithWeakerSettings_IsReplacedOnSuccessfulSignIn()
     {
         // Arrange：新版把雜湊的次數調高了，舊的雜湊在下次登入時要換成新的。會改到雜湊，所以另外開一個資料庫
-        await using var original = await IdentityTestHost.StartAsync();
+        var weaker = new RecordingPasswordHasher(new PasswordHasherOptions { IterationCount = 10_000 });
+        await using var original = await IdentityTestHost.StartAsync(services => services.AddSingleton<IPasswordHasher<PasswordCredential>>(weaker));
         var owner = await original.StartWithOwnerAsync();
-        var stronger = new RecordingPasswordHasher(new PasswordHasherOptions { IterationCount = new PasswordHasherOptions().IterationCount * 2 });
+        var stronger = new RecordingPasswordHasher(new PasswordHasherOptions { IterationCount = 20_000 });
         await using var upgraded = await IdentityTestHost.StartAsync(
             original.ConnectionString, services => services.AddSingleton<IPasswordHasher<PasswordCredential>>(stronger));
 

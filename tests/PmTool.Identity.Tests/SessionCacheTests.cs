@@ -312,6 +312,74 @@ public sealed class SessionCacheTests
         Assert.That(session.Count, Is.EqualTo(1), "工作階段還在快取裡");
     }
 
+    [Test]
+    public void TryPeek_NothingCached_ReturnsNull()
+    {
+        // Arrange
+        var cache = CreateCache();
+
+        // Act & Assert
+        Assert.That(cache.TryPeek("k"), Is.Null);
+    }
+
+    [Test]
+    public async Task TryPeek_UsableResult_ReturnsItWithoutLookingAgain()
+    {
+        // Arrange
+        var cache = CreateCache();
+        var lookups = new Lookups(Valid(AccountA));
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Act
+        var peeked = cache.TryPeek("k");
+
+        // Assert
+        Assert.That(peeked?.AccountId, Is.EqualTo(AccountA));
+        Assert.That(lookups.Count, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task TryPeek_AfterTheDuration_ReturnsNull()
+    {
+        // Arrange
+        var cache = CreateCache();
+        await cache.GetAsync("k", new Lookups(Valid(AccountA)).Run, CancellationToken.None);
+        _time.Advance(Duration);
+
+        // Act & Assert
+        Assert.That(cache.TryPeek("k"), Is.Null);
+    }
+
+    [Test]
+    public async Task TryPeek_AfterTheAccountWasForgotten_ReturnsNull()
+    {
+        // Arrange
+        var cache = CreateCache();
+        await cache.GetAsync("k", new Lookups(Valid(AccountA)).Run, CancellationToken.None);
+        cache.Forget(AccountA);
+
+        // Act & Assert
+        Assert.That(cache.TryPeek("k"), Is.Null);
+    }
+
+    [Test]
+    public async Task TryPeek_LookupStillRunning_ReturnsNullAndDoesNotJoinIt()
+    {
+        // Arrange：還沒有結果的查詢不算「快取裡有」
+        var cache = CreateCache();
+        var gate = new TaskCompletionSource();
+        var lookups = new Lookups(Valid(AccountA)) { Gate = gate };
+        var pending = cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Act
+        var peeked = cache.TryPeek("k");
+        gate.SetResult();
+        await pending.WaitAsync(Patience);
+
+        // Assert
+        Assert.That(peeked, Is.Null);
+    }
+
     private SessionCache CreateCache(int maxEntries = 100) =>
         new(_time, new SessionCacheLimits { Duration = Duration, MaxEntries = maxEntries });
 

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PmTool.Abstractions;
 using PmTool.Identity.AccessTokens;
+using PmTool.Identity.Audit;
 using PmTool.Identity.CliLogin;
 using PmTool.Identity.OAuth;
 using PmTool.Identity.Persistence;
@@ -40,6 +41,16 @@ public static class IdentityModule
         services.AddOptions();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IPasswordHasher<PasswordCredential>, PasswordHasher<PasswordCredential>>();
+
+        // 次數只在這裡定：新的雜湊用它，舊的雜湊在登入時比對成功之後換新（見 AuthenticationService）。
+        services.Configure<PasswordHasherOptions>(options => options.IterationCount = IdentityRules.PasswordHashIterations);
+        services.TryAddSingleton<IRequestSource>(NullRequestSource.Instance);
+        services.TryAddSingleton<AuditTrail>();
+        services.TryAddSingleton<IAuditLog, AuditLog>();
+        services.TryAddSingleton(provider => new AccountEvents(
+            provider.GetServices<IAccountEventSink>(),
+            provider.GetService<ILogger<AccountEvents>>() ?? NullLogger<AccountEvents>.Instance,
+            AccountEvents.DefaultTimeout));
         services.TryAddSingleton(new IdentityDatabase(connections));
         services.AddDbContextFactory<IdentityDbContext>(options => IdentityDbContext.Configure(options, connections.Runtime));
 

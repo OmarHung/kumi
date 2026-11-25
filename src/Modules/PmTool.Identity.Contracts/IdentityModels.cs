@@ -60,4 +60,9 @@ public static class IdentityRules
     /// 之後跑多個執行個體時，別的執行個體作廢的最多晚這麼久生效。
     /// </summary>
     public const int SessionCacheSeconds = 30;
+
+    /// <summary>
+    /// 密碼雜湊（PBKDF2）的次數。比 ASP.NET Core Identity 預設的 10 萬高；舊的雜湊在登入時換成這個次數。
+    /// </summary>
+    public const int PasswordHashIterations = 210_000;
 }
