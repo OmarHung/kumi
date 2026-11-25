@@ -4,7 +4,7 @@ import { Markdown, PlainText } from './Markdown';
 
 const MEMBERS = new Map([['p-1', '王小明']]);
 
-async function renderMarkdown(text: string, mentionNames: ReadonlyMap<string, string> = MEMBERS, hasAttachments = true, linkHosts?: 'mismatch' | 'always') {
+async function renderMarkdown(text: string, mentionNames: ReadonlyMap<string, string> = MEMBERS, hasAttachments = true, linkHosts?: 'auto' | 'always') {
   const view = render(<Markdown text={text} mentionNames={mentionNames} hasAttachments={hasAttachments} linkHosts={linkHosts} />);
   // 渲染器是延後載入的：先是純文字的備用畫面（data-state="plain"），載入好之後換成 Markdown（"rendered"）。
   await waitFor(() => {
@@ -439,7 +439,7 @@ describe('連結的網域提示', () => {
     expect(screen.getByText('（實際連到 other.example）')).toHaveAttribute('title', 'https://other.example/login');
   });
 
-  it('文字與網址相同、或文字不像網址時不提示', async () => {
+  it('文字與網址相同、或文字不像網址時不用警告的「實際連到」', async () => {
     // Arrange & Act
     await renderMarkdown('<https://a.example>\n\n[按這裡](https://x.example)\n\n[www.example.com](https://example.com/p)');
 
@@ -447,12 +447,38 @@ describe('連結的網域提示', () => {
     expect(screen.queryByText(/實際連到/)).toBeNull();
   });
 
-  it('預設不在一致的連結後面列網域，AI 的回覆（always）一律列', async () => {
+  it('AI 的回覆（always）一律列網域', async () => {
     // Arrange & Act
     await renderMarkdown('[文件](https://docs.example/a)', MEMBERS, true, 'always');
 
     // Assert
     expect(screen.getByText('（docs.example）')).toBeInTheDocument();
+  });
+
+  it('預設：文字看不出連到哪裡的外部連結，後面接上實際的網域（人寫的說明裡的釣魚連結）', async () => {
+    // Arrange & Act
+    await renderMarkdown('[重新登入 Kumi](https://kumi-login.example.net/verify)');
+
+    // Assert
+    expect(screen.getByText('（kumi-login.example.net）')).toHaveAttribute('title', 'https://kumi-login.example.net/verify');
+  });
+
+  it('預設：文字已經寫了那個網域、或就是網址本身時不重複列', async () => {
+    // Arrange & Act
+    await renderMarkdown('<https://a.example/x>\n\n[docs.example 的說明](https://docs.example/a)\n\n[寄信](mailto:help@example.com)\n\n[help@example.com](mailto:help@example.com)');
+
+    // Assert：寄信的文字看不出位址，照樣列出。
+    expect(screen.queryByText('（a.example）')).toBeNull();
+    expect(screen.queryByText('（docs.example）')).toBeNull();
+    expect(screen.getAllByText('（help@example.com）')).toHaveLength(1);
+  });
+
+  it('預設：連到這個網站自己的連結不列網域', async () => {
+    // Arrange & Act
+    await renderMarkdown(`[REQ-7](${window.location.origin}/projects/REQ/items/REQ-7)`);
+
+    // Assert
+    expect(screen.queryByText(/（.*）/)).toBeNull();
   });
 
   it('always 時文字與網域不一致照樣用「實際連到」', async () => {

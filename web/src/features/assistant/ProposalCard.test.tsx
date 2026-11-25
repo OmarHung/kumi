@@ -109,7 +109,7 @@ describe('修改建議的卡片：內容', () => {
     expect(view.getByRole('region', { name: '建議的說明' })).toHaveTextContent('全新的說明');
   });
 
-  it('建議的說明與留言裡的連結一律列出網域；現在的說明（不是 AI 寫的）維持預設', async () => {
+  it('建議的說明與留言裡的連結一律列出網域；現在的說明（人寫的）文字看不出網域時也列', async () => {
     // Arrange
     serveItem(detailOf(smkItem({ number: 12 }), '[舊文件](https://before.example/a)'));
     const proposal = makeItemProposal({
@@ -130,7 +130,7 @@ describe('修改建議的卡片：內容', () => {
     // Assert
     const before = await view.findByRole('region', { name: '現在的說明' });
     expect(await within(before).findByRole('link', { name: '舊文件' })).toBeInTheDocument();
-    expect(within(before).queryByText('（before.example）')).not.toBeInTheDocument();
+    expect(await within(before).findByText('（before.example）')).toBeInTheDocument();
     expect(await within(view.getByRole('region', { name: '建議的說明' })).findByText('（after.example）')).toBeInTheDocument();
     expect(await view.findByText('（comment.example）')).toBeInTheDocument();
   });

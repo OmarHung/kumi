@@ -16,13 +16,14 @@ export interface MarkdownProps {
   /** 附件編號對應的下載網址；預設是項目的附件（知識庫的頁面傳 knowledgeAttachmentContentUrl）。 */
   readonly attachmentUrl?: (attachmentId: string) => string;
   /**
-   * 外部連結旁的網域提示：'mismatch'（預設）只在連結的文字像網址、而且主機和實際的不同時提示；
+   * 外部連結旁的網域提示：'auto'（預設）在文字與實際的主機不同時警告，文字看不出連到哪裡時接上網域
+   * （「重新登入 Kumi」這種文字可以連到任何地方，說明與留言是別人寫的）；文字已經寫了那個網域、或連到這個網站自己時不列。
    * 'always' 每一個外部連結都接上實際的網域（AI 的回覆：內容不是人寫的，沒辦法靠上下文判斷）。
    */
   readonly linkHosts?: LinkHostsMode;
 }
 
-export type LinkHostsMode = 'mismatch' | 'always';
+export type LinkHostsMode = 'auto' | 'always';
 
 const IMAGE_URL = /^https?:/i;
 
@@ -71,11 +72,11 @@ interface AttachmentsValue {
 
 const AttachmentsContext = createContext<AttachmentsValue>({ enabled: true, urlOf: attachmentContentUrl });
 
-const LinkHostsContext = createContext<LinkHostsMode>('mismatch');
+const LinkHostsContext = createContext<LinkHostsMode>('auto');
 
 /**
  * 連結後面的網域提示：不一致時是警告樣式的「（實際連到 …）」；實際的主機是國際化網域（punycode）時，
- * 不論文字與連結一不一致都標出來；'always' 時一致的也列出網域；其他是 null。
+ * 不論文字與連結一不一致都標出來；'always' 時一致的也列出網域，'auto' 時文字看不出主機才列；其他是 null。
  */
 function HostNote({ href, children }: { readonly href: string; readonly children: ReactNode }) {
   const mode = useContext(LinkHostsContext);
@@ -94,13 +95,29 @@ function HostNote({ href, children }: { readonly href: string; readonly children
       </span>
     );
   }
-  const host = mode === 'always' ? actualHostOf(href) : null;
+  const host = mode === 'always' ? actualHostOf(href) : hiddenHostOf(visibleText(children), href);
   if (host === null) return null;
   return (
     <span className={styles.hostNote} title={href}>
       {`（${host}）`}
     </span>
   );
+}
+
+/** 'auto' 要補上的網域：連到別的網站、而且文字裡看不到那個主機（或信箱）時才有；其他是 null。 */
+function hiddenHostOf(text: string, href: string): string | null {
+  const host = actualHostOf(href);
+  if (host === null || isOwnSite(href)) return null;
+  const bareHost = host.replace(/^www\./, '');
+  return text.toLowerCase().includes(bareHost) ? null : host;
+}
+
+function isOwnSite(href: string): boolean {
+  try {
+    return new URL(href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
 }
 
 /** 在連結裡面：裡面的圖片不再自己包一層 <a>（巢狀的連結不合法，輔助科技與點擊都會亂）。 */
@@ -234,7 +251,7 @@ const COMPONENTS: Components = {
  * （既有的內容都是照純文字打的）。安全：不開原始的 HTML（沒有 rehype-raw，照文字顯示）、連結只認 http、https、mailto、
  * mention、自己附件的 attachment:；圖片只載入自己附件的，外部網址的不載入。這個檔案帶著 react-markdown 全家，只經過 Markdown.tsx 延後載入。
  */
-export const MarkdownContent = memo(function MarkdownContent({ text, mentionNames, hasAttachments = true, attachmentUrl = attachmentContentUrl, linkHosts = 'mismatch' }: MarkdownProps) {
+export const MarkdownContent = memo(function MarkdownContent({ text, mentionNames, hasAttachments = true, attachmentUrl = attachmentContentUrl, linkHosts = 'auto' }: MarkdownProps) {
   // 值要穩定：memo 的元件重畫時不能每次都換一個新物件，不然 Context 的使用者全部重畫。
   const attachments = useMemo(() => ({ enabled: hasAttachments, urlOf: attachmentUrl }), [hasAttachments, attachmentUrl]);
   return (
