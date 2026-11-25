@@ -47,34 +47,96 @@ public sealed class LoopbackReceiverTests
         Assert.That(first, Is.Not.EqualTo(second));
     }
 
+    private static readonly TimeSpan ShortGrace = TimeSpan.FromMilliseconds(200);
+
     [Test]
-    public async Task Receiver_CorrectStateAndCode_ReturnsTheCodeAndAnswersWithASafePage()
+    public async Task Receiver_CorrectStateAndCode_ReturnsTheCodeAndRedirectsToAPageWithoutTheCode()
     {
         // Arrange
         using var receiver = new LoopbackReceiver(State);
         receiver.Start();
+        var port = receiver.Port;
         var wait = receiver.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
 
         // Act
-        var page = await GetAsync(receiver.Port, $"/kumi-login?code=abc_DEF-123&state={State}");
+        var redirect = await GetAsync(receiver.Port, $"/kumi-login?code=abc_DEF-123&state={State}");
+        var page = await GetAsync(receiver.Port, "/kumi-login/done");
         var outcome = await wait;
 
         // Assert
         using (Assert.EnterMultipleScope())
         {
             Assert.That(outcome, Is.EqualTo(new LoopbackOutcome(LoopbackKind.Code, "abc_DEF-123")));
+            Assert.That(redirect, Does.StartWith("HTTP/1.1 303 See Other"));
+            Assert.That(redirect, Does.Contain($"Location: http://127.0.0.1:{port}/kumi-login/done\r\n"));
+            Assert.That(redirect, Does.Not.Contain("Location: http://127.0.0.1:" + port + "/kumi-login?"));
             Assert.That(page, Does.StartWith("HTTP/1.1 200 OK"));
             Assert.That(page, Does.Contain("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'"));
             Assert.That(page, Does.Contain("Referrer-Policy: no-referrer").And.Contain("Cache-Control: no-store").And.Contain("Connection: close"));
             Assert.That(page, Does.Contain("可以關掉這個分頁"));
+            Assert.That(redirect, Does.Contain("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'"));
         }
+    }
+
+    [Test]
+    public async Task Receiver_AfterTheCode_StaysOpenUntilTheDonePageIsServed()
+    {
+        // Arrange
+        using var receiver = new LoopbackReceiver(State, TimeSpan.FromSeconds(10));
+        receiver.Start();
+        var wait = receiver.WaitAsync(TimeSpan.FromSeconds(20), CancellationToken.None);
+        await GetAsync(receiver.Port, $"/kumi-login?code=real&state={State}");
+
+        // Act
+        await Task.Delay(300);
+        var finishedEarly = wait.IsCompleted;
+        var page = await GetAsync(receiver.Port, "/kumi-login/done");
+        var outcome = await wait;
+
+        // Assert
+        Assert.That(finishedEarly, Is.False);
+        Assert.That(page, Does.Contain("可以關掉這個分頁"));
+        Assert.That(outcome.Code, Is.EqualTo("real"));
+    }
+
+    [Test]
+    public async Task Receiver_DonePageBeforeAnyCode_IsNotASuccessAndIsNotAResult()
+    {
+        // Arrange
+        using var receiver = new LoopbackReceiver(State);
+        receiver.Start();
+        var wait = receiver.WaitAsync(TimeSpan.FromMilliseconds(500), CancellationToken.None);
+
+        // Act
+        var page = await GetAsync(receiver.Port, "/kumi-login/done");
+        var outcome = await wait;
+
+        // Assert
+        Assert.That(page, Does.StartWith("HTTP/1.1 404").And.Not.Contain("可以關掉這個分頁"));
+        Assert.That(outcome.Kind, Is.EqualTo(LoopbackKind.TimedOut));
+    }
+
+    [Test]
+    public async Task Receiver_AfterTheCodeButNoFollowUp_ClosesWhenTheGraceRunsOut()
+    {
+        // Arrange
+        using var receiver = new LoopbackReceiver(State, ShortGrace);
+        receiver.Start();
+        var wait = receiver.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
+
+        // Act
+        await GetAsync(receiver.Port, $"/kumi-login?code=real&state={State}");
+        var outcome = await wait;
+
+        // Assert
+        Assert.That(outcome, Is.EqualTo(new LoopbackOutcome(LoopbackKind.Code, "real")));
     }
 
     [Test]
     public async Task Receiver_AnotherPath_Gets404AndKeepsWaiting()
     {
         // Arrange
-        using var receiver = new LoopbackReceiver(State);
+        using var receiver = new LoopbackReceiver(State, ShortGrace);
         receiver.Start();
         var wait = receiver.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
 
@@ -109,19 +171,22 @@ public sealed class LoopbackReceiverTests
     }
 
     [Test]
-    public async Task Receiver_AccessDeniedWithTheRightState_ReturnsDenied()
+    public async Task Receiver_AccessDeniedWithTheRightState_ReturnsDeniedAndRedirectsWithoutAQuery()
     {
         // Arrange
         using var receiver = new LoopbackReceiver(State);
         receiver.Start();
+        var port = receiver.Port;
         var wait = receiver.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
 
         // Act
-        var page = await GetAsync(receiver.Port, $"/kumi-login?error=access_denied&state={State}");
+        var redirect = await GetAsync(receiver.Port, $"/kumi-login?error=access_denied&state={State}");
+        var page = await GetAsync(receiver.Port, "/kumi-login/done");
         var outcome = await wait;
 
         // Assert
         Assert.That(outcome.Kind, Is.EqualTo(LoopbackKind.Denied));
+        Assert.That(redirect, Does.StartWith("HTTP/1.1 303").And.Contain($"Location: http://127.0.0.1:{port}/kumi-login/done\r\n"));
         Assert.That(page, Does.Contain("已拒絕"));
     }
 
@@ -146,7 +211,7 @@ public sealed class LoopbackReceiverTests
     public async Task Receiver_AConnectionThatNeverSendsARequest_DoesNotBlockTheRealOne()
     {
         // Arrange
-        using var receiver = new LoopbackReceiver(State);
+        using var receiver = new LoopbackReceiver(State, ShortGrace);
         receiver.Start();
         using var stalled = new TcpClient();
         await stalled.ConnectAsync("127.0.0.1", receiver.Port);

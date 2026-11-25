@@ -25,6 +25,14 @@ internal static class LoginPages
         + $"main{{max-width:28rem;padding:1.5rem;text-align:center}}h1{{font-size:1.25rem}}p{{color:#555}}</style></head>"
         + $"<body><main><h1>{title}</h1><p>{message}</p></main></body></html>";
 
+    /// <summary>303 導到不帶查詢字串的網址：登入碼不留在網址列與瀏覽紀錄裡。</summary>
+    public static byte[] See(string location)
+    {
+        var body = Encoding.UTF8.GetBytes(Page("正在完成", "請稍候…"));
+        var head = $"HTTP/1.1 303 See Other\r\nLocation: {location}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {body.Length}\r\n{SecurityHeaders}\r\n";
+        return [.. Encoding.ASCII.GetBytes(head), .. body];
+    }
+
     public static byte[] Response(int status, string reason, string html)
     {
         var body = Encoding.UTF8.GetBytes(html);

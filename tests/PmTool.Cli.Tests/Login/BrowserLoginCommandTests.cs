@@ -1,3 +1,4 @@
+using PmTool.Cli.Login;
 using System.Net;
 using System.Text.Json;
 using PmTool.Cli.Settings;
@@ -378,6 +379,76 @@ public sealed class BrowserLoginCommandTests
 
         // Assert
         Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+        Assert.That(kit.Browser.Query("machine"), Is.EqualTo("computer"));
+    }
+
+    [Test]
+    public async Task Login_InATerminal_PrintsTheConfirmationCodeOfTheChallengeAndMarksTheUrl()
+    {
+        // Arrange
+        using var kit = Kit();
+
+        // Act
+        var result = await kit.RunAsync("auth", "login", "--server", CliHarness.ServerUrl);
+
+        // Assert
+        var expected = ConfirmationCode.Display(kit.Browser.Query("challenge")!);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(kit.Browser.Query("confirm"), Is.EqualTo("1"));
+            Assert.That(result.Error, Does.Contain($"確認碼：{expected}").And.Contain("拒絕"));
+            Assert.That(result.Out, Does.Not.Contain(expected), "stdout 不能多東西");
+        }
+    }
+
+    [Test]
+    public async Task Login_NoBrowser_AlsoPrintsTheConfirmationCode()
+    {
+        // Arrange
+        using var kit = Kit();
+
+        // Act
+        var run = kit.RunAsync("auth", "login", "--server", CliHarness.ServerUrl, "--no-browser");
+        var url = await WaitForUrlAsync(kit);
+        kit.Browser.ManualUrl = url.AbsoluteUri;
+        await FakeBrowser.Approve(url);
+        var result = await run;
+
+        // Assert
+        var challenge = System.Web.HttpUtility.ParseQueryString(url.Query)["challenge"]!;
+        Assert.That(result.Error, Does.Contain($"確認碼：{ConfirmationCode.Display(challenge)}"));
+        Assert.That(System.Web.HttpUtility.ParseQueryString(url.Query)["confirm"], Is.EqualTo("1"));
+    }
+
+    [TestCase("\u3164小明", "小明")]
+    [TestCase("\u115F\u1160\uFFA0A\u2800B\u034FC", "ABC")]
+    [TestCase("\u0301\u0903A", "A")]
+    public async Task Login_MachineNameWithFillerCharactersOrLeadingCombiningMarks_IsFilteredLikeTheServer(string name, string expected)
+    {
+        // Arrange
+        using var kit = Kit();
+        kit.MachineName = name;
+
+        // Act
+        var result = await kit.RunAsync("auth", "login", "--server", CliHarness.ServerUrl);
+
+        // Assert
+        Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+        Assert.That(kit.Browser.Query("machine"), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Login_MachineNameOnlyFillerCharacters_UsesAFixedName()
+    {
+        // Arrange
+        using var kit = Kit();
+        kit.MachineName = "\u3164\u2800\u0301";
+
+        // Act
+        var result = await kit.RunAsync("auth", "login", "--server", CliHarness.ServerUrl);
+
+        // Assert
         Assert.That(kit.Browser.Query("machine"), Is.EqualTo("computer"));
     }
 

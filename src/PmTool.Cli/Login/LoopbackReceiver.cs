@@ -18,14 +18,18 @@ internal sealed record LoopbackOutcome(LoopbackKind Kind, string? Code = null);
 /// 在 127.0.0.1 的隨機連接埠等瀏覽器導回來（RFC 8252 的原生程式作法）。
 /// 用 <see cref="TcpListener"/> 而不是 HttpListener：Windows 的 http.sys 要先替網址保留權限。
 /// 只認 <c>GET /kumi-login</c>；state 對不上的（舊的登入頁、別的程式亂打）回說明頁並繼續等，不當成結果。
+/// 收到正確的結果之後回 303 導到不帶查詢字串的 <c>/kumi-login/done</c>，登入碼就不會留在網址列與瀏覽紀錄裡；
+/// 結果出來之後再撐到那一頁被回應（或 <see cref="DoneGrace"/> 到）才關，瀏覽器才不會看到連線被拒。
 /// </summary>
 internal sealed class LoopbackReceiver : IDisposable
 {
     internal const string CallbackPath = "/kumi-login";
+    internal const string DonePath = "/kumi-login/done";
     private const int MaxHeadBytes = 8 * 1024;
     private const int MaxCodeLength = 512;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FlushGrace = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan DefaultDoneGrace = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// 伺服器只把登入碼送回這個以上的連接埠。作業系統配的暫時埠平常都在這以上（macOS、Windows 從 49152，Linux 從 32768），
@@ -39,8 +43,17 @@ internal sealed class LoopbackReceiver : IDisposable
     private TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly byte[] _state;
     private readonly List<Task> _handlers = [];
+    private readonly TaskCompletionSource _doneServed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TimeSpan _doneGrace;
+    private volatile LoopbackOutcome? _received;
 
-    public LoopbackReceiver(string state) => _state = Encoding.ASCII.GetBytes(state);
+    /// <param name="state">這次登入的 state。</param>
+    /// <param name="doneGrace">結果出來之後，最多等多久讓瀏覽器跟著導向取走最後一頁；預設 5 秒。</param>
+    public LoopbackReceiver(string state, TimeSpan? doneGrace = null)
+    {
+        _state = Encoding.ASCII.GetBytes(state);
+        _doneGrace = doneGrace ?? DefaultDoneGrace;
+    }
 
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
 
@@ -93,6 +106,12 @@ internal sealed class LoopbackReceiver : IDisposable
         }
         finally
         {
+            if (_received is not null && !cancellation.IsCancellationRequested)
+            {
+                // 導向後的最後一頁還沒被取走就關掉的話，使用者會看到連線被拒。
+                await Task.WhenAny(_doneServed.Task, Task.Delay(_doneGrace, CancellationToken.None));
+            }
+
             await guard.CancelAsync();
             _listener.Stop();
             await acceptLoop;
@@ -141,12 +160,23 @@ internal sealed class LoopbackReceiver : IDisposable
                 using var timeout = new CancellationTokenSource(RequestTimeout);
                 var stream = client.GetStream();
                 var target = await ReadRequestTargetAsync(stream, timeout.Token);
-                var (response, result) = Decide(target);
+                var (response, result, isDone) = Decide(target);
+                // 先記下結果再回應：瀏覽器跟著導向來要最後一頁時，這邊已經知道成功了。
+                if (result is not null)
+                {
+                    _received ??= result;
+                }
+
                 await stream.WriteAsync(response, timeout.Token);
                 await stream.FlushAsync(timeout.Token);
                 if (result is not null)
                 {
                     outcome.TrySetResult(result);
+                }
+
+                if (isDone)
+                {
+                    _doneServed.TrySetResult();
                 }
             }
             catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
@@ -156,38 +186,53 @@ internal sealed class LoopbackReceiver : IDisposable
         }
     }
 
-    private (byte[] Response, LoopbackOutcome? Result) Decide(string? target)
+    private (byte[] Response, LoopbackOutcome? Result, bool IsDone) Decide(string? target)
     {
+        var notFound = (LoginPages.Response(404, "Not Found", LoginPages.NotFound), (LoopbackOutcome?)null, false);
         if (target is null)
         {
-            return (LoginPages.Response(404, "Not Found", LoginPages.NotFound), null);
+            return notFound;
         }
 
         var question = target.IndexOf('?', StringComparison.Ordinal);
         var path = question < 0 ? target : target[..question];
+        if (path == DonePath)
+        {
+            return DonePage();
+        }
+
         if (path != CallbackPath)
         {
-            return (LoginPages.Response(404, "Not Found", LoginPages.NotFound), null);
+            return notFound;
         }
 
         var query = ParseQuery(question < 0 ? string.Empty : target[(question + 1)..]);
         if (!query.TryGetValue("state", out var state) || !FixedTimeEquals(state))
         {
-            return (LoginPages.Response(400, "Bad Request", LoginPages.Stale), null);
+            return (LoginPages.Response(400, "Bad Request", LoginPages.Stale), null, false);
         }
 
+        var done = $"http://127.0.0.1:{Port}{DonePath}";
         if (query.ContainsKey("error"))
         {
-            return (LoginPages.Response(200, "OK", LoginPages.Denied), new LoopbackOutcome(LoopbackKind.Denied));
+            return (LoginPages.See(done), new LoopbackOutcome(LoopbackKind.Denied), false);
         }
 
         if (!query.TryGetValue("code", out var code) || code.Length is 0 or > MaxCodeLength)
         {
-            return (LoginPages.Response(400, "Bad Request", LoginPages.Stale), null);
+            return (LoginPages.Response(400, "Bad Request", LoginPages.Stale), null, false);
         }
 
-        return (LoginPages.Response(200, "OK", LoginPages.Success), new LoopbackOutcome(LoopbackKind.Code, code));
+        return (LoginPages.See(done), new LoopbackOutcome(LoopbackKind.Code, code), false);
     }
+
+    /// <summary>登入碼收到之後才有這一頁；還沒收到結果時它什麼都不代表（404），不會被當成成功。</summary>
+    private (byte[] Response, LoopbackOutcome? Result, bool IsDone) DonePage() => _received?.Kind switch
+    {
+        LoopbackKind.Code => (LoginPages.Response(200, "OK", LoginPages.Success), null, true),
+        LoopbackKind.Denied => (LoginPages.Response(200, "OK", LoginPages.Denied), null, true),
+        _ => (LoginPages.Response(404, "Not Found", LoginPages.NotFound), null, false),
+    };
 
     private bool FixedTimeEquals(string state) => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(state), _state);
 

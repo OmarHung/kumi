@@ -45,16 +45,22 @@ internal sealed class BrowserLogin(CliContext context)
         var verifier = Pkce.RandomToken();
         using var receiver = new LoopbackReceiver(state);
         StartListening(receiver);
-        var url = AuthorizeUrl(request, receiver.Port, state, Pkce.Challenge(verifier), MachineName());
+        var challenge = Pkce.Challenge(verifier);
+        var url = AuthorizeUrl(request, receiver.Port, state, challenge, MachineName());
+        var confirmation =
+            $"確認碼：{ConfirmationCode.Display(challenge)}{Environment.NewLine}" +
+            "在瀏覽器的 Kumi 頁面輸入這組確認碼再按「允許」。頁面上不是你在這台電腦剛執行的登入，請按「拒絕」。";
 
         if (request.NoBrowser)
         {
             await messages.WriteLineAsync($"請用瀏覽器開啟下面的網址，並在 Kumi 的頁面按「允許」：{Environment.NewLine}{url}");
+            await messages.WriteLineAsync(confirmation);
         }
         else
         {
             await messages.WriteLineAsync(
                 $"正在開瀏覽器，請在 Kumi 的頁面按「允許」。瀏覽器沒有打開的話，把這個網址貼到瀏覽器：{Environment.NewLine}{url}");
+            await messages.WriteLineAsync(confirmation);
             // 開不起來也沒關係：網址已經印在上面了。
             _ = context.Login.OpenBrowser(url);
         }
@@ -79,6 +85,7 @@ internal sealed class BrowserLogin(CliContext context)
             $"challenge={Uri.EscapeDataString(challenge)}",
             $"machine={Uri.EscapeDataString(machine)}",
             $"tokens={Uri.EscapeDataString(tokens)}",
+            "confirm=1",
         };
         if (request.Scopes.Count > 0)
         {
@@ -107,13 +114,21 @@ internal sealed class BrowserLogin(CliContext context)
     private string MachineName()
     {
         var cleaned = string.Concat(context.Login.MachineName().EnumerateRunes().Where(IsAllowedRune).Select(rune => rune.ToString())).Trim();
+        // 開頭的組合字元沒有字可以依附，伺服器不收。
+        cleaned = string.Concat(cleaned.EnumerateRunes().SkipWhile(IsCombining).Select(rune => rune.ToString())).TrimStart();
         var truncated = string.Concat(cleaned.EnumerateRunes().Take(MaxMachineNameLength).Select(rune => rune.ToString())).TrimEnd();
         return truncated.Length == 0 ? FallbackMachineName : truncated;
     }
 
+    // 填充字看起來是空白，伺服器一律不收。
+    private static readonly HashSet<int> FillerCodePoints = [0x115F, 0x1160, 0x3164, 0xFFA0, 0x2800, 0x034F];
+
     private static bool IsAllowedRune(Rune rune) =>
-        !Rune.IsControl(rune) && Rune.GetUnicodeCategory(rune)
+        !Rune.IsControl(rune) && !FillerCodePoints.Contains(rune.Value) && Rune.GetUnicodeCategory(rune)
             is not (UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator);
+
+    private static bool IsCombining(Rune rune) =>
+        Rune.GetUnicodeCategory(rune) is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark;
 
     private async Task<BrowserLoginResult> RedeemAsync(BrowserLoginRequest request, string code, string verifier, CancellationToken cancellation)
     {
