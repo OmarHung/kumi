@@ -17,7 +17,7 @@
 [![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](#快速開始)
 [![Last commit](https://img.shields.io/github/last-commit/OmarHung/kumi)](https://github.com/OmarHung/kumi/commits/main)
 
-[快速開始](#快速開始) · [功能](#功能) · [命令列](docs/CLI.md) · [MCP](docs/MCP.md) · [部署](docs/DEPLOYMENT.md) · [文件](#文件) · [參與](#參與) · [授權](#授權)
+[快速開始](#快速開始) · [功能](#功能) · [命令列](docs/CLI.md) · [MCP](docs/MCP.md) · [部署](docs/DEPLOYMENT.md) · [文件](#文件) · [路線圖](#路線圖) · [參與](#參與) · [授權](#授權)
 
 <sub>**English:** Kumi is a self-hostable, source-available project management tool. Each project's workflow lives in a versioned blueprint, and every change is validated, previewed and approved before it is applied. The UI and docs are in Traditional Chinese.</sub>
 
@@ -324,6 +324,40 @@ Kumi 還在快速開發，沒有發布正式的版本；自己架的請跟著 `m
 
 - 知識庫是第一段：網頁上能用，命令列、MCP、通知與即時更新還沒做。
 - 網頁的已知限制列在 [web/README.md](web/README.md#已知的限制)。
+
+---
+
+## 路線圖
+
+這裡寫的是方向，不是承諾，順序會依實際使用的情形調整。想要的功能不在這裡，歡迎開 [issue](https://github.com/OmarHung/kumi/issues)。
+
+**接下來**
+
+- **英文介面**：網頁、伺服器的訊息、信件、命令列、內建模板與 AI 助理都能用英文；架構保留再加其他語言的空間。
+- **知識庫的後續**：
+  - 版本歷史與還原、頁面留言、頁面模板、搜尋。
+  - 接上命令列、MCP（讓 AI 代理讀得到文件）、通知與即時更新。
+
+**之後**
+
+- **自動化規則**：藍圖裡已經寫得出的 `automations` 會真的執行。
+  - 觸發：項目的事件、排程。
+  - 動作：改狀態、設欄位、通知。
+  - 有執行紀錄與設定畫面。
+- **Webhook 與整合**：
+  - 對外的 webhook。
+  - 第一個整合是 GitHub：PR 連到項目，合併時把項目推到下一個狀態。
+  - 再來是通知類的聊天軟體。
+- **表單**：專案外的人也能送進項目。
+- **多組織與帳號**：註冊與邀請、單一登入、雙重驗證。
+- **手機**：先做能安裝到主畫面的網頁版（PWA）。
+- **規劃**：工作負載、儀表板、項目之間的相依關係、在時間軸上拖曳改日期。
+
+**目前不打算做**
+
+- 一個項目多位負責人：一個項目一位負責人，責任才清楚。
+- 多人即時共同編輯：說明與知識庫是在存檔時檢查衝突。
+- Homebrew：`kumi` 從你自己架的伺服器下載與更新，那裡的下載要登入，Homebrew 的 formula 只能從公開網址下載。
 
 ---
 
