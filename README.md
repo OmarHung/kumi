@@ -23,6 +23,15 @@
 
 </div>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.webp">
+    <img src="docs/assets/readme/hero-light.webp" alt="Kumi 的看板：一欄一個狀態，卡片上有類型、優先度、到期日與負責人；右邊開著一筆故事的項目面板，列出欄位與說明" width="100%">
+  </picture>
+</p>
+
+<p align="center"><sub>看板與項目面板。截圖裡的組織、人員與專案都是範例資料。</sub></p>
+
 ---
 
 ## Kumi 是什麼
@@ -69,6 +78,10 @@ flowchart LR
 - **規劃** — 週期（衝刺）與里程碑，看得到完成數與估計的總和。
 - **找得到** — ⌘K 快速跳轉、依類型／狀態／負責人／到期／優先度與自訂欄位篩選、專案搜尋比對代號、名稱與專案說明。
 
+<p align="center">
+  <img src="docs/assets/readme/timeline.webp" alt="時間軸：每個項目從開始日畫到到期日，上方標出三個衝刺的範圍，一條直線標出今天，過期的項目是紅色" width="100%">
+</p>
+
 ### 一起做
 
 - **所見即所得，存的是 Markdown** — 說明與留言用 Tiptap 編輯，截圖直接貼上或拖進來，`@` 提及成員。
@@ -79,9 +92,18 @@ flowchart LR
 - **知識庫** — 組織與專案的空間、頁面樹、往下繼承的頁面限制、垃圾桶（第一段，見[目前的狀態](#目前的狀態)）。
 - **專案資訊頁** — 專案的網址、部署環境、主機這類資料寫成一份 Markdown，有組織自己的說明格式；私鑰會被擋下。
 
+<p align="center">
+  <img src="docs/assets/readme/item.webp" alt="項目頁：下層項目、留言與回覆串，留言裡提及了成員；右邊是狀態、負責人、日期、週期與里程碑等欄位" width="100%">
+</p>
+
 ### 藍圖：流程就是設定
 
 - 設定頁改狀態、轉換（每條可以限角色與要先填的欄位）、類型、欄位與自訂角色，送出成一份變更集；預覽頁列出差異與會動到多少既有資料，核准後才套用。
+
+<p align="center">
+  <img src="docs/assets/readme/changeset.webp" alt="等待核准的變更集：7 項設定的修改（新增欄位、刪除欄位、新增狀態與轉換），5 個項目受影響，列出「環境」欄位的值會被封存，右上角有放棄與套用" width="100%">
+</p>
+
 - 格式的唯一依據是 [`schemas/blueprint/v0/`](schemas/blueprint/v0/) 的 JSON Schema；也能匯出成 YAML 檔，改完再用命令列預覽、套用：
 
 ```yaml
