@@ -77,6 +77,8 @@ describe('ShareItemButton：分享項目（docs/DESIGN.md 8.3「分享項目」�
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<ShareItemButton item={ITEM} isCompact />);
     await user.click(screen.getByRole('button', { name: '分享' }));
+    // 寫進剪貼簿是非同步的：等提示出來再看按鈕，機器慢的時候點完的當下狀態還沒換。
+    await screen.findByText('已複製連結');
     expect(screen.getByRole('button', { name: '分享' })).toHaveAttribute('data-copied', 'true');
 
     // Act

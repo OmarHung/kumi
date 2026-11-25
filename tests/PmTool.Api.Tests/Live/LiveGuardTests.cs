@@ -232,6 +232,14 @@ public sealed class LiveGuardTests
                 await client.StartAsync();
             }
 
+            // 用戶端在握手完成時就返回，伺服器在那之後才登記這條連線：等它真的登記滿，機器忙的時候才不會搶先。
+            var registry = factory.Services.GetRequiredService<LiveConnections>();
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (registry.CountOf(TestUsers.Member.PersonId) < LiveConnections.MaxPerPerson && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(20);
+            }
+
             using var http = factory.CreateApiClient();
             using var request = Sessions.WithCookie(HttpMethod.Post, Negotiate, cookie);
 

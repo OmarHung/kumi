@@ -59,8 +59,8 @@ public sealed class HistoryConcurrencyAndScopeTests
         var filesBefore = AttachmentSupport.FilesIn(_host).Length;
 
         // 每個請求都先讀到內容、才有人去寫資料列：確保大家都通過「還沒匯入」的第一關，輸掉的人一定會寫過檔案。
-        using var barrier = new Barrier(Parallel);
-        var allArrived = true;
+        // 用非同步的等待：同步的 Barrier 會佔住執行緒集區的執行緒，CI 的機器核心少，其他請求排不到執行緒就到不了這裡。
+        var gate = new ArrivalGate(Parallel, TimeSpan.FromSeconds(20));
 
         // Act
         var results = await Task.WhenAll(Enumerable.Range(0, Parallel).Select(async number =>
@@ -69,7 +69,7 @@ public sealed class HistoryConcurrencyAndScopeTests
             await using (request.Scope)
             {
                 var service = request.Scope.ServiceProvider.GetRequiredService<IHistoryImportService>();
-                var stream = new GatedStream(System.Text.Encoding.UTF8.GetBytes($"內容 {number}"), () => allArrived &= barrier.SignalAndWait(TimeSpan.FromSeconds(20)));
+                var stream = new GatedStream(System.Text.Encoding.UTF8.GetBytes($"內容 {number}"), gate.ArriveAsync);
                 return await service.ImportAttachmentAsync(manager, "WEB-1", Attachment("a-1", member.PersonId, stream: stream), CancellationToken.None);
             }
         }));
@@ -78,7 +78,7 @@ public sealed class HistoryConcurrencyAndScopeTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(allArrived, Is.True, "四個請求都要走到寫檔");
+            Assert.That(gate.AllArrived, Is.True, "四個請求都要走到寫檔");
             Assert.That(results.All(r => r.Succeeded), Is.True, () => string.Join("; ", results.Select(r => r.Failure?.Message)));
             Assert.That(results.Count(r => !r.Value.Existing), Is.EqualTo(1));
             Assert.That(results.Select(r => r.Value.Attachment.Id).Distinct().Count(), Is.EqualTo(1));
@@ -227,28 +227,50 @@ public sealed class HistoryConcurrencyAndScopeTests
     private const int HistoryRulesLimit = 50;
 
     /// <summary>讀的時候先停在閘門：所有請求都到了這裡才一起往下，讓大家都通過「還沒匯入」的檢查。</summary>
-    private sealed class GatedStream(byte[] bytes, Action gate) : MemoryStream(bytes)
+    /// <summary>等到指定數量的人都到了才一起放行；逾時就放行並記下沒到齊。</summary>
+    private sealed class ArrivalGate(int count, TimeSpan timeout)
+    {
+        private readonly TaskCompletionSource _everyone = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _arrived;
+        private int _timedOut;
+
+        public bool AllArrived => Volatile.Read(ref _timedOut) == 0;
+
+        public async Task ArriveAsync()
+        {
+            if (Interlocked.Increment(ref _arrived) == count)
+            {
+                _everyone.TrySetResult();
+            }
+
+            try
+            {
+                await _everyone.Task.WaitAsync(timeout);
+            }
+            catch (TimeoutException)
+            {
+                Interlocked.Exchange(ref _timedOut, 1);
+            }
+        }
+    }
+
+    /// <summary>第一次被讀的時候先過關卡。寫檔走的是非同步的讀取；同步的讀取一樣過關卡，只是會等在那裡。</summary>
+    private sealed class GatedStream(byte[] bytes, Func<Task> gate) : MemoryStream(bytes)
     {
         private int _passed;
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            Pass();
+            PassAsync().GetAwaiter().GetResult();
             return base.Read(buffer, offset, count);
         }
 
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            Pass();
-            return base.ReadAsync(buffer, cancellationToken);
+            await PassAsync();
+            return await base.ReadAsync(buffer, cancellationToken);
         }
 
-        private void Pass()
-        {
-            if (Interlocked.Exchange(ref _passed, 1) == 0)
-            {
-                gate();
-            }
-        }
+        private Task PassAsync() => Interlocked.Exchange(ref _passed, 1) == 0 ? gate() : Task.CompletedTask;
     }
 }

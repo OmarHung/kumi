@@ -11,6 +11,8 @@ import { WEEK_START_STORAGE_KEY } from '../../lib/weekStart';
 import { NO_FILTERS, renderTimeline } from '../../test/timeline';
 
 // 今天 2026-11-18（週三）：預設的畫面是 11/09（週一）到 12/20。
+/** 大量渲染的測試等多久：CI 的機器開著覆蓋率時，讀六頁、畫一千個項目會超過預設的 1 秒。 */
+const SLOW_RENDER_MS = 15_000;
 const BAR = smkItem({ number: 1, title: '首頁設計稿', state: 'doing', stateCategory: 'in_progress', startDate: '2026-11-18', dueDate: '2026-11-28' });
 const POINT = smkItem({ number: 2, title: '內容審稿', dueDate: '2026-11-25' });
 
@@ -245,10 +247,12 @@ describe('沒有日期的項目、很多項目與失敗', () => {
     renderTimeline();
 
     // Assert
-    expect(await screen.findByText('這段時間的項目超過 1,000 個，只顯示前 1,000 個；用篩選縮小範圍。')).toBeInTheDocument();
+    expect(
+      await screen.findByText('這段時間的項目超過 1,000 個，只顯示前 1,000 個；用篩選縮小範圍。', undefined, { timeout: SLOW_RENDER_MS }),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /^SMK-/ })).toHaveLength(1000);
     expect(requests.filter((url) => url.searchParams.has('datesFrom'))).toHaveLength(5);
-  });
+  }, SLOW_RENDER_MS * 2);
 
   it('沒有項目時說這段時間沒有，並教怎麼換一段', async () => {
     // Arrange & Act
