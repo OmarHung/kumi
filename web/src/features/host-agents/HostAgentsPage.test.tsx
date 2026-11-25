@@ -119,6 +119,93 @@ describe('主機 AI 代理：代理與引擎的狀態', () => {
   });
 });
 
+describe('主機 AI 代理：憑證到期與警告', () => {
+  it('在線、已啟用、沒有警告：寫到期日與會自動換新；沒配對過的不寫', async () => {
+    // Arrange / Act
+    await openHostSection({
+      agents: [
+        exampleHostAgent({ credentialExpiresAt: '2027-02-20T08:00:00+00:00' }),
+        exampleHostAgent({ id: 'a2', name: '新機', state: 'awaiting_pairing', online: false, engines: [], credentialExpiresAt: null }),
+      ],
+    });
+
+    // Assert
+    expect(await screen.findByText(/機器憑證 .* 到期，會在到期前自動換新/)).toBeInTheDocument();
+    expect(screen.getAllByText(/機器憑證/)).toHaveLength(1);
+  });
+
+  it('離線時只寫到期日，不承諾會自動換新', async () => {
+    // Arrange / Act
+    await openHostSection({ agents: [exampleHostAgent({ online: false, credentialExpiresAt: '2027-02-20T08:00:00+00:00' })] });
+
+    // Assert
+    expect(await screen.findByText(/機器憑證 .* 到期/)).toBeInTheDocument();
+    expect(screen.queryByText(/自動換新/)).not.toBeInTheDocument();
+  });
+
+  it('已經過期：寫「已於 … 過期」，不寫自動換新', async () => {
+    // Arrange / Act
+    await openHostSection({ agents: [exampleHostAgent({ credentialExpiresAt: '2026-01-05T08:00:00+00:00' })] });
+
+    // Assert
+    expect(await screen.findByText(/機器憑證已於 .* 過期/)).toBeInTheDocument();
+    expect(screen.queryByText(/自動換新/)).not.toBeInTheDocument();
+  });
+
+  it('有警告時不寫到期那一行（和警告矛盾）', async () => {
+    // Arrange / Act
+    await openHostSection({
+      agents: [exampleHostAgent({ credentialExpiresAt: '2027-02-20T08:00:00+00:00', warning: { kind: 'other_machine', machineName: 'evil-pc', at: '2026-11-25T01:00:00+00:00' } })],
+    });
+
+    // Assert
+    await screen.findByText(/拿這台的憑證登記/);
+    expect(screen.queryByText(/機器憑證 /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/自動換新/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [{ kind: 'other_machine', machineName: 'evil-pc', at: '2026-11-25T01:00:00+00:00' }, '有另一台電腦（evil-pc）拿這台的憑證登記，已拒絕。憑證可能外流，請重新配對。'],
+    [{ kind: 'paired_by_former_owner', machineName: null, at: '2026-11-25T01:00:00+00:00' }, '配對這台的人已經不是擁有者，請由現在的擁有者重新配對。'],
+    [{ kind: 'credential_expired', machineName: null, at: '2026-11-25T01:00:00+00:00' }, '憑證過期了，請重新配對。'],
+  ] as const)('警告 %#：顯示處理方式，旁邊的「重新配對」拿到新的配對碼', async (warning, text) => {
+    // Arrange
+    const { user, backend } = await openHostSection({ agents: [exampleHostAgent({ warning })] });
+    expect(await screen.findByText(text)).toBeInTheDocument();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '重新配對（辦公室主機）' }));
+
+    // Assert
+    expect(await screen.findByRole('region', { name: '配對碼' })).toHaveTextContent(PAIRING_CODE);
+    expect(backend.pairings).toEqual(['agent-1']);
+  });
+
+  it('重新配對之後警告消失（伺服器清掉警告與憑證到期日），快速連按只配對一次', async () => {
+    // Arrange
+    const warning = { kind: 'credential_expired', machineName: null, at: '2026-11-25T01:00:00+00:00' } as const;
+    const { user, backend } = await openHostSection({ agents: [exampleHostAgent({ warning, credentialExpiresAt: '2026-01-05T08:00:00+00:00' })] });
+    const button = await screen.findByRole('button', { name: '重新配對（辦公室主機）' });
+
+    // Act
+    await user.dblClick(button);
+
+    // Assert
+    await waitFor(() => { expect(screen.queryByText('憑證過期了，請重新配對。')).not.toBeInTheDocument(); });
+    expect(screen.queryByRole('button', { name: '重新配對（辦公室主機）' })).not.toBeInTheDocument();
+    expect(backend.pairings).toEqual(['agent-1']);
+  });
+
+  it('沒有警告時沒有「重新配對」鈕（它在「更多」選單裡）', async () => {
+    // Arrange / Act
+    await openHostSection({ agents: [exampleHostAgent({ warning: null })] });
+    await screen.findByText('辦公室主機');
+
+    // Assert
+    expect(screen.queryByRole('button', { name: '重新配對' })).not.toBeInTheDocument();
+  });
+});
+
 describe('主機 AI 代理：自動更新', () => {
   afterEach(() => {
     vi.useRealTimers();

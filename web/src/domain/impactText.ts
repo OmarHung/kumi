@@ -124,7 +124,14 @@ export function describeImpact(impact: Impact, context: ChangeSetBlueprints, isC
   }
 }
 
-const TOUCHING_KINDS: ReadonlySet<Impact['kind']> = new Set(['state_move', 'field_drop', 'field_detach', 'field_conversion']);
+/** 會動到項目的影響種類：`touchesItems`、`itemsTouched` 與合計（`impactTotals`）共用這一份。 */
+const TOTAL_GROUPS: readonly { readonly label: string; readonly kinds: readonly Impact['kind'][] }[] = [
+  { label: '搬移狀態', kinds: ['state_move'] },
+  { label: '刪除或封存欄位的值', kinds: ['field_drop', 'field_detach'] },
+  { label: '轉換欄位', kinds: ['field_conversion'] },
+];
+
+const TOUCHING_KINDS: ReadonlySet<Impact['kind']> = new Set(TOTAL_GROUPS.flatMap((group) => group.kinds));
 
 /** 這一項會改到項目的資料（搬移、封存、轉換）；其他的（類型、上層、角色）是擋住套用的條件。 */
 export function touchesItems(impact: Impact): boolean {
@@ -166,4 +173,23 @@ export function impactLines(impacts: readonly Impact[], context: ChangeSetBluepr
   };
   const lines = busy.map(lineOf);
   return [...lines.slice(0, lastMove + 1), merged, ...lines.slice(lastMove + 1)];
+}
+
+/** 一種會動到資料的影響合計。 */
+export interface ImpactTotal {
+  readonly label: string;
+  readonly count: number;
+}
+
+/**
+ * 把影響依種類加總（沒有筆數的分類不列）；變更集頁在影響的清單上方用它寫「最多動到 N 筆資料」：同一個項目可能同時被搬移又封存，所以是上限。
+ * 擋住套用的影響不算：它的筆數是「擋住套用的項目」，那份變更集套不上去，不會真的動到它們（刪掉還有項目的類型就是這種）。
+ */
+export function impactTotals(impacts: readonly Impact[]): { readonly total: number; readonly parts: readonly ImpactTotal[] } {
+  const applicable = impacts.filter((impact) => !impact.blocksApply);
+  const parts = TOTAL_GROUPS.map(({ label, kinds }) => ({
+    label,
+    count: applicable.filter((impact) => kinds.includes(impact.kind)).reduce((sum, impact) => sum + impact.affected, 0),
+  })).filter((part) => part.count > 0);
+  return { total: parts.reduce((sum, part) => sum + part.count, 0), parts };
 }

@@ -1,8 +1,9 @@
 import type { ChangeKind, ChangeSet, ChangeSetDetail, ChangeSetStatus } from '../../api/types';
+import { Notice } from '../../components/Notice/Notice';
 import { Badge, type BadgeTone } from '../../components/Badge/Badge';
 import { blueprintChangeDetails, describeBlueprintChange, type ChangeSetBlueprints } from '../../domain/changeSetText';
 import { formatNumber } from '../../domain/fields';
-import { impactLines, itemsTouched, touchesItems } from '../../domain/impactText';
+import { impactLines, impactTotals, itemsTouched, touchesItems } from '../../domain/impactText';
 import { CHANGE_SET_STATUS_LABELS } from '../../domain/labels';
 import { cx } from '../../lib/cx';
 import styles from './ChangeSets.module.css';
@@ -110,6 +111,19 @@ export function ChangeList({ detail, names }: { readonly detail: ChangeSetDetail
   );
 }
 
+/** 影響清單上方的一行合計：「最多動到 12 筆資料（搬移狀態 10、刪除或封存欄位的值 2）」。AI 提出的用警告的提示，核准的人先看到再往下看明細。 */
+function ImpactTotals({ detail }: { readonly detail: ChangeSetDetail }) {
+  const { total, parts } = impactTotals(detail.impacts);
+  if (detail.changeSet.status !== 'pending' || total === 0) return null;
+  const text = `最多動到 ${formatNumber(total)} 筆資料（${parts.map((part) => `${part.label} ${formatNumber(part.count)}`).join('、')}）`;
+  if (detail.changeSet.origin === 'direct') return <p className={styles.impactTotal}>{text}</p>;
+  return (
+    <Notice tone="warning" role="none">
+      {`${text}。這份是 AI 提出的，套用前請逐項確認。`}
+    </Notice>
+  );
+}
+
 export function ImpactList({ detail, names }: { readonly detail: ChangeSetDetail; readonly names: ChangeSetBlueprints }) {
   const isCounted = detail.changeSet.status === 'pending';
   if (detail.impacts.length === 0) {
@@ -117,6 +131,7 @@ export function ImpactList({ detail, names }: { readonly detail: ChangeSetDetail
   }
   return (
     <>
+      <ImpactTotals detail={detail} />
       {!isCounted && <p className={styles.hint}>這份變更集已經不是等待核准，影響的數量不再計算。</p>}
       <ul className={styles.lines} aria-label="對既有資料的影響">
         {impactLines(detail.impacts, names, isCounted).map((line, index) => (

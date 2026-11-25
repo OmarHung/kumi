@@ -137,6 +137,97 @@ describe('AI 設定：載入', () => {
   });
 });
 
+describe('AI 設定：用量上限', () => {
+  const NO_CAPS = { dailyRequestsPerPerson: 200, monthlyRequests: null, monthlyTokens: null } as const;
+
+  it('顯示三項上限（預設每人每天 200、其餘不限）、這個月的用量與「只算組織連線」的說明', async () => {
+    // Arrange / Act
+    await openPage({ limits: { dailyRequestsPerPerson: 200, monthlyRequests: 1000, monthlyTokens: null }, monthUsage: { month: '2026-11', requests: 120, tokens: 4500000 } });
+
+    // Assert
+    expect(screen.getByRole('textbox', { name: '每人每天最多（則）' })).toHaveValue('200');
+    expect(screen.getByRole('textbox', { name: '全組織每月最多（則）' })).toHaveValue('1000');
+    expect(screen.getByRole('textbox', { name: '全組織每月 token 上限' })).toHaveValue('');
+    expect(screen.getByText('這個月已用 120 則，上限 1,000 則')).toBeInTheDocument();
+    expect(screen.getByText(/這個月已用 4,500,000 token（不限）/)).toBeInTheDocument();
+    expect(screen.getByText(/只算組織的連線；成員自己的 AI 帳號、本機代理、主機上的 AI 不算/)).toBeInTheDocument();
+  });
+
+  it('改上限連同其他設定一起存；留白送 null（不限）', async () => {
+    // Arrange
+    const { user, backend, save } = await openPage();
+    const daily = screen.getByRole('textbox', { name: '每人每天最多（則）' });
+
+    // Act
+    await user.clear(daily);
+    await user.type(screen.getByRole('textbox', { name: '全組織每月最多（則）' }), '5000');
+    await user.type(screen.getByRole('textbox', { name: '全組織每月 token 上限' }), '20000000');
+    await user.click(save);
+
+    // Assert
+    expect(await screen.findByText('已儲存。')).toBeInTheDocument();
+    expect(backend.savedSettings[0]?.limits).toEqual({ dailyRequestsPerPerson: null, monthlyRequests: 5000, monthlyTokens: 20000000 });
+  });
+
+  it.each(['0', '-3', '1.5', 'abc', '1000001'])('每月則數填 %s：不送出，說明範圍並把焦點放過去', async (value) => {
+    // Arrange
+    const { user, backend, save } = await openPage();
+    const field = screen.getByRole('textbox', { name: '全組織每月最多（則）' });
+    await user.type(field, value);
+
+    // Act
+    await user.click(save);
+
+    // Assert
+    expect(await screen.findByText('填 1 到 1,000,000 的整數，留白是不限')).toBeInTheDocument();
+    await waitFor(() => { expect(field).toHaveFocus(); });
+    expect(backend.savedSettings).toEqual([]);
+  });
+
+  it('token 超過 1000 億：說明範圍', async () => {
+    // Arrange
+    const { user, save } = await openPage();
+    await user.type(screen.getByRole('textbox', { name: '全組織每月 token 上限' }), '100000000001');
+
+    // Act
+    await user.click(save);
+
+    // Assert
+    expect(await screen.findByText('填 1 到 100,000,000,000 的整數，留白是不限')).toBeInTheDocument();
+  });
+
+  it('伺服器的 422 細項（路徑 limits.xxx）顯示在對應的欄位底下', async () => {
+    // Arrange
+    const { user, backend, save } = await openPage();
+    await user.type(screen.getByRole('textbox', { name: '全組織每月最多（則）' }), '10');
+    backend.rejectNext('settings', {
+      status: 422,
+      code: 'ai.settings_invalid',
+      message: '設定有問題。',
+      details: [{ code: 'ai.field_invalid', path: 'limits.monthlyRequests', message: '每月的則數不合理。' }],
+    });
+
+    // Act
+    await user.click(save);
+
+    // Assert
+    expect(await screen.findByText('每月的則數不合理。')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: '全組織每月最多（則）' })).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('只改上限不存就離開：算有沒存的修改', async () => {
+    // Arrange
+    const { user } = await openPage({ limits: NO_CAPS });
+
+    // Act
+    await user.type(screen.getByRole('textbox', { name: '全組織每月最多（則）' }), '10');
+    await user.click(screen.getByRole('link', { name: '主機 AI 代理' }));
+
+    // Assert
+    expect(await screen.findByRole('dialog', { name: '還有沒儲存的修改' })).toBeInTheDocument();
+  });
+});
+
 describe('AI 設定：儲存預設', () => {
   it('選模型與思考深度，連同勾選一起存', async () => {
     // Arrange
@@ -151,6 +242,7 @@ describe('AI 設定：儲存預設', () => {
     // Assert
     expect(await screen.findByText('已儲存。')).toBeInTheDocument();
     expect(backend.savedSettings).toEqual([{ enabled: true, allowPersonalConnections: false, default: { connectionId: 'c-1', model: 'claude-opus-5-5', effort: 'medium' } }]);
+    expect(backend.savedSettings[0]).not.toHaveProperty('limits');
   });
 
   it('思考深度的選項是「預設」加這個模型能選的，由淺到深', async () => {

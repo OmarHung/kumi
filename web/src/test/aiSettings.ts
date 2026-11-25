@@ -17,6 +17,8 @@ export const EMPTY_AI_SETTINGS: AiSettings = {
   connections: [],
   updatedAt: null,
   updatedBy: null,
+  limits: { dailyRequestsPerPerson: 200, monthlyRequests: null, monthlyTokens: null },
+  monthUsage: { month: '2026-11', requests: 0, tokens: 0 },
 };
 
 const UPDATED_BY = { personId: 'p-owner', displayName: '範例擁有者' } as const;
@@ -150,7 +152,7 @@ export function serveAiSettings(initial: Partial<AiSettings> = {}): AiSettingsSe
       savedSettings.push(body);
       const error = take('settings');
       if (error !== undefined) return rejected(error);
-      current = { ...current, enabled: body.enabled, allowPersonalConnections: body.allowPersonalConnections, default: body.default, updatedAt: UPDATED_AT, updatedBy: UPDATED_BY };
+      current = { ...current, enabled: body.enabled, allowPersonalConnections: body.allowPersonalConnections, default: body.default, limits: body.limits ?? current.limits, updatedAt: UPDATED_AT, updatedBy: UPDATED_BY };
       return ok(current);
     }),
     http.post('/v1/ai/connections', async ({ request }) => {

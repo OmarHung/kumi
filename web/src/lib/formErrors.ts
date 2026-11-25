@@ -1,4 +1,4 @@
-import { errorMessage, isApiError, type ApiError } from '../api/http';
+import { ApiError, errorMessage, isApiError } from '../api/http';
 
 export type FieldErrors<F extends string> = Readonly<Partial<Record<F, string>>>;
 
@@ -81,4 +81,11 @@ export function firstInvalidField<F extends string>(
 
 export function hasErrors<F extends string>(errors: FieldErrors<F>): boolean {
   return Object.values(errors).some((message) => message !== undefined);
+}
+
+/** 後端的欄位路徑帶著父層（例如 limits.monthlyTokens）、畫面上的欄位只叫 monthlyTokens：拿掉前綴再交給 mapApiErrorToFields。 */
+export function stripPathPrefix(error: unknown, prefix: string): unknown {
+  if (!isApiError(error)) return error;
+  const details = error.details.map((detail) => (detail.path?.startsWith(prefix) === true ? { ...detail, path: detail.path.slice(prefix.length) } : detail));
+  return new ApiError({ status: error.status, code: error.code, message: error.message, details, data: error.data, retryAfterSeconds: error.retryAfterSeconds });
 }

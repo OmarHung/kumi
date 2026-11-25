@@ -13,13 +13,15 @@ export type NotificationKind = ItemNotificationKind | 'account_security';
 
 /**
  * 帳號通知發生了什麼事：access_token_created 手動建立權杖；cli_login_tokens_issued 命令列透過瀏覽器登入（一次一到兩把）；
- * oauth_app_authorized 授權了 AI 用戶端（Claude Code 等）連到帳號；cli_login_code_reused 登入碼被重複使用，同一次登入發出的權杖已撤銷。
+ * oauth_app_authorized 授權了 AI 用戶端（Claude Code 等）連到帳號；cli_login_code_reused 登入碼被重複使用，同一次登入發出的權杖已撤銷；
+ * local_agent_machine_added 本機代理第一次從沒見過的電腦登記（machineName、sourceAddress）：不是本人的話，權杖可能外流。
  */
 export type AccountNoticeEvent =
   | 'access_token_created'
   | 'cli_login_tokens_issued'
   | 'oauth_app_authorized'
-  | 'cli_login_code_reused';
+  | 'cli_login_code_reused'
+  | 'local_agent_machine_added';
 
 export interface AccountNoticeToken {
   readonly name: string;

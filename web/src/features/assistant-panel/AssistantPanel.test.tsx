@@ -12,6 +12,7 @@ import {
   makeMessage,
   makeAiOptions,
   makeConversationSummary,
+  rejectReply,
   serveAiOptions,
   serveConversations,
   serveCreateConversation,
@@ -141,6 +142,22 @@ describe('右下角的按鈕：藏起來與叫回來', () => {
 });
 
 describe('開關與焦點', () => {
+  it('送出時到了用量上限（409 ai.usage_limit_reached）：顯示伺服器的說明，輸入的字留著', async () => {
+    // Arrange
+    serveCreateConversation('SMK', NEW);
+    rejectReply('SMK', 'conv-new', 409, 'ai.usage_limit_reached', '全組織這個月的 AI 回覆已經到了上限。');
+    const { user } = openApp();
+    const panel = await openPanel(user);
+    const input = await within(panel).findByRole('textbox', { name: '訊息' });
+
+    // Act
+    await user.type(input, '留著的字{Enter}');
+
+    // Assert
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('全組織這個月的 AI 回覆已經到了上限。');
+    expect(input).toHaveValue('留著的字');
+  });
+
   it('打開：非 modal 的對話框、焦點在輸入框，背後的頁面照樣能操作', async () => {
     // Arrange
     const { user } = openApp();

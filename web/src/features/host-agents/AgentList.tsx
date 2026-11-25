@@ -2,12 +2,13 @@ import { useState } from 'react';
 import type { HostAgent, HostAgentPairing } from '../../api/hostAgentTypes';
 import { useRepairHostAgent, useUpdateHostAgent } from '../../api/hostAgents';
 import { errorMessage } from '../../api/http';
+import { Button } from '../../components/Button/Button';
 import { IconButton } from '../../components/IconButton/IconButton';
 import { Menu } from '../../components/Menu/Menu';
 import { Notice } from '../../components/Notice/Notice';
 import { AgentNameDialog, DisableAgentDialog, RemoveAgentDialog } from './AgentDialogs';
 import { EngineRow } from './EngineRow';
-import { agentStatusText, HOST_ENGINES } from './hostAgentText';
+import { agentStatusText, credentialExpiryText, HOST_ENGINES, warningText } from './hostAgentText';
 import styles from './HostAgents.module.css';
 
 type Dialog = 'rename' | 'disable' | 'remove' | null;
@@ -16,6 +17,7 @@ function AgentInfo({ agent, now }: { readonly agent: HostAgent; readonly now: nu
   const details = [
     agent.agentVersion === null ? null : `版本 ${agent.agentVersion}`,
     agent.machineName,
+    credentialExpiryText(agent, now),
   ].filter((part) => part !== null && part !== '');
   return (
     <div className={styles.info}>
@@ -35,14 +37,14 @@ interface AgentMenuProps {
   readonly onDisable: () => void;
   /** 每個動作開始時（上一次的失敗說明先收掉）。 */
   readonly onAction: () => void;
-  readonly onPaired: (pairing: HostAgentPairing) => void;
+  /** 重新配對（上一層和警告列共用同一個請求，連按不會配對兩次）。 */
+  readonly onRepair: () => void;
   /** 動作失敗的說明交給上一層顯示（選單關上之後還看得到）。 */
   readonly onError: (error: unknown) => void;
 }
 
 /** 「更多」：改名稱、重新配對（拿到新的配對碼）、停用／啟用、移除（要確認）。 */
-function AgentMenu({ agent, onRename, onRemove, onDisable, onAction, onPaired, onError }: AgentMenuProps) {
-  const repair = useRepairHostAgent();
+function AgentMenu({ agent, onRename, onRemove, onDisable, onAction, onRepair, onError }: AgentMenuProps) {
   const update = useUpdateHostAgent();
   const isDisabled = agent.state === 'disabled';
   return (
@@ -56,13 +58,7 @@ function AgentMenu({ agent, onRename, onRemove, onDisable, onAction, onPaired, o
           label: '重新配對',
           onSelect: () => {
             onAction();
-            repair.mutate(agent.id, {
-              onSuccess: (pairing) => {
-                onPaired(pairing);
-                repair.reset();
-              },
-              onError,
-            });
+            onRepair();
           },
         },
         {
@@ -82,6 +78,55 @@ function AgentMenu({ agent, onRename, onRemove, onDisable, onAction, onPaired, o
   );
 }
 
+interface AgentWarningProps {
+  readonly agent: HostAgent;
+  readonly isRepairing: boolean;
+  readonly onRepair: () => void;
+}
+
+/** 憑證不能用了（三種原因）：寫原因，旁邊就是「重新配對」，重新配對之後伺服器清掉警告。 */
+function AgentWarning({ agent, isRepairing, onRepair }: AgentWarningProps) {
+  if (agent.warning === null) return null;
+  return (
+    <Notice
+      tone="danger"
+      role="none"
+      actions={
+        <Button
+          size="sm"
+          aria-label={`重新配對（${agent.name}）`}
+          aria-disabled={isRepairing || undefined}
+          onClick={() => {
+            if (!isRepairing) onRepair();
+          }}
+        >
+          重新配對
+        </Button>
+      }
+    >
+      {warningText(agent.warning)}
+    </Notice>
+  );
+}
+
+/** 重新配對：選單與警告列共用同一個請求，進行中再按不會再送一次。 */
+function useAgentRepair(agentId: string, onPaired: (pairing: HostAgentPairing) => void, onError: (error: unknown) => void) {
+  const mutation = useRepairHostAgent();
+  return {
+    isPending: mutation.isPending,
+    start: () => {
+      if (mutation.isPending) return;
+      mutation.mutate(agentId, {
+        onSuccess: (pairing) => {
+          onPaired(pairing);
+          mutation.reset();
+        },
+        onError,
+      });
+    },
+  };
+}
+
 interface AgentRowProps {
   readonly agent: HostAgent;
   readonly now: number;
@@ -92,6 +137,8 @@ interface AgentRowProps {
 function AgentRow({ agent, now, onPaired }: AgentRowProps) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [error, setError] = useState<string | null>(null);
+  const showError = (failure: unknown) => { setError(errorMessage(failure)); };
+  const repair = useAgentRepair(agent.id, onPaired, showError);
   const close = () => {
     setDialog(null);
   };
@@ -107,11 +154,12 @@ function AgentRow({ agent, now, onPaired }: AgentRowProps) {
             onRemove={() => { setDialog('remove'); }}
             onDisable={() => { setDialog('disable'); }}
             onAction={() => { setError(null); }}
-            onPaired={onPaired}
-            onError={(failure) => { setError(errorMessage(failure)); }}
+            onRepair={repair.start}
+            onError={showError}
           />
         </div>
       </div>
+      <AgentWarning agent={agent} isRepairing={repair.isPending} onRepair={repair.start} />
       {agent.state === 'awaiting_pairing' && <p className={styles.note}>還沒配對：在主機上輸入配對碼。碼過期了就用「重新配對」拿新的。</p>}
       {agent.state === 'disabled' && <p className={styles.note}>已停用：它的來源不接工作，也不能登入引擎。</p>}
       {error !== null && <Notice tone="danger" onDismiss={() => { setError(null); }} dismissLabel={`知道了（${agent.name}）`}>{error}</Notice>}

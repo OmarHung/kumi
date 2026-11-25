@@ -37,6 +37,13 @@ describe('帳號通知的一句話', () => {
     ).toBe('登入碼被重複使用，已撤銷 2 把存取權杖，從 203.0.113.5');
   });
 
+  it('本機代理從新的電腦登記：電腦名稱與來源位址', () => {
+    expect(
+      sentence({ event: 'local_agent_machine_added', tokens: [], machineName: 'Unknown-PC', sourceAddress: '203.0.113.9' }),
+    ).toBe('本機代理第一次從新的電腦「Unknown-PC」登記，從 203.0.113.9');
+    expect(sentence({ event: 'local_agent_machine_added', tokens: [], machineName: null, sourceAddress: null })).toBe('本機代理第一次從新的電腦登記');
+  });
+
   it('不認得的範圍照原名寫出來，不讓人看不到有這一項', () => {
     expect(
       sentence({

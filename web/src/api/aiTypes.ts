@@ -70,6 +70,20 @@ export interface AiConnection {
   readonly updatedBy: PersonReference;
 }
 
+/** 組織連線的用量上限；每一項 null 是不限。只算組織的連線（自己的連線、本機代理、主機來源不算）。 */
+export interface AiUsageLimits {
+  readonly dailyRequestsPerPerson: number | null;
+  readonly monthlyRequests: number | null;
+  readonly monthlyTokens: number | null;
+}
+
+/** 組織連線這個月（組織的時區）全組織的用量；month 例如 2026-11。 */
+export interface AiMonthUsage {
+  readonly month: string;
+  readonly requests: number;
+  readonly tokens: number;
+}
+
 export interface AiSettings {
   readonly enabled: boolean;
   /** 成員能不能接自己的 AI 帳號（「我的帳號 → 我的 AI 帳號」）。和 enabled 互相獨立。 */
@@ -78,12 +92,16 @@ export interface AiSettings {
   readonly connections: readonly AiConnection[];
   readonly updatedAt: string | null;
   readonly updatedBy: PersonReference | null;
+  readonly limits: AiUsageLimits;
+  readonly monthUsage: AiMonthUsage;
 }
 
 export interface AiSettingsInput {
   readonly enabled: boolean;
   readonly allowPersonalConnections: boolean;
   readonly default: AiSelection | null;
+  /** 不帶是沿用存的。 */
+  readonly limits?: AiUsageLimits;
 }
 
 /** 要存的連線。apiKey：新增時 null 是沒有金鑰；修改時 null 是沿用存的，空字串是清掉。 */

@@ -1,7 +1,7 @@
 import type { LocalEngineKind } from '../../api/aiTypes';
-import type { HostAgent, HostAgentState, HostBilling, HostEngineReadiness, HostSource, HostSourceStatus, HostUsageTotals } from '../../api/hostAgentTypes';
+import type { HostAgent, HostAgentState, HostAgentWarning, HostBilling, HostEngineReadiness, HostSource, HostSourceStatus, HostUsageTotals } from '../../api/hostAgentTypes';
 import { COMMAND_NAME } from '../../config/product';
-import { formatRelativeTime } from '../../domain/time';
+import { formatInstant, formatRelativeTime } from '../../domain/time';
 import { OPTION_LABELS } from '../ai/aiLabels';
 
 /** 主機上的兩個引擎，畫面上固定這個順序。 */
@@ -90,3 +90,30 @@ export function outcomeSummary(totals: HostUsageTotals): string {
 /** 擁有者設的上限能設多大（和 AiRules 同一份數字）。 */
 export const MAX_REQUEST_LIMIT = 1_000_000;
 export const MAX_TOKEN_LIMIT = 100_000_000_000;
+
+/**
+ * 機器憑證的到期說明。有警告時不寫（警告已經說了憑證的狀況，再寫日期會互相矛盾）；
+ * 日期過了寫「已於 … 過期」；「會自動換新」只在啟用、在線的代理才承諾（worker 在線時才會換）。
+ */
+export function credentialExpiryText(agent: HostAgent, now: number): string | null {
+  if (agent.credentialExpiresAt === null) return null;
+  if (agent.warning !== null) return null;
+  const when = formatInstant(agent.credentialExpiresAt);
+  if (Date.parse(agent.credentialExpiresAt) <= now) return `機器憑證已於 ${when} 過期`;
+  const renews = agent.state === 'active' && agent.online;
+  return renews ? `機器憑證 ${when} 到期，會在到期前自動換新` : `機器憑證 ${when} 到期`;
+}
+
+/** 要擁有者處理的狀況：一句話說發生什麼事、要做什麼（三種都是重新配對）。 */
+export function warningText(warning: HostAgentWarning): string {
+  switch (warning.kind) {
+    case 'other_machine': {
+      const machine = warning.machineName === null || warning.machineName === '' ? '另一台電腦' : `另一台電腦（${warning.machineName}）`;
+      return `有${machine}拿這台的憑證登記，已拒絕。憑證可能外流，請重新配對。`;
+    }
+    case 'paired_by_former_owner':
+      return '配對這台的人已經不是擁有者，請由現在的擁有者重新配對。';
+    case 'credential_expired':
+      return '憑證過期了，請重新配對。';
+  }
+}

@@ -57,6 +57,56 @@ function openChangeSet(detail: ChangeSetDetail, project: ProjectDetail = smkDeta
   return renderApp(`/projects/SMK/changesets/${String(detail.changeSet.number)}`);
 }
 
+describe('變更集的預覽頁：會動到的資料合計', () => {
+  it('直接提出的：影響清單上方一行合計，分類列出筆數', async () => {
+    // Arrange / Act
+    openChangeSet(splitDetail());
+
+    // Assert
+    const total = await screen.findByText('最多動到 20 筆資料（搬移狀態 12、刪除或封存欄位的值 8）');
+    expect(total.closest('[role]')).toBeNull();
+    expect(screen.queryByText(/這份是 AI 提出的/)).not.toBeInTheDocument();
+  });
+
+  it.each(['assistant', 'agent'] as const)('%s 提出的：同一行改用警告的提示並提醒逐項確認', async (origin) => {
+    // Arrange
+    const detail = splitDetail({
+      impacts: [
+        { kind: 'state_move', workflow: 'task_flow', from: 'doing', to: 'building', affected: 3, blocksApply: false },
+        { kind: 'field_detach', field: 'category', itemType: 'task', affected: 2, blocksApply: false },
+        { kind: 'item_type_removal', itemType: 'task', affected: 1, blocksApply: true },
+      ],
+    });
+
+    // Act
+    openChangeSet({ ...detail, changeSet: { ...detail.changeSet, origin } });
+
+    // Assert
+    // 擋住套用的影響（刪掉還有項目的類型）不會真的動到資料，不算進合計。
+    expect(await screen.findByText('最多動到 5 筆資料（搬移狀態 3、刪除或封存欄位的值 2）。這份是 AI 提出的，套用前請逐項確認。')).toBeInTheDocument();
+  });
+
+  it('已經不是等待核准（伺服器不再算數量）：不顯示合計', async () => {
+    // Arrange / Act
+    const applied = splitDetail();
+    openChangeSet({ ...applied, changeSet: { ...applied.changeSet, status: 'applied' } });
+
+    // Assert
+    await screen.findByRole('list', { name: '對既有資料的影響' });
+    expect(screen.queryByText(/最多動到 \d+ 筆資料/)).not.toBeInTheDocument();
+  });
+
+  it('沒有會動到資料的影響：不顯示合計', async () => {
+    // Arrange / Act
+    const none = splitDetail({ impacts: [{ kind: 'state_move', workflow: 'task_flow', from: 'doing', to: 'building', affected: 0, blocksApply: false }] });
+    openChangeSet(none);
+
+    // Assert
+    await screen.findByRole('list', { name: '對既有資料的影響' });
+    expect(screen.queryByText(/最多動到 \d+ 筆資料/)).not.toBeInTheDocument();
+  });
+});
+
 describe('變更集的預覽頁', () => {
   it('AI 助理提出的變更集在提出的人旁邊有「AI 助理提出」，直接提出的沒有', async () => {
     // Arrange & Act

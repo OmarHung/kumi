@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../api/http';
-import { firstInvalidField, hasErrors, mapApiErrorToFields, type FieldMapping } from './formErrors';
+import { firstInvalidField, hasErrors, mapApiErrorToFields, stripPathPrefix, type FieldMapping } from './formErrors';
 
 type ItemField = 'title' | 'due_date';
 
@@ -76,5 +76,49 @@ describe('firstInvalidField 與 hasErrors', () => {
     expect(firstInvalidField(mapping.fields, errors)).toBe('due_date');
     expect(hasErrors(errors)).toBe(true);
     expect(hasErrors({ title: undefined })).toBe(false);
+  });
+});
+
+describe('stripPathPrefix', () => {
+  it('細項路徑有前綴就拿掉，其他欄位照舊，429 的等待秒數也帶著', () => {
+    // Arrange
+    const error = new ApiError({
+      status: 429,
+      code: 'rate_limited',
+      message: '太快了。',
+      details: [{ code: 'x', path: 'limits.monthlyTokens', message: 'a' }, { code: 'y', path: 'enabled', message: 'b' }],
+      data: { k: 1 },
+      retryAfterSeconds: 7,
+    });
+
+    // Act
+    const result = stripPathPrefix(error, 'limits.');
+
+    // Assert
+    expect(result).toBeInstanceOf(ApiError);
+    const stripped = result as ApiError;
+    expect(stripped.details.map((detail) => detail.path)).toEqual(['monthlyTokens', 'enabled']);
+    expect(stripped.retryAfterSeconds).toBe(7);
+    expect(stripped.status).toBe(429);
+    expect(stripped.data).toEqual({ k: 1 });
+  });
+
+  it('沒有前綴的路徑原樣保留', () => {
+    // Arrange
+    const error = invalid([{ code: 'x', path: 'monthlyTokens', message: 'a' }]);
+
+    // Act
+    const result = stripPathPrefix(error, 'limits.') as ApiError;
+
+    // Assert
+    expect(result.details.map((detail) => detail.path)).toEqual(['monthlyTokens']);
+  });
+
+  it('不是 ApiError 就原樣交回', () => {
+    // Arrange
+    const error = new Error('bug');
+
+    // Act / Assert
+    expect(stripPathPrefix(error, 'limits.')).toBe(error);
   });
 });

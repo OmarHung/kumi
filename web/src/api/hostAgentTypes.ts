@@ -42,6 +42,15 @@ export interface HostLogin {
   readonly createdAt: string;
 }
 
+export type HostAgentWarningKind = 'other_machine' | 'paired_by_former_owner' | 'credential_expired';
+
+/** 要擁有者處理的狀況（都要重新配對）。machineName 只有 other_machine 有。 */
+export interface HostAgentWarning {
+  readonly kind: HostAgentWarningKind;
+  readonly machineName: string | null;
+  readonly at: string;
+}
+
 export interface HostAgent {
   readonly id: string;
   readonly name: string;
@@ -56,6 +65,9 @@ export interface HostAgent {
   readonly logins: readonly HostLogin[];
   readonly pairingExpiresAt: string | null;
   readonly createdAt: string;
+  /** 機器憑證的到期日（worker 在線時會自己換新）；還沒配對是 null。 */
+  readonly credentialExpiresAt: string | null;
+  readonly warning: HostAgentWarning | null;
 }
 
 export type HostSourceStatus =

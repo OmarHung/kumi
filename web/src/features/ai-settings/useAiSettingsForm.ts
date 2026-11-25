@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useSaveAiSettings } from '../../api/aiSettings';
 import type { AiEffort, AiSelection, AiSettings, AiSettingsInput } from '../../api/aiTypes';
 import { isApiError } from '../../api/http';
-import { mapApiErrorToFields } from '../../lib/formErrors';
+import { hasErrors, mapApiErrorToFields, stripPathPrefix, type FieldErrors } from '../../lib/formErrors';
 import { useUnsavedChangesGuard } from '../../lib/useUnsavedChangesGuard';
+import { draftFromLimits, LIMIT_FIELDS, limitsFromDraft, sameLimits, validateLimits, type LimitField, type LimitsDraft } from './usageLimits';
 import { effectiveSelection, findChoice, modelChoices, sameSelection, selectionFor, type ModelChoice } from './aiSelection';
 
 const HTTP_TOO_MANY_REQUESTS = 429;
@@ -16,6 +17,11 @@ export interface AiSettingsFormState {
   readonly selection: AiSelection | null;
   readonly choices: readonly ModelChoice[];
   readonly choice: ModelChoice | undefined;
+  /** 用量上限三個欄位（照輸入的字，空字串是不限）與各自的錯誤。 */
+  readonly limits: LimitsDraft;
+  readonly limitErrors: FieldErrors<LimitField>;
+  /** 每次送出後有欄位出錯就加一：畫面照它把焦點移到第一個有問題的欄位。 */
+  readonly focusCount: number;
   readonly formError: string | null;
   readonly message: string | null;
   readonly isSaving: boolean;
@@ -25,34 +31,68 @@ export interface AiSettingsFormState {
   readonly setAllowPersonal: (allowed: boolean) => void;
   readonly chooseModel: (value: string) => void;
   readonly chooseEffort: (effort: AiEffort | null) => void;
+  readonly setLimit: (field: LimitField, value: string) => void;
   readonly save: () => void;
+}
+
+/** 用量上限欄位的錯誤，以及每次出錯後加一的計數（畫面照它把焦點移到第一個有問題的欄位）。 */
+function useLimitFeedback() {
+  const [errors, setErrors] = useState<FieldErrors<LimitField>>({});
+  const [focusCount, setFocusCount] = useState(0);
+  return {
+    errors,
+    focusCount,
+    clear: (field: LimitField) => {
+      setErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== field)));
+    },
+    reset: () => {
+      setErrors({});
+    },
+    show: (next: FieldErrors<LimitField>) => {
+      setErrors(next);
+      if (hasErrors(next)) setFocusCount((count) => count + 1);
+    },
+  };
 }
 
 /** 儲存與它的結果說明（「已儲存。」或失敗的原因）；改了任何東西就清掉上一次的結果。 */
 function useSettingsSave() {
   const [formError, setFormError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const limitFeedback = useLimitFeedback();
   const mutation = useSaveAiSettings();
   return {
     formError,
     message,
+    limitErrors: limitFeedback.errors,
+    focusCount: limitFeedback.focusCount,
+    clearLimitError: limitFeedback.clear,
     isSaving: mutation.isPending,
     touch: () => {
       setMessage(null);
       setFormError(null);
     },
-    run: (input: AiSettingsInput, onSaved: () => void) => {
+    run: (input: AiSettingsInput, limits: LimitsDraft, limitsChanged: boolean, onSaved: () => void) => {
       if (mutation.isPending) return;
       setMessage(null);
       setFormError(null);
-      mutation.mutate(input, {
+      limitFeedback.reset();
+      // 上限沒改就不帶：伺服器沿用存的，兩位管理員同時開著頁面時不會把別人改的上限蓋回去。
+      const found = limitsChanged ? validateLimits(limits) : {};
+      if (hasErrors(found)) {
+        limitFeedback.show(found);
+        return;
+      }
+      mutation.mutate(limitsChanged ? { ...input, limits: limitsFromDraft(limits) } : input, {
         onSuccess: () => {
           onSaved();
           setMessage('已儲存。');
         },
         onError: (error) => {
           const isRateLimited = isApiError(error) && error.status === HTTP_TOO_MANY_REQUESTS;
-          setFormError(isRateLimited ? RATE_LIMITED : mapApiErrorToFields(error, { fields: [] }).formError);
+          const mapped = mapApiErrorToFields(stripPathPrefix(error, 'limits.'), { fields: LIMIT_FIELDS });
+          limitFeedback.show(mapped.fieldErrors);
+          setFormError(isRateLimited ? RATE_LIMITED : mapped.formError);
         },
       });
     },
@@ -62,13 +102,51 @@ function useSettingsSave() {
 function hasUnsavedChanges(
   settings: AiSettings,
   choices: readonly ModelChoice[],
-  draft: { readonly enabled: boolean; readonly allowPersonal: boolean; readonly selection: AiSelection | null },
+  draft: { readonly enabled: boolean; readonly allowPersonal: boolean; readonly selection: AiSelection | null; readonly limits: LimitsDraft },
 ): boolean {
   return (
+    !sameLimits(draft.limits, draftFromLimits(settings.limits)) ||
     draft.enabled !== settings.enabled ||
     draft.allowPersonal !== settings.allowPersonalConnections ||
     !sameSelection(draft.selection, effectiveSelection(choices, settings.default))
   );
+}
+
+/** 用量上限的草稿：沒改的欄位照存著的設定。 */
+function useLimitsDraft(settings: AiSettings, save: Pick<ReturnType<typeof useSettingsSave>, 'touch' | 'clearLimitError'>) {
+  const [draft, setDraft] = useState<Partial<LimitsDraft>>({});
+  const limits: LimitsDraft = { ...draftFromLimits(settings.limits), ...draft };
+  return {
+    limits,
+    setLimit: (field: LimitField, value: string) => {
+      save.touch();
+      save.clearLimitError(field);
+      setDraft((current) => ({ ...current, [field]: value }));
+    },
+    reset: () => {
+      setDraft({});
+    },
+  };
+}
+
+/** 兩個勾選的草稿：沒動過的照存著的設定。 */
+function useFlagDrafts(settings: AiSettings, touch: () => void) {
+  const [draft, setDraft] = useState<{ readonly enabled?: boolean; readonly allowPersonal?: boolean }>({});
+  return {
+    enabled: draft.enabled ?? settings.enabled,
+    allowPersonal: draft.allowPersonal ?? settings.allowPersonalConnections,
+    setEnabled: (next: boolean) => {
+      touch();
+      setDraft((current) => ({ ...current, enabled: next }));
+    },
+    setAllowPersonal: (next: boolean) => {
+      touch();
+      setDraft((current) => ({ ...current, allowPersonal: next }));
+    },
+    reset: () => {
+      setDraft({});
+    },
+  };
 }
 
 /**
@@ -76,15 +154,16 @@ function hasUnsavedChanges(
  * 草稿選的模型在清單上已經不存在時，當作沒選（存的時候送 null）。
  */
 export function useAiSettingsForm(settings: AiSettings): AiSettingsFormState {
-  const [draftFlags, setDraftFlags] = useState<{ readonly enabled?: boolean; readonly allowPersonal?: boolean }>({});
   const [draftSelection, setDraftSelection] = useState<{ readonly value: AiSelection | null } | null>(null);
   const save = useSettingsSave();
+  const limitsState = useLimitsDraft(settings, save);
+  const flags = useFlagDrafts(settings, save.touch);
 
   const choices = modelChoices(settings.connections);
-  const enabled = draftFlags.enabled ?? settings.enabled;
-  const allowPersonal = draftFlags.allowPersonal ?? settings.allowPersonalConnections;
+  const { enabled, allowPersonal } = flags;
   const selection = effectiveSelection(choices, draftSelection === null ? settings.default : draftSelection.value);
-  const hasChanges = hasUnsavedChanges(settings, choices, { enabled, allowPersonal, selection });
+  const { limits } = limitsState;
+  const hasChanges = hasUnsavedChanges(settings, choices, { enabled, allowPersonal, selection, limits });
   const guard = useUnsavedChangesGuard(hasChanges, '離開這一頁的話，AI 設定的修改會不見。');
 
   return {
@@ -93,19 +172,16 @@ export function useAiSettingsForm(settings: AiSettings): AiSettingsFormState {
     selection,
     choices,
     choice: findChoice(choices, selection),
+    limits,
+    limitErrors: save.limitErrors,
+    focusCount: save.focusCount,
     formError: save.formError,
     message: save.message,
     isSaving: save.isSaving,
     hasChanges,
     guardDialog: guard.dialog,
-    setEnabled: (next) => {
-      save.touch();
-      setDraftFlags((current) => ({ ...current, enabled: next }));
-    },
-    setAllowPersonal: (next) => {
-      save.touch();
-      setDraftFlags((current) => ({ ...current, allowPersonal: next }));
-    },
+    setEnabled: flags.setEnabled,
+    setAllowPersonal: flags.setAllowPersonal,
     chooseModel: (value) => {
       const next = choices.find((candidate) => candidate.value === value);
       if (next === undefined) return;
@@ -117,10 +193,13 @@ export function useAiSettingsForm(settings: AiSettings): AiSettingsFormState {
       save.touch();
       setDraftSelection({ value: { ...selection, effort } });
     },
+    setLimit: limitsState.setLimit,
     save: () => {
-      save.run({ enabled, allowPersonalConnections: allowPersonal, default: selection }, () => {
-        setDraftFlags({});
+      const limitsChanged = !sameLimits(limits, draftFromLimits(settings.limits));
+      save.run({ enabled, allowPersonalConnections: allowPersonal, default: selection }, limits, limitsChanged, () => {
+        flags.reset();
         setDraftSelection(null);
+        limitsState.reset();
       });
     },
   };

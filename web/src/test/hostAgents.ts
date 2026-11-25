@@ -56,6 +56,8 @@ export function exampleHostAgent(overrides: Partial<HostAgent> = {}): HostAgent 
     logins: [],
     pairingExpiresAt: null,
     createdAt: AT,
+    credentialExpiresAt: null,
+    warning: null,
     ...overrides,
   };
 }
@@ -222,7 +224,7 @@ export function serveHostAgents(initial: Partial<HostAgentOverview> = {}): HostA
       server_.pairings.push(String(params.id));
       const previous = agentById(params.id);
       if (previous === undefined) return missingAgent();
-      const next: HostAgent = { ...previous, state: 'awaiting_pairing', online: false, pairingExpiresAt: EXPIRES };
+      const next: HostAgent = { ...previous, state: 'awaiting_pairing', online: false, pairingExpiresAt: EXPIRES, credentialExpiresAt: null, warning: null };
       replaceAgent(next);
       return ok({ agent: next, pairingCode: PAIRING_CODE, pairingExpiresAt: EXPIRES });
     }),

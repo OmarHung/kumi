@@ -250,6 +250,21 @@ describe('送出之前的失敗', () => {
     expect(input).toHaveValue('留著的字');
   });
 
+  it('409 ai.usage_limit_reached：顯示伺服器說的是哪一項，輸入的字留著', async () => {
+    // Arrange
+    serveCreateConversation('SMK', NEW);
+    rejectReply('SMK', 'conv-new', 409, 'ai.usage_limit_reached', '你今天的 AI 回覆已經到了上限（200 則）。');
+    const { user } = openAssistant();
+
+    // Act
+    const input = await typeMessage(user, '要保留的字');
+    await user.keyboard('{Enter}');
+
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('你今天的 AI 回覆已經到了上限（200 則）。');
+    expect(input).toHaveValue('要保留的字');
+  });
+
   it('開不了對話（422 ai.unavailable）：說明原因，字留著', async () => {
     // Arrange
     server.use(http.post('/v1/projects/SMK/assistant/conversations', () => failure(422, 'ai.unavailable', 'AI 助理沒有開啟。')));

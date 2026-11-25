@@ -35,6 +35,8 @@ function eventSentence(account: AccountNotice): string {
       return `授權了「${account.clientName ?? 'AI 用戶端'}」連到你的帳號`;
     case 'cli_login_code_reused':
       return `登入碼被重複使用，已撤銷 ${String(account.revokedTokens)} 把存取權杖`;
+    case 'local_agent_machine_added':
+      return account.machineName === null ? '本機代理第一次從新的電腦登記' : `本機代理第一次從新的電腦「${account.machineName}」登記`;
   }
 }
 
