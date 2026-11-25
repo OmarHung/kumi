@@ -393,12 +393,12 @@ public sealed class ConsumerRulesTests : ConsumerTestBase
     }
 
     [Test]
-    public async Task Deleted_RemovesTheItemsSubscriptionsAndNotifiesNobody()
+    public async Task Deleted_RemovesTheItemsSubscriptionsAndNotifications()
     {
         // Arrange
         var (item, creator, assignee, _, _) = NewItem();
         await HandleAsync(item.Created(creator, assignee));
-        var notificationsBefore = (await Host.AllNotificationsAsync()).Count(n => n.ItemId == item.ItemId);
+        Assert.That((await Host.AllNotificationsAsync()).Count(n => n.ItemId == item.ItemId), Is.EqualTo(1), "刪除之前有一則指派的通知");
 
         // Act
         await HandleAsync(item.Deleted(creator));
@@ -407,7 +407,7 @@ public sealed class ConsumerRulesTests : ConsumerTestBase
         using (Assert.EnterMultipleScope())
         {
             Assert.That((await Host.AllSubscriptionsAsync()).Where(s => s.ItemId == item.ItemId), Is.Empty);
-            Assert.That((await Host.AllNotificationsAsync()).Count(n => n.ItemId == item.ItemId), Is.EqualTo(notificationsBefore));
+            Assert.That((await Host.AllNotificationsAsync()).Count(n => n.ItemId == item.ItemId), Is.Zero);
         }
     }
 

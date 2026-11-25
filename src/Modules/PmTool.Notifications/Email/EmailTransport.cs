@@ -60,25 +60,38 @@ internal enum EmailFailureKind
     Other,
 }
 
-/// <summary>寄信失敗。<see cref="Exception.Message"/> 是我們自己的分類說明，<see cref="ServerResponse"/> 是對方主機回的話（可能是 null）。</summary>
+/// <summary>
+/// 寄信失敗。<see cref="Exception.Message"/> 是我們自己的分類說明；<see cref="ServerResponse"/> 是對方主機回的話，
+/// 只拿來寫記錄，不給管理員看、也不存進資料庫（對方主機可能回出內部的主機名稱或網段）。
+/// </summary>
 internal sealed class EmailDeliveryException : Exception
 {
-    public EmailDeliveryException(EmailFailureKind kind, string message, string? serverResponse = null, Exception? inner = null)
+    public EmailDeliveryException(
+        EmailFailureKind kind, string message, string? serverResponse = null, Exception? inner = null, int? statusCode = null)
         : base(message, inner)
     {
         Kind = kind;
         ServerResponse = serverResponse;
+        StatusCode = statusCode;
     }
 
     public EmailFailureKind Kind { get; }
 
     public string? ServerResponse { get; }
 
-    /// <summary>給人看的原因：說明後面接對方主機的話（去掉控制字元），總長不超過 <paramref name="maxLength"/>。</summary>
+    /// <summary>對方回的 SMTP 狀態碼（三位數）；沒有這個資訊時是 null。</summary>
+    public int? StatusCode { get; }
+
+    /// <summary>去掉控制字元與行分隔、段落分隔字元（U+2028、U+2029）、截短之後的對方回應，給記錄用（換行會讓一行記錄變成好幾行）。</summary>
+    public string? LoggableServerResponse =>
+        ServerResponse is null ? null : TextLimits.Truncate(new string([.. ServerResponse.Where(c => !char.IsControl(c) && c is not ('\u2028' or '\u2029'))]).Trim(), MaxLoggedResponseLength);
+
+    private const int MaxLoggedResponseLength = 300;
+
+    /// <summary>給人看的原因：分類的說明，有狀態碼時接在後面；不含對方主機回的原文。總長不超過 <paramref name="maxLength"/>。</summary>
     public string Describe(int maxLength)
     {
-        var detail = ServerResponse is null ? string.Empty : new string([.. ServerResponse.Where(c => !char.IsControl(c))]).Trim();
-        var text = detail.Length == 0 ? Message : $"{Message}（{detail}）";
+        var text = StatusCode is { } code ? $"{Message}（{code}）" : Message;
         return TextLimits.Truncate(text, maxLength);
     }
 }

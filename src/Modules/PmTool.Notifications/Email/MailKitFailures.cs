@@ -3,6 +3,7 @@ using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
+using PmTool.Http;
 
 namespace PmTool.Notifications.Email;
 
@@ -11,9 +12,10 @@ internal static class MailKitFailures
 {
     private const int FirstPermanentFailureCode = 500;
 
+    /// <param name="privateHostsBlocked">這個部署不連內網與本機：連不上的訊息要提醒這一點，而且被擋與連不上說同一句，不透露主機解析到哪裡。</param>
     /// <param name="sending">連線之後寄信的階段。對方在這個階段回的狀態碼，要分是這個收件人、這封信的問題，還是整台主機的問題。</param>
     public static EmailDeliveryException Translate(
-        Exception exception, SmtpConnection connection, CancellationToken cancellationToken, bool sending = false)
+        Exception exception, SmtpConnection connection, CancellationToken cancellationToken, bool sending = false, bool privateHostsBlocked = false)
     {
         var endpoint = $"{connection.Host}:{connection.Port}";
         return exception switch
@@ -30,35 +32,42 @@ internal static class MailKitFailures
             TimeoutException => new EmailDeliveryException(EmailFailureKind.Timeout, $"連到 {endpoint} 逾時", null, exception),
             OperationCanceledException when !cancellationToken.IsCancellationRequested =>
                 new EmailDeliveryException(EmailFailureKind.Timeout, $"連到 {endpoint} 逾時", null, exception),
-            SocketException or IOException or ServiceNotConnectedException or ProtocolException =>
-                new EmailDeliveryException(EmailFailureKind.Unreachable, $"連不上 {endpoint}", null, exception),
+            SocketException or IOException or ServiceNotConnectedException or ProtocolException or HttpRequestException =>
+                new EmailDeliveryException(EmailFailureKind.Unreachable, Unreachable(endpoint, privateHostsBlocked && !sending), BlockedDetail(exception), exception),
             _ => new EmailDeliveryException(EmailFailureKind.Other, $"寄信時發生錯誤（{exception.GetType().Name}）", null, exception),
         };
     }
+
+    private static string Unreachable(string endpoint, bool privateHostsBlocked) => privateHostsBlocked
+        ? $"連不上 {endpoint}（請確認主機與連接埠；這個部署不連內網與本機的位址）"
+        : $"連不上 {endpoint}";
+
+    // 被擋的位址只寫進記錄，管理員看到的訊息和一般連不上一樣。
+    private static string? BlockedDetail(Exception exception) => exception is BlockedAddressException blocked ? blocked.Message : null;
 
     private static EmailDeliveryException TranslateCommand(SmtpCommandException command, bool sending)
     {
         var permanent = (int)command.StatusCode >= FirstPermanentFailureCode;
         if (command.ErrorCode == SmtpErrorCode.SenderNotAccepted)
         {
-            return new EmailDeliveryException(EmailFailureKind.SenderRejected, "對方拒收寄件人地址", command.Message, command);
+            return new EmailDeliveryException(EmailFailureKind.SenderRejected, "對方拒收寄件人地址", command.Message, command, (int)command.StatusCode);
         }
 
         if (!sending)
         {
-            return new EmailDeliveryException(EmailFailureKind.Other, "對方主機拒絕了連線", command.Message, command);
+            return new EmailDeliveryException(EmailFailureKind.Other, "對方主機拒絕了連線", command.Message, command, (int)command.StatusCode);
         }
 
         // 連線、登入、MAIL FROM 都過了：之後的拒絕只和這個收件人、這封信有關。
         if (!permanent)
         {
             return new EmailDeliveryException(
-                EmailFailureKind.RecipientTemporarilyFailed, "對方暫時收不了這個收件人的信", command.Message, command);
+                EmailFailureKind.RecipientTemporarilyFailed, "對方暫時收不了這個收件人的信", command.Message, command, (int)command.StatusCode);
         }
 
         return command.ErrorCode == SmtpErrorCode.RecipientNotAccepted
-            ? new EmailDeliveryException(EmailFailureKind.RecipientRejected, "對方拒收這個收件人", command.Message, command)
-            : new EmailDeliveryException(EmailFailureKind.MessageRejected, "對方主機拒收了這封信", command.Message, command);
+            ? new EmailDeliveryException(EmailFailureKind.RecipientRejected, "對方拒收這個收件人", command.Message, command, (int)command.StatusCode)
+            : new EmailDeliveryException(EmailFailureKind.MessageRejected, "對方主機拒收了這封信", command.Message, command, (int)command.StatusCode);
     }
 
     private static string AuthenticationMessage(SmtpConnection connection) =>

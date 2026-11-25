@@ -44,6 +44,7 @@ public static class NotificationsModule
         services.TryAddSingleton(new NotificationsDatabase(connections));
         services.AddDbContextFactory<NotificationsDbContext>(options => NotificationsDbContext.Configure(options, connections.Runtime));
         services.TryAddSingleton(ObserverLimits.Default);
+        services.TryAddSingleton(EmailDispatchLimits.Default);
         services.TryAddSingleton(options ?? new NotificationsModuleOptions());
         services.TryAddScoped<INotificationInbox, NotificationInbox>();
         services.TryAddScoped<IItemSubscriptionService, ItemSubscriptionService>();
@@ -53,7 +54,8 @@ public static class NotificationsModule
         services.TryAddEnumerable(ServiceDescriptor.Singleton<PmTool.Identity.IAccountEventSink, AccountNotices.AccountNoticeSink>());
 
         // 寄信的傳送放在內部介面後面，TryAdd：測試先放假的，就不會真的連出去。
-        services.TryAddSingleton<IEmailTransport, MailKitEmailTransport>();
+        services.TryAddSingleton<IEmailTransport>(provider =>
+            new MailKitEmailTransport(allowPrivateHosts: provider.GetRequiredService<NotificationsModuleOptions>().AllowPrivateEmailHosts));
         services.TryAddSingleton<EmailPasswordProtector>();
         services.TryAddScoped<IEmailSettingsService, EmailSettingsService>();
         services.TryAddScoped<IEmailPreferenceService, EmailPreferenceService>();

@@ -231,13 +231,13 @@ public sealed class EmailFailureTests : EmailTestBase
     }
 
     [Test]
-    public async Task Dispatch_ServerResponseWithControlCharacters_IsStoredCleanAndShort()
+    public async Task Dispatch_ServerResponse_IsNotStoredButIsLoggedWithoutControlCharacters()
     {
         // Arrange
         await OneNotificationAsync();
-        var response = "535 5.7.8 Bad credentials\r\n" + new string('x', 2000);
+        var response = "535 5.7.8 Bad credentials for relay.internal.example\r\n" + new string('x', 2000);
         Transport.OnOpen = _ => new EmailDeliveryException(
-            EmailFailureKind.AuthenticationFailed, "帳號或密碼不對（Gmail 要用應用程式密碼，不是登入密碼）", response);
+            EmailFailureKind.AuthenticationFailed, "帳號或密碼不對（Gmail 要用應用程式密碼，不是登入密碼）", response, statusCode: 535);
 
         // Act
         await DispatchAsync();
@@ -246,9 +246,11 @@ public sealed class EmailFailureTests : EmailTestBase
         var error = (await StatusAsync()).LastError!;
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(error, Does.StartWith("帳號或密碼不對（Gmail 要用應用程式密碼，不是登入密碼）（535 5.7.8 Bad credentials"));
-            Assert.That(error.Length, Is.LessThanOrEqualTo(500));
-            Assert.That(error, Does.Not.Contain('\r').And.Not.Contain('\n'));
+            Assert.That(error, Is.EqualTo("帳號或密碼不對（Gmail 要用應用程式密碼，不是登入密碼）（535）"));
+            Assert.That(error, Does.Not.Contain("relay.internal.example"));
+            Assert.That(
+                Host.Logs.Entries,
+                Has.Some.Matches<CapturedLog>(log => log.Level == LogLevel.Warning && log.Message.Contains("relay.internal.example") && !log.Message.Contains('\n')));
         }
     }
 

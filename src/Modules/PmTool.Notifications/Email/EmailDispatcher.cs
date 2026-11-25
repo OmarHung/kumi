@@ -15,6 +15,7 @@ internal sealed partial class EmailDispatcher(
     IDbContextFactory<NotificationsDbContext> contexts,
     NotificationVisibility visibility,
     IEmailTransport transport,
+    EmailDispatchLimits limits,
     EmailPasswordProtector protector,
     PmTool.Identity.IPeopleDirectory people,
     IOrganizationClock organizationClock,
@@ -137,6 +138,10 @@ internal sealed partial class EmailDispatcher(
         var zone = await organizationClock.TimeZoneAsync(settings.OrganizationId, cancellationToken);
         var sender = (Address: EmailSenderIdentity.FromAddressOf(settings.Provider, settings.Username, settings.FromAddress), settings.FromName);
 
+        // 期限只交給傳輸（連線、寄信）；標成處理完、記錄成功與失敗一律用外面的權杖，
+        // 不然信寄出去了卻來不及標記，下一輪會再寄一次。
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(limits.OrganizationBudget);
         IEmailSession? session = null;
         var sent = 0;
         try
@@ -145,17 +150,29 @@ internal sealed partial class EmailDispatcher(
             {
                 foreach (var prepared in await PrepareAsync(settings, recipientId, sender, zone, cancellationToken))
                 {
-                    session ??= await transport.OpenAsync(connection, cancellationToken);
-                    if (await TrySendAsync(session, settings, prepared, cancellationToken))
+                    session ??= await transport.OpenAsync(connection, budget.Token);
+                    if (await TrySendAsync(session, settings, prepared, budget.Token, cancellationToken))
                     {
                         sent++;
                     }
                 }
             }
         }
+        catch (OperationCanceledException) when (budget.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            LogOrganizationTimedOut(logger, settings.OrganizationId, limits.OrganizationBudget.TotalSeconds);
+
+            // 這一輪已經寄出信，只是收件人太多、時間用完：不是對方主機的問題，不記成失敗也不退避（記了畫面上會一直顯示失敗），
+            // 下一輪接著寄。一封都沒寄出去才是連線或對方卡住，照舊記成失敗。
+            // 取消若發生在對方已經收下信、回應還沒讀到的瞬間，那一封沒有被標成處理完，下一輪可能重寄（SMTP 本來就是至少一次）。
+            if (sent == 0)
+            {
+                await RecordFailureAsync(settings, limits.ExceededMessage, cancellationToken);
+            }
+        }
         catch (EmailDeliveryException exception)
         {
-            LogOrganizationFailed(logger, settings.OrganizationId, exception.Kind, connection.ToString());
+            LogOrganizationFailed(logger, settings.OrganizationId, exception.Kind, connection.ToString(), exception.LoggableServerResponse);
             await RecordFailureAsync(settings, exception.Describe(NotificationsDbContext.MaxEmailErrorLength), cancellationToken);
         }
         finally
@@ -174,11 +191,11 @@ internal sealed partial class EmailDispatcher(
     /// 暫時的（4xx）通知照舊在等、下一輪再試；其他的失敗往外丟，由組織層級處理。
     /// </summary>
     private async Task<bool> TrySendAsync(
-        IEmailSession session, EmailSettingsRow settings, PreparedEmail prepared, CancellationToken cancellationToken)
+        IEmailSession session, EmailSettingsRow settings, PreparedEmail prepared, CancellationToken sendToken, CancellationToken cancellationToken)
     {
         try
         {
-            await session.SendAsync(prepared.Email, cancellationToken);
+            await session.SendAsync(prepared.Email, sendToken);
         }
         catch (EmailDeliveryException exception)
             when (exception.Kind is EmailFailureKind.RecipientRejected or EmailFailureKind.InvalidRecipient or EmailFailureKind.MessageRejected)
@@ -225,8 +242,12 @@ internal sealed partial class EmailDispatcher(
             cancellationToken);
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "組織 {OrganizationId} 的 Email 寄不出去（{Kind}，{Endpoint}），稍後再試。")]
-    private static partial void LogOrganizationFailed(ILogger logger, Guid organizationId, EmailFailureKind kind, string endpoint);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "組織 {OrganizationId} 的 Email 寄不出去（{Kind}，{Endpoint}，對方回應：{ServerResponse}），稍後再試。")]
+    private static partial void LogOrganizationFailed(
+        ILogger logger, Guid organizationId, EmailFailureKind kind, string endpoint, string? serverResponse);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "組織 {OrganizationId} 這一輪寄送超過 {Seconds} 秒，記成失敗，換下一個組織。")]
+    private static partial void LogOrganizationTimedOut(ILogger logger, Guid organizationId, double seconds);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "組織 {OrganizationId} 的收件人 {PersonId} 寄不了（{Kind}），略過他的通知。")]
     private static partial void LogRecipientRejected(ILogger logger, Guid organizationId, Guid personId, EmailFailureKind kind);

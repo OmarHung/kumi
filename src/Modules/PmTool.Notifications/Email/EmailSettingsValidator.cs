@@ -1,6 +1,8 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using MimeKit;
 using PmTool.Abstractions;
+using PmTool.Http;
 using PmTool.Notifications.Persistence;
 
 namespace PmTool.Notifications.Email;
@@ -49,7 +51,9 @@ internal static partial class EmailSettingsValidator
 
     /// <param name="requireFields">寄測試信時一律當作開著，必填的欄位都要有。</param>
     /// <param name="existing">已經存的設定（沒存過是 null）：密碼沿用時算有密碼，也要確認沒有換目的地。</param>
-    public static Result<ValidatedEmailSettings> Validate(EmailSettingsInput input, bool requireFields, EmailSettingsRow? existing)
+    /// <param name="allowPrivateHosts">部署允許連內網與本機的位址；不允許時，主機寫成這類 IPv4 位址的當場擋下（主機名稱要等連線時才知道解析到哪裡）。</param>
+    public static Result<ValidatedEmailSettings> Validate(
+        EmailSettingsInput input, bool requireFields, EmailSettingsRow? existing, bool allowPrivateHosts)
     {
         ArgumentNullException.ThrowIfNull(input);
         var hasStoredPassword = existing?.ProtectedPassword is not null;
@@ -81,7 +85,7 @@ internal static partial class EmailSettingsValidator
         SmtpSecurity? security = null;
         if (!isGmail)
         {
-            host = CheckHost(input.Host, required, problems);
+            host = CheckHost(input.Host, required, allowPrivateHosts, problems);
             port = CheckPort(input.Port, required, problems);
             security = input.Security;
             CheckSecurity(security, required, username is not null || hasPassword, problems);
@@ -162,7 +166,7 @@ internal static partial class EmailSettingsValidator
         }
     }
 
-    private static string? CheckHost(string? raw, bool required, List<FailureDetail> problems)
+    private static string? CheckHost(string? raw, bool required, bool allowPrivateHosts, List<FailureDetail> problems)
     {
         var host = Clean(raw, HostPath, EmailRules.MaxHostLength, problems);
         if (host is null)
@@ -178,6 +182,10 @@ internal static partial class EmailSettingsValidator
         if (!HostPattern().IsMatch(host))
         {
             problems.Add(Invalid(HostPath, "主機只能是主機名稱（英數字、點與連字號）或 IPv4 位址。"));
+        }
+        else if (!allowPrivateHosts && IPAddress.TryParse(host, out var literal) && PublicAddressGuard.IsBlocked(literal))
+        {
+            problems.Add(Invalid(HostPath, "不能是內網或本機的位址。"));
         }
 
         return host;

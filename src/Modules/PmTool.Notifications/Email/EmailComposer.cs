@@ -131,17 +131,18 @@ internal static partial class EmailComposer
     private static string Describe(NotificationRow row) => row.Kind switch
     {
         NotificationKind.Assigned => "把這個項目指派給你",
-        NotificationKind.Mentioned => WithExcerpt("提及了你", row.Excerpt),
-        NotificationKind.Commented => WithExcerpt("留言", row.Excerpt),
+        NotificationKind.Mentioned => WithExcerpt("提及了你", row),
+        NotificationKind.Commented => WithExcerpt("留言", row),
         NotificationKind.StateChanged => row.FromStateName is null
             ? $"把狀態改成「{row.ToStateName}」"
             : $"把狀態從「{row.FromStateName}」改成「{row.ToStateName}」",
-        NotificationKind.Replied => WithExcerpt("回覆了你的留言", row.Excerpt),
+        NotificationKind.Replied => WithExcerpt("回覆了你的留言", row),
         _ => "有新動態",
     };
 
-    private static string WithExcerpt(string action, string? excerpt) =>
-        string.IsNullOrWhiteSpace(excerpt) ? action : $"{action}：『{excerpt}』";
+    // 留言編輯過就註明：信裡看到的是編輯之後的內容，不是對方當初說的。
+    private static string WithExcerpt(string action, NotificationRow row) =>
+        string.IsNullOrWhiteSpace(row.Excerpt) ? action : $"{action}：『{row.Excerpt}』{(row.ExcerptEditedAt is null ? string.Empty : "（已編輯）")}";
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
 

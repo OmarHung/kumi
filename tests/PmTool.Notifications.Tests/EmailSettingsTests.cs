@@ -309,7 +309,8 @@ public sealed class EmailSettingsTests : EmailTestBase
     }
 
     [TestCase("smtp.example.com", true)]
-    [TestCase("192.168.1.10", true)]
+    [TestCase("8.8.8.8", true)]
+    [TestCase("192.168.1.10", false)]
     [TestCase("mail-1.example.com", true)]
     [TestCase("smtp example.com", false)]
     [TestCase("smtp.example.com/path", false)]
@@ -455,7 +456,7 @@ public sealed class EmailSettingsTests : EmailTestBase
         {
             Assert.That(result.Failure?.Kind, Is.EqualTo(FailureKind.Invalid));
             Assert.That(result.Failure?.Code, Is.EqualTo(NotificationErrorCodes.EmailSendFailed));
-            Assert.That(result.Failure?.Message, Is.EqualTo("帳號或密碼不對（535 5.7.8 Bad credentials）"));
+            Assert.That(result.Failure?.Message, Is.EqualTo("帳號或密碼不對"));
             Assert.That((await GetAsync()).Status.LastFailedAt, Is.Null);
         }
     }

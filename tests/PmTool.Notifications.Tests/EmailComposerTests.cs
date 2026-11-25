@@ -40,6 +40,37 @@ public sealed class EmailComposerTests
         CreatedAt = At,
     };
 
+    [Test]
+    public void Notification_EditedExcerpt_AddsTheEditedMarkInHtmlAndText()
+    {
+        // Arrange
+        var row = Row(NotificationKind.Commented, excerpt: "新內容") with { ExcerptEditedAt = At.AddMinutes(1) };
+
+        // Act
+        var mail = EmailComposer.Notification(Context(), [row]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.TextBody, Does.Contain("『新內容』（已編輯）"));
+            Assert.That(mail.HtmlBody, Does.Contain("『新內容』（已編輯）"));
+        }
+    }
+
+    [Test]
+    public void Notification_ExcerptNeverEdited_HasNoEditedMark()
+    {
+        // Act
+        var mail = EmailComposer.Notification(Context(), [Row(NotificationKind.Commented, excerpt: "原文")]);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(mail.TextBody, Does.Not.Contain("已編輯"));
+            Assert.That(mail.HtmlBody, Does.Not.Contain("已編輯"));
+        }
+    }
+
     [TestCase(NotificationKind.Assigned, "王小明 指派給你：MNT-12 修正登入頁")]
     [TestCase(NotificationKind.Mentioned, "王小明 提及了你：MNT-12 修正登入頁")]
     [TestCase(NotificationKind.Commented, "王小明 留言：MNT-12 修正登入頁")]

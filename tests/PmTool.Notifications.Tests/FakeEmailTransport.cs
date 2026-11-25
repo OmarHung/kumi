@@ -28,6 +28,9 @@ internal sealed class FakeEmailTransport : IEmailTransport
     /// <summary>寄信時回傳例外就失敗（這封信不算寄出）；null 是成功。</summary>
     public Func<OutgoingEmail, EmailDeliveryException?> OnSend { get; set; } = _ => null;
 
+    /// <summary>回傳 true 的信寄的時候不回應，直到被取消；模擬一台卡住的郵件主機。</summary>
+    public Func<OutgoingEmail, bool> HangOnSend { get; set; } = _ => false;
+
     /// <summary>設了之後，寄信會停在這裡（並通知 <see cref="Entered"/>）直到它完成；測試用來模擬「正在寄」。</summary>
     public TaskCompletionSource? Gate { get; set; }
 
@@ -44,6 +47,11 @@ internal sealed class FakeEmailTransport : IEmailTransport
         public async Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
         {
             owner.Entered.TrySetResult();
+            if (owner.HangOnSend(email))
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+
             if (owner.Gate is { } gate)
             {
                 await gate.Task.WaitAsync(cancellationToken);

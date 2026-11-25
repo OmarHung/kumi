@@ -69,7 +69,7 @@ public sealed class EmailMailpitRecipientTests
     public async Task SendAsync_RecipientRefusedWith5xx_ThrowsRecipientRejectedAndTheSameSessionStillDeliversTheNext()
     {
         // Arrange
-        var transport = new MailKitEmailTransport();
+        var transport = new MailKitEmailTransport(allowPrivateHosts: true);
         var refused = $"nobody-{Guid.NewGuid():N}@example.com";
         var accepted = $"ok-{Guid.NewGuid():N}@example.com";
         await using var session = await transport.OpenAsync(Connection, CancellationToken.None);
@@ -91,7 +91,7 @@ public sealed class EmailMailpitRecipientTests
     public async Task SendAsync_SeveralRefusalsInARow_NeverBreakTheSession()
     {
         // Arrange
-        var transport = new MailKitEmailTransport();
+        var transport = new MailKitEmailTransport(allowPrivateHosts: true);
         var accepted = $"ok-{Guid.NewGuid():N}@example.com";
         await using var session = await transport.OpenAsync(Connection, CancellationToken.None);
 
@@ -114,7 +114,7 @@ public sealed class EmailMailpitRecipientTests
     public async Task SendAsync_AddressTheLibraryCannotParse_ThrowsInvalidRecipientAndTheSessionStaysUsable(string address)
     {
         // Arrange
-        var transport = new MailKitEmailTransport();
+        var transport = new MailKitEmailTransport(allowPrivateHosts: true);
         var accepted = $"ok-{Guid.NewGuid():N}@example.com";
         await using var session = await transport.OpenAsync(Connection, CancellationToken.None);
 
@@ -141,7 +141,7 @@ public sealed class EmailMailpitRecipientTests
         Guid refused = Guid.CreateVersion7(), accepted = Guid.CreateVersion7(), actor = Guid.CreateVersion7();
         var acceptedAddress = $"ok-{accepted:N}@example.com";
         await using var host = await NotificationsTestHost.StartAsync(
-            new PmTool.Abstractions.DatabaseConnections(await PostgresServer.CreateDatabaseAsync()), null, clock, null, useRealEmailTransport: true);
+            new PmTool.Abstractions.DatabaseConnections(await PostgresServer.CreateDatabaseAsync()), null, clock, null, useRealEmailTransport: true, allowPrivateEmailHosts: true);
         host.Access.Allow(item.ProjectId, refused, accepted, actor);
         host.People.Add(organization, refused, "Refused", $"nobody-{refused:N}@example.com");
         host.People.Add(organization, accepted, "Accepted", acceptedAddress);

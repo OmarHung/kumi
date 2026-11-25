@@ -80,7 +80,7 @@ public sealed class EmailMailpitTests
         Guid me = Guid.CreateVersion7(), other = Guid.CreateVersion7();
         var recipient = $"me-{me:N}@example.com";
         await using var host = await NotificationsTestHost.StartAsync(
-            new PmTool.Abstractions.DatabaseConnections(await PostgresServer.CreateDatabaseAsync()), null, clock, null, useRealEmailTransport: true);
+            new PmTool.Abstractions.DatabaseConnections(await PostgresServer.CreateDatabaseAsync()), null, clock, null, useRealEmailTransport: true, allowPrivateEmailHosts: true);
         host.Access.Allow(item.ProjectId, me, other);
         host.People.Add(organization, me, "Me <Example>", recipient);
         host.People.Add(organization, other, "Other & Co", $"other-{other:N}@example.com");
@@ -134,10 +134,91 @@ public sealed class EmailMailpitTests
     }
 
     [Test]
+    public async Task OpenAsync_LoopbackHostWhenPrivateHostsAreNotAllowed_IsBlockedWithTheSameMessageAsUnreachable()
+    {
+        // Arrange：測試容器的主機在本機的位址。
+        var transport = new MailKitEmailTransport();
+        var connection = new SmtpConnection(Mailpit.Hostname, MappedSmtpPort, SmtpSecurity.None, null, null);
+
+        // Act
+        var failure = Assert.ThrowsAsync<EmailDeliveryException>(async () => await transport.OpenAsync(connection, CancellationToken.None));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(failure!.Kind, Is.EqualTo(EmailFailureKind.Unreachable));
+            Assert.That(failure.Describe(500), Is.EqualTo($"連不上 {Mailpit.Hostname}:{MappedSmtpPort}（請確認主機與連接埠；這個部署不連內網與本機的位址）"));
+        }
+
+        await Task.CompletedTask;
+    }
+
+    [Test]
+    public async Task Dispatch_PrivateSmtpHost_IsBlockedByDefaultAndSendsWhenTheDeploymentAllowsIt()
+    {
+        // Arrange
+        var blocked = await DispatchWithMailpitAsync(allowPrivateHosts: false);
+        var allowed = await DispatchWithMailpitAsync(allowPrivateHosts: true);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(blocked.Sent, Is.Zero);
+            Assert.That(blocked.LastError, Does.StartWith($"連不上 {Mailpit.Hostname}:{MappedSmtpPort}（請確認主機與連接埠；這個部署不連內網與本機的位址）"));
+            Assert.That(allowed.Sent, Is.EqualTo(1));
+            Assert.That(allowed.LastError, Is.Null);
+        }
+
+        var summary = await WaitForMessageAsync(allowed.Recipient);
+        Assert.That(summary.GetProperty("Subject").GetString(), Does.Contain("WEB-1"));
+        await Task.CompletedTask;
+    }
+
+    private async Task<(int Sent, string? LastError, string Recipient)> DispatchWithMailpitAsync(bool allowPrivateHosts)
+    {
+        var clock = new ManualClock();
+        var organization = Guid.CreateVersion7();
+        var item = new EventBuilder(organization, Guid.CreateVersion7(), Guid.CreateVersion7());
+        Guid me = Guid.CreateVersion7(), other = Guid.CreateVersion7();
+        var recipient = $"me-{me:N}@example.com";
+        await using var host = await NotificationsTestHost.StartAsync(
+            new PmTool.Abstractions.DatabaseConnections(await PostgresServer.CreateDatabaseAsync()), null, clock, null,
+            useRealEmailTransport: true, allowPrivateEmailHosts: allowPrivateHosts);
+        host.Access.Allow(item.ProjectId, me, other);
+        host.People.Add(organization, me, "Me", recipient);
+        host.People.Add(organization, other, "Other", $"other-{other:N}@example.com");
+        await using (var db = await host.CreateDbContextAsync())
+        {
+            db.EmailSettings.Add(new EmailSettingsRow
+            {
+                OrganizationId = organization,
+                Enabled = true,
+                Provider = EmailProvider.Smtp,
+                Host = Mailpit.Hostname,
+                Port = MappedSmtpPort,
+                Security = SmtpSecurity.None,
+                FromAddress = "noreply@example.com",
+                SiteUrl = "https://pm.example.com",
+                UpdatedAt = clock.GetUtcNow(),
+                UpdatedBy = other,
+                ConsecutiveFailures = 0,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await host.Consumer.HandleAsync([item.Created(other, assignee: me) with { OccurredAt = clock.GetUtcNow() }], CancellationToken.None);
+        clock.Advance(EmailRules.Delay + TimeSpan.FromSeconds(1));
+        var sent = await host.Dispatcher.DispatchAsync(CancellationToken.None);
+        await using var read = await host.CreateDbContextAsync();
+        var lastError = (await read.EmailSettings.AsNoTracking().SingleAsync(s => s.OrganizationId == organization)).LastError;
+        return (sent, lastError, recipient);
+    }
+
+    [Test]
     public void OpenAsync_NothingListening_ThrowsUnreachable()
     {
         // Arrange
-        var transport = new MailKitEmailTransport();
+        var transport = new MailKitEmailTransport(allowPrivateHosts: true);
 
         // Act
         var failure = Assert.ThrowsAsync<EmailDeliveryException>(async () =>
@@ -151,7 +232,7 @@ public sealed class EmailMailpitTests
     public void OpenAsync_StartTlsAgainstAServerWithoutIt_FailsInsteadOfFallingBackToPlainText()
     {
         // Arrange
-        var transport = new MailKitEmailTransport();
+        var transport = new MailKitEmailTransport(allowPrivateHosts: true);
 
         // Act
         var failure = Assert.ThrowsAsync<EmailDeliveryException>(async () =>
@@ -165,7 +246,7 @@ public sealed class EmailMailpitTests
     public async Task SendAsync_ThroughOneSession_DeliversSeveralMails()
     {
         // Arrange
-        var transport = new MailKitEmailTransport();
+        var transport = new MailKitEmailTransport(allowPrivateHosts: true);
         var first = $"a-{Guid.NewGuid():N}@example.com";
         var second = $"b-{Guid.NewGuid():N}@example.com";
 

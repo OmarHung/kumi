@@ -94,7 +94,9 @@ internal sealed class NotificationsTestHost : IAsyncDisposable
         IWorkEventStream? stream = null,
         bool useRealEmailTransport = false,
         IReadOnlyList<INotificationObserver>? observers = null,
-        TimeSpan? observerTimeout = null)
+        TimeSpan? observerTimeout = null,
+        TimeSpan? emailBudget = null,
+        bool allowPrivateEmailHosts = false)
     {
         access ??= new FakeWorkAccessQueries();
         var logs = new CapturedLogs();
@@ -114,12 +116,17 @@ internal sealed class NotificationsTestHost : IAsyncDisposable
             services.AddSingleton(new PmTool.Notifications.Events.ObserverLimits(timeout));
         }
 
+        if (emailBudget is { } budget)
+        {
+            services.AddSingleton(new EmailDispatchLimits(budget));
+        }
+
         foreach (var observer in observers ?? [])
         {
             services.AddSingleton(observer);
         }
 
-        services.AddNotificationsModule(connections);
+        services.AddNotificationsModule(connections, new NotificationsModuleOptions(allowPrivateEmailHosts));
         var provider = services.BuildServiceProvider(StrictOptions);
         foreach (var initializer in provider.GetServices<IModuleInitializer>())
         {

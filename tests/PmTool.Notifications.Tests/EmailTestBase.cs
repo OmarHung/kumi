@@ -28,11 +28,18 @@ public abstract class EmailTestBase
 
     protected Guid AdminId { get; } = Guid.CreateVersion7();
 
+    /// <summary>寄信一輪的時間上限；null 用預設。測試要短的時，覆寫它。</summary>
+    protected virtual TimeSpan? EmailBudget => null;
+
+    /// <summary>部署是否允許寄信主機在內網或本機；預設不允許，和正式的預設一樣。</summary>
+    protected virtual bool AllowPrivateHosts => false;
+
     [SetUp]
     public async Task StartHostAsync()
     {
         Clock = new ManualClock();
-        _host = await NotificationsTestHost.StartAsync(Clock);
+        _host = await NotificationsTestHost.StartAsync(
+            new PmTool.Abstractions.DatabaseConnections(await PostgresServer.CreateDatabaseAsync()), null, Clock, emailBudget: EmailBudget, allowPrivateEmailHosts: AllowPrivateHosts);
     }
 
     [TearDown]

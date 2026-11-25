@@ -14,6 +14,7 @@ internal sealed partial class EmailSettingsService(
     EmailPasswordProtector protector,
     IEmailTransport transport,
     TimeProvider clock,
+    NotificationsModuleOptions moduleOptions,
     ILogger<EmailSettingsService> logger) : IEmailSettingsService
 {
     public async Task<Result<EmailSettings>> GetAsync(Actor actor, CancellationToken cancellationToken)
@@ -44,7 +45,7 @@ internal sealed partial class EmailSettingsService(
             $"SELECT pg_advisory_xact_lock(hashtextextended({"email_settings:" + actor.OrganizationId}, 0))", cancellationToken);
 
         var existing = await db.EmailSettings.AsNoTracking().SingleOrDefaultAsync(s => s.OrganizationId == actor.OrganizationId, cancellationToken);
-        var validated = EmailSettingsValidator.Validate(input, requireFields: false, existing);
+        var validated = EmailSettingsValidator.Validate(input, requireFields: false, existing, moduleOptions.AllowPrivateEmailHosts);
         if (validated.Failure is { } invalid)
         {
             return invalid;
@@ -91,7 +92,7 @@ internal sealed partial class EmailSettingsService(
             existing = await db.EmailSettings.AsNoTracking().SingleOrDefaultAsync(s => s.OrganizationId == actor.OrganizationId, cancellationToken);
         }
 
-        var validated = EmailSettingsValidator.Validate(input, requireFields: true, existing);
+        var validated = EmailSettingsValidator.Validate(input, requireFields: true, existing, moduleOptions.AllowPrivateEmailHosts);
         if (validated.Failure is { } invalid)
         {
             return invalid;
@@ -116,7 +117,7 @@ internal sealed partial class EmailSettingsService(
         }
         catch (EmailDeliveryException exception)
         {
-            LogTestFailed(logger, exception.Kind, connection.ToString());
+            LogTestFailed(logger, exception.Kind, connection.ToString(), exception.LoggableServerResponse);
             return new Failure(
                 FailureKind.Invalid, NotificationErrorCodes.EmailSendFailed, exception.Describe(NotificationsDbContext.MaxEmailErrorLength));
         }
@@ -198,6 +199,6 @@ internal sealed partial class EmailSettingsService(
         ? null
         : new Failure(FailureKind.Forbidden, NotificationErrorCodes.EmailForbidden, "只有組織的擁有者或管理員能看、能改寄信設定。");
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "測試信寄不出去（{Kind}，{Endpoint}）。")]
-    private static partial void LogTestFailed(ILogger logger, EmailFailureKind kind, string endpoint);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "測試信寄不出去（{Kind}，{Endpoint}，對方回應：{ServerResponse}）。")]
+    private static partial void LogTestFailed(ILogger logger, EmailFailureKind kind, string endpoint, string? serverResponse);
 }
