@@ -140,6 +140,11 @@ itemTypes:
 
 - **內建的 AI 助理** — 接 Anthropic、OpenAI、Google Gemini、OpenRouter 或 OpenAI 相容的端點；組織管理員接組織的，也可以開放成員接自己的帳號。每一頁右下角都叫得出來。
 - **只提出、不寫入** — 助理能做的最多是提出藍圖的變更集或項目的修改建議，你在卡片上按「套用」，才以你自己的身分、照你的權限寫入。
+
+<p align="center">
+  <img src="docs/assets/readme/assistant.webp" alt="項目頁右下角開著 AI 助理：使用者請它把項目改成審查中並留言請同事驗收，助理讀了項目與設定，提出一張修改建議卡片（狀態從進行中改成審查中、一則提及同事的留言），下面有套用與不要" width="100%">
+</p>
+
 - **MCP 伺服器** — `/mcp` 讓你電腦上的 Claude Code／Codex 用自己的訂閱、以 Kumi 帳號授權（OAuth 2.1 加 PKCE）連進來，權限等於授權的人。見 [docs/MCP.md](docs/MCP.md)。
 - **本機代理** — `kumi agent start` 讓網頁的助理改用你電腦上的 Claude Code／Codex 回答，伺服器不連進你的電腦，引擎只拿得到限定的工具。
 - **主機 AI 代理**（選用）— 組織擁有者在主機上常駐一套 Claude Code／Codex 給全組織用，只接受 API 用量計費的登入。見 [docs/OPERATIONS.md](docs/OPERATIONS.md) 第 17 節。
