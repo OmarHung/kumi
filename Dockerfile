@@ -3,8 +3,9 @@
 # 怎麼更新見 docs/DEPLOYMENT.md 第 7 節。
 
 # 網頁建置階段：Vite 把 React 應用建置成靜態檔，之後由 API 主機一起提供。
+# 產物和平台無關，用建置機器本身的平台跑（在 Mac 上建 amd64 的映像檔時不必經過模擬）。
 # Node.js 24.22.3
-FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS web
+FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS web
 WORKDIR /web
 
 # 先只複製套件清單做安裝。原始碼改動不會讓這一層失效，套件不必每次重抓。
@@ -15,8 +16,10 @@ COPY web/ ./
 RUN npm run build
 
 # 建置階段：只還原、發佈 API 與它引用的模組，測試專案不進映像檔。
+# 用建置機器本身的平台跑：發佈的是和平台無關的組件（UseAppHost=false、不指定 RID），只有最後的執行環境要是目標平台。
+# 在 Mac 上建 amd64 的映像檔時，模擬下的 dotnet restore 曾經卡住一個多小時。
 # .NET SDK 10.0.404（執行環境 10.0.15）
-FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
 WORKDIR /src
 
 # 先只複製專案檔與共用設定做還原。原始碼改動不會讓這一層失效，套件不必每次重抓。
