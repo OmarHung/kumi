@@ -54,6 +54,9 @@ internal sealed record PageRow
 
     public required bool IsRestricted { get; init; }
 
+    /// <summary>設定這一頁限制的人；沒有限制或舊資料查不出來時是 null。只有他與空間的管理者能放寬。</summary>
+    public Guid? RestrictedBy { get; init; }
+
     public required Guid CreatedBy { get; init; }
 
     public required DateTimeOffset CreatedAt { get; init; }

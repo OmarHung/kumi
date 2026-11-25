@@ -141,6 +141,11 @@ namespace PmTool.Work.Persistence.Migrations
                     b.HasIndex("OrganizationId", "ItemId", "UploadedAt")
                         .HasDatabaseName("ix_attachments_organization_id_item_id_uploaded_at");
 
+                    b.HasIndex("OrganizationId", "UploadedBy", "UploadedAt")
+                        .HasDatabaseName("ix_attachments_quota");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("OrganizationId", "UploadedBy", "UploadedAt"), new[] { "SizeBytes" });
+
                     b.ToTable("attachments", "work");
                 });
 

@@ -216,6 +216,10 @@ namespace PmTool.Notifications.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("excerpt");
 
+                    b.Property<DateTimeOffset?>("ExcerptEditedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excerpt_edited_at");
+
                     b.Property<string>("FromStateName")
                         .HasColumnType("text")
                         .HasColumnName("from_state_name");
@@ -271,6 +275,10 @@ namespace PmTool.Notifications.Persistence.Migrations
                         .HasDatabaseName("ix_notifications_email_pending")
                         .HasFilter("email_handled_at IS NULL");
 
+                    b.HasIndex("OrganizationId", "ItemId")
+                        .HasDatabaseName("ix_notifications_item")
+                        .HasFilter("item_id IS NOT NULL");
+
                     b.HasIndex("OrganizationId", "RecipientId")
                         .HasDatabaseName("ix_notifications_unread")
                         .HasFilter("read_at IS NULL");
@@ -278,6 +286,10 @@ namespace PmTool.Notifications.Persistence.Migrations
                     b.HasIndex("EventId", "RecipientId", "Kind")
                         .IsUnique()
                         .HasDatabaseName("ux_notifications_event_recipient_kind");
+
+                    b.HasIndex("OrganizationId", "CommentId", "RecipientId")
+                        .HasDatabaseName("ix_notifications_comment")
+                        .HasFilter("comment_id IS NOT NULL");
 
                     b.HasIndex("OrganizationId", "RecipientId", "CreatedAt", "Id")
                         .IsDescending(false, false, true, true)

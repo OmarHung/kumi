@@ -42,4 +42,22 @@ public static class KnowledgeRules
     /// 寫文件的人會一直按儲存，版本清單要看得出「誰在什麼時候改了一輪」。
     /// </summary>
     public static readonly TimeSpan VersionMergeWindow = TimeSpan.FromMinutes(15);
+
+    /// <summary>一個空間的垃圾桶最多幾批（一次刪除算一批）。滿了就不能再刪，要先永久刪除。</summary>
+    public const int MaxTrashBatchesPerSpace = 1_000;
+
+    /// <summary>
+    /// 一個空間的垃圾桶最多幾頁。一批最多可以有一整棵樹，只限批數擋不住一批塞滿幾千頁。
+    /// </summary>
+    public const int MaxTrashPagesPerSpace = 20_000;
+
+    public const int DefaultTrashPageSize = 50;
+
+    public const int MaxTrashPageSize = 100;
+
+    /// <summary>清掉到期的批時，一次最多清幾批。</summary>
+    public const int MaxBatchesPerPurge = 200;
+
+    /// <summary>刪除超過這麼久的批才會被「清掉到期的」永久刪除。</summary>
+    public static readonly TimeSpan TrashPurgeAge = TimeSpan.FromDays(30);
 }

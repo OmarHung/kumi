@@ -14,6 +14,13 @@ internal sealed class FakeWorkAccessQueries : IWorkAccessQueries
     public static readonly IReadOnlyList<string> EditorPermissions =
         [WorkPermissions.ItemRead, WorkPermissions.ItemCreate, WorkPermissions.CommentCreate];
 
+    /// <summary>內建「執行者」：只看得到自己的項目（<c>item.read_own</c>），所以在專案空間是唯讀。</summary>
+    public static readonly IReadOnlyList<string> ExecutorPermissions =
+    [
+        WorkPermissions.ItemReadOwn, WorkPermissions.ItemCreate, WorkPermissions.ItemUpdate,
+        WorkPermissions.ItemTransition, WorkPermissions.CommentCreate, WorkPermissions.BlueprintRead,
+    ];
+
     public static readonly IReadOnlyList<string> ManagerPermissions =
         [WorkPermissions.ItemRead, WorkPermissions.ItemCreate, WorkPermissions.CommentCreate, WorkPermissions.ProjectManage];
 

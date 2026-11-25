@@ -17,6 +17,7 @@ const SAMPLE: Notification = {
   toStateName: null,
   excerpt: '設計稿更新了，請看一下第二頁的按鈕位置。',
   commentId: null,
+  edited: false,
   createdAt: '2026-11-24T08:00:00Z',
   readAt: null,
 };

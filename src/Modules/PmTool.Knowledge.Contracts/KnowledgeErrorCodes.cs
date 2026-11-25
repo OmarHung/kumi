@@ -97,4 +97,16 @@ public static class KnowledgeErrorCodes
 
     /// <summary>細項（422，路徑 fileName）：規則和項目的附件相同。</summary>
     public const string AttachmentNameInvalid = "knowledge.attachment_name_invalid";
+
+    /// <summary>組織的附件（項目與知識庫合計）已經到儲存空間的上限（409）。新的上傳被擋，讀取與下載照常。</summary>
+    public const string AttachmentQuotaExceeded = "knowledge.attachment_quota_exceeded";
+
+    /// <summary>這個人過去 24 小時上傳的量已經到每日上限（409）。</summary>
+    public const string AttachmentDailyQuotaExceeded = "knowledge.attachment_daily_quota_exceeded";
+
+    /// <summary>垃圾桶已經滿了（409）：批數到 <see cref="KnowledgeRules.MaxTrashBatchesPerSpace"/>，或頁數到 <see cref="KnowledgeRules.MaxTrashPagesPerSpace"/>。要空間的管理者先永久刪除幾批。</summary>
+    public const string TrashFull = "knowledge.trash_full";
+
+    /// <summary>只有設定這個限制的人或空間的管理者能放寬限制（拿掉限制、加人、搬出有限制的範圍）。對應 403。</summary>
+    public const string RestrictionOwnerRequired = "knowledge.restriction_owner_required";
 }

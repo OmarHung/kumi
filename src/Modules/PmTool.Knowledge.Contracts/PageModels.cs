@@ -90,7 +90,14 @@ public sealed record TrashEntry(
 /// <summary>一頁的限制。</summary>
 /// <param name="People">這一頁自己限制給哪些人看（依加入的順序）；沒有設是 null。</param>
 /// <param name="RestrictedAncestors">從上層繼承來的限制（從最上層往下）；要同時在每一份名單裡才看得到。</param>
-public sealed record PageRestriction(IReadOnlyList<Guid>? People, IReadOnlyList<PageReference> RestrictedAncestors);
+public sealed record PageRestriction(IReadOnlyList<Guid>? People, IReadOnlyList<PageReference> RestrictedAncestors)
+{
+    /// <summary>設定這個限制的人；沒有限制、或舊資料查不出來時是 null。只有他與空間的管理者能放寬。</summary>
+    public Guid? RestrictedBy { get; init; }
+
+    /// <summary>呼叫的人能不能放寬這一頁自己的限制（他是設定的人，或是空間的管理者）。</summary>
+    public bool CanRelax { get; init; }
+}
 
 /// <summary>頁面上傳的一個附件。內文用 <c>![檔名](attachment:編號)</c> 或 <c>[檔名](attachment:編號)</c> 參照它。</summary>
 /// <param name="Id">附件的編號（UUIDv7），也是儲存空間裡的鍵。</param>
@@ -122,3 +129,19 @@ public sealed record PageAttachmentContent(PageAttachment Attachment, Stream Con
 {
     public ValueTask DisposeAsync() => Content.DisposeAsync();
 }
+
+/// <param name="Cursor">上一頁回傳的 <see cref="TrashPage.NextCursor"/>；第一頁是 null。</param>
+/// <param name="Limit">1～<see cref="KnowledgeRules.MaxTrashPageSize"/>。</param>
+public sealed record TrashQuery(string? Cursor = null, int Limit = KnowledgeRules.DefaultTrashPageSize);
+
+/// <param name="Batches">垃圾桶裡的批數。</param>
+/// <param name="MaxBatches">批數的上限。</param>
+public sealed record TrashCapacity(int Batches, int MaxBatches);
+
+/// <param name="Capacity">只有空間的管理者才有（他看得到全部）；其他人是 null，免得從批數知道有看不到的批。</param>
+public sealed record TrashPage(IReadOnlyList<TrashEntry> Items, string? NextCursor, TrashCapacity? Capacity);
+
+/// <param name="DeletionId">null：清掉刪除超過 <see cref="KnowledgeRules.TrashPurgeAge"/> 的批（一次最多 <see cref="KnowledgeRules.MaxBatchesPerPurge"/> 批）；有值：立刻永久刪除這一批。</param>
+public sealed record TrashPurgeRequest(Guid? DeletionId);
+
+public sealed record TrashPurge(int PurgedBatches, int PurgedPages, int PurgedAttachments, int RemainingBatches);

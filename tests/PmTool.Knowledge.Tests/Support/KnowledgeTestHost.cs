@@ -60,6 +60,7 @@ internal sealed class KnowledgeTestHost : IAsyncDisposable
         services.AddSingleton<IPeopleDirectory>(people);
         services.AddSingleton<IWorkAccessQueries>(work);
         services.AddSingleton<TimeProvider>(clock);
+        services.AddSingleton<IOrganizationClock>(new FixedOrganizationClock(TimeZoneInfo.FindSystemTimeZoneById(OrganizationTime.DefaultTimeZoneId)));
         services.AddLogging();
         var attachmentDirectory = Path.Combine(Path.GetTempPath(), "kb-attachments-" + Guid.NewGuid().ToString("N"));
         services.AddKnowledgeModule(connections, new FileStoreSettings(FileStoreSettings.LocalProvider, attachmentDirectory));
@@ -85,4 +86,10 @@ internal sealed class KnowledgeTestHost : IAsyncDisposable
             Directory.Delete(AttachmentDirectory, recursive: true);
         }
     }
+}
+
+/// <summary>固定時區的 IOrganizationClock：每個組織都是同一個時區，依「每天」算的規則測得準。</summary>
+internal sealed class FixedOrganizationClock(TimeZoneInfo zone) : IOrganizationClock
+{
+    public Task<TimeZoneInfo> TimeZoneAsync(Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(zone);
 }

@@ -10,6 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\PmTool.Http\PmTool.Http.csproj" />
     <ProjectReference Include="..\PmTool.Identity.Contracts\PmTool.Identity.Contracts.csproj" />
     <ProjectReference Include="..\PmTool.Notifications.Contracts\PmTool.Notifications.Contracts.csproj" />
     <ProjectReference Include="..\PmTool.Work.Contracts\PmTool.Work.Contracts.csproj" />

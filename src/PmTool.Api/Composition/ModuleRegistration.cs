@@ -21,6 +21,9 @@ internal static class ModuleRegistration
     public const string RuntimeRoleSetting = "Database:RuntimeRole";
     public const string MigrateOnStartupSetting = "Database:MigrateOnStartup";
 
+    /// <summary>寄信的主機能不能在內網或本機（部署用內網的轉信主機時才打開）。</summary>
+    public const string AllowPrivateEmailHostsSetting = "Notifications:Email:AllowPrivateHosts";
+
     /// <summary>AI 的相容端點能不能連到私有網段與本機（自架的 Ollama 在內網時才打開）。見 <see cref="AiModuleOptions"/>。</summary>
     public const string AllowPrivateAiEndpointsSetting = "Ai:AllowPrivateEndpoints";
 
@@ -38,8 +41,12 @@ internal static class ModuleRegistration
         services.AddSingleton(new DatabaseStartup(
             SettingValues.ReadFlag(configuration, MigrateOnStartupSetting, defaultValue: true)));
         services.AddIdentityModule(connections);
+
+        // 儲存空間的上限要在工作引擎與知識庫之前註冊：它們用 TryAdd 放預設值，先註冊的贏。
+        services.AddSingleton(AttachmentConfiguration.ReadQuota(configuration));
         services.AddWorkModule(connections, AttachmentConfiguration.Read(configuration));
-        services.AddNotificationsModule(connections);
+        services.AddNotificationsModule(connections, new NotificationsModuleOptions(
+            AllowPrivateEmailHosts: SettingValues.ReadFlag(configuration, AllowPrivateEmailHostsSetting, defaultValue: false)));
         services.AddKnowledgeModule(connections, AttachmentConfiguration.Read(configuration));
         services.AddAiModule(connections, new AiModuleOptions(
             AllowPrivateEndpoints: SettingValues.ReadFlag(configuration, AllowPrivateAiEndpointsSetting, defaultValue: false),

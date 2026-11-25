@@ -110,5 +110,6 @@ internal sealed class NotificationInbox(
         row.FromStateName, row.ToStateName, row.Excerpt, row.CreatedAt, row.ReadAt, row.CommentId)
     {
         Account = row.AccountNotice,
+        Edited = row.ExcerptEditedAt is not null,
     };
 }

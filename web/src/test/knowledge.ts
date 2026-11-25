@@ -138,7 +138,7 @@ function restrictionOf(backend: KnowledgeBackend, space: KnowledgeSpace, node: K
   const restrictedAncestors = ancestorsOf(backend.trees[space.key] ?? [], node)
     .filter((ancestor) => ancestor.isRestricted)
     .map(refOf);
-  return { people, restrictedAncestors };
+  return { people, restrictedAncestors, restrictedBy: null, canRelax: true };
 }
 
 const notFoundSpace = () => failure(404, 'knowledge.space_not_found', '找不到這個空間。');

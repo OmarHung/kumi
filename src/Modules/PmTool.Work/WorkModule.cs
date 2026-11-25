@@ -66,6 +66,11 @@ public static class WorkModule
         services.TryAddScoped<IPlanningService, PlanningService>();
         services.TryAddScoped<IAttachmentService, AttachmentService>();
 
+        // 儲存空間的配額：兩個模組各報自己的用量，加總的實作在 Storage。上限由組合根先註冊，沒註冊就用預設值。
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IStorageUsageSource, ItemAttachmentUsage>());
+        services.TryAddSingleton(StorageQuotaSettings.Default);
+        services.TryAddSingleton<IStorageQuota, StorageQuota>();
+
         // 用工廠建：設定不能用時，migrate 命令（不碰附件）照樣跑得起來，錯誤留到啟動檢查時才丟。
         services.TryAddSingleton(attachments ?? new FileStoreSettings(null));
         services.TryAddSingleton<IFileStore>(provider => FileStores.Create(provider.GetRequiredService<FileStoreSettings>()));

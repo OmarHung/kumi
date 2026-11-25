@@ -19,6 +19,7 @@ using PmTool.Blueprint;
 using PmTool.Identity;
 using PmTool.Knowledge;
 using PmTool.Notifications;
+using PmTool.Storage;
 using PmTool.Work;
 using IdentityAuthentication = PmTool.Identity.IAuthenticationService;
 
@@ -60,11 +61,16 @@ internal sealed record ApiFactoryOptions
 
     /// <summary>在換上假的模組之後再改服務註冊，給需要特殊註冊方式的測試用。</summary>
     public Action<IServiceCollection>? ConfigureServices { get; init; }
+
+    /// <summary>
+    /// 用真的 Kestrel 接真的 TCP 連線，而不是 TestServer（記憶體裡的管線）。要測「讀得很慢的用戶端」這類
+    /// 需要真的 socket 的行為才開；開了之後沒有 TestServer，限流器的釋放照舊靠主機關閉。
+    /// </summary>
+    public bool UseKestrel { get; init; }
 }
 
 /// <summary>每個測試各自建立一個，限流器的狀態跟著應用程式實體走，共用會讓測試互相影響。</summary>
-internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOptions? options = null)
-    : WebApplicationFactory<Program>
+internal sealed class ApiFactory : WebApplicationFactory<Program>
 {
     public const string RemoteIpHeader = "X-Test-Remote-Ip";
 
@@ -76,8 +82,9 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
     /// </summary>
     public const string UnusedConnectionString = "Host=db.invalid;Database=unused;Username=unused";
 
-    private readonly ApiFactoryOptions _options = options ?? new ApiFactoryOptions();
-    private readonly string? _temporaryWebRoot = options?.WebRoot is null ? CreateTemporaryDirectory() : null;
+    private readonly FakeBlueprintValidator _validator;
+    private readonly ApiFactoryOptions _options;
+    private readonly string? _temporaryWebRoot;
 
     // 附件的儲存設定是啟動的必要條件；服務是假的，但啟動檢查用的是真的儲存空間，給它一個暫存資料夾。
     private readonly string _attachmentDirectory = CreateTemporaryDirectory();
@@ -85,7 +92,19 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
     // 主機建好時記下 TestServer：關閉之後要從它的請求管線找到限流中介層的端點限流器釋放（RateLimiterCleanup）。
     private TestServer? _server;
 
-    public FakeModules Modules { get; } = options?.SharedModules ?? new FakeModules();
+    public ApiFactory(FakeBlueprintValidator validator, ApiFactoryOptions? options = null)
+    {
+        _validator = validator;
+        _options = options ?? new ApiFactoryOptions();
+        _temporaryWebRoot = _options.WebRoot is null ? CreateTemporaryDirectory() : null;
+        Modules = _options.SharedModules ?? new FakeModules();
+        if (_options.UseKestrel)
+        {
+            UseKestrel();
+        }
+    }
+
+    public FakeModules Modules { get; }
 
     public IReadOnlyList<ServiceDescriptor> AppValidatorRegistrations { get; private set; } = [];
 
@@ -120,6 +139,9 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         // 即時連線預設關著（和背景處理一樣）；要測它的測試用 Settings 打開，並自己決定什麼時候讀事件。
         builder.UseSetting(PmTool.Api.Live.LiveRegistration.EnabledSetting, "false");
         builder.UseSetting(PmTool.Api.Live.LiveUpdateWorker.EnabledSetting, "false");
+
+        // 跨程序的訊號預設不經過資料庫（模組是假的，沒有資料庫可以連）；要測的用 Settings 打開。
+        builder.UseSetting(PmTool.Api.Cluster.ClusterRegistration.EnabledSetting, "false");
         builder.UseSetting(WebHostDefaults.WebRootKey, WebRoot);
         foreach (var (key, value) in _options.Settings)
         {
@@ -201,7 +223,7 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         }
         else
         {
-            services.AddSingleton<IBlueprintValidator>(validator);
+            services.AddSingleton<IBlueprintValidator>(_validator);
         }
     }
 
@@ -222,6 +244,7 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         services.RemoveAll<IWorkItemService>();
         services.RemoveAll<IItemActivityService>();
         services.RemoveAll<IAttachmentService>();
+        services.RemoveAll<IStorageQuota>();
         services.RemoveAll<IKnowledgeSpaceService>();
         services.RemoveAll<IKnowledgePageService>();
         services.RemoveAll<IKnowledgeAttachmentService>();
@@ -268,6 +291,7 @@ internal sealed class ApiFactory(FakeBlueprintValidator validator, ApiFactoryOpt
         services.AddSingleton<IHistoryImportService>(Modules.History);
         services.AddSingleton<IItemActivityService>(Modules.Activity);
         services.AddSingleton<IAttachmentService>(Modules.Attachments);
+        services.AddSingleton<IStorageQuota>(Modules.StorageQuota);
         services.AddSingleton<IKnowledgeSpaceService>(Modules.KnowledgeSpaces);
         services.AddSingleton<IKnowledgePageService>(Modules.KnowledgePages);
         services.AddSingleton<IKnowledgeAttachmentService>(Modules.KnowledgeAttachments);

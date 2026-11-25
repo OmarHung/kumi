@@ -72,6 +72,11 @@ namespace PmTool.Knowledge.Persistence.Migrations
                     b.HasIndex("PageId", "UploadedAt")
                         .HasDatabaseName("ix_page_attachments_page_id_uploaded_at");
 
+                    b.HasIndex("OrganizationId", "UploadedBy", "UploadedAt")
+                        .HasDatabaseName("ix_page_attachments_quota");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("OrganizationId", "UploadedBy", "UploadedAt"), new[] { "SizeBytes" });
+
                     b.ToTable("page_attachments", "knowledge");
                 });
 
@@ -95,6 +100,9 @@ namespace PmTool.Knowledge.Persistence.Migrations
 
                     b.HasKey("PageId", "PersonId")
                         .HasName("pk_page_restrictions");
+
+                    b.HasIndex("OrganizationId", "PersonId", "PageId")
+                        .HasDatabaseName("ix_page_restrictions_person");
 
                     b.ToTable("page_restrictions", "knowledge");
                 });
@@ -152,6 +160,10 @@ namespace PmTool.Knowledge.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("position");
 
+                    b.Property<Guid?>("RestrictedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restricted_by");
+
                     b.Property<long>("Revision")
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
@@ -177,8 +189,13 @@ namespace PmTool.Knowledge.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_pages");
 
-                    b.HasIndex("ParentId")
-                        .HasDatabaseName("ix_pages_parent_id");
+                    b.HasAlternateKey("SpaceId", "Id")
+                        .HasName("ak_pages_space_id_id");
+
+                    b.HasIndex("SpaceId", "DeletedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_pages_trash")
+                        .HasFilter("deletion_id IS NOT NULL");
 
                     b.HasIndex("SpaceId", "DeletionId")
                         .HasDatabaseName("ix_pages_space_id_deletion_id");
@@ -344,17 +361,18 @@ namespace PmTool.Knowledge.Persistence.Migrations
 
             modelBuilder.Entity("PmTool.Knowledge.Persistence.PageRow", b =>
                 {
-                    b.HasOne("PmTool.Knowledge.Persistence.PageRow", null)
-                        .WithMany()
-                        .HasForeignKey("ParentId")
-                        .HasConstraintName("fk_pages_pages_parent_id");
-
                     b.HasOne("PmTool.Knowledge.Persistence.SpaceRow", null)
                         .WithMany()
                         .HasForeignKey("SpaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_pages_spaces_space_id");
+
+                    b.HasOne("PmTool.Knowledge.Persistence.PageRow", null)
+                        .WithMany()
+                        .HasForeignKey("SpaceId", "ParentId")
+                        .HasPrincipalKey("SpaceId", "Id")
+                        .HasConstraintName("fk_pages_pages_space_id_parent_id");
                 });
 
             modelBuilder.Entity("PmTool.Knowledge.Persistence.PageVersionRow", b =>
@@ -366,7 +384,6 @@ namespace PmTool.Knowledge.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_page_versions_pages_page_id");
                 });
-#pragma warning restore 612, 618
         }
     }
 }

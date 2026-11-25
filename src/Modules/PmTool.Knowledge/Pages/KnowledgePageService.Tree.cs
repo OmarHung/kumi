@@ -50,7 +50,7 @@ internal sealed partial class KnowledgePageService
 
         await PageOrder.RenumberAsync(db, actor.OrganizationId, spaceId, newOrder, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return BuildTree(target.Space, await PageScope.LoadLiveAsync(db, actor, spaceId, cancellationToken));
+        return BuildTree(target.Space, await PageScope.LoadLiveAsync(db, actor, target.Space, cancellationToken));
     }
 
     public async Task<Result<PageDeletion>> DeleteAsync(Actor actor, string spaceKey, int pageNumber, CancellationToken cancellationToken)
@@ -100,7 +100,7 @@ internal sealed partial class KnowledgePageService
         await KnowledgeLocks.SpaceAsync(db, space.Space.Id, cancellationToken);
 
         // 只有復原要連垃圾桶一起讀：要找到那一批、算它放回去的位置。
-        var scope = await PageScope.LoadWithTrashAsync(db, actor, space.Space.Id, cancellationToken);
+        var scope = await PageScope.LoadWithTrashAsync(db, actor, space, cancellationToken);
         var page = scope.FindVisible(pageNumber);
         if (page is null)
         {
@@ -127,7 +127,7 @@ internal sealed partial class KnowledgePageService
         await RestoreBatchAsync(db, actor, space.Space.Id, scope, batch, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        var reloaded = await PageScope.LoadLiveAsync(db, actor, space.Space.Id, cancellationToken);
+        var reloaded = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
         return await BuildDetailAsync(db, new PageTarget(space, reloaded, reloaded.FindVisible(pageNumber)!), cancellationToken);
     }
 
@@ -139,7 +139,7 @@ internal sealed partial class KnowledgePageService
     private static async Task<bool> HasHiddenPagesBelowAsync(
         KnowledgeDbContext db, Actor actor, PageTarget target, CancellationToken cancellationToken)
     {
-        if (actor.IsOrganizationAdmin)
+        if (target.Scope.SeesAll)
         {
             return false;
         }
@@ -282,7 +282,7 @@ internal sealed partial class KnowledgePageService
 
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await KnowledgeLocks.SpaceAsync(db, space.Space.Id, cancellationToken);
-        var scope = await PageScope.LoadLiveAsync(db, actor, space.Space.Id, cancellationToken);
+        var scope = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
         var found = FindLive(space, scope, pageNumber);
         var denied = found.Failure ?? space.CheckEdit();
         if (denied is not null)

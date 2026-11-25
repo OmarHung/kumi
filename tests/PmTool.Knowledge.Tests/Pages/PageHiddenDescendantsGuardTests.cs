@@ -115,8 +115,10 @@ public sealed class PageHiddenDescendantsGuardTests
             .ExecuteUpdateAsync(set => set.SetProperty(p => p.DeletedAt, KnowledgeTestHost.StartTime));
 
         // Act
-        var byMember = await PageScope.LoadLiveAsync(db, member, space.Id, CancellationToken.None);
-        var byAdmin = await PageScope.LoadLiveAsync(db, org.Admin, space.Id, CancellationToken.None);
+        var row = await db.Spaces.SingleAsync(s => s.Id == space.Id);
+        var context = new SpaceContext(row, null, new SpacePermissions(true, true, false), false);
+        var byMember = await PageScope.LoadLiveAsync(db, member, context, CancellationToken.None);
+        var byAdmin = await PageScope.LoadLiveAsync(db, org.Admin, context, CancellationToken.None);
 
         // Assert
         Assert.That(byMember.FindVisible(child.Number), Is.Null);

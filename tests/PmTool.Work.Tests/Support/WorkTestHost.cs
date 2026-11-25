@@ -67,6 +67,9 @@ internal sealed class WorkTestHost : IAsyncDisposable
 
     public IWorkEventStream Events => _provider.GetRequiredService<IWorkEventStream>();
 
+    /// <summary>預設每個人都在組織裡；測試用 <see cref="FakeOrganizationMembers.Exclude"/> 排除某個人。</summary>
+    public FakeOrganizationMembers OrganizationMembers => _provider.GetRequiredService<FakeOrganizationMembers>();
+
     public IWorkAccessQueries Access => _provider.GetRequiredService<IWorkAccessQueries>();
 
     public IBlueprintChangeService Changes => _scope.ServiceProvider.GetRequiredService<IBlueprintChangeService>();
@@ -106,6 +109,8 @@ internal sealed class WorkTestHost : IAsyncDisposable
         configure?.Invoke(services);
         services.AddSingleton(clock);
         services.TryAddSingleton<IOrganizationClock, FixedOrganizationClock>();
+        services.TryAddSingleton<FakeOrganizationMembers>();
+        services.TryAddSingleton<IOrganizationMembers>(provider => provider.GetRequiredService<FakeOrganizationMembers>());
         services.AddSingleton<IBlueprintValidator>(BlueprintValidator.CreateDefault());
         services.AddSingleton<IBlueprintPlanner, BlueprintPlanner>();
         services.AddWorkModule(connections);

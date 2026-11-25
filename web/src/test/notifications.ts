@@ -21,6 +21,7 @@ export function notification(overrides: Partial<ItemNotification> = {}): ItemNot
     toStateName: null,
     excerpt: null,
     commentId: null,
+    edited: false,
     createdAt: '2026-11-18T08:00:00Z',
     readAt: null,
     ...overrides,
@@ -44,6 +45,7 @@ export function accountNotification(
     toStateName: null,
     excerpt: null,
     commentId: null,
+    edited: false,
     createdAt: '2026-11-18T08:00:00Z',
     readAt: null,
     account: {

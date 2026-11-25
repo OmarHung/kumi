@@ -147,11 +147,42 @@ export interface KnowledgeTrashEntry {
   readonly deletedBy: PersonRef;
 }
 
+/** 垃圾桶的容量：只有空間的管理者才有（他看得到全部的批）；其他人是 null。 */
+export interface KnowledgeTrashCapacity {
+  readonly batches: number;
+  readonly maxBatches: number;
+}
+
+/** 垃圾桶的一頁（`GET …/trash?limit=&cursor=`）：新刪的在前，依游標往後讀。 */
+export interface KnowledgeTrashPage {
+  readonly items: readonly KnowledgeTrashEntry[];
+  /** 還有下一頁時的游標；null 是到底了。 */
+  readonly nextCursor: string | null;
+  readonly capacity: KnowledgeTrashCapacity | null;
+}
+
+/** 永久刪除的內文（`POST …/trash/purge`）：deletionId 是 null 時清掉刪除超過 30 天的批，有值時立刻永久刪除那一批。 */
+export interface KnowledgeTrashPurgeRequest {
+  readonly deletionId: string | null;
+}
+
+export interface KnowledgeTrashPurge {
+  readonly purgedBatches: number;
+  readonly purgedPages: number;
+  readonly purgedAttachments: number;
+  /** 清完之後垃圾桶裡還剩幾批（呼叫的人看不到的批也算，所以只有空間的管理者才會拿來顯示）。 */
+  readonly remainingBatches: number;
+}
+
 export interface KnowledgePageRestriction {
   /** 這一頁自己限制給哪些人看；沒有設是 null。 */
   readonly people: readonly PersonRef[] | null;
   /** 從上層繼承來的限制；要同時在每一份名單裡才看得到。 */
   readonly restrictedAncestors: readonly KnowledgePageRef[];
+  /** 設定這個限制的人；沒有限制、或舊資料查不出來時是 null。只有他與空間的管理者能放寬（拿掉限制、加人、搬出有限制的範圍）。 */
+  readonly restrictedBy: PersonRef | null;
+  /** 呼叫的人能不能放寬這一頁自己的限制。 */
+  readonly canRelax: boolean;
 }
 
 export interface KnowledgeAttachment {

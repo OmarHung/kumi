@@ -91,6 +91,12 @@ public static class WorkErrorCodes
     /// <summary>附件超過 <see cref="AttachmentRules.MaxBytes"/>。</summary>
     public const string AttachmentTooLarge = "attachment.too_large";
 
+    /// <summary>組織的附件（項目與知識庫合計）已經到儲存空間的上限。新的上傳被擋，讀取、下載、刪除照常。對應 409。</summary>
+    public const string AttachmentQuotaExceeded = "attachment.quota_exceeded";
+
+    /// <summary>這個人過去 24 小時上傳的量已經到每日上限。對應 409。</summary>
+    public const string AttachmentDailyQuotaExceeded = "attachment.daily_quota_exceeded";
+
     /// <summary>項目的附件已經 <see cref="AttachmentRules.MaxPerItem"/> 個。</summary>
     public const string AttachmentLimitReached = "attachment.limit_reached";
 
@@ -170,4 +176,13 @@ public static class WorkErrorCodes
 
     /// <summary>這則留言已經有 <see cref="WorkRules.MaxCommentRevisions"/> 個版本，不能再編輯。對應 409。</summary>
     public const string CommentTooManyEdits = "comment.too_many_edits";
+
+    /// <summary>專案裡等待中的變更集已經有 <see cref="WorkRules.MaxPendingChangeSetsPerProject"/> 份，要先套用或放棄幾份才能再提出。對應 409。</summary>
+    public const string ChangeSetTooManyPending = "changeset.too_many_pending";
+
+    /// <summary>從其他系統匯入的留言不能編輯。對應 409。</summary>
+    public const string CommentImported = "comment.imported";
+
+    /// <summary>找不到這個人，或他不在這個組織裡。對應 404，值和 API 的 person.not_found 相同。</summary>
+    public const string PersonNotFound = "person.not_found";
 }

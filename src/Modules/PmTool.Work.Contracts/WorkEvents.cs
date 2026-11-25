@@ -81,7 +81,11 @@ public sealed record StateSnapshot(string Key, string Name);
 /// <param name="PreviousAssigneeId">這一次換了負責人時，之前的負責人（之前沒有就是 null）；沒換時是 null，看 <paramref name="AssigneeChanged"/>。</param>
 /// <param name="FromState">改狀態時的前一個狀態；其他事件是 null。</param>
 /// <param name="ToState">改狀態時的新狀態；建立時是起始狀態；其他事件是 null。</param>
-/// <param name="CommentExcerpt">留言的前 <see cref="WorkEventRules.MaxExcerptLength"/> 個字，提及換成「@名稱」；只有留言與編輯留言的事件有（編輯的是新的內容）。</param>
+/// <param name="CommentExcerpt">
+/// 留言的前 <see cref="WorkEventRules.MaxExcerptLength"/> 個字，提及換成「@名稱」；只有留言與編輯留言的事件有（編輯的是新的內容）。
+/// 摘要是事件當時的內容，不代表留言現在的樣子：之後可能被編輯或刪除。讀的人要自己處理 <see cref="WorkEventKind.ItemCommentEdited"/> 與
+/// <see cref="WorkEventKind.ItemCommentDeleted"/>；重播歷史時不能把摘要直接交出去（例如送給外部的 webhook）；留言永久刪除時要一起清掉。
+/// </param>
 /// <param name="MentionedPersonIds">
 /// 這一次新提及、而且看得到這個專案的人（留言裡的、說明裡新加的；改說明時原本就提及的不算）。不包含做這件事的人。
 /// </param>
@@ -191,6 +195,8 @@ public interface IWorkEventStream
 
 /// <summary>
 /// 讀事件流的一方。API 的背景工作定期把新的事件交給每一個讀的人。
+/// 事件裡的留言摘要（<see cref="ItemEventData.CommentExcerpt"/>）是事件當時的內容：留言之後被編輯或刪除，
+/// 讀的人要自己處理 ItemCommentEdited 與 ItemCommentDeleted，重播歷史時不能把舊的摘要直接交給外部。
 /// </summary>
 public interface IWorkEventConsumer
 {

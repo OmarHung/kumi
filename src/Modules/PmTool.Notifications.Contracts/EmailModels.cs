@@ -150,6 +150,12 @@ public static class EmailRules
     /// <summary>通知產生之後這麼久還沒讀才寄：人在網頁上就不必再收信，也讓同一段時間的幾則併成一封。</summary>
     public static readonly TimeSpan Delay = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// 一個組織在一輪裡，連線與寄出最多花這麼久；超過就當成這個組織這一輪失敗、換下一個組織。
+    /// 一個卡住的郵件主機不能拖住所有組織的信。標記為已處理的寫入不受這個期限限制。
+    /// </summary>
+    public static readonly TimeSpan MaxOrganizationDispatchTime = TimeSpan.FromMinutes(2);
+
     /// <summary>超過這麼久還沒寄出（例如寄信一直失敗）就不寄了，免得修好之後一次收到一堆過時的信。</summary>
     public static readonly TimeSpan MaxAge = TimeSpan.FromHours(24);
 

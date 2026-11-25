@@ -9,6 +9,12 @@ using PmTool.Work;
 
 namespace PmTool.Notifications;
 
+/// <summary>
+/// 通知模組的選項。
+/// </summary>
+/// <param name="AllowPrivateEmailHosts">允許寄信的主機在內網或本機的位址（部署用內網的轉信主機時才設）。預設不允許。</param>
+public sealed record NotificationsModuleOptions(bool AllowPrivateEmailHosts = false);
+
 public static class NotificationsModule
 {
     /// <summary>執行與遷移用同一個連線、不另外授權。本機開發與測試用。</summary>
@@ -20,7 +26,8 @@ public static class NotificationsModule
     /// 服務是 scoped：存取查詢的實作可能是 scoped；資料庫連線一律經過工廠，初始化與就緒檢查不依賴請求範圍。
     /// </summary>
     /// <exception cref="ArgumentException">連線字串是空的，或執行的角色名稱不合 <see cref="RuntimeRoleGrants.RoleNamePattern"/>。</exception>
-    public static IServiceCollection AddNotificationsModule(this IServiceCollection services, DatabaseConnections connections)
+    public static IServiceCollection AddNotificationsModule(
+        this IServiceCollection services, DatabaseConnections connections, NotificationsModuleOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(connections);
@@ -37,6 +44,7 @@ public static class NotificationsModule
         services.TryAddSingleton(new NotificationsDatabase(connections));
         services.AddDbContextFactory<NotificationsDbContext>(options => NotificationsDbContext.Configure(options, connections.Runtime));
         services.TryAddSingleton(ObserverLimits.Default);
+        services.TryAddSingleton(options ?? new NotificationsModuleOptions());
         services.TryAddScoped<INotificationInbox, NotificationInbox>();
         services.TryAddScoped<IItemSubscriptionService, ItemSubscriptionService>();
         services.TryAddScoped<NotificationVisibility>();

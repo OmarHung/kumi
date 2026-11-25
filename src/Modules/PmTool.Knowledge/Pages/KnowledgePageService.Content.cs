@@ -34,7 +34,7 @@ internal sealed partial class KnowledgePageService
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await KnowledgeLocks.SpaceAsync(db, space.Space.Id, cancellationToken);
-        var scope = await PageScope.LoadLiveAsync(db, actor, space.Space.Id, cancellationToken);
+        var scope = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
         var placement = PlaceNewPage(scope, page);
         if (placement.Failure is { } misplaced)
         {

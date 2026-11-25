@@ -90,6 +90,16 @@ internal sealed class NotificationsDbContext(DbContextOptions<NotificationsDbCon
             notification.HasIndex(n => new { n.OrganizationId, n.RecipientId, n.CreatedAt, n.Id })
                 .IsDescending(false, false, true, true);
 
+            // 同一則留言的通知：去重、換摘要、留言刪除時清掉，都從留言編號找。
+            notification.HasIndex(n => new { n.OrganizationId, n.CommentId, n.RecipientId })
+                .HasFilter("comment_id IS NOT NULL")
+                .HasDatabaseName("ix_notifications_comment");
+
+            // 項目刪除時清掉它的通知。
+            notification.HasIndex(n => new { n.OrganizationId, n.ItemId })
+                .HasFilter("item_id IS NOT NULL")
+                .HasDatabaseName("ix_notifications_item");
+
             // 未讀數與「只看未讀」只需要掃還沒讀的。
             notification.HasIndex(n => new { n.OrganizationId, n.RecipientId })
                 .HasFilter("read_at IS NULL")

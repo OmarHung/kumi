@@ -27,7 +27,7 @@ internal sealed partial class KnowledgePageService(
             return KnowledgeFailures.SpaceNotFound(spaceKey);
         }
 
-        return BuildTree(space, await PageScope.LoadLiveAsync(db, actor, space.Space.Id, cancellationToken));
+        return BuildTree(space, await PageScope.LoadLiveAsync(db, actor, space, cancellationToken));
     }
 
     public async Task<Result<PageDetail>> GetAsync(Actor actor, string spaceKey, int pageNumber, CancellationToken cancellationToken)
@@ -48,7 +48,7 @@ internal sealed partial class KnowledgePageService(
             return KnowledgeFailures.SpaceNotFound(spaceKey);
         }
 
-        var scope = await PageScope.LoadWithTrashAsync(db, actor, space.Space.Id, cancellationToken);
+        var scope = await PageScope.LoadWithTrashAsync(db, actor, space, cancellationToken);
         return scope.VisibleTrash()
             .Select(entry => new TrashEntry(
                 entry.Top.DeletionId!.Value,
@@ -79,7 +79,7 @@ internal sealed partial class KnowledgePageService(
             return KnowledgeFailures.SpaceNotFound(spaceKey);
         }
 
-        var scope = await PageScope.LoadLiveAsync(db, actor, space.Space.Id, cancellationToken);
+        var scope = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
         return FindLive(space, scope, pageNumber);
     }
 

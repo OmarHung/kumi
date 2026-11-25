@@ -103,6 +103,9 @@ public static class WorkRules
     public const decimal MaxNumberMagnitude = 99_999_999_999.9999m;
 
     public const int MaxNumberDecimalPlaces = 4;
+
+    /// <summary>一個專案裡等待中的變更集最多幾份：提出的人不用等誰處理，沒有上限的話清單可以被灌到無法閱讀。</summary>
+    public const int MaxPendingChangeSetsPerProject = 20;
 }
 
 /// <summary>專案裡可以被允許的動作，和藍圖 Schema 裡角色的 permissions 用同一組字串。</summary>

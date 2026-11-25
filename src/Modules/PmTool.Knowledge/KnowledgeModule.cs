@@ -45,6 +45,11 @@ public static class KnowledgeModule
         services.TryAddScoped<IKnowledgePageService, KnowledgePageService>();
         services.TryAddScoped<IKnowledgeAttachmentService, KnowledgeAttachmentService>();
 
+        // 儲存空間的配額：兩個模組各報自己的用量，加總的實作在 Storage。上限由組合根先註冊，沒註冊就用預設值。
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IStorageUsageSource, PageAttachmentUsage>());
+        services.TryAddSingleton(StorageQuotaSettings.Default);
+        services.TryAddSingleton<IStorageQuota, StorageQuota>();
+
         // 和工作引擎共用同一個儲存空間：兩邊都用 TryAdd，先註冊的贏，拿到的是同一個實例。
         // 用工廠建：設定不能用時，migrate 命令（不碰附件）照樣跑得起來，錯誤留到啟動檢查時才丟。
         services.TryAddSingleton(attachments ?? new FileStoreSettings(null));

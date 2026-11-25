@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PmTool.Api.Cli;
+using PmTool.Api.Cluster;
 using PmTool.Api.Composition;
 using PmTool.Api.Endpoints;
 using PmTool.Api.Hosting;
@@ -32,6 +33,7 @@ builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IBlueprintValidator>(_ => BlueprintValidator.CreateDefault());
 builder.Services.AddModules(builder.Configuration);
 builder.Services.AddCliDownloads(builder.Configuration);
+builder.Services.AddClusterSignals(builder.Configuration);
 builder.Services.AddLive(builder.Configuration);
 builder.Services.AddOAuthServer();
 builder.Services.AddMcpServerEndpoint();

@@ -147,6 +147,11 @@ internal sealed class WorkDbContext(DbContextOptions<WorkDbContext> options) : D
 
         // 項目頁依上傳的先後列出附件，數量上限也從這裡數。
         attachment.HasIndex(a => new { a.OrganizationId, a.ItemId, a.UploadedAt });
+
+        // 儲存空間的用量：組織的總量與每人過去 24 小時的量，都能只讀索引。
+        attachment.HasIndex(a => new { a.OrganizationId, a.UploadedBy, a.UploadedAt })
+            .IncludeProperties(a => a.SizeBytes)
+            .HasDatabaseName("ix_attachments_quota");
         attachment.HasOne<ItemEntity>().WithMany().HasForeignKey(a => a.ItemId).OnDelete(DeleteBehavior.Restrict);
     }
 

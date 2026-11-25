@@ -119,7 +119,7 @@ internal sealed partial class KnowledgeAttachmentService(
             return null;
         }
 
-        var scope = await PageScope.LoadLiveAsync(db, actor, space.Space.Id, cancellationToken);
+        var scope = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
         return scope.FindVisible(location.Number) is { IsDeleted: false } page ? new PageTarget(space, page) : null;
     }
 
@@ -132,7 +132,7 @@ internal sealed partial class KnowledgeAttachmentService(
             return KnowledgeFailures.SpaceNotFound(spaceKey);
         }
 
-        var scope = await PageScope.LoadLiveAsync(db, actor, space.Space.Id, cancellationToken);
+        var scope = await PageScope.LoadLiveAsync(db, actor, space, cancellationToken);
         return scope.FindVisible(pageNumber) is { IsDeleted: false } page
             ? new PageTarget(space, page)
             : KnowledgeFailures.PageNotFound(pageNumber);

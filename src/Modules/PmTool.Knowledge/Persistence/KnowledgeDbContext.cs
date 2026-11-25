@@ -60,10 +60,20 @@ internal sealed class KnowledgeDbContext(DbContextOptions<KnowledgeDbContext> op
             page.Property(p => p.Title).HasMaxLength(KnowledgeRules.MaxPageTitleLength);
             page.Property(p => p.Body).HasDefaultValue(string.Empty);
             page.HasOne<SpaceRow>().WithMany().HasForeignKey(p => p.SpaceId);
-            page.HasOne<PageRow>().WithMany().HasForeignKey(p => p.ParentId);
+
+            // 上層一定在同一個空間：複合外鍵讓資料庫擋住跨空間的上層（parent_id 是 null 時不檢查）。
+            // 擋不住成環，成環在程式裡擋。
+            page.HasAlternateKey(p => new { p.SpaceId, p.Id });
+            page.HasOne<PageRow>().WithMany().HasForeignKey(p => new { p.SpaceId, p.ParentId }).HasPrincipalKey(p => new { p.SpaceId, p.Id });
             page.HasIndex(p => new { p.SpaceId, p.Number }).IsUnique();
             page.HasIndex(p => new { p.SpaceId, p.ParentId, p.Position });
             page.HasIndex(p => new { p.SpaceId, p.DeletionId });
+
+            // 垃圾桶的清單：只看每一批的最上面那一頁，依刪除的時間由新到舊。
+            page.HasIndex(p => new { p.SpaceId, p.DeletedAt })
+                .IsDescending(false, true)
+                .HasFilter("deletion_id IS NOT NULL")
+                .HasDatabaseName("ix_pages_trash");
         });
 
         modelBuilder.Entity<PageRestrictionRow>(restriction =>
@@ -71,6 +81,9 @@ internal sealed class KnowledgeDbContext(DbContextOptions<KnowledgeDbContext> op
             restriction.ToTable("page_restrictions");
             restriction.HasKey(r => new { r.PageId, r.PersonId });
             restriction.HasOne<PageRow>().WithMany().HasForeignKey(r => r.PageId);
+
+            // 「這個人在哪些頁面的名單裡」：每次算看得到哪些頁面都用到。
+            restriction.HasIndex(r => new { r.OrganizationId, r.PersonId, r.PageId }).HasDatabaseName("ix_page_restrictions_person");
         });
 
         modelBuilder.Entity<PageVersionRow>(version =>
@@ -93,6 +106,11 @@ internal sealed class KnowledgeDbContext(DbContextOptions<KnowledgeDbContext> op
             attachment.Property(a => a.Sha256).HasMaxLength(Sha256Length);
             attachment.HasOne<PageRow>().WithMany().HasForeignKey(a => a.PageId);
             attachment.HasIndex(a => new { a.PageId, a.UploadedAt });
+
+            // 儲存空間的用量：組織的總量與每人過去 24 小時的量，都能只讀索引。
+            attachment.HasIndex(a => new { a.OrganizationId, a.UploadedBy, a.UploadedAt })
+                .IncludeProperties(a => a.SizeBytes)
+                .HasDatabaseName("ix_page_attachments_quota");
         });
     }
 }

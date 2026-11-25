@@ -56,6 +56,8 @@ interface NotificationBase {
   readonly excerpt: string | null;
   /** 由留言產生的通知（留言、留言裡的提及）是那一則留言的編號（也就是活動的 id）；其他種類與較早的通知是 null。 */
   readonly commentId: string | null;
+  /** 摘要是留言編輯之後換上去的新內容：畫面在摘要後面註明「已編輯」。 */
+  readonly edited: boolean;
   readonly createdAt: Instant;
   /** 還沒讀是 null。 */
   readonly readAt: Instant | null;

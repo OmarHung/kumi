@@ -97,6 +97,9 @@ public sealed record NotificationItem(
 {
     /// <summary>只有 <see cref="NotificationKind.AccountSecurity"/> 有：發生了什麼事。</summary>
     public AccountNotice? Account { get; init; }
+
+    /// <summary>摘要（<see cref="Excerpt"/>）是留言編輯之後換上去的新內容；畫面在後面註明「已編輯」。</summary>
+    public bool Edited { get; init; }
 }
 
 /// <summary>帳號通知的事件種類（和身分模組的事件種類各自定義，通知的合約不引用身分的合約）。</summary>

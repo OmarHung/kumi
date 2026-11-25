@@ -10,6 +10,7 @@ using PmTool.Identity.AccessTokens;
 using PmTool.Identity.Audit;
 using PmTool.Identity.CliLogin;
 using PmTool.Identity.OAuth;
+using PmTool.Identity.People;
 using PmTool.Identity.Persistence;
 using PmTool.Identity.Sessions;
 
@@ -95,6 +96,11 @@ public static class IdentityModule
             provider.GetRequiredService<IDbContextFactory<IdentityDbContext>>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetService<ILogger<OrganizationClock>>() ?? NullLogger<OrganizationClock>.Instance));
+        services.TryAddSingleton<IOrganizationMembers, OrganizationMembers>();
+
+        // 跨程序的訊號：沒有匯流排時什麼都不做；API 在有匯流排時會換掉它。接收端用加入清單的方式註冊。
+        services.TryAddSingleton<IClusterSignals>(NullClusterSignals.Instance);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClusterSignalHandler, SessionCacheSignals>());
         services.TryAddSingleton<IIdentityBootstrapper, IdentityBootstrapper>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IModuleInitializer, IdentityMigrator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IReadinessProbe, IdentityReadinessProbe>());

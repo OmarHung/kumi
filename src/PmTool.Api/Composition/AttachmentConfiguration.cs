@@ -23,4 +23,35 @@ internal static class AttachmentConfiguration
             directory,
             SettingValues.ReadText(configuration, FileStoreSettings.BucketSetting));
     }
+
+    /// <summary>
+    /// 讀儲存空間的上限（單位 GiB）：<c>Attachments:Quota:OrganizationGiB</c>（預設 20）與 <c>Attachments:Quota:PersonDailyGiB</c>（預設 2）。
+    /// 整數、0 以上，0 是不限制。設錯就讓啟動失敗：悄悄當成不限制，會讓設定打錯字的部署沒有上限。
+    /// </summary>
+    /// <exception cref="InvalidOperationException">不是整數、是負數，或換算成位元組會溢位。</exception>
+    public static StorageQuotaSettings ReadQuota(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        return new StorageQuotaSettings(
+            ReadGiB(configuration, StorageQuotaSettings.OrganizationGiBSetting, 20),
+            ReadGiB(configuration, StorageQuotaSettings.PersonDailyGiBSetting, 2));
+    }
+
+    private static long ReadGiB(IConfiguration configuration, string key, long defaultGiB)
+    {
+        var raw = SettingValues.ReadText(configuration, key);
+        if (raw is null)
+        {
+            return defaultGiB * StorageQuotaSettings.GiB;
+        }
+
+        // 最大值留在 long 放得下的範圍裡：8 EiB 以內，換算不會溢位。
+        const long MaxGiB = long.MaxValue / StorageQuotaSettings.GiB;
+        if (!long.TryParse(raw, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var gib) || gib > MaxGiB)
+        {
+            throw new InvalidOperationException($"{key} 要是 0 以上的整數（單位 GiB，0 是不限制），現在是「{raw}」。");
+        }
+
+        return gib * StorageQuotaSettings.GiB;
+    }
 }

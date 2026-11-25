@@ -41,31 +41,37 @@ internal sealed class PageScope
     private readonly ILookup<Guid?, PageInfo> _children;
     private readonly HashSet<Guid> _listedRestrictedPages;
     private readonly Dictionary<Guid, bool> _visible = [];
-    private readonly bool _isAdmin;
 
-    private PageScope(IReadOnlyList<PageInfo> pages, HashSet<Guid> listedRestrictedPages, bool isAdmin)
+    private PageScope(IReadOnlyList<PageInfo> pages, HashSet<Guid> listedRestrictedPages, bool seesAll)
     {
         _byId = pages.ToDictionary(p => p.Id);
         _byNumber = pages.ToDictionary(p => p.Number);
         _children = pages.ToLookup(p => p.ParentId);
         _listedRestrictedPages = listedRestrictedPages;
-        _isAdmin = isAdmin;
+        SeesAll = seesAll;
     }
+
+    /// <summary>
+    /// 看得到空間裡所有頁面（不看名單）：組織管理員，以及專案空間裡有 project.manage 的人。
+    /// 管理者在自己的專案空間要能處理受限的頁面，不然一頁被限制給別人就沒人管得了。
+    /// </summary>
+    public bool SeesAll { get; }
 
     /// <summary>空間裡還沒刪的頁面數（含看不到的）：上限算的是它。</summary>
     public int LiveCount => _byId.Values.Count(p => !p.IsDeleted);
 
     /// <summary>只讀還沒刪的頁面：樹、單頁、修改、新增、搬移、刪除、限制、附件都用它。刪除的頁面當作不存在。</summary>
-    public static Task<PageScope> LoadLiveAsync(KnowledgeDbContext db, Actor actor, Guid spaceId, CancellationToken cancellationToken) =>
-        LoadAsync(db, actor, spaceId, includeTrash: false, cancellationToken);
+    public static Task<PageScope> LoadLiveAsync(KnowledgeDbContext db, Actor actor, SpaceContext space, CancellationToken cancellationToken) =>
+        LoadAsync(db, actor, space, includeTrash: false, cancellationToken);
 
     /// <summary>連垃圾桶裡的頁面一起讀：只有垃圾桶的清單與復原需要。</summary>
-    public static Task<PageScope> LoadWithTrashAsync(KnowledgeDbContext db, Actor actor, Guid spaceId, CancellationToken cancellationToken) =>
-        LoadAsync(db, actor, spaceId, includeTrash: true, cancellationToken);
+    public static Task<PageScope> LoadWithTrashAsync(KnowledgeDbContext db, Actor actor, SpaceContext space, CancellationToken cancellationToken) =>
+        LoadAsync(db, actor, space, includeTrash: true, cancellationToken);
 
     private static async Task<PageScope> LoadAsync(
-        KnowledgeDbContext db, Actor actor, Guid spaceId, bool includeTrash, CancellationToken cancellationToken)
+        KnowledgeDbContext db, Actor actor, SpaceContext space, bool includeTrash, CancellationToken cancellationToken)
     {
+        var spaceId = space.Space.Id;
         var pages = await db.Pages.AsNoTracking()
             .Where(p => p.OrganizationId == actor.OrganizationId && p.SpaceId == spaceId && (includeTrash || p.DeletedAt == null))
             .Select(p => new PageInfo(
@@ -77,8 +83,11 @@ internal sealed class PageScope
                 && db.Pages.Any(p => p.Id == r.PageId && p.SpaceId == spaceId && (includeTrash || p.DeletedAt == null)))
             .Select(r => r.PageId)
             .ToListAsync(cancellationToken);
-        return new PageScope(pages, [.. listed], actor.IsOrganizationAdmin);
+        return new PageScope(pages, [.. listed], SeesEverything(actor, space));
     }
+
+    private static bool SeesEverything(Actor actor, SpaceContext space) =>
+        actor.IsOrganizationAdmin || (space.Project is not null && space.Permissions.CanManage);
 
     /// <summary>
     /// 在這一份（只有活的頁面）之上，補讀 <paramref name="root"/> 底下垃圾桶裡的頁面：沿 <c>parent_id</c> 一層一層往下查，
@@ -116,7 +125,7 @@ internal sealed class PageScope
                 .ToListAsync(cancellationToken));
         }
 
-        return new PageScope([.. pages.Values], listed, _isAdmin);
+        return new PageScope([.. pages.Values], listed, SeesAll);
     }
 
     /// <summary>依編號找頁面（含垃圾桶裡的）；不存在或呼叫者看不到都是 null。</summary>
@@ -128,7 +137,7 @@ internal sealed class PageScope
 
     public bool CanSee(PageInfo page)
     {
-        if (_isAdmin)
+        if (SeesAll)
         {
             return true;
         }
@@ -214,7 +223,7 @@ internal sealed class PageScope
     }
 
     /// <summary>底下有沒有呼叫者看不到的、還沒刪的頁面。有的話不能刪（免得刪掉自己看不到的內容）。</summary>
-    public bool HasHiddenDescendants(PageInfo page) => !_isAdmin && LiveDescendantsOf(page).Any(p => !CanSee(p));
+    public bool HasHiddenDescendants(PageInfo page) => !SeesAll && LiveDescendantsOf(page).Any(p => !CanSee(p));
 
     /// <summary>
     /// 底下有沒有呼叫者看不到的頁面，垃圾桶裡的也算（要用 <see cref="WithTrashBelowAsync"/> 補讀過的範圍）。
@@ -222,7 +231,7 @@ internal sealed class PageScope
     /// </summary>
     public bool HasHiddenDescendantsIncludingTrash(PageInfo page)
     {
-        if (_isAdmin)
+        if (SeesAll)
         {
             return false;
         }

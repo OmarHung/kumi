@@ -62,6 +62,9 @@ internal sealed record NotificationRow
     /// <summary>由留言產生的通知（留言、留言裡的提及）是那一則留言（活動）的編號；其他是 null。</summary>
     public Guid? CommentId { get; init; }
 
+    /// <summary>留言編輯之後摘要換成新內容的時刻；沒換過是 null。畫面據此註明「已編輯」。</summary>
+    public DateTimeOffset? ExcerptEditedAt { get; init; }
+
     /// <summary>產生這則通知的事件；（事件、收件人、種類）唯一，重複處理同一個事件不會多出通知。</summary>
     public required Guid EventId { get; init; }
 
