@@ -41,7 +41,7 @@ public interface IHistoryImportService
     Task<Result<HistoryAttachmentResult>> ImportAttachmentAsync(Actor actor, string itemKey, HistoryAttachment upload, CancellationToken cancellationToken);
 
     /// <summary>
-    /// 查哪些外部編號已經匯入過：CLI 重跑時用它決定要不要再下載檔案、留言要接在哪個項目上。只回 actor 看得到的專案裡的；看不到的當作沒有。
+    /// 查哪些外部編號已經匯入過：CLI 重跑時用它決定要不要再下載檔案、留言要接在哪個項目上。只回 actor 有 project.manage 的專案裡的（組織管理員是全部），其他的當作沒有；一個專案都管不到、又不是組織管理員時回沒有權限。
     /// 一次最多 <see cref="HistoryLookup.MaxIds"/> 個。
     /// </summary>
     Task<Result<IReadOnlyList<HistoryRef>>> LookupAsync(Actor actor, HistoryLookup lookup, CancellationToken cancellationToken);
