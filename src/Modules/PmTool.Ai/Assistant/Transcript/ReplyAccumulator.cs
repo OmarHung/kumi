@@ -23,6 +23,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
     private readonly Dictionary<string, int> _partIndexes = new(StringComparer.Ordinal);
     private readonly List<string> _callOrder = [];
     private readonly HashSet<string> _resolved = new(StringComparer.Ordinal);
+    private readonly ToolMarkupFilter _markup = new();
 
     public ChatFinishReason? FinishReason { get; private set; }
 
@@ -49,7 +50,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
             switch (content)
             {
                 case TextContent text when text.Text.Length > 0:
-                    AddText(text.Text, events);
+                    AddModelText(text.Text, events);
                     break;
                 case FunctionCallContent call:
                     AddCall(call, events);
@@ -73,6 +74,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
     public IReadOnlyList<AssistantRunEvent> ResolveOpenCalls(string error)
     {
         var events = new List<AssistantRunEvent>();
+        DrainMarkup(events);
         FlushText();
         foreach (var providerId in _callOrder.Where(id => !_resolved.Contains(id)).ToList())
         {
@@ -86,7 +88,8 @@ internal sealed class ReplyAccumulator : IReplyRecorder
     public IReadOnlyList<AssistantRunEvent> AddNote(string note)
     {
         var events = new List<AssistantRunEvent>();
-        AddText(note, events);
+        DrainMarkup(events);
+        AppendText(note, events);
         return events;
     }
 
@@ -101,18 +104,25 @@ internal sealed class ReplyAccumulator : IReplyRecorder
         return (events, [.. _parts], [.. _messages]);
     }
 
-    private void AddText(string delta, List<AssistantRunEvent> events)
+    private void AddModelText(string delta, List<AssistantRunEvent> events)
     {
         // 模型偶爾吐出 NUL：資料庫的 jsonb 不收，存的時候整則都會失敗。
-        delta = delta.Replace("\0", string.Empty, StringComparison.Ordinal);
-        if (delta.Length == 0)
+        AppendText(_markup.Push(delta.Replace("\0", string.Empty, StringComparison.Ordinal)), events);
+    }
+
+    /// <summary>過濾器留著的文字交出來：工具開始、有結果、加說明、收尾之前都要，段落的順序才和模型說話的順序一樣。</summary>
+    private void DrainMarkup(List<AssistantRunEvent> events) => AppendText(_markup.Flush(), events);
+
+    private void AppendText(string text, List<AssistantRunEvent> events)
+    {
+        if (text.Length == 0)
         {
             return;
         }
 
         FlushTool();
-        _text.Append(delta);
-        events.Add(new AssistantTextDelta(delta));
+        _text.Append(text);
+        events.Add(new AssistantTextDelta(text));
     }
 
     private void AddCall(FunctionCallContent call, List<AssistantRunEvent> events)
@@ -123,6 +133,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
             return;
         }
 
+        DrainMarkup(events);
         FlushText();
         FlushTool();
         var ownId = $"c{_ownIds.Count + 1}";
@@ -147,6 +158,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
 
     private void Resolve(string providerId, ToolOutcome outcome, List<AssistantRunEvent> events)
     {
+        DrainMarkup(events);
         FlushText();
         FlushAssistant();
         var ownId = _ownIds[providerId];

@@ -24,6 +24,23 @@ public sealed class AssistantPromptRulesTests
         Assert.That(prompt, Does.Contain("告訴使用者是哪個項目、哪一段寫了要你做事的話"));
     }
 
+    private static IEnumerable<TestCaseData> EnginePrompts()
+    {
+        yield return new TestCaseData(LocalPromptBuilder.SystemPrompt("WEB", [])).SetName("本機代理的對話格式");
+        yield return new TestCaseData(LocalPromptBuilder.HostSystemPrompt("WEB", [])).SetName("主機代理的對話格式");
+    }
+
+    [TestCaseSource(nameof(EnginePrompts))]
+    public void EngineSystemPrompt_DescribesTheMarkersTheConversationIsActuallySentWith(string prompt)
+    {
+        // Act & Assert：對話用 <<<使用者>>>、<<<助理>>>、<<<結束>>> 分段（LocalPromptBuilder），說明要和送去的一致。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompt, Does.Contain("<<<使用者>>>").And.Contain("<<<助理>>>").And.Contain("<<<結束>>>"));
+            Assert.That(prompt, Does.Not.Contain("（「使用者：…」「助理：…」）"), "舊的分段方式已經不用了。");
+        }
+    }
+
     [TestCaseSource(nameof(Prompts))]
     public void SystemPrompt_TellsTheModelNotToWriteItsReasoningIntoTheReply(string prompt)
     {

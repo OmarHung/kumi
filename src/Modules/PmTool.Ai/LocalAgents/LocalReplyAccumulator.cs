@@ -20,6 +20,7 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
     private readonly StringBuilder _all = new();
     private readonly List<string> _segments = [];
     private readonly Dictionary<string, int> _toolIndexes = new(StringComparer.Ordinal);
+    private readonly ToolMarkupFilter _markup = new();
 
     public long? InputTokens { get; private set; }
 
@@ -57,7 +58,7 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
     public (IReadOnlyList<AssistantRunEvent> Events, IReadOnlyList<AssistantPart> Parts, IReadOnlyList<TranscriptMessage> Transcript) Finish(
         string unresolvedError)
     {
-        var events = new List<AssistantRunEvent>();
+        var events = AppendText(_markup.Flush());
         FlushSegment();
         for (var i = 0; i < _parts.Count; i++)
         {
@@ -87,7 +88,9 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
             : [new TranscriptMessage(TranscriptMessage.AssistantRole, [new TranscriptText($"（用了 {string.Join("、", tools)}，沒有文字回覆）")])];
     }
 
-    private List<AssistantRunEvent> AddText(string delta)
+    private List<AssistantRunEvent> AddText(string delta) => AppendText(_markup.Push(delta));
+
+    private List<AssistantRunEvent> AppendText(string delta)
     {
         var room = MaxReplyCharacters - _all.Length;
         if (delta.Length > room)
@@ -108,13 +111,17 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
 
     private List<AssistantRunEvent> AddTool(AssistantToolPart tool)
     {
+        var events = new List<AssistantRunEvent>();
+
         // 工具開始時文字先收成一段，之後的文字是新的一段：段落的順序和模型說話的順序一樣。
+        // 已經在跑的工具更新狀態不是段落的邊界，過濾器留著的半截標記要等後面的字接上。
         if (!_toolIndexes.TryGetValue(tool.CallId, out var index))
         {
+            events.AddRange(AppendText(_markup.Flush()));
             if (_toolIndexes.Count >= LocalAgentLimits.MaxToolCallsPerReply)
             {
                 ToolLimitExceeded = true;
-                return [];
+                return events;
             }
 
             FlushSegment();
@@ -139,7 +146,8 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
                 : current.ItemProposalId,
         };
         _parts[index] = updated;
-        return [new AssistantToolUpdate(updated)];
+        events.Add(new AssistantToolUpdate(updated));
+        return events;
     }
 
     private void FlushSegment()
