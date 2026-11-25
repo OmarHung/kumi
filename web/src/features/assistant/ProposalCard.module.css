@@ -57,12 +57,54 @@
   font-weight: var(--weight-medium);
 }
 
-.fullText {
-  margin-top: var(--space-1);
+.additions {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+/* 並排，放不下兩欄（浮動面板很窄）就上下；每一格有高度上限，說明很長時在格子裡捲，不把「套用」推出畫面。 */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+  gap: var(--space-2);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* 14rem：卡片在對話裡，說明再長也不能把「套用」推到看不見（docs/design/07-components.md 7.4）。 */
+.descriptionBox {
+  min-width: 0;
+  max-height: 14rem;
+  overflow-y: auto;
   padding: var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-sunken);
+}
+
+.scrollNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.boxLabel {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+}
+
+.commentNote {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
 }
 
 .quote {

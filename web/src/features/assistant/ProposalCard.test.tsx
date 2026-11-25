@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { screen, waitFor, within } from '@testing-library/react';
 import { http } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../app/queryClient';
 import { queryKeys } from '../../api/queryKeys';
 import { makeItemProposal, serveItemProposal } from '../../test/assistant';
@@ -64,7 +64,7 @@ describe('修改建議的卡片：內容', () => {
     expect(view.getByText('分類').nextElementSibling).toHaveTextContent(/錯誤 改成 → ?新功能/);
   });
 
-  it('null 是「清掉」；說明只寫「改成新的內容」，展開看全文；留言畫成引用', async () => {
+  it('null 是「清掉」；說明一開始就展開，並排顯示現在的與建議的；留言畫成引用', async () => {
     // Arrange
     const proposal = makeItemProposal({
       projectKey: 'SMK',
@@ -75,22 +75,106 @@ describe('修改建議的卡片：內容', () => {
       ],
       comment: '建議先完成登入再改版',
     });
-    const { user } = renderCard(proposal);
+    renderCard(proposal);
     const view = within(await card());
 
     // Assert
-    expect(await view.findByText('改成新的內容')).toBeInTheDocument();
+    expect(await view.findByText('新的說明內容')).toBeInTheDocument();
+    expect(view.getByRole('region', { name: '建議的說明' })).toHaveTextContent('新的說明內容');
+    await waitFor(() => {
+      expect(view.getByRole('region', { name: '現在的說明' })).toHaveTextContent('舊的說明');
+    });
+    expect(view.queryByRole('button', { name: '展開' })).not.toBeInTheDocument();
     expect(view.getByText('到期日').nextElementSibling).toHaveTextContent('（清掉）');
-    expect(view.queryByText('新的說明內容')).not.toBeInTheDocument();
     expect(view.getByText('留言').nextElementSibling?.querySelector('blockquote')).toHaveTextContent('建議先完成登入再改版');
+  });
 
-    // Act
-    await user.click(view.getByRole('button', { name: '展開' }));
+  it('現在沒有說明時現在的那一格寫「（空）」', async () => {
+    // Arrange
+    serveItem(detailOf(smkItem({ number: 12 }), null));
+    const proposal = makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'description', value: '全新的說明' }] });
+    serveItemProposal(proposal);
+    server.use(http.get('/v1/projects/SMK', () => ok(smkDetail())));
+    renderInRouter(
+      <QueryClientProvider client={createQueryClient({ queries: { retry: false } })}>
+        <ProposalCard proposalId={proposal.id} />
+      </QueryClientProvider>,
+    );
+    const view = within(await card());
 
     // Assert
-    expect(await view.findByText('新的說明內容')).toBeInTheDocument();
-    await user.click(view.getByRole('button', { name: '收起' }));
-    expect(view.queryByText('新的說明內容')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(view.getByRole('region', { name: '現在的說明' })).toHaveTextContent('（空）');
+    });
+    expect(view.getByRole('region', { name: '建議的說明' })).toHaveTextContent('全新的說明');
+  });
+
+  it('讀不到項目時沒有「現在的」，建議的照樣完整顯示', async () => {
+    // Arrange
+    const proposal = makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'description', value: '只有建議的' }] });
+    serveItemProposal(proposal);
+    server.use(
+      http.get('/v1/items/SMK-12', () => failure(404, 'item.not_found', '找不到這個項目。')),
+      http.get('/v1/projects/SMK', () => ok(smkDetail())),
+    );
+    renderInRouter(
+      <QueryClientProvider client={createQueryClient({ queries: { retry: false } })}>
+        <ProposalCard proposalId={proposal.id} />
+      </QueryClientProvider>,
+    );
+    const view = within(await card());
+
+    // Assert
+    expect(await view.findByRole('region', { name: '建議的說明' })).toHaveTextContent('只有建議的');
+    expect(view.queryByRole('region', { name: '現在的說明' })).not.toBeInTheDocument();
+  });
+
+  it('建議的說明裡新出現的外部連結（實際的網域）與提及列在上方；原本就有的不算', async () => {
+    // Arrange
+    const before = '看[舊文件](https://docs.example.org/a)';
+    serveItem(detailOf(smkItem({ number: 12 }), before));
+    const after = `${before}，另見[說明](https://example.com/x)與 https://sub.example.net/y，請 @[隨便寫的名字](mention:${exampleMember.personId}) 看`;
+    const proposal = makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'description', value: after }] });
+    serveItemProposal(proposal);
+    server.use(http.get('/v1/projects/SMK', () => ok(smkDetail())));
+    renderInRouter(
+      <QueryClientProvider client={createQueryClient({ queries: { retry: false } })}>
+        <ProposalCard proposalId={proposal.id} />
+      </QueryClientProvider>,
+    );
+    const view = within(await card());
+
+    // Assert
+    expect(await view.findByText('這份說明會新增 2 個連結：example.com、sub.example.net；提及 1 個人：範例成員。')).toBeInTheDocument();
+  });
+
+  it('沒有新的連結與提及時不顯示那一行', async () => {
+    // Arrange
+    renderCard(makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'description', value: '只改文字' }] }));
+    const view = within(await card());
+
+    // Assert
+    expect(await view.findByRole('region', { name: '建議的說明' })).toBeInTheDocument();
+    expect(view.queryByText(/這份說明會新增/)).not.toBeInTheDocument();
+  });
+
+  it('有留言時說明送出後看得到這個項目的人都看得到', async () => {
+    // Arrange
+    renderCard(makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'title', value: '新標題' }], comment: '一則留言' }));
+    const view = within(await card());
+
+    // Assert
+    expect(await view.findByText('留言送出後，看得到這個項目的人都看得到。')).toBeInTheDocument();
+  });
+
+  it('沒有留言時不寫這句', async () => {
+    // Arrange
+    renderCard(makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'title', value: '新標題' }], comment: null }));
+    const view = within(await card());
+
+    // Assert
+    expect(await view.findByText('標題')).toBeInTheDocument();
+    expect(view.queryByText(/留言送出後/)).not.toBeInTheDocument();
   });
 });
 
@@ -127,21 +211,6 @@ describe('修改建議的卡片：說明與負責人', () => {
     await waitFor(() => {
       expect(view.getByText('負責人').nextElementSibling).toHaveTextContent(/離開的人 改成 → ?範例成員/);
     });
-  });
-
-  it('說明的「展開」「收起」用按鈕的文字表示狀態，不另外標 aria-expanded（DESIGN.md 第 3 節）', async () => {
-    // Arrange
-    const { user } = renderCard(makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'description', value: '新的' }] }));
-    const view = within(await card());
-
-    // Act
-    const toggle = await view.findByRole('button', { name: '展開' });
-    await user.click(toggle);
-
-    // Assert
-    const collapse = view.getByRole('button', { name: '收起' });
-    expect(collapse).not.toHaveAttribute('aria-expanded');
-    expect(view.getByText('新的')).toBeInTheDocument();
   });
 });
 
@@ -296,5 +365,95 @@ describe('修改建議的卡片：套用與不要', () => {
 
     // Assert
     expect(await screen.findByText(/找不到這份修改建議/)).toBeInTheDocument();
+  });
+});
+
+function renderDescriptionCard(after: string, serveProject: () => Promise<Response> | Response = () => ok(smkDetail())) {
+  const proposal = makeItemProposal({ projectKey: 'SMK', itemKey: 'SMK-12', changes: [{ field: 'description', value: after }] });
+  serveItemProposal(proposal);
+  server.use(http.get('/v1/projects/SMK', serveProject));
+  return renderInRouter(
+    <QueryClientProvider client={createQueryClient({ queries: { retry: false } })}>
+      <ProposalCard proposalId={proposal.id} />
+    </QueryClientProvider>,
+  );
+}
+
+describe('修改建議的卡片：說明的連結摘要在資料不全時不誤導', () => {
+  it('讀不到項目現在的說明：列出建議裡全部的連結，不說「新增」', async () => {
+    // Arrange
+    server.use(http.get('/v1/items/SMK-12', () => failure(404, 'item.not_found', '找不到這個項目。')));
+
+    // Act
+    renderDescriptionCard('見 https://example.com/a');
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText('這份說明裡有 1 個連結：example.com。')).toBeInTheDocument();
+    expect(view.queryByText(/新增/)).not.toBeInTheDocument();
+  });
+
+  it('專案成員還沒載入：只說提及幾個人，載入之後才寫名字', async () => {
+    // Arrange
+    serveItem(ITEM);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    // Act
+    renderDescriptionCard(`請 [某人](mention:${exampleMember.personId}) 看`, async () => {
+      await gate;
+      return ok(smkDetail());
+    });
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText('這份說明會提及 1 個人。')).toBeInTheDocument();
+    expect(view.queryByText(/不是成員的人/)).not.toBeInTheDocument();
+    release();
+    expect(await view.findByText('這份說明會提及 1 個人：範例成員。')).toBeInTheDocument();
+  });
+});
+
+describe('修改建議的卡片：說明的格子很高時', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function stubHeights(scrollHeight: number, clientHeight: number) {
+    vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(scrollHeight);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(clientHeight);
+  }
+
+  it('內容溢出：格子下面說還有更多，格子可以用鍵盤聚焦捲動', async () => {
+    // Arrange
+    serveItem(ITEM);
+    stubHeights(500, 224);
+
+    // Act
+    renderDescriptionCard('很長的說明');
+
+    // Assert
+    const view = within(await card());
+    const box = await view.findByRole('region', { name: '建議的說明' });
+    expect((await view.findAllByText('內容較長，捲動看完整的說明')).length).toBeGreaterThan(0);
+    expect(box).toHaveAttribute('tabindex', '0');
+    expect(box).toHaveAccessibleDescription('內容較長，捲動看完整的說明');
+  });
+
+  it('內容放得下：沒有提示，也不多一個 Tab 停駐點', async () => {
+    // Arrange
+    serveItem(ITEM);
+    stubHeights(100, 100);
+
+    // Act
+    renderDescriptionCard('短的說明');
+
+    // Assert
+    const view = within(await card());
+    const box = await view.findByRole('region', { name: '建議的說明' });
+    expect(view.queryByText('內容較長，捲動看完整的說明')).not.toBeInTheDocument();
+    expect(box).not.toHaveAttribute('tabindex');
   });
 });

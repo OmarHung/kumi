@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useRef } from 'react';
 import { Link } from 'react-router';
 import type { ItemProposal } from '../../api/aiTypes';
 import { useDecideItemProposal, useItemProposal } from '../../api/assistant';
@@ -9,13 +9,16 @@ import { Markdown } from '../../components/Markdown/Markdown';
 import { Notice } from '../../components/Notice/Notice';
 import { formatInstant } from '../../domain/time';
 import { itemPagePath } from '../work-items/itemLinks';
-import { changedLabels, changeRows, type ChangeRow } from './proposalChanges';
+import { changedLabels, changeRows, EMPTY_VALUE, type ChangeRow } from './proposalChanges';
+import { useDescriptionSummary } from './useDescriptionSummary';
+import { useOverflow } from './useOverflow';
 import styles from './ProposalCard.module.css';
 
 const NO_MENTIONS: ReadonlyMap<string, string> = new Map();
 const CONFLICT_CODE = 'item.description_conflict';
 const CLOSED_CODE = 'ai.item_proposal_closed';
 const CONFLICT_TEXT = '這個項目在建議之後被改過，請重新請助理建議。';
+const COMMENT_NOTE = '留言送出後，看得到這個項目的人都看得到。';
 const CLOSED_TEXT = '這份建議已經處理過了。';
 
 function failureText(error: unknown): string {
@@ -24,27 +27,53 @@ function failureText(error: unknown): string {
   return errorMessage(error);
 }
 
-function DescriptionRow({ row }: { readonly row: Extract<ChangeRow, { kind: 'description' }> }) {
-  const [isOpen, setIsOpen] = useState(false);
+type DescriptionChange = Extract<ChangeRow, { kind: 'description' }>;
+
+const SCROLL_NOTE = '內容較長，捲動看完整的說明';
+
+/**
+ * 說明的一格：內容很長時有高度上限、自己捲動，「套用」不會被推到看不見。只有真的溢出時才能用鍵盤聚焦捲動
+ * （沒溢出時不多一個 Tab 停駐點），並在格子下面說一聲還有更多。
+ */
+function DescriptionBox({ label, heading, text }: { readonly label: string; readonly heading: string; readonly text: string }) {
+  const boxRef = useRef<HTMLElement>(null);
+  const noteId = useId();
+  const isOverflowing = useOverflow(boxRef, text);
+  return (
+    <div className={styles.cell}>
+      <section
+        ref={boxRef}
+        className={styles.descriptionBox}
+        aria-label={label}
+        aria-describedby={isOverflowing ? noteId : undefined}
+        tabIndex={isOverflowing ? 0 : undefined}
+      >
+        <h4 className={styles.boxLabel} aria-hidden="true">
+          {heading}
+        </h4>
+        {text.trim() === '' ? <span className={styles.before}>{EMPTY_VALUE}</span> : <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} />}
+      </section>
+      {isOverflowing && (
+        <p id={noteId} className={styles.scrollNote}>
+          {SCROLL_NOTE}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** 說明預設展開：使用者很可能不會再點一下才看，所以現在的與建議的並排（窄的時候上下）擺出來，新增的連結與提及先講。 */
+function DescriptionRow({ row }: { readonly row: DescriptionChange }) {
+  const summary = useDescriptionSummary(row.before, row.text, row.members);
   return (
     <div className={styles.row}>
       <dt className={styles.label}>{row.label}</dt>
       <dd className={styles.value}>
-        <span>改成新的內容</span>{' '}
+        {summary !== null && <p className={styles.additions}>{summary}</p>}
         {row.text !== null && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setIsOpen((open) => !open);
-            }}
-          >
-            {isOpen ? '收起' : '展開'}
-          </Button>
-        )}
-        {isOpen && row.text !== null && (
-          <div className={styles.fullText}>
-            <Markdown text={row.text} mentionNames={NO_MENTIONS} hasAttachments={false} />
+          <div className={styles.compare}>
+            {row.before !== undefined && <DescriptionBox label="現在的說明" heading="現在的" text={row.before} />}
+            <DescriptionBox label="建議的說明" heading="建議的" text={row.text} />
           </div>
         )}
       </dd>
@@ -80,6 +109,7 @@ function CommentRow({ text }: { readonly text: string }) {
         <blockquote className={styles.quote}>
           <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} />
         </blockquote>
+        <p className={styles.commentNote}>{COMMENT_NOTE}</p>
       </dd>
     </div>
   );

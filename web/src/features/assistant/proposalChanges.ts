@@ -14,7 +14,17 @@ function currentCoreText(field: string, item: ItemDetail, context: Context): str
 /** 卡片上的一列：欄位名稱、現在的值（讀不到項目時是 null）與建議的值。 */
 export type ChangeRow =
   | { readonly kind: 'value'; readonly field: string; readonly label: string; readonly before: string | null; readonly after: string }
-  | { readonly kind: 'description'; readonly field: string; readonly label: string; readonly text: string | null };
+  | {
+      readonly kind: 'description';
+      readonly field: string;
+      readonly label: string;
+      /** 建議的說明全文；型別對不上時是 null。 */
+      readonly text: string | null;
+      /** 項目現在的說明（沒有說明是空字串）；還沒讀到項目時是 undefined，卡片只顯示建議的。 */
+      readonly before: string | undefined;
+      /** 專案的成員；還沒載入時是 undefined（摘要不把人說成「不是成員的人」）。 */
+      readonly members: readonly Member[] | undefined;
+    };
 
 export const EMPTY_VALUE = '（空）';
 export const CLEARED_VALUE = '（清掉）';
@@ -122,7 +132,15 @@ function rowFor(change: ItemFieldChange, context: Context): ChangeRow {
     return { kind: 'value', field, label: CORE_LABELS.description ?? field, before: null, after: CLEARED_VALUE };
   }
   if (field === 'description') {
-    return { kind: 'description', field, label: CORE_LABELS.description ?? field, text: typeof value === 'string' ? value : null };
+    const before = item === undefined ? undefined : (item.description ?? '');
+    return {
+      kind: 'description',
+      field,
+      label: CORE_LABELS.description ?? field,
+      text: typeof value === 'string' ? value : null,
+      before,
+      members: context.detail?.members,
+    };
   }
   if (field.startsWith(CUSTOM_PREFIX)) {
     const key = field.slice(CUSTOM_PREFIX.length);

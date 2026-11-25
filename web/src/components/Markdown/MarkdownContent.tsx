@@ -1,12 +1,9 @@
 import { Children, createContext, memo, useContext, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 import { attachmentContentUrl } from '../../api/attachments';
 import { Icon } from '../Icon/Icon';
 import { attachmentIdOf, isMentionUrl, markdownUrlTransform, mentionIdOf } from './markdownUrls';
-import { remarkCjkAutolinks } from './remarkCjkAutolinks';
-import { remarkMentions } from './remarkMentions';
+import { REMARK_PLUGINS } from './markdownPlugins';
 import styles from './Markdown.module.css';
 
 export interface MarkdownProps {
@@ -19,7 +16,6 @@ export interface MarkdownProps {
   readonly attachmentUrl?: (attachmentId: string) => string;
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkCjkAutolinks, remarkBreaks, remarkMentions];
 const IMAGE_URL = /^https?:/i;
 
 /** 內容裡的標題不搶頁面的層級：頁面的 h1／h2 與區塊的 h2／h3 之後，最高從 h4 開始（h1、h2 都是 h4，樣式照原本的層級）。 */
