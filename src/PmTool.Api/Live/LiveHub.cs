@@ -22,7 +22,7 @@ public sealed partial class LiveHub(
             return;
         }
 
-        var connection = new LiveConnection(Context.ConnectionId, user.OrganizationId, user.PersonId, token, Context.Abort);
+        var connection = new LiveConnection(Context.ConnectionId, user.OrganizationId, user.PersonId, user.AccountId, token, Context.Abort);
 
         // 先登記（占掉名額）再算群組：名額是上限的依據，不能等到查完資料庫才算，不然同時進來的連線都過得了。
         if (!connections.TryAdd(connection))

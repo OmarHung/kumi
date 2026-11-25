@@ -249,6 +249,8 @@ public sealed class AttachmentEndpointTests
     {
         yield return Failing(FailureKind.Invalid, WorkErrorCodes.AttachmentTooLarge, HttpStatusCode.RequestEntityTooLarge);
         yield return Failing(FailureKind.Conflict, WorkErrorCodes.AttachmentLimitReached, HttpStatusCode.Conflict);
+        yield return Failing(FailureKind.Conflict, WorkErrorCodes.AttachmentQuotaExceeded, HttpStatusCode.Conflict);
+        yield return Failing(FailureKind.Conflict, WorkErrorCodes.AttachmentDailyQuotaExceeded, HttpStatusCode.Conflict);
         yield return Failing(FailureKind.Conflict, WorkErrorCodes.ProjectArchived, HttpStatusCode.Conflict);
         yield return Failing(FailureKind.Forbidden, WorkErrorCodes.Forbidden, HttpStatusCode.Forbidden);
         yield return Failing(FailureKind.NotFound, WorkErrorCodes.ItemNotFound, HttpStatusCode.NotFound);

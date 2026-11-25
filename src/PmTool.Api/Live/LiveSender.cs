@@ -1,43 +1,105 @@
+using Microsoft.AspNetCore.SignalR;
+
 namespace PmTool.Api.Live;
 
 /// <summary>即時推送的時間上限。測試換成很短的數字，才不必真的等。</summary>
 public sealed record LiveOptions
 {
-    /// <summary>一次送出（一個群組、一個收件匣）最多等多久。</summary>
+    /// <summary>一輪送出最多等多久；超過還沒送完的連線會被斷開。</summary>
     public TimeSpan SendTimeout { get; init; } = TimeSpan.FromSeconds(5);
 }
 
+/// <summary>一則要送給一條連線的訊息。</summary>
+public readonly record struct LiveDelivery(LiveConnection Connection, string Method, object Message);
+
 /// <summary>
-/// 送出推送的唯一入口。SignalR 對一個群組送出時會等每一條連線寫完：一條連線不讀資料（網路卡住、故意不讀）
-/// 寫入就會一直卡住，後面所有的推送、通知的處理、請求的回應都跟著被拖住。所以每一次送出都有自己的期限，
-/// 逾時或出錯只記 Warning、當作送完了，繼續下一個；那條卡住的連線由 SignalR 的逾時與心跳自己斷開。
-/// 等待用 <see cref="Task.WaitAsync(CancellationToken)"/>：即使底層的送出不理會取消，這裡也一樣放手往下走。
+/// 送出推送的唯一入口。一條連線不讀資料（網路卡住、故意不讀），寫入就會一直卡住；
+/// SignalR 對群組送出時要等每一條都寫完，一條卡住會拖住所有人，而且看不出是哪一條。
+/// 所以一條連線一條連線送：所有連線同時送，一整輪最多等一個 <see cref="LiveOptions.SendTimeout"/>；
+/// 超過還沒送完的連線直接斷開（SignalR 的心跳看的是用戶端有沒有送東西，不是有沒有在讀，不能指望它斷開卡住的連線）。
+/// 上一次還沒送完的連線，後到的訊息接在後面送（健康的連線一次寫只要幾毫秒，短暫重疊時不能丟掉後到的，網頁不會自己補）；
+/// 排滿了才略過，並標成送不完，正在寫的那一則超過期限就斷開，讓網頁重連重抓。
 /// </summary>
-public sealed partial class LiveSender(LiveOptions options, ILogger<LiveSender> logger)
+public sealed partial class LiveSender(IHubContext<LiveHub> hub, LiveOptions options, ILogger<LiveSender> logger)
 {
-    /// <param name="what">記錄用的描述（推給誰、什麼訊息）。</param>
-    /// <param name="cancellationToken">呼叫端自己的取消（程序關閉）；它取消時例外照常往外丟，不當成逾時。</param>
-    public async Task SendAsync(string what, Func<CancellationToken, Task> send, CancellationToken cancellationToken)
+    /// <summary>同一則訊息送給這些連線。</summary>
+    public Task SendToAsync(IReadOnlyList<LiveConnection> targets, string method, object message, CancellationToken cancellationToken) =>
+        SendAsync([.. targets.Select(c => new LiveDelivery(c, method, message))], cancellationToken);
+
+    /// <summary>
+    /// 一批訊息，同一條連線的依順序送；各條連線同時送，整批只有一個期限。
+    /// 呼叫端自己的取消（程序關閉）照常往外丟，不當成逾時。
+    /// </summary>
+    public async Task SendAsync(IReadOnlyList<LiveDelivery> deliveries, CancellationToken cancellationToken)
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(options.SendTimeout);
+        var now = DateTimeOffset.UtcNow;
+        var started = new List<(LiveConnection Connection, Task Pending)>();
+        foreach (var perConnection in deliveries.GroupBy(d => d.Connection))
+        {
+            IReadOnlyList<LiveDelivery> batch = [.. perConnection];
+            var connection = perConnection.Key;
+            switch (connection.TryEnqueue(batch, () => SendInOrderAsync(connection), options.SendTimeout, now, out var pending))
+            {
+                case SendStart.Started:
+                    started.Add((connection, pending!));
+                    break;
+                case SendStart.TimedOut:
+                    AbortStuck(connection);
+                    break;
+            }
+        }
+
+        if (started.Count == 0)
+        {
+            return;
+        }
+
         try
         {
-            await send(deadline.Token).WaitAsync(deadline.Token);
+            await Task.WhenAll(started.Select(s => s.Pending)).WaitAsync(options.SendTimeout, cancellationToken);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (TimeoutException)
         {
-            LogTimedOut(what, options.SendTimeout.TotalSeconds);
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            LogFailed(exception, what);
+            foreach (var (connection, pending) in started.Where(s => !s.Pending.IsCompleted))
+            {
+                AbortStuck(connection);
+            }
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "推送「{What}」超過 {Seconds} 秒還沒送完，放棄這一次繼續下一個；可能有一條連線不讀資料。")]
-    private partial void LogTimedOut(string what, double seconds);
+    /// <summary>逐批、逐則依順序寫，直到排著的都送完。這一個工作不會失敗：送不出去（連線已經關了）只記錄，不影響別的連線。</summary>
+    private async Task SendInOrderAsync(LiveConnection connection)
+    {
+        try
+        {
+            while (connection.TryTakeNext(out var batch))
+            {
+                foreach (var delivery in batch)
+                {
+                    connection.MarkWriting(DateTimeOffset.UtcNow);
+                    await hub.Clients.Client(connection.ConnectionId).SendAsync(delivery.Method, delivery.Message, CancellationToken.None);
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            connection.AbandonBacklog();
+            LogFailed(exception, connection.ConnectionId);
+        }
+    }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "推送「{What}」失敗，網頁要等下一次重抓才會更新。")]
-    private partial void LogFailed(Exception exception, string what);
+    private void AbortStuck(LiveConnection connection)
+    {
+        if (connection.TryMarkAborted())
+        {
+            LogAborted(connection.ConnectionId, connection.PersonId, options.SendTimeout.TotalSeconds);
+            connection.Abort();
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "即時連線 {ConnectionId}（人員 {PersonId}）超過 {Seconds} 秒還沒收完推送，可能沒有在讀資料，斷開它讓網頁重連。")]
+    private partial void LogAborted(string connectionId, Guid personId, double seconds);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "推送給即時連線 {ConnectionId} 失敗，網頁要等下一次重抓才會更新。")]
+    private partial void LogFailed(Exception exception, string connectionId);
 }

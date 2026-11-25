@@ -5,7 +5,7 @@ namespace PmTool.Api.Endpoints;
 /// <summary>
 /// 一則通知在 API 上的形狀。項目的編號、標題與狀態名稱是事件發生當時的樣子；做事的人帶顯示名稱，網頁不必另外查。
 /// 帳號通知（<c>account_security</c>）沒有專案與項目：<c>projectKey</c>、<c>itemKey</c>、<c>itemTitle</c> 是 null，
-/// 發生了什麼事在 <c>account</c>，做事的人就是本人。
+/// 發生了什麼事在 <c>account</c>，做事的人就是本人。<c>edited</c> 是摘要來自留言編輯之後的內容。
 /// </summary>
 internal sealed record NotificationData(
     Guid NotificationId,
@@ -20,7 +20,8 @@ internal sealed record NotificationData(
     Guid? CommentId,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ReadAt,
-    AccountNotice? Account)
+    AccountNotice? Account,
+    bool Edited)
 {
     /// <summary>通知裡做事的人已經查不到時的名字（已離開組織或被刪掉）。</summary>
     public const string UnknownActorName = "查不到的人";
@@ -38,7 +39,8 @@ internal sealed record NotificationData(
         item.CommentId,
         item.CreatedAt,
         item.ReadAt,
-        item.Account);
+        item.Account,
+        item.Edited);
 }
 
 internal sealed record NotificationPageData(IReadOnlyList<NotificationData> Items, string? NextCursor);

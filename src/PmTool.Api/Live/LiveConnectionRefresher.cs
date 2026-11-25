@@ -7,8 +7,8 @@ namespace PmTool.Api.Live;
 /// <summary>
 /// 重新檢查連線：工作階段失效（登出、被停用、密碼被重設）就斷線；專案被加入或移出、角色改變就調整群組。
 /// 連線是長時間的，Cookie 只在連線建立的那一刻驗過，沒有這一步，登出之後連線還會一直收到推送。
-/// 兩種時機：每隔 <see cref="Interval"/> 檢查所有連線（保險，別的程序處理的變動只能靠它），
-/// 以及這個程序處理的權限變動成功之後立刻重算受影響的人（<see cref="RefreshAsync"/>）。
+/// 兩種時機：每隔 <see cref="Interval"/> 檢查所有連線（保險，訊號漏掉時靠它），
+/// 以及收到跨程序訊號（含這個程序自己發的）時立刻重算受影響的人或帳號。
 /// 確認工作階段用唯讀的 <see cref="ISessionService.IsActiveAsync"/>，不用 FindAsync：後者每次都記下使用時刻、延長閒置期限，
 /// 開著不動的分頁會因此永遠不會閒置失效。
 /// 查詢出錯時（資料庫暫時連不上）那一條連線不動、下一輪再來：不能因為一次查詢失敗就把所有人斷線。
@@ -45,14 +45,21 @@ public sealed partial class LiveConnectionRefresher(
     /// 只檢查這些人的連線（null 是全部）。還有沒套用的遷移就跳過；任何例外都記成 Error 後吞掉，
     /// 不讓背景服務停止（.NET 預設會讓整個主機跟著結束）。回傳被斷開的連線數。
     /// </summary>
-    public async Task<int> RefreshAsync(IReadOnlyCollection<Guid>? personIds, CancellationToken cancellationToken)
+    public Task<int> RefreshAsync(IReadOnlyCollection<Guid>? personIds, CancellationToken cancellationToken) =>
+        RefreshWhereAsync(c => personIds is null || personIds.Contains(c.PersonId), cancellationToken);
+
+    /// <summary>只檢查這個帳號的連線（憑證作廢的訊號只帶帳號）。工作階段直接查資料庫，不經過快取，所以不必管誰先誰後。</summary>
+    public Task<int> RefreshAccountAsync(Guid accountId, CancellationToken cancellationToken) =>
+        RefreshWhereAsync(c => c.AccountId == accountId, cancellationToken);
+
+    private async Task<int> RefreshWhereAsync(Func<LiveConnection, bool> filter, CancellationToken cancellationToken)
     {
         try
         {
             await using var scope = scopes.CreateAsyncScope();
             return await HasPendingMigrationsAsync(scope.ServiceProvider, cancellationToken)
                 ? 0
-                : await CheckAsync(scope.ServiceProvider, personIds, cancellationToken);
+                : await CheckAsync(scope.ServiceProvider, filter, cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -61,7 +68,7 @@ public sealed partial class LiveConnectionRefresher(
         }
     }
 
-    private async Task<int> CheckAsync(IServiceProvider services, IReadOnlyCollection<Guid>? personIds, CancellationToken cancellationToken)
+    private async Task<int> CheckAsync(IServiceProvider services, Func<LiveConnection, bool> filter, CancellationToken cancellationToken)
     {
         var sessions = services.GetRequiredService<ISessionService>();
         var resolver = services.GetRequiredService<LiveGroupResolver>();
@@ -71,7 +78,7 @@ public sealed partial class LiveConnectionRefresher(
         Dictionary<string, bool> activeSessions = new(StringComparer.Ordinal);
         Dictionary<Guid, ImmutableHashSet<string>?> groupsByPerson = [];
         var aborted = 0;
-        foreach (var connection in connections.Snapshot().Where(c => personIds is null || personIds.Contains(c.PersonId)))
+        foreach (var connection in connections.Snapshot().Where(filter))
         {
             try
             {

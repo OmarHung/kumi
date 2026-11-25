@@ -90,6 +90,9 @@ internal sealed class RealStackFactory(string connectionString, RealStackOptions
         // 即時連線預設關著（和背景處理一樣）；要測它的測試用 Settings 打開，並自己決定什麼時候讀事件。
         builder.UseSetting(PmTool.Api.Live.LiveRegistration.EnabledSetting, "false");
         builder.UseSetting(PmTool.Api.Live.LiveUpdateWorker.EnabledSetting, "false");
+
+        // 跨程序的訊號預設不開（每個測試類別一個主機，不需要多一條接收的連線）；要測的用 Settings 打開。
+        builder.UseSetting(PmTool.Api.Cluster.ClusterRegistration.EnabledSetting, "false");
         builder.UseSetting("ConnectionStrings:Database", connectionString);
         builder.UseSetting("Attachments:Provider", "local");
         builder.UseSetting("Attachments:Directory", _attachmentDirectory);

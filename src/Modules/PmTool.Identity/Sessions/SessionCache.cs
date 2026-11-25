@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 
+using PmTool.Abstractions;
+
 namespace PmTool.Identity.Sessions;
 
 /// <summary>查一個權杖的結果。</summary>
@@ -35,11 +37,14 @@ internal sealed record SessionCacheLimits
 /// 序號比帳號的作廢序號舊的結果一律不用；還在查的只有序號是最新的才能共用，因為還不知道它是哪個帳號的。
 /// </para>
 /// </summary>
-internal sealed class SessionCache(TimeProvider time, SessionCacheLimits limits)
+internal sealed class SessionCache(TimeProvider time, SessionCacheLimits limits, IClusterSignals? signals = null)
 {
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, Revocation> _revocations = new();
     private long _epoch;
+
+    // 整個清掉（<see cref="Clear"/>）之後，序號比它舊的結果一律不用。
+    private long _clearedBefore;
 
     /// <summary>
     /// 有可用的結果就直接回，沒有就查（或加入正在進行的那一次）。查詢本身不綁在任何一個請求上：
@@ -79,6 +84,15 @@ internal sealed class SessionCache(TimeProvider time, SessionCacheLimits limits)
     /// </summary>
     public void Forget(Guid accountId)
     {
+        ForgetLocal(accountId);
+
+        // 別的程序的快取也要清；訊號在這個程序清完之後才發，接收端是同一個方法的本機版，不會再發出去。
+        signals?.Publish(new ClusterSignal(ClusterSignalKind.CredentialsRevoked) { AccountId = accountId });
+    }
+
+    /// <summary>只清這個程序的快取、不發訊號：收到別的程序的訊號時用，免得訊號來回傳。</summary>
+    public void ForgetLocal(Guid accountId)
+    {
         var epoch = Interlocked.Increment(ref _epoch);
 
         // 時刻在推進序號之後才讀：被這次作廢擋下的查詢，開始的時刻一定不晚於它，下面清掉舊紀錄時才不會早一步清掉。
@@ -96,8 +110,22 @@ internal sealed class SessionCache(TimeProvider time, SessionCacheLimits limits)
         DropOldRevocations(revocation.At);
     }
 
+    /// <summary>
+    /// 整個清掉，包括還在查的：接收訊號的連線斷過又接上，中間漏掉的作廢不知道是哪些帳號的。
+    /// </summary>
+    public void Clear()
+    {
+        Volatile.Write(ref _clearedBefore, Interlocked.Increment(ref _epoch));
+        _entries.Clear();
+    }
+
     private bool IsUsable(Entry entry, DateTimeOffset now)
     {
+        if (entry.Epoch < Volatile.Read(ref _clearedBefore))
+        {
+            return false;
+        }
+
         var task = entry.Result.Task;
         if (!task.IsCompleted)
         {

@@ -28,14 +28,17 @@ internal static class InputText
 
     /// <summary>
     /// 填充字：不是 Format 類，畫面上卻是空白，可以拿來做出看起來一樣的名稱。
+    /// 高棉文的固有母音（U+17B4、U+17B5）單獨出現時顯示不出來；U+180E（蒙古文母音分隔符）舊版 Unicode 當空白，
+    /// 新版改成 Format，明列在這裡讓兩種版本的執行環境結果一致。
     /// </summary>
-    private static readonly HashSet<int> FillerCodePoints = [0x115F, 0x1160, 0x3164, 0xFFA0, 0x2800, 0x034F];
+    private static readonly HashSet<int> FillerCodePoints = [0x115F, 0x1160, 0x3164, 0xFFA0, 0x2800, 0x034F, 0x17B4, 0x17B5, 0x180E];
 
     /// <summary>
     /// 變體選擇符：附在前一個字元後面、改變它的字形，本身看不見。U+FE0F（emoji 的圖形樣式）要留給 emoji，不算在內。
     /// </summary>
     private static bool IsVariationSelector(Rune rune) =>
-        rune.Value is >= 0xFE00 and <= 0xFE0E or >= 0xE0100 and <= 0xE01EF;
+        rune.Value is >= 0xFE00 and <= 0xFE0E or >= 0xE0100 and <= 0xE01EF
+            or >= 0x180B and <= 0x180D or 0x180F; // 蒙古文的自由變體選擇符
 
     /// <summary>
     /// 看不見的格式字元：雙向控制與零寬字元（Format）、行與段落分隔、填充字、變體選擇符。

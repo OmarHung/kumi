@@ -31,16 +31,19 @@ public sealed class LiveGroupSync(IHubContext<LiveHub> hub)
         await connection.GroupLock.WaitAsync(cancellationToken);
         try
         {
+            // 推送是依連線自己記的 Groups 找人。離開時先改 Groups、再通知 SignalR：權限剛被拿掉的人，
+            // 在等 SignalR 的這段時間裡就已經不會再被送到；萬一 SignalR 那邊失敗，只是多留一筆沒人用的成員資料。
+            foreach (var group in connection.Groups.Except(desired))
+            {
+                connection.Groups = connection.Groups.Remove(group);
+                await hub.Groups.RemoveFromGroupAsync(connection.ConnectionId, group, cancellationToken);
+            }
+
+            // 加入時反過來：先讓 SignalR 加進去成功、才開始被送到；加入失敗時 Groups 沒有這個群組，下一輪檢查會再試。
             foreach (var group in desired.Except(connection.Groups))
             {
                 await hub.Groups.AddToGroupAsync(connection.ConnectionId, group, cancellationToken);
                 connection.Groups = connection.Groups.Add(group);
-            }
-
-            foreach (var group in connection.Groups.Except(desired))
-            {
-                await hub.Groups.RemoveFromGroupAsync(connection.ConnectionId, group, cancellationToken);
-                connection.Groups = connection.Groups.Remove(group);
             }
         }
         finally

@@ -127,8 +127,12 @@ internal static class ProjectDescriptionEndpoints
     private static async Task<IResult> ListTemplatesAsync(
         ClaimsPrincipal principal, [FromServices] IProjectDescriptionService descriptions, CancellationToken cancellationToken)
     {
-        var templates = await descriptions.ListTemplatesAsync(SessionPrincipal.Read(principal).ToActor(), cancellationToken);
-        return EndpointResults.Ok(templates.Select(DescriptionTemplateData.From).ToArray());
+        var user = SessionPrincipal.Read(principal);
+        var templates = await descriptions.ListTemplatesAsync(user.ToActor(), cancellationToken);
+
+        // 組織自己寫的說明格式可能放著內部的主機與流程：訪客只拿得到內建的那一份。
+        var visible = user.Role == OrganizationRole.Guest ? templates.Where(t => t.IsBuiltIn) : templates;
+        return EndpointResults.Ok(visible.Select(DescriptionTemplateData.From).ToArray());
     }
 
     private static async Task<IResult> CreateTemplateAsync(

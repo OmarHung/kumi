@@ -6,7 +6,7 @@ namespace PmTool.Api.Tests.Live;
 [TestFixture]
 public sealed class LiveConnectionsTests
 {
-    private static LiveConnection Connection(Guid person, string id) => new(id, Guid.CreateVersion7(), person, "token", () => { });
+    private static LiveConnection Connection(Guid person, string id) => new(id, Guid.CreateVersion7(), person, Guid.CreateVersion7(), "token", () => { });
 
     [Test]
     public void TryAdd_BeyondTheLimit_IsRefusedForThatPersonOnly()
@@ -92,5 +92,58 @@ public sealed class LiveConnectionsTests
         // Assert
         Assert.That(snapshot, Has.Count.EqualTo(1));
         Assert.That(connections.Snapshot(), Is.Empty);
+    }
+
+    [Test]
+    public void TryEnqueue_WhileSending_QueuesUpToTheLimitThenSkipsAndAbortsOnlyOnceTheWriteIsOld()
+    {
+        // Arrange：送出一直沒完成。
+        var connection = Connection(Guid.CreateVersion7(), "c");
+        var timeout = TimeSpan.FromSeconds(5);
+        var start = DateTimeOffset.UtcNow;
+        IReadOnlyList<LiveDelivery> batch = [new LiveDelivery(connection, "items", new object())];
+        var first = connection.TryEnqueue(
+            batch,
+            () =>
+            {
+                connection.TryTakeNext(out _); // 送出的工作先取走第一批，之後卡在寫入。
+                return new TaskCompletionSource().Task;
+            },
+            timeout,
+            start,
+            out _);
+
+        // Act
+        var queued = Enumerable.Range(0, LiveConnection.MaxBacklog)
+            .Select(index => connection.TryEnqueue(batch, () => throw new InvalidOperationException(), timeout, start, out Task? ignored)).ToList();
+        var full = connection.TryEnqueue(batch, () => throw new InvalidOperationException(), timeout, start.AddSeconds(1), out _);
+        var fullAndOld = connection.TryEnqueue(batch, () => throw new InvalidOperationException(), timeout, start.AddSeconds(6), out _);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first, Is.EqualTo(SendStart.Started));
+            Assert.That(queued, Has.All.EqualTo(SendStart.Queued));
+            Assert.That(full, Is.EqualTo(SendStart.Busy));
+            Assert.That(fullAndOld, Is.EqualTo(SendStart.TimedOut));
+            Assert.That(connection.IsBacklogged, Is.True);
+        }
+    }
+
+    [Test]
+    public void TryTakeNext_WhenTheBacklogIsEmpty_EndsTheSendSoTheNextBatchStartsANewOne()
+    {
+        // Arrange
+        var connection = Connection(Guid.CreateVersion7(), "c");
+        IReadOnlyList<LiveDelivery> batch = [new LiveDelivery(connection, "items", new object())];
+        connection.TryEnqueue(batch, () => Task.CompletedTask, TimeSpan.FromSeconds(5), DateTimeOffset.UtcNow, out _);
+
+        // Act
+        var tookFirst = connection.TryTakeNext(out _);
+        var tookSecond = connection.TryTakeNext(out _);
+        var next = connection.TryEnqueue(batch, () => Task.CompletedTask, TimeSpan.FromSeconds(5), DateTimeOffset.UtcNow, out _);
+
+        // Assert
+        Assert.That((tookFirst, tookSecond, next), Is.EqualTo((true, false, SendStart.Started)));
     }
 }

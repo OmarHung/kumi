@@ -70,6 +70,9 @@ public sealed class InputRulesTests
     [TestCase(0x2800, TestName = "Email 帶點字空白")]
     [TestCase(0xFE00, TestName = "Email 帶變體選擇符")]
     [TestCase(0xE0100, TestName = "Email 帶補充的變體選擇符")]
+    [TestCase(0x17B4, TestName = "Email 帶高棉文的固有母音")]
+    [TestCase(0x180B, TestName = "Email 帶蒙古文的自由變體選擇符")]
+    [TestCase(0x180E, TestName = "Email 帶蒙古文母音分隔符")]
     public async Task CreateAsync_EmailWithInvisibleCharacter_ReturnsEmailInvalid(int codePoint)
     {
         // Arrange
@@ -89,6 +92,13 @@ public sealed class InputRulesTests
     [TestCase(0xFE0E, TestName = "顯示名稱帶文字樣式的變體選擇符")]
     [TestCase(0xFE00, TestName = "顯示名稱帶變體選擇符")]
     [TestCase(0xE01EF, TestName = "顯示名稱帶補充的變體選擇符")]
+    [TestCase(0x17B4, TestName = "顯示名稱帶高棉文的固有母音（U+17B4）")]
+    [TestCase(0x17B5, TestName = "顯示名稱帶高棉文的固有母音（U+17B5）")]
+    [TestCase(0x180B, TestName = "顯示名稱帶蒙古文的自由變體選擇符（U+180B）")]
+    [TestCase(0x180C, TestName = "顯示名稱帶蒙古文的自由變體選擇符（U+180C）")]
+    [TestCase(0x180D, TestName = "顯示名稱帶蒙古文的自由變體選擇符（U+180D）")]
+    [TestCase(0x180E, TestName = "顯示名稱帶蒙古文母音分隔符")]
+    [TestCase(0x180F, TestName = "顯示名稱帶蒙古文的自由變體選擇符（U+180F）")]
     public async Task CreateAsync_DisplayNameWithInvisibleCharacter_ReturnsFailure(int codePoint)
     {
         // Arrange
@@ -125,6 +135,32 @@ public sealed class InputRulesTests
 
         // Assert
         Assert.That(result.Succeeded, Is.True);
+    }
+
+    [TestCase(0x17B4, TestName = "權杖名稱帶高棉文的固有母音")]
+    [TestCase(0x180D, TestName = "權杖名稱帶蒙古文的自由變體選擇符")]
+    [TestCase(0x180E, TestName = "權杖名稱帶蒙古文母音分隔符")]
+    public async Task CreateAsync_TokenNameWithInvisibleScriptCharacter_IsRejected(int codePoint)
+    {
+        // Arrange
+        var token = new NewAccessToken("ci" + char.ConvertFromUtf32(codePoint), [AccessTokenScope.ItemsRead], 30);
+
+        // Act
+        var result = await _host.AccessTokens.CreateAsync(_owner.ToActor(), token, CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Failure?.Details.Select(d => d.Path), Is.EqualTo(new[] { "name" }));
+    }
+
+    [TestCase("សួស្តី", TestName = "高棉文的名字")]
+    [TestCase("ᠮᠣᠩᠭᠣᠯ", TestName = "蒙古文的名字")]
+    public async Task CreateAsync_DisplayNameInKhmerOrMongolian_Succeeds(string name)
+    {
+        // Act
+        var result = await _host.People.CreateAsync(_owner.ToActor(), new NewPerson(name, TestData.UniqueEmail(), TestData.Password, OrganizationRole.Member), CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, result.Failure?.Message);
     }
 
     [Test]

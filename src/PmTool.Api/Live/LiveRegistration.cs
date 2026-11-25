@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using PmTool.Abstractions;
 using PmTool.Api.Composition;
 using PmTool.Notifications;
 
@@ -33,6 +34,7 @@ public static class LiveRegistration
         services.AddHostedService(provider => provider.GetRequiredService<LiveConnectionRefresher>());
         services.AddSingleton<ILiveNotifier, HubLiveNotifier>();
         services.AddSingleton<INotificationObserver, LiveNotificationObserver>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IClusterSignalHandler, LiveClusterSignals>());
 
         // 讀事件的工作永遠註冊（測試要自己叫它跑一輪），只有開關打開才在主機裡定時跑。
         services.AddSingleton<LiveUpdateWorker>();

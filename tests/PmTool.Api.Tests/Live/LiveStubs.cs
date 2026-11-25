@@ -6,14 +6,17 @@ using PmTool.Work;
 
 namespace PmTool.Api.Tests.Live;
 
-/// <summary>記下送給每個群組的訊息的假 hub；指定的群組會一直卡住（模擬有一條連線不讀資料）。</summary>
+/// <summary>記下送給每條連線的訊息的假 hub；指定的連線會一直卡住（模擬不讀資料）。</summary>
 internal sealed class FakeHubContext : IHubContext<LiveHub>, IHubClients, IGroupManager
 {
-    private readonly List<(string Group, string Method, object?[] Arguments)> _sent = [];
+    private readonly List<(string Connection, string Method, object?[] Arguments)> _sent = [];
 
-    public HashSet<string> HangingGroups { get; } = [];
+    public HashSet<string> HangingConnections { get; } = [];
 
-    public IReadOnlyList<(string Group, string Method, object?[] Arguments)> Sent
+    /// <summary>指定的連線要等這個工作被放行才寫得出去（寫入慢，但不是永遠卡住）。</summary>
+    public Dictionary<string, TaskCompletionSource> Gates { get; } = [];
+
+    public IReadOnlyList<(string Connection, string Method, object?[] Arguments)> Sent
     {
         get
         {
@@ -28,9 +31,9 @@ internal sealed class FakeHubContext : IHubContext<LiveHub>, IHubClients, IGroup
 
     public IGroupManager Groups => this;
 
-    public IClientProxy Group(string groupName) => new Proxy(this, groupName);
+    public IClientProxy Group(string groupName) => throw new NotSupportedException();
 
-    public IClientProxy Client(string connectionId) => throw new NotSupportedException();
+    public IClientProxy Client(string connectionId) => new Proxy(this, connectionId);
 
     public IClientProxy All => throw new NotSupportedException();
 
@@ -46,23 +49,42 @@ internal sealed class FakeHubContext : IHubContext<LiveHub>, IHubClients, IGroup
 
     public IClientProxy Users(IReadOnlyList<string> userIds) => throw new NotSupportedException();
 
-    public Task AddToGroupAsync(string connectionId, string groupName, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    /// <summary>離開群組、通知 SignalR 的那一刻會叫用；測試用它看當時連線自己記的群組。</summary>
+    public Action<string>? OnRemoveFromGroup { get; set; }
 
-    public Task RemoveFromGroupAsync(string connectionId, string groupName, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    /// <summary>加入群組、通知 SignalR 的那一刻會叫用。</summary>
+    public Action<string>? OnAddToGroup { get; set; }
 
-    private sealed class Proxy(FakeHubContext owner, string group) : IClientProxy
+    public Task AddToGroupAsync(string connectionId, string groupName, CancellationToken cancellationToken = default)
+    {
+        OnAddToGroup?.Invoke(groupName);
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveFromGroupAsync(string connectionId, string groupName, CancellationToken cancellationToken = default)
+    {
+        OnRemoveFromGroup?.Invoke(groupName);
+        return Task.CompletedTask;
+    }
+
+    private sealed class Proxy(FakeHubContext owner, string connection) : IClientProxy
     {
         public async Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default)
         {
-            if (owner.HangingGroups.Contains(group))
+            if (owner.HangingConnections.Contains(connection))
             {
                 // 就算取消了也不離開：模擬底層的寫入不理會取消。
                 await new TaskCompletionSource().Task;
             }
 
+            if (owner.Gates.TryGetValue(connection, out var gate))
+            {
+                await gate.Task;
+            }
+
             lock (owner._sent)
             {
-                owner._sent.Add((group, method, args));
+                owner._sent.Add((connection, method, args));
             }
         }
     }

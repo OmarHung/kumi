@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using PmTool.Abstractions;
 using PmTool.Api.Documents;
+using PmTool.Api.Live;
 using PmTool.Api.Responses;
 using PmTool.Api.Security;
 using PmTool.Blueprint;
@@ -17,6 +18,8 @@ namespace PmTool.Api.Endpoints;
 internal static class ChangeSetEndpoints
 {
     // 編號不是正整數時路由就對不上，回的是和其他找不到的路徑一樣的 404，不必走到模組。
+    private const string LogCategory = "PmTool.Api.Endpoints.ChangeSetEndpoints";
+
     private const string ChangeSetRoute = "/projects/{projectKey}/changesets/{number:long:min(1)}";
 
     public static RouteGroupBuilder MapChangeSetEndpoints(this RouteGroupBuilder v1)
@@ -139,8 +142,44 @@ internal static class ChangeSetEndpoints
         ClaimsPrincipal principal,
         [FromServices] IBlueprintChangeService changes,
         [FromServices] IPeopleDirectory people,
+        [FromServices] IProjectService projects,
+        [FromServices] ILiveNotifier live,
+        [FromServices] ILoggerFactory loggers,
         CancellationToken cancellationToken) =>
-        RespondAsync(principal, people, actor => changes.ApplyAsync(actor, projectKey, number, cancellationToken), cancellationToken);
+        RespondAsync(principal, people, async actor =>
+        {
+            var applied = await changes.ApplyAsync(actor, projectKey, number, cancellationToken);
+            if (applied.Failure is null)
+            {
+                await TellMembersAsync(projects, live, loggers.CreateLogger(LogCategory), actor, projectKey, cancellationToken);
+            }
+
+            return applied;
+        }, cancellationToken);
+
+    /// <summary>
+    /// 角色的權限可能變了：成員的即時連線立刻重算。變更集已經套用了，這裡出任何問題都不能讓使用者看到失敗：
+    /// 查不到成員或丟例外只記錄，不全站重算（每兩分鐘一次的全面檢查會補上）。
+    /// </summary>
+    private static async Task TellMembersAsync(
+        IProjectService projects, ILiveNotifier live, ILogger logger, Actor actor, string projectKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var project = await projects.GetAsync(actor, projectKey, cancellationToken);
+            if (project.Failure is not null)
+            {
+                logger.LogWarning("變更集已套用，但取不到專案 {ProjectKey} 的成員，即時連線等定期檢查再更新權限。", projectKey);
+                return;
+            }
+
+            live.AccessChanged([.. project.Value.Members.Select(m => m.PersonId)]);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "變更集已套用，但通知專案 {ProjectKey} 的成員重算即時連線失敗，等定期檢查再更新權限。", projectKey);
+        }
+    }
 
     private static Task<IResult> RejectAsync(
         string projectKey,

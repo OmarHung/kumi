@@ -1,3 +1,4 @@
+using PmTool.Abstractions;
 using PmTool.Identity.Sessions;
 
 namespace PmTool.Identity.Tests;
@@ -380,8 +381,119 @@ public sealed class SessionCacheTests
         Assert.That(peeked, Is.Null);
     }
 
-    private SessionCache CreateCache(int maxEntries = 100) =>
-        new(_time, new SessionCacheLimits { Duration = Duration, MaxEntries = maxEntries });
+    private SessionCache CreateCache(int maxEntries = 100, IClusterSignals? signals = null) =>
+        new(_time, new SessionCacheLimits { Duration = Duration, MaxEntries = maxEntries }, signals);
+
+    private sealed class RecordingSignals : IClusterSignals
+    {
+        public List<ClusterSignal> Published { get; } = [];
+
+        public void Publish(ClusterSignal signal) => Published.Add(signal);
+    }
+
+    [Test]
+    public void Forget_PublishesCredentialsRevokedForTheAccount_AndForgetLocalDoesNot()
+    {
+        // Arrange
+        var signals = new RecordingSignals();
+        var cache = CreateCache(signals: signals);
+
+        // Act
+        cache.ForgetLocal(AccountB);
+        cache.Forget(AccountA);
+
+        // Assert
+        Assert.That(signals.Published.Select(s => (s.Kind, s.AccountId)), Is.EqualTo(new[] { (ClusterSignalKind.CredentialsRevoked, (Guid?)AccountA) }));
+    }
+
+    [Test]
+    public async Task ForgetLocal_DropsTheAccountsResult_LikeForget()
+    {
+        // Arrange
+        var cache = CreateCache();
+        var lookups = new Lookups(Valid(AccountA));
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Act
+        cache.ForgetLocal(AccountA);
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Assert
+        Assert.That(lookups.Count, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task Clear_DropsEveryAccountsResult()
+    {
+        // Arrange
+        var cache = CreateCache();
+        var a = new Lookups(Valid(AccountA));
+        var b = new Lookups(Valid(AccountB));
+        await cache.GetAsync("a", a.Run, CancellationToken.None);
+        await cache.GetAsync("b", b.Run, CancellationToken.None);
+
+        // Act
+        cache.Clear();
+        await cache.GetAsync("a", a.Run, CancellationToken.None);
+        await cache.GetAsync("b", b.Run, CancellationToken.None);
+
+        // Assert
+        Assert.That((a.Count, b.Count), Is.EqualTo((2, 2)));
+    }
+
+    [Test]
+    public async Task Clear_ALookupThatStartedBeforeIt_IsNotKeptAfterwards()
+    {
+        // Arrange
+        var cache = CreateCache();
+        var gate = new TaskCompletionSource();
+        var lookups = new Lookups(Valid(AccountA)) { Gate = gate };
+        var pending = cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Act
+        cache.Clear();
+        gate.SetResult();
+        await pending.WaitAsync(Patience);
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Assert
+        Assert.That(lookups.Count, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task SessionCacheSignals_CredentialsRevokedFromElsewhere_ClearsLocallyWithoutPublishingAgain()
+    {
+        // Arrange
+        var signals = new RecordingSignals();
+        var cache = CreateCache(signals: signals);
+        var lookups = new Lookups(Valid(AccountA));
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+        var handler = new SessionCacheSignals(cache);
+
+        // Act
+        await handler.HandleAsync(new ClusterSignal(ClusterSignalKind.CredentialsRevoked) { AccountId = AccountA }, CancellationToken.None);
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Assert
+        Assert.That(lookups.Count, Is.EqualTo(2));
+        Assert.That(signals.Published, Is.Empty);
+    }
+
+    [Test]
+    public async Task SessionCacheSignals_Resynchronize_ClearsTheWholeCache()
+    {
+        // Arrange
+        var cache = CreateCache();
+        var lookups = new Lookups(Valid(AccountA));
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Act
+        await new SessionCacheSignals(cache).ResynchronizeAsync(CancellationToken.None);
+        await cache.GetAsync("k", lookups.Run, CancellationToken.None);
+
+        // Assert
+        Assert.That(lookups.Count, Is.EqualTo(2));
+    }
 
     private SessionLookup Valid(Guid accountId, DateTimeOffset? expiresAt = null)
     {

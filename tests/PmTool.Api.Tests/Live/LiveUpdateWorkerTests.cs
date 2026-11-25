@@ -30,9 +30,9 @@ public sealed class LiveUpdateWorkerTests
         services.AddSingleton<IWorkEventStream>(stream);
         services.AddSingleton<IMigrationStatus>(migrations);
         var provider = services.BuildServiceProvider();
-        var sender = new LiveSender(new LiveOptions { SendTimeout = sendTimeout ?? TimeSpan.FromMilliseconds(200) }, provider.GetRequiredService<ILogger<LiveSender>>());
+        var sender = new LiveSender(hub, new LiveOptions { SendTimeout = sendTimeout ?? TimeSpan.FromMilliseconds(200) }, provider.GetRequiredService<ILogger<LiveSender>>());
         var worker = new LiveUpdateWorker(
-            provider.GetRequiredService<IServiceScopeFactory>(), hub, connections, sender, provider.GetRequiredService<ILogger<LiveUpdateWorker>>());
+            provider.GetRequiredService<IServiceScopeFactory>(), connections, sender, provider.GetRequiredService<ILogger<LiveUpdateWorker>>());
         return new Setup(worker, stream, hub, connections, migrations, logs, provider);
     }
 
@@ -46,18 +46,26 @@ public sealed class LiveUpdateWorkerTests
         new ItemEventData(
             project, "MNT", Guid.CreateVersion7(), key, "標題", Person, null, AssigneeChanged: false, null, null, null, null, [], []));
 
-    private static void Connect(Setup setup) =>
-        setup.Connections.TryAdd(new LiveConnection(Guid.NewGuid().ToString(), Guid.CreateVersion7(), Person, "token", () => { }));
+    private static string Connect(Setup setup, params Guid[] projects)
+    {
+        var id = Guid.NewGuid().ToString();
+        setup.Connections.TryAdd(new LiveConnection(id, Guid.CreateVersion7(), Person, Guid.CreateVersion7(), "token", () => { })
+        {
+            Groups = [.. projects.Select(LiveGroups.Project)],
+        });
+        return id;
+    }
 
     [Test]
-    public async Task RunOnce_AGroupWhoseSendHangs_DoesNotStopThePushToTheOtherGroups()
+    public async Task RunOnce_AConnectionWhoseSendHangs_DoesNotStopThePushToTheOthers()
     {
         // Arrange
         var setup = Create();
         await using var _ = setup.Services;
-        Connect(setup);
+        var stuck = Connect(setup, ProjectId);
+        var healthy = Connect(setup, OtherProjectId);
         await setup.Worker.RunOnceAsync(CancellationToken.None);
-        setup.Hub.HangingGroups.Add(LiveGroups.Project(ProjectId));
+        setup.Hub.HangingConnections.Add(stuck);
         setup.Stream.Add(EventIn(ProjectId, "MNT-1", 2));
         setup.Stream.Add(EventIn(OtherProjectId, "WEB-1", 3));
 
@@ -66,8 +74,8 @@ public sealed class LiveUpdateWorkerTests
         var finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(10))) == run;
 
         // Assert
-        Assert.That(finished, Is.True, "卡住的群組不能讓這一輪一直等下去");
-        Assert.That(setup.Hub.Sent.Select(m => m.Group), Does.Contain(LiveGroups.Project(OtherProjectId)));
+        Assert.That(finished, Is.True, "卡住的連線不能讓這一輪一直等下去");
+        Assert.That(setup.Hub.Sent.Select(m => m.Connection), Does.Contain(healthy));
         Assert.That(setup.Logs.Entries.Select(e => e.Level), Does.Contain(LogLevel.Warning));
         Assert.That(await setup.Worker.RunOnceAsync(CancellationToken.None), Is.Zero, "位置已經往前，不重送");
     }
@@ -78,7 +86,7 @@ public sealed class LiveUpdateWorkerTests
         // Arrange
         var setup = Create();
         await using var _ = setup.Services;
-        Connect(setup);
+        var receiver = Connect(setup, ProjectId);
         await setup.Worker.RunOnceAsync(CancellationToken.None);
         setup.Stream.Add(EventIn(ProjectId, "MNT-1", 2));
         setup.Stream.FailNextRead = new TimeoutException("資料庫暫時連不上");
@@ -89,7 +97,7 @@ public sealed class LiveUpdateWorkerTests
 
         // Assert
         Assert.That((failed, recovered), Is.EqualTo((0, 1)));
-        Assert.That(setup.Hub.Sent.Select(m => m.Group), Does.Contain(LiveGroups.Project(ProjectId)));
+        Assert.That(setup.Hub.Sent.Select(m => m.Connection), Does.Contain(receiver));
         Assert.That(setup.Logs.Entries.Select(e => e.Level), Does.Contain(LogLevel.Error));
     }
 

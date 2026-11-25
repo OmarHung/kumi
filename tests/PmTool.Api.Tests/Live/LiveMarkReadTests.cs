@@ -21,6 +21,12 @@ public sealed class LiveMarkReadTests
             return new TaskCompletionSource().Task;
         }
 
+        public Task InboxChangedAsync(IReadOnlyCollection<Guid> personIds, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            return new TaskCompletionSource().Task;
+        }
+
         public void AccessChanged(IReadOnlyCollection<Guid>? personIds)
         {
         }

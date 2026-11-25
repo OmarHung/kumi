@@ -191,6 +191,33 @@ public sealed class ProjectDescriptionEndpointTests
         }
     }
 
+    [Test]
+    public async Task ListTemplates_Guest_OnlyGetsTheBuiltInTemplates()
+    {
+        // Arrange：組織自己寫的說明格式可能放著內部的主機與流程。
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Descriptions.Templates =
+        [
+            new DescriptionTemplate("web_project", "網站案子", "## 基本資料", IsBuiltIn: true, IsDefault: false),
+            new DescriptionTemplate("00000000-0000-0000-0000-0000000000b2", "內部維運", "## 主機", IsBuiltIn: false, IsDefault: true),
+        ];
+        using var guest = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Guest);
+        using var member = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var guestResponse = await guest.GetAsync("/v1/description-templates");
+        using var memberResponse = await member.GetAsync("/v1/description-templates");
+        var guestData = await ApiRequests.AssertSuccessEnvelopeAsync(guestResponse, HttpStatusCode.OK);
+        var memberData = await ApiRequests.AssertSuccessEnvelopeAsync(memberResponse, HttpStatusCode.OK);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(guestData!.AsArray().Select(t => t!["id"]!.GetValue<string>()), Is.EqualTo(new[] { "web_project" }));
+            Assert.That(memberData!.AsArray(), Has.Count.EqualTo(2));
+        }
+    }
+
     private const string TemplateId = "00000000-0000-0000-0000-0000000000b2";
 
     [Test]

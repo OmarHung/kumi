@@ -38,7 +38,7 @@ public sealed class NotificationEndpointTests
         var expected = JsonNode.Parse($$"""
             {"items":[{"notificationId":"{{NotificationId}}","kind":"state_changed","projectKey":"WEB","itemKey":"WEB-7",
             "itemTitle":"範例項目","actor":{"personId":"{{TestUsers.Owner.PersonId}}","displayName":"{{TestUsers.Owner.DisplayName}}"},
-            "fromStateName":"待辦","toStateName":"審查中","excerpt":null,"commentId":null,"createdAt":"2026-11-18T03:04:05Z","readAt":null,"account":null}],
+            "fromStateName":"待辦","toStateName":"審查中","excerpt":null,"commentId":null,"createdAt":"2026-11-18T03:04:05Z","readAt":null,"edited":false,"account":null}],
             "nextCursor":"next-page"}
             """);
         Assert.That(JsonNode.DeepEquals(data, expected), Is.True, data?.ToJsonString());
@@ -74,7 +74,7 @@ public sealed class NotificationEndpointTests
         var expected = JsonNode.Parse($$$"""
             {"items":[{"notificationId":"{{{NotificationId}}}","kind":"account_security","projectKey":null,"itemKey":null,
             "itemTitle":null,"actor":{"personId":"{{{TestUsers.Owner.PersonId}}}","displayName":"{{{TestUsers.Owner.DisplayName}}}"},
-            "fromStateName":null,"toStateName":null,"excerpt":null,"commentId":null,"createdAt":"2026-11-18T03:04:05Z","readAt":null,
+            "fromStateName":null,"toStateName":null,"excerpt":null,"commentId":null,"createdAt":"2026-11-18T03:04:05Z","readAt":null,"edited":false,
             "account":{"event":"cli_login_tokens_issued",
             "tokens":[{"name":"kumi（MacBook-Pro）","scopes":["items:read"],"expiresAt":"2027-02-23T00:00:00Z"}],
             "scopes":[],"sourceAddress":"203.0.113.5","machineName":"MacBook-Pro","clientName":null,"clientHost":null,"revokedTokens":0}}],
@@ -105,6 +105,23 @@ public sealed class NotificationEndpointTests
 
         // Assert
         Assert.That(data?["items"]?[0]?["account"]?["event"]?.GetValue<string>(), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task List_EditedCommentNotification_WritesEditedTrue()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.Notifications.OnList = (_, _) => new NotificationPage(
+            [Item(NotificationKind.Commented, TestUsers.Owner.PersonId) with { Edited = true }], null);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync("/v1/notifications");
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(data?["items"]?[0]?["edited"]?.GetValue<bool>(), Is.True);
     }
 
     [Test]

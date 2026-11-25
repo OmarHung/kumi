@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.AspNetCore.SignalR;
 using PmTool.Abstractions;
 using PmTool.Work;
 
@@ -15,7 +14,6 @@ namespace PmTool.Api.Live;
 /// </summary>
 public sealed partial class LiveUpdateWorker(
     IServiceScopeFactory scopes,
-    IHubContext<LiveHub> hub,
     LiveConnections connections,
     LiveSender sender,
     ILogger<LiveUpdateWorker> logger) : BackgroundService
@@ -114,15 +112,16 @@ public sealed partial class LiveUpdateWorker(
             }
         }
 
+        // 全部的訊息併成一批：同一條連線的依順序送、各條連線同時送，一輪最多等一個逾時，
+        // 一條不讀資料的連線被斷開，不會讓其他連線的推送一起等。
+        List<LiveDelivery> deliveries = [];
         foreach (var push in LiveEventRouter.Route(events))
         {
-            // 每個群組各有自己的期限：一個群組裡有一條不讀資料的連線，不能讓其他群組的推送一起等。
-            await sender.SendAsync(
-                $"items:{push.Group}",
-                token => hub.Clients.Group(push.Group).SendAsync(
-                    LiveMessages.Items, new LiveItemsMessage(push.ProjectKey, push.ItemKeys, push.ActorId), token),
-                cancellationToken);
+            var message = new LiveItemsMessage(push.ProjectKey, push.ItemKeys, push.ActorId);
+            deliveries.AddRange(connections.InGroup(push.Group).Select(c => new LiveDelivery(c, LiveMessages.Items, message)));
         }
+
+        await sender.SendAsync(deliveries, cancellationToken);
 
         // 推完才往前走：推的過程出錯時下一輪整批重來（多推一次只是多重抓一次）。
         _position = position;

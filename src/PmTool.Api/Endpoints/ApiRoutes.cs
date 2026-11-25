@@ -40,6 +40,7 @@ internal static class ApiRoutes
             .MapChangeSetEndpoints()
             .MapPeopleEndpoints()
             .MapAuditEndpoints()
+            .MapStorageEndpoints()
             .MapAccountEndpoints()
             .MapAccessTokenEndpoints()
             .MapOAuthAccountEndpoints()

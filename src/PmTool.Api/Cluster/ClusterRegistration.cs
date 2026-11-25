@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 using PmTool.Abstractions;
 using PmTool.Api.Composition;
 
@@ -8,8 +9,8 @@ namespace PmTool.Api.Cluster;
 public sealed record ClusterSignalOptions(bool Enabled);
 
 /// <summary>
-/// 跨程序訊號的接線。現在只有本機分送：<see cref="IClusterSignals.Publish"/> 立刻交給這個程序裡的每個接收端。
-/// 經過資料庫送給其他程序的部分接在這裡之後，不需要改發送的人與接收端。
+/// 跨程序訊號的接線：匯流排（先本機分送，啟用時再經過資料庫送給別的程序）與接收的連線。
+/// 關掉（或沒有連線字串）時只有本機分送，單一程序的部署與測試照樣正常。
 /// </summary>
 public static class ClusterRegistration
 {
@@ -22,55 +23,21 @@ public static class ClusterRegistration
         var enabled = SettingValues.ReadFlag(configuration, EnabledSetting, defaultValue: true);
         services.TryAddSingleton(new ClusterSignalOptions(enabled));
 
-        // 身分模組先放了什麼都不做的版本，這裡換成會分送的。
-        services.Replace(ServiceDescriptor.Singleton<IClusterSignals, LocalClusterSignals>());
+        // 身分模組先放了什麼都不做的版本，這裡換成匯流排。
+        services.AddSingleton<ClusterSignalBus>();
+        services.Replace(ServiceDescriptor.Singleton<IClusterSignals>(provider => provider.GetRequiredService<ClusterSignalBus>()));
+        services.AddHostedService(provider => provider.GetRequiredService<ClusterSignalBus>());
+
+        var connectionString = configuration.GetConnectionString(ModuleRegistration.DatabaseConnectionName);
+        if (enabled && !string.IsNullOrWhiteSpace(connectionString))
+        {
+            // 資料來源由容器釋放；發送用連線池，接收用專用的一條（Pooling 關掉）。
+            services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+            services.AddSingleton(ClusterSignalConnection.From(connectionString));
+            services.AddSingleton<ClusterSignalListener>();
+            services.AddHostedService(provider => provider.GetRequiredService<ClusterSignalListener>());
+        }
+
         return services;
     }
-}
-
-/// <summary>
-/// 本機分送：訊號發出時，同步叫起這個程序裡所有的接收端，不等它們做完，接收端的例外只記下來。
-/// 沒有背景工作、計時器或連線，主機關閉時沒有東西要停。
-/// </summary>
-internal sealed partial class LocalClusterSignals(
-    IEnumerable<IClusterSignalHandler> handlers, ILogger<LocalClusterSignals> logger) : IClusterSignals
-{
-    private readonly Guid _origin = Guid.NewGuid();
-
-    public void Publish(ClusterSignal signal)
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        var stamped = signal.Origin == Guid.Empty ? signal with { Origin = _origin } : signal;
-        foreach (var handler in handlers)
-        {
-            Deliver(handler, stamped);
-        }
-    }
-
-    private void Deliver(IClusterSignalHandler handler, ClusterSignal signal)
-    {
-        try
-        {
-            var running = handler.HandleAsync(signal, CancellationToken.None);
-            if (!running.IsCompleted)
-            {
-                _ = running.ContinueWith(
-                    task => LogHandlerFailed(task.Exception!.GetBaseException(), handler.GetType().Name),
-                    CancellationToken.None,
-                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
-            }
-            else if (running.IsFaulted)
-            {
-                LogHandlerFailed(running.Exception!.GetBaseException(), handler.GetType().Name);
-            }
-        }
-        catch (Exception exception)
-        {
-            LogHandlerFailed(exception, handler.GetType().Name);
-        }
-    }
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "跨程序訊號的接收端 {Handler} 處理失敗。")]
-    private partial void LogHandlerFailed(Exception exception, string handler);
 }

@@ -10,6 +10,15 @@ namespace PmTool.Api.Tests;
 [TestFixture]
 public sealed class ClusterSignalRegistrationTests
 {
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+    }
+
     private sealed class RecordingHandler : IClusterSignalHandler
     {
         public List<ClusterSignal> Received { get; } = [];
@@ -36,7 +45,7 @@ public sealed class ClusterSignalRegistrationTests
     }
 
     [Test]
-    public void Publish_WithHandlers_DeliversTheSignalToEachOfThemWithAnOrigin()
+    public async Task Publish_WithHandlers_DeliversTheSignalToEachOfThemWithAnOrigin()
     {
         // Arrange
         var first = new RecordingHandler();
@@ -56,6 +65,7 @@ public sealed class ClusterSignalRegistrationTests
 
         // Act
         signals.Publish(new ClusterSignal(ClusterSignalKind.CredentialsRevoked) { AccountId = account });
+        await WaitUntilAsync(() => first.Received.Count > 0 && second.Received.Count > 0);
 
         // Assert
         using (Assert.EnterMultipleScope())
@@ -68,7 +78,7 @@ public sealed class ClusterSignalRegistrationTests
 
     [TestCase(false)]
     [TestCase(true)]
-    public void Publish_WhenAHandlerFails_DoesNotThrowAndTheOtherHandlersStillReceiveIt(bool isAsync)
+    public async Task Publish_WhenAHandlerFails_DoesNotThrowAndTheOtherHandlersStillReceiveIt(bool isAsync)
     {
         // Arrange
         var recording = new RecordingHandler();
@@ -89,6 +99,7 @@ public sealed class ClusterSignalRegistrationTests
 
         // Assert
         Assert.That(publish, Throws.Nothing);
+        await WaitUntilAsync(() => recording.Received.Count > 0);
         Assert.That(recording.Received, Has.Count.EqualTo(1));
     }
 
@@ -121,7 +132,7 @@ public sealed class ClusterSignalRegistrationTests
     }
 
     [Test]
-    public void AddClusterSignals_Disabled_IsDisabledAndStillDeliversLocally()
+    public async Task AddClusterSignals_Disabled_IsDisabledAndStillDeliversLocally()
     {
         // Arrange
         var recording = new RecordingHandler();
@@ -131,8 +142,12 @@ public sealed class ClusterSignalRegistrationTests
             .Build();
 
         // Act
-        using var provider = services.AddClusterSignals(configuration).BuildServiceProvider();
+        await using var provider = services.AddClusterSignals(configuration).BuildServiceProvider();
+        var bus = provider.GetRequiredService<ClusterSignalBus>();
+        await bus.StartAsync(CancellationToken.None);
         provider.GetRequiredService<IClusterSignals>().Publish(new ClusterSignal(ClusterSignalKind.InboxChanged));
+        await WaitUntilAsync(() => recording.Received.Count > 0);
+        await bus.StopAsync(CancellationToken.None);
 
         // Assert
         using (Assert.EnterMultipleScope())
