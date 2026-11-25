@@ -142,7 +142,7 @@ my @pat = (
   ["slack-token",    qr/\bxapp-[0-9]-[A-Z0-9]{8,}-[0-9]{8,}-[A-Za-z0-9]{20,}|\bxox[baprs]-(?:[0-9]{1,3}-)*[0-9]{8,}-[A-Za-z0-9-]{10,}/],
   ["gitlab-token",   qr/\bglpat-[A-Za-z0-9_-]{20,}/],
   ["jwt",            qr/(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
-  ["stripe-key",     qr/\b(?:sk|rk)_live_[A-Za-z0-9]{20,}/],
+  ["stripe-key",     qr/\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,}/],
   ["npm-token",      qr/\bnpm_[A-Za-z0-9]{36}(?![A-Za-z0-9])/],
   ["sendgrid-key",   qr/\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/],
   ["azure-storage-key", qr{AccountKey=[A-Za-z0-9+/]{60,}={0,2}}],
