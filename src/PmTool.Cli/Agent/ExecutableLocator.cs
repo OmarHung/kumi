@@ -32,7 +32,7 @@ internal static class ExecutableLocator
         foreach (var entry in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
             // 相對的項目（例如 . 或空的）會讓目前資料夾裡的同名檔案搶先被執行。
-            if (!Path.IsPathRooted(entry))
+            if (!Path.IsPathFullyQualified(entry))
             {
                 continue;
             }

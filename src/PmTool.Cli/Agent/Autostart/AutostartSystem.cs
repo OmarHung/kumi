@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Microsoft.Win32;
+using PmTool.Cli.Processes;
 
 namespace PmTool.Cli.Agent.Autostart;
 
@@ -27,7 +28,14 @@ internal static class AutostartSystem
 
     public static async Task<CommandOutcome> RunAsync(string file, IReadOnlyList<string> arguments, CancellationToken cancellation)
     {
-        var info = new ProcessStartInfo(file)
+        // 呼叫端給的是指令名稱（launchctl、id）：一律換成系統資料夾裡的絕對路徑；沒有這個指令就當作跑不起來。
+        var executable = Path.IsPathFullyQualified(file) ? file : SystemCommands.Find(file);
+        if (executable is null)
+        {
+            return new CommandOutcome(127, $"{file} 跑不起來或逾時。");
+        }
+
+        var info = new ProcessStartInfo(executable)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -42,7 +50,7 @@ internal static class AutostartSystem
 
         try
         {
-            using var process = Process.Start(info) ?? throw new CliException(ExitCodes.Error, $"跑不起來：{file}");
+            using var process = SystemProcess.Start(info) ?? throw new CliException(ExitCodes.Error, $"跑不起來：{file}");
             process.StandardInput.Close();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             timeout.CancelAfter(CommandTimeout);
@@ -74,7 +82,7 @@ internal static class AutostartSystem
             info.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(info);
+        using var process = SystemProcess.Start(info);
         return Task.CompletedTask;
     }
 

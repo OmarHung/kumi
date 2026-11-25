@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
+using PmTool.Cli.Processes;
 
 namespace PmTool.Cli.Agent;
 
@@ -40,8 +41,13 @@ internal sealed record ProcessResult(int ExitCode, string StandardError, bool St
 /// 跑一個子程序：提示從標準輸入送、標準輸出一行一行交給呼叫端、逾時或取消時結束整個程序樹。
 /// 輸出的內容（可能是對話）只交給轉換器，這裡不存、不記錄；標準錯誤只留尾端一小段，給失敗的原因用。
 /// </summary>
-internal sealed class ProcessRunner(AgentOptions options)
+internal sealed class ProcessRunner(AgentOptions options, Func<string, string?> findCommand)
 {
+    public ProcessRunner(AgentOptions options)
+        : this(options, SystemCommands.Find)
+    {
+    }
+
     private const int MaxStandardErrorCharacters = 32 * 1024;
 
     public async Task<ProcessResult> RunAsync(
@@ -128,7 +134,7 @@ internal sealed class ProcessRunner(AgentOptions options)
 
         try
         {
-            return Process.Start(info);
+            return SystemProcess.Start(info);
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException)
         {
@@ -236,15 +242,18 @@ internal sealed class ProcessRunner(AgentOptions options)
     {
         if (!OperatingSystem.IsWindows() && !process.HasExited)
         {
-            await SendInterruptAsync(process.Id);
-            using var grace = new CancellationTokenSource(options.InterruptGrace);
-            try
+            // 沒送出中斷（極簡環境找不到 kill）就不必白等寬限，直接強制結束。
+            if (await SendInterruptAsync(process.Id))
             {
-                await process.WaitForExitAsync(grace.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                // 沒有在時間內結束，下面強制結束。
+                using var grace = new CancellationTokenSource(options.InterruptGrace);
+                try
+                {
+                    await process.WaitForExitAsync(grace.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // 沒有在時間內結束，下面強制結束。
+                }
             }
         }
 
@@ -260,9 +269,15 @@ internal sealed class ProcessRunner(AgentOptions options)
         }
     }
 
-    private static async Task SendInterruptAsync(int processId)
+    /// <summary>送出了中斷回 true；找不到 kill 或送不出去回 false，呼叫端不必等寬限。</summary>
+    private async Task<bool> SendInterruptAsync(int processId)
     {
-        var info = new ProcessStartInfo("kill")
+        if (findCommand("kill") is not { } killPath)
+        {
+            return false;
+        }
+
+        var info = new ProcessStartInfo(killPath)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -272,15 +287,19 @@ internal sealed class ProcessRunner(AgentOptions options)
         info.ArgumentList.Add(processId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         try
         {
-            using var kill = Process.Start(info);
-            if (kill is not null)
+            using var kill = SystemProcess.Start(info);
+            if (kill is null)
             {
-                await kill.WaitForExitAsync();
+                return false;
             }
+
+            await kill.WaitForExitAsync();
+            return kill.ExitCode == 0;
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException)
         {
             // 送不出中斷就直接強制結束。
+            return false;
         }
     }
 

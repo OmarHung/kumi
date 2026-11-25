@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using PmTool.Cli.Processes;
 
 namespace PmTool.Cli.Commands;
 
@@ -81,19 +82,22 @@ internal sealed record UpdateEnvironment(
         }
 
         info.ArgumentList.Add("--version");
-        using var process = new Process { StartInfo = info };
+        Process? process;
         try
         {
-            if (!process.Start())
-            {
-                return null;
-            }
+            process = SystemProcess.Start(info);
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
         {
             return null;
         }
 
+        if (process is null)
+        {
+            return null;
+        }
+
+        using var running = process;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(SmokeTimeout);
         try

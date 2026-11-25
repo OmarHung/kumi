@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 
+using PmTool.Cli.Processes;
+
 namespace PmTool.Cli.Agent;
 
 /// <summary>
@@ -21,10 +23,15 @@ internal sealed class DescendantTracker
 
         try
         {
-            var info = new ProcessStartInfo("ps") { RedirectStandardOutput = true, UseShellExecute = false };
+            if (SystemCommands.Find("ps") is not { } psPath)
+            {
+                return;
+            }
+
+            var info = new ProcessStartInfo(psPath) { RedirectStandardOutput = true, UseShellExecute = false };
             info.ArgumentList.Add("-axo");
             info.ArgumentList.Add("pid=,ppid=");
-            using var ps = Process.Start(info);
+            using var ps = SystemProcess.Start(info);
             if (ps is null)
             {
                 return;

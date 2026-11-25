@@ -27,7 +27,16 @@ internal sealed class LoopbackReceiver : IDisposable
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FlushGrace = TimeSpan.FromSeconds(2);
 
-    private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+    /// <summary>
+    /// 伺服器只把登入碼送回這個以上的連接埠。作業系統配的暫時埠平常都在這以上（macOS、Windows 從 49152，Linux 從 32768），
+    /// 但 Linux 的範圍可以調：配到比較小的就自己在高的範圍裡另外挑，不然同意頁會直接拒絕。
+    /// </summary>
+    internal const int MinPort = 32768;
+    private const int FallbackMinPort = 49152;
+    private const int MaxPort = 65535;
+    private const int MaxPortAttempts = 20;
+
+    private TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly byte[] _state;
     private readonly List<Task> _handlers = [];
 
@@ -35,7 +44,38 @@ internal sealed class LoopbackReceiver : IDisposable
 
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
 
-    public void Start() => _listener.Start();
+    public void Start() => _listener = StartOnAllowedPort(
+        _listener,
+        port => new TcpListener(IPAddress.Loopback, port),
+        () => RandomNumberGenerator.GetInt32(FallbackMinPort, MaxPort + 1));
+
+    /// <summary>啟動 <paramref name="first"/>；配到的連接埠太小就關掉，改試 <paramref name="pickPort"/> 挑的，都被占用時丟 <see cref="SocketException"/>。</summary>
+    internal static TcpListener StartOnAllowedPort(TcpListener first, Func<int, TcpListener> create, Func<int> pickPort)
+    {
+        first.Start();
+        if (((IPEndPoint)first.LocalEndpoint).Port >= MinPort)
+        {
+            return first;
+        }
+
+        first.Dispose();
+        for (var attempt = 0; attempt < MaxPortAttempts; attempt++)
+        {
+            var listener = create(pickPort());
+            try
+            {
+                listener.Start();
+                return listener;
+            }
+            catch (SocketException)
+            {
+                // 剛好被別的程式占用：換一個再試。
+                listener.Dispose();
+            }
+        }
+
+        throw new SocketException((int)SocketError.AddressAlreadyInUse);
+    }
 
     public async Task<LoopbackOutcome> WaitAsync(TimeSpan timeout, CancellationToken cancellation)
     {

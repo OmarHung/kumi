@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using PmTool.Cli.Agent;
+using PmTool.Cli.Processes;
 
 namespace PmTool.Cli.Host;
 
@@ -31,7 +32,7 @@ internal static class InteractiveProcess
         Process? process;
         try
         {
-            process = Process.Start(info);
+            process = SystemProcess.Start(info);
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException)
         {

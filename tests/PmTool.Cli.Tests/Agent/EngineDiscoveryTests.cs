@@ -222,6 +222,14 @@ public sealed class EngineDiscoveryTests
         }
     }
 
+    [TestCase("tools")]
+    [TestCase(".")]
+    [TestCase(@"C:tools")]
+    public void ExecutableLocator_SkipsPathEntriesThatAreNotFullPaths(string entry)
+    {
+        Assert.That(ExecutableLocator.FindOnPath("tool", entry), Is.Null);
+    }
+
     [Test]
     public void ExecutableLocator_FindsOnPathOnlyExecutableFiles()
     {

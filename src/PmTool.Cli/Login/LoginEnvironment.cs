@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using PmTool.Cli.Processes;
 
 namespace PmTool.Cli.Login;
 
@@ -27,7 +28,10 @@ internal sealed record LoginEnvironment
     public Func<IReadOnlyList<string>, CliContext, CancellationToken, Task<int>> RunCommand { get; init; } =
         static (arguments, context, cancellation) => CliRunner.RunAsync(arguments, context, cancellation);
 
-    /// <summary>真的環境：macOS 用 open、Windows 用 ShellExecute、其他用 xdg-open。</summary>
+    /// <summary>
+    /// 真的環境：macOS 用 open、Windows 用 rundll32.exe url.dll,FileProtocolHandler、其他用 xdg-open，都是系統資料夾裡的絕對路徑。
+    /// Windows 這條路沒有在實機上測過（只驗證過組出來的程式與參數）。
+    /// </summary>
     public static LoginEnvironment Current() => new()
     {
         OpenBrowser = TryOpenBrowser,
@@ -36,15 +40,14 @@ internal sealed record LoginEnvironment
 
     private static bool TryOpenBrowser(string url)
     {
-        // 只開我們自己組出來的 http／https 網址：UseShellExecute 會把字串交給系統去「開」，不能是任意的檔案或指令。
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
-        {
-            return false;
-        }
-
         try
         {
-            using var process = Process.Start(StartInfoFor(uri.AbsoluteUri));
+            if (BrowserStartInfo(url, SystemCommands.CurrentPlatform, SystemCommands.Find) is not { } info)
+            {
+                return false;
+            }
+
+            using var process = SystemProcess.Start(info);
             return process is not null;
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or PlatformNotSupportedException)
@@ -53,14 +56,31 @@ internal sealed record LoginEnvironment
         }
     }
 
-    private static ProcessStartInfo StartInfoFor(string url)
+    /// <summary>
+    /// 開網址要執行的程式與參數；網址不是 http／https 的絕對網址、或這台電腦找不到開網址的程式就回 null（呼叫端會印網址讓人自己開）。
+    /// 先驗證網址再組命令：交給系統去「開」的字串不能是檔案、網路路徑或像選項的東西。
+    /// Windows 不用 explorer.exe（它不是專門開網址的程式，沒有 Explorer 殼層的環境會開出檔案總管或什麼都不做），
+    /// 改用 rundll32.exe 的 url.dll,FileProtocolHandler；這條路沒有在 Windows 實機上測過。
+    /// </summary>
+    internal static ProcessStartInfo? BrowserStartInfo(string url, SystemPlatform platform, Func<string, string?> find)
     {
-        if (OperatingSystem.IsWindows())
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
         {
-            return new ProcessStartInfo(url) { UseShellExecute = true };
+            return null;
         }
 
-        var info = new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open")
+        var opener = find(platform switch
+        {
+            SystemPlatform.Windows => "rundll32",
+            SystemPlatform.MacOS => "open",
+            _ => "xdg-open",
+        });
+        if (opener is null)
+        {
+            return null;
+        }
+
+        var info = new ProcessStartInfo(opener)
         {
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -68,7 +88,12 @@ internal sealed record LoginEnvironment
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        info.ArgumentList.Add(url);
+        if (platform == SystemPlatform.Windows)
+        {
+            info.ArgumentList.Add("url.dll,FileProtocolHandler");
+        }
+
+        info.ArgumentList.Add(uri.AbsoluteUri);
         return info;
     }
 }
