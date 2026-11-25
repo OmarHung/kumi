@@ -1,79 +1,276 @@
+<div align="center">
+
+<img src="docs/brand/kumi-icon-512.svg" alt="Kumi" width="96">
+
 # Kumi
 
-跨平台專案管理工具。產品名稱是 Kumi（2026-11-23 定名，日文的「組」）；repo 與程式裡的代號照舊是 pm-tool／PmTool。
+**把團隊管專案的方式，寫成一份有版本、能驗證、能預覽的藍圖。**
 
-核心想法：把「這個團隊怎麼管專案」做成一份有版本、可以驗證、可以比對差異的設定資料，稱為**藍圖**。模板、設定畫面、CLI、AI 四個入口送出的都是對藍圖的修改，走同一條管線：驗證、預覽差異、由人核准、套用。
+可以自己架的專案管理工具：表格、看板、行事曆、時間軸、知識庫，<br>
+加上命令列 `kumi`、MCP 與 AI 助理。AI 只能提出修改，按下套用的永遠是人。
 
-## 目前狀態
+[![CI](https://github.com/OmarHung/kumi/actions/workflows/ci.yml/badge.svg)](https://github.com/OmarHung/kumi/actions/workflows/ci.yml)
+[![License: Kumi License](https://img.shields.io/badge/license-Kumi%20License-5a4ae3)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](global.json)
+[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](web/package.json)
+[![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](compose.yaml)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](#快速開始)
+[![Last commit](https://img.shields.io/github/last-commit/OmarHung/kumi)](https://github.com/OmarHung/kumi/commits/main)
 
-可以在瀏覽器裡實際操作的第一版：
+[快速開始](#快速開始) · [功能](#功能) · [命令列](docs/CLI.md) · [MCP](docs/MCP.md) · [部署](docs/DEPLOYMENT.md) · [文件](#文件) · [參與](#參與) · [授權](#授權)
 
-- 登入、登出（Email 與密碼）。工作階段存在伺服器：登出、改密碼、停用帳號之後，那些登入在下一個請求就失效。第一個帳號由部署設定在啟動時建立。
-- 設定（側欄的「設定」）：個人的我的帳號（改自己的密碼，其他裝置上的登入一起登出；登出其他裝置）、通知、AI 帳號、命令列與整合（下載 kumi、個人存取權杖：給 CLI 與腳本用，可以限定範圍與期限，隨時撤銷；連接 Claude Code／Codex），以及組織的說明格式、寄信設定、AI 設定、主機 AI 代理。組織的擁有者與管理員可以停用、重新啟用別人的帳號，以及替忘記密碼的人重設密碼。
-- 協作：說明與留言用 Markdown 顯示；留言可以回覆，回覆收在那一則底下（一層）；自己的留言可以編輯（標「已編輯」、看得到歷次版本），可以刪除與復原（刪除的留在原位顯示「已刪除」，管理專案的人也能刪別人的）；留言與說明裡打 `@` 提及專案成員；截圖可以直接貼上或拖進留言與說明（存成項目的附件，在文字裡顯示）；站內的收件匣（被指派、被提及、有人回覆你的留言、關注的項目有留言或改狀態時通知，側欄顯示未讀數）；項目可以關注或取消關注（建立、被指派、留言、被提及時自動關注）。
-- 命令列工具 `kumi`：查詢、建立、修改項目與改狀態，匯出專案的設定（藍圖）、改檔、預覽差異與資料影響、套用。用法見 `docs/CLI.md`。
-- 從 monday 搬過來：`kumi import monday fetch|plan|run`，項目保留建立的人與時間，留言與回覆保留作者與時間，留言裡的圖片與檔案搬成附件，不發通知，可以重跑（只補新的）。用法見 `docs/CLI.md`「從 monday 匯入」。
-- 從內建的 12 個模板開專案：接案專案、客戶維運、簡單任務看板、Scrum 衝刺、行銷活動與內容行事曆、缺陷追蹤、產品路線圖、設計專案、需求管理、發行與上線檢查、維運與事故、會議與決議追蹤。選模板時看得到它的類型、流程、上下層與欄位，也可以勾「附上範例項目」，新專案先放幾筆示範用的項目。
-- 專案的表格檢視：新增項目、在格子裡直接改核心欄位與自訂欄位、改狀態；不合流程規則的改狀態會被擋下來並說明原因；篩選、排序、分頁。
-- 找得到：⌘K 快速跳轉用標題或編號找任何看得到的專案裡的項目（CLI 是 `kumi search`）；表格與看板依類型、狀態、負責人、到期（已過期、今天、本週、沒有到期日）、優先度篩選，也依自訂欄位（單選、多選、人員、勾選，例如「客戶：ACME」）篩選（CLI 是 `kumi item list --field`）；表格可以依自訂欄位排序；把版面與條件存成個人的「檢視」，下次一點就到。
-- 規劃：專案的「規劃」頁管理週期（衝刺）與里程碑，看得到每一個的完成數與估計的總和；項目可以排進週期、歸到里程碑，表格與看板可以篩「目前的週期」。Scrum 衝刺模板附三個衝刺與一個里程碑的範例。
-- 版面：專案的項目可以用表格、看板、行事曆（依到期日排在月曆上，標出里程碑與週期）、時間軸（從開始日畫到到期日，標出週期、里程碑與今天）看，四種都吃同一套篩選，可以存成檢視。手機上行事曆是議程、時間軸是清單。
-- 看板檢視：一欄一個狀態，拖到別欄就是改狀態；不允許的會彈回並說明原因。也可以依負責人或單選欄位（例如客戶）分組，拖到別欄就是改負責人或那個欄位，只放還沒結束的項目。鍵盤與螢幕閱讀器用卡片上的「移到…」選單。
-- 項目頁：說明、所有欄位、改狀態、上層與下層項目，以及活動紀錄與留言的時間軸（每次修改都留下紀錄，和修改寫在同一個交易）；時間軸預設只看留言與回覆，切到「全部」才列出變更（選擇記在瀏覽器）。
-- 「我的工作」：跨專案，預設是自己負責而且還沒結束的項目；和專案頁一樣有表格、看板（依狀態類別分欄）、行事曆、時間軸、個人的檢視與篩選（沒有負責人的篩選，永遠是我負責的）。
-- 專案成員與角色（可以移除成員；不是組織管理員的人不能移除或降級最後一位專案管理員）：內建的「執行者」只看得到自己負責或建立的項目（自訂角色也能設「只看自己的項目」）。組織的人員：可以變更組織角色（擁有者、管理員只有擁有者能設定）。
-- 刪除項目（封存：資料與活動留著，所有清單、計數與藍圖的搬移都當它不存在；還有下層時擋下）與改類型（狀態由系統照新流程決定，不能借此跳過轉換的限制；新類型沒有的欄位值封存）。
-- 修改專案的設定（藍圖）：設定頁可以改狀態、轉換（「從 → 到」的表格，每條可以限角色與要先填的欄位）、類型（新增、改名、換流程並選好狀態的搬移、允許的上層、刪除）、欄位與自訂角色（權限），送出成一份變更集；預覽頁列出差異與會動到多少既有資料，核准後在一個交易裡套用並搬移資料（被刪除欄位的值封存起來，每個被動到的項目留下活動紀錄）。
+<sub>**English:** Kumi is a self-hostable, source-available project management tool. Each project's workflow lives in a versioned blueprint, and every change is validated, previewed and approved before it is applied. The UI and docs are in Traditional Chinese.</sub>
 
-網頁版的 UI/UX 重構已經完成（A～G、U2）：一個外框與三種頁面（工作區、清單、閱讀），淺色與深色主題，手機與觸控能用；在清單旁邊開項目面板、⌘K 快速跳轉、留言與說明的草稿、改狀態被擋下時原地補填、我的工作分組並直接改狀態、設定頁預覽之後回去修改、表格只佔一個 Tab 停駐點。
+</div>
 
-- 畫面的設計規範：`docs/DESIGN.md`（索引與通則；設計變數、元件、控制項、流程在 `docs/design/`。新增或修改畫面照它做，`npm run lint` 會跑樣式檢查）。
-- 網頁的測試：`cd web && npm run test:coverage`。
+---
 
-網頁的已知限制在 `web/README.md`。
+## Kumi 是什麼
 
-程式註解與文件裡指到 `internal/`（例如 `internal/HANDOFF-*.md`）的是不公開的開發紀錄，放在另一個私人的 repo，外面的人打不開；行為以程式、測試與 `docs/` 的文件為準。
+每個團隊管專案的方式都不一樣：接案的要「等客戶」，追缺陷的要分嚴重度，產品團隊要跑衝刺。多數工具把這些藏在一層層的設定畫面裡，改了什麼、誰改的、會動到多少既有的項目，事後都很難說清楚。
 
-## 啟動網頁版
+Kumi 把「這個專案怎麼管」做成一份資料，稱為**藍圖**：欄位、流程（狀態與轉換）、項目類型、檢視、角色都在裡面。它有版本、可以用 JSON Schema 驗證、可以和上一版比對差異。從模板開專案、在設定頁改流程、用命令列改檔、讓 AI 提建議，四個入口送出的都是同一種東西，走同一條管線：
 
-需要 Docker。
-
+```mermaid
+flowchart LR
+  T["模板"] --> C
+  S["設定畫面"] --> C
+  K["命令列 kumi"] --> C
+  A["AI 助理／代理"] --> C
+  C["變更集"] --> V["驗證"] --> P["預覽差異<br/>與資料影響"] --> H{"有權限的人核准"} --> X["一個交易裡套用<br/>並搬移資料"]
 ```
-cp .env.example .env      # 填上 POSTGRES_PASSWORD、POSTGRES_APP_PASSWORD（各用 openssl rand -hex 24 產生一組）與 BOOTSTRAP_ADMIN_PASSWORD（至少 10 個字元）
+
+拿掉一個還有項目的狀態？預覽會先列出會動到幾筆、要搬去哪裡；套用時資料一起搬好，每個被動到的項目都留下活動紀錄。
+
+### 適合的情況
+
+- 一個組織裡有幾種性質不同的專案（例如接案、缺陷追蹤、衝刺開發），各自需要自己的狀態、欄位與規則。
+- 資料要留在自己的主機上，用 Docker 自己架。
+- 想讓 AI 幫忙整理項目、調整流程，但每一筆修改都要有人看過才算數。
+- 習慣用命令列、腳本或 CI 操作工作項目。
+
+### 可能不適合的情況
+
+- 要多人即時共同編輯文件：說明與知識庫是存檔時檢查衝突，沒有即時協作。
+- 要原生的手機 App：只有網頁版（手機的瀏覽器能用）。
+- 介面要英文或其他語言：目前只有繁體中文。
+- 不想自己架：目前沒有官方代管的版本。
+
+---
+
+## 功能
+
+### 管工作
+
+- **四種版面** — 表格（在格子裡直接改核心欄位與自訂欄位）、看板（拖到別欄就是改狀態，也能依負責人或單選欄位分組）、行事曆、時間軸。四種吃同一套篩選，可以存成個人的「檢視」。
+- **流程會擋人** — 不合轉換規則的改狀態會被擋下並說明原因；轉換可以限角色、要求先填某些欄位，被擋下時原地補填。
+- **12 個內建模板** — 接案專案、客戶維運、簡單任務看板、Scrum 衝刺、行銷活動與內容行事曆、缺陷追蹤、產品路線圖、設計專案、需求管理、發行與上線檢查、維運與事故、會議與決議追蹤；開專案時可以附上範例項目。
+- **我的工作** — 跨專案列出自己負責、還沒結束的項目，一樣有四種版面與檢視。
+- **規劃** — 週期（衝刺）與里程碑，看得到完成數與估計的總和。
+- **找得到** — ⌘K 快速跳轉、依類型／狀態／負責人／到期／優先度與自訂欄位篩選、專案搜尋比對代號、名稱與專案說明。
+
+### 一起做
+
+- **所見即所得，存的是 Markdown** — 說明與留言用 Tiptap 編輯，截圖直接貼上或拖進來，`@` 提及成員。
+- **留言** — 一層回覆；自己的留言可以編輯（看得到歷次版本），刪除後留在原位、可以復原。
+- **通知** — 站內的收件匣、新通知的提示、Email 通知（Gmail 或自己的 SMTP，沒讀才寄、同一個人的併成一封），每個人可以關掉。
+- **即時更新** — 別人改了項目，你的畫面跟著更新（SignalR）。
+- **角色與權限** — 專案的角色可以自訂；內建的「執行者」只看得到自己負責或建立的項目，看不到的一律當作不存在。
+- **知識庫** — 組織與專案的空間、頁面樹、往下繼承的頁面限制、垃圾桶（第一段，見[目前的狀態](#目前的狀態)）。
+- **專案資訊頁** — 專案的網址、部署環境、主機這類資料寫成一份 Markdown，有組織自己的說明格式；私鑰會被擋下。
+
+### 藍圖：流程就是設定
+
+- 設定頁改狀態、轉換（每條可以限角色與要先填的欄位）、類型、欄位與自訂角色，送出成一份變更集；預覽頁列出差異與會動到多少既有資料，核准後才套用。
+- 格式的唯一依據是 [`schemas/blueprint/v0/`](schemas/blueprint/v0/) 的 JSON Schema；也能匯出成 YAML 檔，改完再用命令列預覽、套用：
+
+```yaml
+apiVersion: blueprint/v0
+kind: ProjectBlueprint
+metadata: { key: bug_tracking, name: 缺陷追蹤 }
+fields:
+  - key: severity
+    name: 嚴重度
+    type: single_select
+    options:
+      - { key: critical, name: 致命, color: red }
+      - { key: normal,   name: 一般, color: yellow }
+workflows:
+  - key: bug_flow
+    name: 缺陷流程
+    states:
+      - { key: reported,  name: 新回報, category: not_started }
+      - { key: fixing,    name: 修正中, category: in_progress }
+      - { key: verifying, name: 待驗證, category: in_progress }
+      - { key: closed,    name: 已關閉, category: done }
+    transitions:
+      - { from: reported,  to: fixing }
+      - { from: fixing,    to: verifying }
+      - { from: verifying, to: fixing }    # 驗證沒過，退回修正
+      - { from: verifying, to: closed }
+itemTypes:
+  - { key: bug, name: 缺陷, workflow: bug_flow, fields: [severity] }
+```
+
+<sub>節錄自內建的「缺陷追蹤」模板，完整的在 [`src/Modules/PmTool.Work/Templates/`](src/Modules/PmTool.Work/Templates/)。</sub>
+
+### AI，但由人決定
+
+- **內建的 AI 助理** — 接 Anthropic、OpenAI、Google Gemini、OpenRouter 或 OpenAI 相容的端點；組織管理員接組織的，也可以開放成員接自己的帳號。每一頁右下角都叫得出來。
+- **只提出、不寫入** — 助理能做的最多是提出藍圖的變更集或項目的修改建議，你在卡片上按「套用」，才以你自己的身分、照你的權限寫入。
+- **MCP 伺服器** — `/mcp` 讓你電腦上的 Claude Code／Codex 用自己的訂閱、以 Kumi 帳號授權（OAuth 2.1 加 PKCE）連進來，權限等於授權的人。見 [docs/MCP.md](docs/MCP.md)。
+- **本機代理** — `kumi agent start` 讓網頁的助理改用你電腦上的 Claude Code／Codex 回答，伺服器不連進你的電腦，引擎只拿得到限定的工具。
+- **主機 AI 代理**（選用）— 組織擁有者在主機上常駐一套 Claude Code／Codex 給全組織用，只接受 API 用量計費的登入。見 [docs/OPERATIONS.md](docs/OPERATIONS.md) 第 17 節。
+
+### 命令列與自動化
+
+- **`kumi`** — 查詢、建立、修改項目與改狀態；匯出藍圖、改檔、預覽差異與資料影響、套用；處理變更集。輸出可以是 JSON，結束代碼固定，CI 裡也能用。見 [docs/CLI.md](docs/CLI.md)。
+- **`kumi setup`** — 開瀏覽器按「允許」就登入，順便替 Claude Code／Codex 加好 MCP 與本機代理。
+- **下載即用** — 伺服器內含 macOS（Apple 晶片、Intel）與 Windows 的單一執行檔，不用裝 .NET；`kumi update` 自己更新。
+- **個人存取權杖** — 給腳本用，可以限定範圍（`items:read`、`items:write`、`blueprint:read`、`blueprint:write`）與期限，隨時撤銷。
+- **從 monday 搬過來** — `kumi import monday fetch|plan|run`，保留作者與時間、留言與附件，可以重跑。
+- **給 AI 代理的 skill** — [`skills/`](skills/) 教 Claude Code 這類代理怎麼用 `kumi` 與怎麼規劃專案。
+
+### 自己架、自己管
+
+- 一個 API 容器加 PostgreSQL，`docker compose` 就跑得起來；上雲照 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)（Cloud Run 加 Cloud SQL，或 VM 加反向代理）。
+- 每日自動備份、在用完就丟的資料庫裡演練還原、一行指令看狀態與錯誤，見 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
+- 資料庫分成執行用與擁有資料表的兩個角色；工作階段存在伺服器，登出、改密碼、停用帳號在下一個請求就生效。
+
+---
+
+## 快速開始
+
+需要 [Docker](https://www.docker.com/)。
+
+```bash
+git clone https://github.com/OmarHung/kumi.git
+cd kumi
+cp .env.example .env               # 打開 .env 填好三個密碼（見下面）再往下
 bash scripts/ops/deploy-local.sh   # 先備份再建置、啟動，等到就緒
 ```
 
-然後開 <http://localhost:8080>，用 `.env` 裡的 `BOOTSTRAP_ADMIN_EMAIL` 與 `BOOTSTRAP_ADMIN_PASSWORD` 登入。
+`.env` 要填的三個密碼：`POSTGRES_PASSWORD` 與 `POSTGRES_APP_PASSWORD` 各用 `openssl rand -hex 24` 產生一組，`BOOTSTRAP_ADMIN_PASSWORD` 是第一個擁有者的登入密碼（至少 10 個字元）。
 
-- 本機自用的操作（每日備份、還原演練、還原、看錯誤、`bash scripts/ops/status.sh` 一眼看狀態）寫在 `docs/OPERATIONS.md`。
-- 資料放在 Docker 的資料卷裡，`docker compose down` 之後還在；`docker compose down -v` 會把資料庫整個刪掉（備份在 `backups/`，刪不到）。
+然後開 <http://localhost:8080>，用 `.env` 裡的 `BOOTSTRAP_ADMIN_EMAIL` 與 `BOOTSTRAP_ADMIN_PASSWORD` 登入，從模板開第一個專案。
+
+<details>
+<summary><b>本機執行的注意事項</b></summary>
+
+<br>
+
+- 連接埠只綁本機（`127.0.0.1:8080`），而且沒有 HTTPS，不要直接放到網路上；要上雲或放到網路上，照 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+- 資料放在 Docker 的資料卷裡，`docker compose down` 之後還在；`docker compose down -v` 會把資料庫整個刪掉（備份在 `backups/`，刪不到）。之後更新也用 `deploy-local.sh`，它會先備份。
 - 第一個擁有者只在資料庫裡還沒有任何帳號時建立；之後改 `.env` 裡的那幾個值不會有作用。
-- 連接埠只綁本機（`127.0.0.1:8080`）。這個設定沒有 HTTPS，不要直接放到網路上；要上雲或放到網路上，照 `docs/DEPLOYMENT.md`（Cloud Run 加 Cloud SQL，或 VM 加反向代理）。
 - 空的資料庫第一次啟動時，記錄裡會有兩筆查不到遷移紀錄表的 `fail`，那是在確認資料表還不存在，可以忽略。
+- 每日備份、還原演練、還原、看錯誤、`bash scripts/ops/status.sh` 一眼看狀態，都寫在 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
 
-## 結構
+</details>
+
+### 接上命令列
+
+登入網頁後，到「設定 → 命令列與整合」下載 `kumi`，照頁面上的指令裝好，然後：
+
+```bash
+kumi setup                                          # 開瀏覽器按「允許」登入，順便設定 Claude Code／Codex
+kumi item list --project WEB --mine                 # 我負責的項目
+kumi item create -p WEB --type task --title "改首頁" --assignee @me
+kumi item move WEB-12 --to doing                    # 改狀態，照流程的規則
+kumi blueprint export --project WEB -o web.yaml     # 把專案的藍圖匯出成檔案
+kumi blueprint plan -f web.yaml                     # 改完先預覽差異與資料影響，什麼都不存
+kumi blueprint apply -f web.yaml                    # 送出；有權限就直接套用
+```
+
+---
+
+## 架構
+
+模組化單體：每個模組一個專案、自己的 `DbContext`、自己的 schema 與遷移，模組之間只透過 `*.Contracts` 的公開介面互相使用；`src/PmTool.Api` 是唯一的組合根，也負責提供網頁的靜態檔。
+
+```mermaid
+flowchart LR
+  subgraph clients["用戶端"]
+    web["網頁<br/>React · TypeScript"]
+    cli["命令列 kumi"]
+    mcp["Claude Code／Codex<br/>（MCP）"]
+    agent["本機代理<br/>kumi agent"]
+  end
+  subgraph host["Kumi 主機（ASP.NET Core）"]
+    api["REST /v1 · SignalR /v1/live<br/>MCP /mcp · OAuth"]
+    mods["Identity · Work · Blueprint<br/>Notifications · AI · Knowledge"]
+  end
+  db[("PostgreSQL 18<br/>每個模組一個 schema")]
+  files[("附件<br/>本機資料夾或 Cloud Storage")]
+  llm["AI 供應商"]
+  worker["ai-worker（選用）<br/>主機上的 Claude Code／Codex"]
+  web --> api
+  cli --> api
+  mcp --> api
+  agent -- 長輪詢 --> api
+  worker -- 長輪詢 --> api
+  api --> mods
+  mods --> db
+  mods --> files
+  mods --> llm
+```
+
+| 層 | 技術 |
+| --- | --- |
+| 後端 | ASP.NET Core（.NET 10）、EF Core、SignalR、Microsoft.Extensions.AI、MCP 官方 C# SDK |
+| 資料庫 | PostgreSQL 18 |
+| 網頁 | React 19、TypeScript、Vite、TanStack Query／Table、Tiptap、dnd-kit |
+| 命令列 | .NET；單一執行檔（macOS、Windows）或 dotnet tool |
+| 測試 | NUnit、Testcontainers（真的 PostgreSQL）、Vitest、Testing Library、MSW |
+| 部署 | 容器：Docker Compose、Cloud Run 加 Cloud SQL、VM 加反向代理 |
+
+<details>
+<summary><b>目錄結構</b></summary>
 
 ```
 schemas/blueprint/v0/     藍圖格式第 0 版：兩份 JSON Schema 與範例
 src/PmTool.Api/           ASP.NET Core 主機，唯一的組合根；也負責提供網頁的靜態檔
 src/PmTool.Cli/           命令列工具 kumi，只透過公開的 API 與權杖操作
 src/Modules/              各模組，每個模組一個專案；*.Contracts 是模組對外的介面
-  PmTool.Blueprint/       藍圖的讀取、驗證與計畫（純邏輯）
-  PmTool.Identity/        組織、人員、登入
-  PmTool.Work/            專案、藍圖版本、成員、工作項目
-src/Shared/               各模組共用的基本型別
+  PmTool.Blueprint/       藍圖的讀取、驗證與計畫（純邏輯，不碰資料庫與網路）
+  PmTool.Identity/        組織、人員、登入、存取權杖、OAuth
+  PmTool.Work/            專案、藍圖版本、成員、工作項目、事件流
+  PmTool.Notifications/   關注、通知、收件匣、Email 通知
+  PmTool.Ai/              AI 設定、助理、本機代理與主機 AI 代理
+  PmTool.Knowledge/       知識庫的空間與頁面
+src/Shared/               各模組共用的基本型別、HTTP 與檔案儲存
 web/                      網頁版（React、TypeScript、Vite）
+skills/                   給 AI 代理用的 skill
 tests/                    每個專案對應一個測試專案
 docs/                     使用、部署、維運與設計規範的文件
+deploy/ai-worker/         主機 AI 代理的映像檔
 Dockerfile、compose.yaml   容器映像檔與本機執行的設定
-.github/workflows/        CI
 ```
+
+</details>
+
+---
+
+## 文件
+
+| 我想… | 從這裡開始 |
+| --- | --- |
+| 在自己的電腦上跑起來、備份、還原 | [快速開始](#快速開始) · [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| 架到雲端或自己的主機 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) · [docs/deployment/vm.md](docs/deployment/vm.md) |
+| 用命令列、寫腳本、接 CI | [docs/CLI.md](docs/CLI.md) |
+| 讓 Claude Code／Codex 連進來 | [docs/MCP.md](docs/MCP.md) |
+| 讓 AI 代理學會用 Kumi | [skills/](skills/) · [docs/CLI.md「給 AI 代理用」](docs/CLI.md#給-ai-代理用) |
+| 看懂藍圖的格式 | [schemas/blueprint/v0/](schemas/blueprint/v0/) |
+| 改畫面 | [docs/DESIGN.md](docs/DESIGN.md) · [web/README.md](web/README.md) |
+| 參與開發 | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 回報弱點 | [SECURITY.md](SECURITY.md) |
+
+---
 
 ## 開發
 
-需要 .NET SDK 10（版本鎖在 `global.json`）、Node 24、Docker（身分、工作引擎與端到端的測試會用 Testcontainers 起一個 PostgreSQL）。
+需要 .NET SDK 10（版本鎖在 [`global.json`](global.json)）、Node 24、Docker（身分、工作引擎與端到端的測試會用 Testcontainers 起一個 PostgreSQL）。產品名稱是 Kumi，repo 裡的程式代號照舊是 pm-tool／PmTool（命名空間、資料庫的 schema 這些）。
 
-```
+```bash
 dotnet build
 dotnet test
 dotnet test /p:CollectCoverage=true /p:Threshold=80 /p:ThresholdType=line
@@ -81,7 +278,7 @@ dotnet test /p:CollectCoverage=true /p:Threshold=80 /p:ThresholdType=line
 
 網頁：
 
-```
+```bash
 cd web
 npm install
 npm run dev            # http://localhost:5173，/v1 與 /health 代理到 http://localhost:8080
@@ -90,12 +287,37 @@ npm run typecheck && npm run lint && npm run test:coverage && npm run build
 
 資料表的修改用 EF Core 的遷移，每個模組各自一份：
 
-```
+```bash
 dotnet tool restore
 dotnet ef migrations add <名稱> --project src/Modules/PmTool.Work --output-dir Persistence/Migrations
 ```
 
-產生出來的檔案帶 BOM 與 `#pragma warning disable`，提交前要拿掉（這個 repo 不允許關閉警告）。
+產生出來的檔案帶 BOM 與 `#pragma warning disable`，提交前要拿掉（這個 repo 不允許關閉警告）。送出前要過的檢查與程式的規矩見 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+---
+
+## 目前的狀態
+
+Kumi 還在快速開發，沒有發布正式的版本；自己架的請跟著 `main` 更新（步驟在 [docs/OPERATIONS.md](docs/OPERATIONS.md) 與 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)）。
+
+- 知識庫是第一段：網頁上能用，命令列、MCP、通知與即時更新還沒做。
+- 網頁的已知限制列在 [web/README.md](web/README.md#已知的限制)。
+
+---
+
+## 參與
+
+- **回報錯誤、提功能需求**：開 [issue](https://github.com/OmarHung/kumi/issues)，繁體中文或英文都可以。
+- **送 Pull Request**：先讀 [CONTRIBUTING.md](CONTRIBUTING.md)。它說明貢獻的授權條件、送出前要過的檢查與程式的規矩；新功能與對外合約的修改請先開 issue 討論。
+- **發現弱點**：照 [SECURITY.md](SECURITY.md) 私下回報，不要開公開的 issue。
+
+程式註解與文件裡指到 `internal/`（例如 `internal/HANDOFF-*.md`）的是不公開的開發紀錄，放在另一個私人的 repo，外面的人打不開；行為以程式、測試與 `docs/` 的文件為準。
+
+### 為什麼叫 Kumi
+
+Kumi（くみ）是日文的「組」：一組一起做事的人。
+
+---
 
 ## 授權
 
@@ -118,10 +340,8 @@ Kumi 以 [Kumi License](LICENSE) 提供：Apache License 2.0 加上附加條件�
 
 違反條件時，授權在違反的當下自動終止；第一次被通知的違反在 30 天內停止並完全改正，授權就恢復。準據法是中華民國（臺灣）法律，第一審由臺灣臺北地方法院管轄。
 
-這裡是摘要，條文以 [LICENSE](LICENSE) 為準。商業授權與品牌豁免請寄信到 omar40276@gmail.com。
+這裡是摘要，條文以 [LICENSE](LICENSE) 為準，歸屬的聲明在 [NOTICE](NOTICE)。商業授權與品牌豁免請寄信到 omar40276@gmail.com。
 
 Kumi 用到的第三方套件與它們的授權列在 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)，映像檔的 `/app` 底下也附了一份；`kumi licenses` 印出同樣的內容（從伺服器下載的單一執行檔把它們內嵌在裡面）。
 
 主機 AI 代理的映像檔（`deploy/ai-worker`）在建置時會安裝 Claude Code 與 Codex。它們不屬於 Kumi，各有自己的授權，其中 Claude Code 適用 Anthropic 的條款、不能轉散布：請用這裡的 Dockerfile 自己建，不要散布建好的映像檔。
-
-想貢獻請先讀 [CONTRIBUTING.md](CONTRIBUTING.md)；發現弱點請照 [SECURITY.md](SECURITY.md) 私下回報。
