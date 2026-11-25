@@ -29,9 +29,17 @@ internal sealed class SignInAuditWorker(SignInAuditQueue queue, SignInAuditWrite
         }
         catch (OperationCanceledException)
         {
-            // 正常的停止：接著把剩下的寫完。
+            // 正常的停止：剩下的由 StopAsync 寫完。
         }
+    }
 
+    /// <summary>
+    /// 先等迴圈停下，再把佇列裡剩下的寫完。寫完的動作放在這裡而不是迴圈的結尾：主機一啟動就關閉時，
+    /// 迴圈可能還沒排上就被取消（BackgroundService 用帶取消權杖的 Task.Run 啟動它），那樣就永遠不會跑到結尾。
+    /// </summary>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await base.StopAsync(cancellationToken);
         await FlushAsync();
     }
 

@@ -190,6 +190,26 @@ public sealed class AuditSignInTests
         Assert.That((await EntriesAsync(host, owner)).Count(e => e.Action == AuditActions.SignIn), Is.EqualTo(3));
     }
 
+    [Test]
+    public async Task Worker_StoppedBeforeItsLoopEverRan_StillWritesWhatIsInTheQueue()
+    {
+        // Arrange：主機一啟動就關閉時，背景的迴圈可能還沒排上就被取消；用已經取消的權杖啟動，必定是這種情形
+        await using var host = await StartHostAsync(new ManualTimeProvider(), new CollectingLoggerProvider());
+        var owner = await host.StartWithOwnerAsync();
+        var worker = host.Services.GetServices<IHostedService>().OfType<SignInAuditWorker>().Single();
+        for (var i = 0; i < 2; i++)
+        {
+            await host.Audit.RecordSignInAsync(new SignInAttempt(owner.Email, true, null, null), NoCancel);
+        }
+
+        // Act
+        await worker.StartAsync(new CancellationToken(canceled: true));
+        await worker.StopAsync(NoCancel);
+
+        // Assert
+        Assert.That((await EntriesAsync(host, owner)).Count(e => e.Action == AuditActions.SignIn), Is.EqualTo(2));
+    }
+
     private static async Task<bool> WaitForAsync(Func<Task<bool>> condition)
     {
         var deadline = DateTime.UtcNow.AddSeconds(15);

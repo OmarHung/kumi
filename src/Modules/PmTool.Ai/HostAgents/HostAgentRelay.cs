@@ -236,14 +236,19 @@ internal sealed class HostAgentRelay(
     private static AssistantUsage? UsageOf(HostJobRow job) =>
         job.InputTokens is null && job.OutputTokens is null ? null : new AssistantUsage(job.InputTokens ?? 0, job.OutputTokens ?? 0);
 
-    /// <summary>前面還有幾件（執行中的加排在前面的）再加一；1 是下一個。</summary>
+    /// <summary>
+    /// 前面還有幾件（執行中的加排在前面的）再加一；1 是下一個。不算自己：讀到的快照還是排隊中，
+    /// 但查到這裡時自己可能剛被領走，算進去的話會在「開始」之前多跳一次「排第 2」。
+    /// </summary>
     private async Task<int> PositionAsync(HostJobRow job)
     {
         await using var db = await contexts.CreateDbContextAsync(CancellationToken.None);
         var seq = job.Seq;
         var source = job.SourceId;
+        var self = job.Id;
         var ahead = await db.HostJobs.AsNoTracking().CountAsync(
             j => j.SourceId == source
+                && j.Id != self
                 && (j.State == HostJobStates.Running
                     || ((j.State == HostJobStates.Queued || j.State == HostJobStates.Reserved) && j.Seq < seq)),
             CancellationToken.None);
