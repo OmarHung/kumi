@@ -251,6 +251,42 @@ public sealed class SavedViewRulesTests
         Assert.That(result.Value.Query.Assignee, Is.EqualTo(assignee));
     }
 
+    [TestCase("me")]
+    [TestCase("3f2504e0-4f89-11d3-9a0c-0305e82c3301")]
+    public async Task CreateAsync_CreatedByForms_AreAcceptedAndKept(string createdBy)
+    {
+        // Arrange
+        var scenario = new Scenario(_host);
+        await scenario.CreateProjectAsync("WEB");
+
+        // Act
+        var result = await Create(scenario.Admin, "我建立的", query: Empty with { CreatedBy = createdBy });
+        var listed = await _host.SavedViews.ListAsync(scenario.Admin, "WEB", CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Value.Query.CreatedBy, Is.EqualTo(createdBy));
+        Assert.That(listed.Value.Single().Query.CreatedBy, Is.EqualTo(createdBy));
+    }
+
+    [TestCase("query.createdBy", "someone")]
+    [TestCase("query.createdBy", "unassigned")]
+    [TestCase("query.createdBy", "ME")]
+    [TestCase("query.mine", "created")]
+    public async Task CreateAsync_BadCreatedByOrMyWorkOnlyScope_IsInvalidAtThatPath(string path, string value)
+    {
+        // Arrange
+        var scenario = new Scenario(_host);
+        await scenario.CreateProjectAsync("WEB");
+        var query = path == "query.mine" ? Empty with { Mine = value } : Empty with { CreatedBy = value };
+
+        // Act
+        var result = await Create(scenario.Admin, "壞的", query: query);
+
+        // Assert
+        AssertFailure(result, FailureKind.Invalid, WorkErrorCodes.SavedViewInvalid);
+        Assert.That(result.Failure!.Details.Select(d => d.Path), Is.EqualTo(new[] { path }));
+    }
+
     [Test]
     public async Task ReplaceAsync_BadValue_IsInvalid()
     {

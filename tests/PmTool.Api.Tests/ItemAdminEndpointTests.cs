@@ -13,7 +13,7 @@ public sealed class ItemAdminEndpointTests
     // 改類型回的和 GET /v1/items/{itemKey} 同一個形狀，網頁拿回來可以直接換掉讀到的項目。
     private static readonly string[] ItemShape =
     [
-        "key", "projectKey", "number", "type", "title", "state", "stateCategory", "assignee", "priority",
+        "key", "projectKey", "number", "type", "title", "state", "stateCategory", "assignee", "createdBy", "priority",
         "startDate", "dueDate", "estimate", "parentKey", "cycleId", "milestoneId", "fields", "createdAt", "updatedAt", "description", "descriptionRevision",
     ];
 

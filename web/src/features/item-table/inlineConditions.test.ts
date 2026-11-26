@@ -9,9 +9,9 @@ function keysAt(widthRem: number | null, options: { present?: readonly Collapsib
 }
 
 describe('收起來的先後', () => {
-  it('依序是優先度、到期、類型、狀態、負責人（搜尋不在裡面，一律留在列上）', () => {
+  it('依序是建立者、優先度、到期、類型、狀態、負責人（搜尋不在裡面，一律留在列上）', () => {
     // Arrange / Act / Assert
-    expect(COLLAPSE_ORDER).toEqual(['priority', 'due', 'type', 'state', 'assignee']);
+    expect(COLLAPSE_ORDER).toEqual(['createdBy', 'priority', 'due', 'type', 'state', 'assignee']);
   });
 });
 
@@ -76,6 +76,17 @@ describe('依列的寬度決定留在列上的欄位', () => {
     // Act / Assert：流程、搜尋加三個條件 = 5 × 8.5 + 5 = 47.5
     expect(keysAt(47.5, { present, fixedCount: 2 })).toEqual(['assignee', 'due', 'priority']);
     expect(keysAt(47.4, { present, fixedCount: 2 })).toEqual(['assignee', 'due']);
+  });
+});
+
+describe('建立者', () => {
+  const withCreatedBy: readonly CollapsibleCondition[] = ['state', 'assignee', 'createdBy', 'due', 'priority'];
+
+  it('放不下時比負責人、優先度先收：收了它就放得下的話，其他條件都留在列上', () => {
+    // Arrange / Act / Assert：搜尋加五個條件 = 6 × 8.5 + 5 = 56；收掉建立者之後搜尋加四個條件加按鈕 = 5 × 8.5 + 5 + 7 = 54.5
+    expect(keysAt(56, { present: withCreatedBy })).toEqual([...withCreatedBy].sort());
+    expect(keysAt(55.9, { present: withCreatedBy })).toEqual(['assignee', 'due', 'priority', 'state']);
+    expect(keysAt(54.5, { present: withCreatedBy })).toEqual(['assignee', 'due', 'priority', 'state']);
   });
 });
 

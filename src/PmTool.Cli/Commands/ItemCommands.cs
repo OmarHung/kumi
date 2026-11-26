@@ -20,8 +20,9 @@ internal static class ItemCommands
 
     public static readonly IReadOnlyList<CommandSpec> Specs =
     [
-        new("item", "list", "列出專案的項目", "kumi item list --project 代號 [--mine] [--state 狀態] [--category 類別] [--type 類型] [--priority 優先順序] [--due-from 日期] [--due-to 日期] [--dates-from 日期] [--dates-to 日期] [--no-due] [--field 欄位=值[,值…]]... [--limit 數量] [--cursor 值] [--all]",
-            [Project, new("mine", "", "只看指派給我的"), new("state", "狀態", "狀態的 key", Repeatable: true),
+        new("item", "list", "列出專案的項目", "kumi item list --project 代號 [--mine] [--created-by @me|email|人員編號] [--state 狀態] [--category 類別] [--type 類型] [--priority 優先順序] [--due-from 日期] [--due-to 日期] [--dates-from 日期] [--dates-to 日期] [--no-due] [--field 欄位=值[,值…]]... [--limit 數量] [--cursor 值] [--all]",
+            [Project, new("mine", "", "只看指派給我的"), new("created-by", "@me|email|人員編號", "只看這個人建立的（可以和 --mine 一起用）"),
+             new("state", "狀態", "狀態的 key", Repeatable: true),
              new("category", "類別", "狀態類別（backlog、not_started、in_progress、done、canceled）", Repeatable: true),
              new("type", "類型", "項目類型的 key", Repeatable: true),
              new("priority", "優先順序", "優先順序（none、low、medium、high、urgent）", Repeatable: true),
@@ -51,6 +52,11 @@ internal static class ItemCommands
         if (call.Arguments.Has("mine"))
         {
             query.Add(new("assignee", "me"));
+        }
+
+        if (call.Arguments.Value("created-by") is { } createdBy)
+        {
+            query.Add(new("createdBy", await ItemInput.ResolveCreatedByAsync(call, createdBy)));
         }
 
         AddAll(query, "state", call.Arguments.Values("state"));

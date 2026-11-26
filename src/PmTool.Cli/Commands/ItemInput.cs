@@ -106,6 +106,23 @@ internal static class ItemInput
             .Select(option => (JsonNode?)JsonValue.Create(option))]);
     }
 
+    /// <summary>--created-by 的值轉成查詢參數：@me 交給伺服器換成自己，人員編號照用，其他當 Email 查。</summary>
+    public static async Task<string> ResolveCreatedByAsync(CommandCall call, string value)
+    {
+        if (value == AssigneeMe || value.Equals("me", StringComparison.OrdinalIgnoreCase))
+        {
+            return "me";
+        }
+
+        if (Guid.TryParse(value, out var personId))
+        {
+            return personId.ToString();
+        }
+
+        return (await ResolveAssigneeAsync(call, value, allowNone: false))?.GetValue<string>()
+            ?? throw CliException.Usage($"--created-by 要是 @me、人員編號或同事的 email，收到：{value}。");
+    }
+
     /// <summary>--assignee 的值轉成人員編號；update 才允許 none（清掉負責人）。</summary>
     public static async Task<JsonNode?> ResolveAssigneeAsync(CommandCall call, string value, bool allowNone)
     {

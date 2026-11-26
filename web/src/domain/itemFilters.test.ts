@@ -27,6 +27,7 @@ describe('filtersFromSearchParams', () => {
       type: 'task',
       state: 'doing',
       assignee: 'me',
+      createdBy: null,
       due: null,
       priority: null,
       cycle: null,
@@ -87,6 +88,30 @@ describe('filtersToSearchParams', () => {
 
     // Assert
     expect(text).toBe(new URLSearchParams('assignee=unassigned&q=首頁&sort=title:asc').toString());
+  });
+});
+
+describe('建立者的條件', () => {
+  it('網址 createdBy=me 或人員編號讀成條件，空白當成沒給；寫回網址時排在負責人後面', () => {
+    // Arrange
+    const params = new URLSearchParams('assignee=me&createdBy=p-2&q=x');
+
+    // Act
+    const filters = filtersFromSearchParams(params);
+
+    // Assert
+    expect(filters.createdBy).toBe('p-2');
+    expect(filtersFromSearchParams(new URLSearchParams('createdBy=%20')).createdBy).toBeNull();
+    expect(filtersToSearchParams(filters).toString()).toBe(new URLSearchParams('assignee=me&createdBy=p-2&q=x').toString());
+  });
+
+  it('送給 API 的條件帶 createdBy，也算有條件', () => {
+    // Arrange
+    const filters = { ...EMPTY_FILTERS, createdBy: 'me' };
+
+    // Assert
+    expect(toItemQuery(filters, 50, TODAY, 'monday')).toEqual({ createdBy: 'me', limit: 50 });
+    expect(hasActiveFilters(filters)).toBe(true);
   });
 });
 

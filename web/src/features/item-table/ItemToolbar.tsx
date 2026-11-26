@@ -18,7 +18,7 @@ function ItemFilterBar({ table }: { readonly table: ItemTableState }) {
   const { filters, setFilters, clearFilters } = table;
   const { detail } = useProjectTable();
   // 搜尋一律在列上；其餘依序收進「更多條件」（inlineConditions.ts）。多於一種類型才有「類型」。週期與里程碑一律在「更多條件」裡。
-  const present: readonly CollapsibleCondition[] = detail.blueprint.itemTypes.length > 1 ? ['type', 'state', 'assignee', 'due', 'priority'] : ['state', 'assignee', 'due', 'priority'];
+  const present: readonly CollapsibleCondition[] = detail.blueprint.itemTypes.length > 1 ? ['type', 'state', 'assignee', 'createdBy', 'due', 'priority'] : ['state', 'assignee', 'createdBy', 'due', 'priority'];
   const { barRef, inlineKeys, moreKeys, hasMore } = useInlineConditions({ present, fixedCount: 1 }, filters);
   const patchFilters = (patch: Partial<ItemFilters>) => {
     setFilters({ ...filters, ...patch });

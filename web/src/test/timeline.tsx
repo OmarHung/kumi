@@ -14,7 +14,7 @@ import { STATE_GROUP } from '../domain/boardGroup';
 
 export const TIMELINE_TODAY = '2026-11-18';
 
-export const NO_FILTERS: DateViewFilters = { workflow: null, type: null, state: null, assignee: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' };
+export const NO_FILTERS: DateViewFilters = { workflow: null, type: null, state: null, assignee: null, createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' };
 
 interface RenderTimelineOptions {
   readonly path?: string;

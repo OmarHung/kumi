@@ -66,7 +66,7 @@ internal static class TestData
         ItemTypes = [new ItemType { Key = "task", Name = "任務", Workflow = "main" }],
     };
 
-    public static WorkItem Item(string key = "WEB-1", Guid? assigneeId = null) => new(
+    public static WorkItem Item(string key = "WEB-1", Guid? assigneeId = null, Guid? createdBy = null) => new(
         key,
         "WEB",
         long.Parse(key[(key.IndexOf('-') + 1)..], System.Globalization.CultureInfo.InvariantCulture),
@@ -82,5 +82,8 @@ internal static class TestData
         null,
         new Dictionary<string, JsonElement> { ["impact"] = JsonSerializer.SerializeToElement("high") },
         CreatedAt,
-        UpdatedAt);
+        UpdatedAt)
+    {
+        CreatedBy = createdBy ?? TestUsers.Owner.PersonId,
+    };
 }

@@ -154,6 +154,7 @@ internal sealed record ItemQueryPlan(WorkItemQuery Query, int Offset, string? Se
         filtered = query.OnlyUnassigned ? filtered.Where(i => i.AssigneeId == null)
             : query.AssigneeId is { } assignee ? filtered.Where(i => i.AssigneeId == assignee)
             : filtered;
+        filtered = query.CreatedBy is { } creator ? filtered.Where(i => i.CreatedBy == creator) : filtered;
         filtered = FilterByPriorityAndDue(filtered, query);
         filtered = FilterByPlanning(filtered, query);
         filtered = query.FieldFilters.Count > 0 ? FieldQuery.Filter(filtered, query.FieldFilters, schema, me) : filtered;

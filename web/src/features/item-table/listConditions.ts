@@ -11,6 +11,7 @@ export interface ListConditions {
   readonly state: readonly string[] | undefined;
   readonly stateCategory: readonly string[] | undefined;
   readonly assignee: string | undefined;
+  readonly createdBy: string | undefined;
   readonly priority: readonly string[] | undefined;
   readonly dueFrom: string | undefined;
   readonly dueTo: string | undefined;
@@ -85,6 +86,7 @@ export function conditionsOf(queryKey: QueryKey, queryIndex = 3): ListConditions
     state: stringsOf(read(query, 'state')),
     stateCategory: stringsOf(read(query, 'stateCategory')),
     assignee: textOf(read(query, 'assignee')),
+    createdBy: textOf(read(query, 'createdBy')),
     priority: stringsOf(read(query, 'priority')),
     dueFrom: textOf(read(query, 'dueFrom')),
     dueTo: textOf(read(query, 'dueTo')),
@@ -149,7 +151,7 @@ export function acceptsStateAndType(conditions: ListConditions, item: Item): boo
 }
 
 /**
- * 負責人（「我」是誰、「沒有負責人」）、搜尋（標題的部分比對、項目編號）、優先度、到期（「今天」「本週」已換成日期，
+ * 負責人（「我」是誰、「沒有負責人」）、建立者（「我」是誰）、搜尋（標題的部分比對、項目編號）、優先度、到期（「今天」「本週」已換成日期，
  * 但日期的比對與「沒有到期日」仍以伺服器為準）、「已過期」帶的狀態類別，自訂欄位的條件，以及週期與里程碑（「目前的週期」已換成編號，
  * 但週期是不是還在、屬於哪個專案以伺服器為準）由後端判斷，前端不猜：
  * 有這些條件的清單要不要放進某個項目，交給重抓。
@@ -157,6 +159,7 @@ export function acceptsStateAndType(conditions: ListConditions, item: Item): boo
 export function dependsOnServer(conditions: ListConditions): boolean {
   return (
     conditions.assignee !== undefined ||
+    conditions.createdBy !== undefined ||
     conditions.q !== undefined ||
     conditions.priority !== undefined ||
     conditions.dueFrom !== undefined ||

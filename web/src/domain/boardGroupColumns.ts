@@ -43,6 +43,7 @@ export function boardGroupQuery(
   return {
     stateCategory: OPEN_CATEGORIES,
     ...(filters.assignee !== null && { assignee: filters.assignee }),
+    ...(filters.createdBy !== null && { createdBy: filters.createdBy }),
     ...(filters.priority !== null && { priority: [filters.priority] }),
     ...dueQuery(filters.due, todayDate, weekStart),
     ...cycleQuery(filters.cycle, cycles, todayDate),

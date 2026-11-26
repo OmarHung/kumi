@@ -65,8 +65,10 @@ export function myWorkQueryOf({ layout, filters, grouping, sort }: MyWorkViewSta
     type: filters.type,
     state: stateOf(filters),
     assignee: null,
+    createdBy: null,
+    mine: filters.mine === 'created' ? 'created' : null,
     q: orNull(filters.q.trim()),
-    sort: isTable ? sortValueOf(effectiveMyWorkSort(sort, grouping)) : null,
+    sort: isTable ? sortValueOf(effectiveMyWorkSort(sort, grouping, filters.mine)) : null,
     due: filters.due,
     priority: filters.priority,
     cycle: null,
@@ -84,10 +86,12 @@ function sortValueOf(sort: MyWorkSort | null): string | null {
 
 function paramsOfQuery(query: SavedViewQuery): URLSearchParams {
   const entries: [string, string][] = [];
-  const add = (name: string, value: string | null) => {
-    if (value !== null) entries.push([name, value]);
+  // 伺服器存的 JSON 可能是舊的、沒有後來新增的欄位（undefined）：和 null 一樣不寫，不然網址會冒出 createdBy=undefined。
+  const add = (name: string, value: string | null | undefined) => {
+    if (value != null) entries.push([name, value]);
   };
   add('q', query.q);
+  add('mine', query.mine);
   add('type', query.type);
   add('category', query.category);
   add('state', query.state);
@@ -107,7 +111,7 @@ export function myWorkViewParams(stored: StoredMyWorkView): URLSearchParams {
   if (stored.query.group === GROUP_BY_PROJECT) params.append('group', GROUP_BY_PROJECT);
   // 預設（到期日遞增）、不認得的與依專案分組時依專案的排序不寫：和網址上沒有 sort 是同一件事。
   const grouping = stored.query.group === GROUP_BY_PROJECT ? 'project' : 'urgency';
-  const sort = effectiveMyWorkSort(parseMyWorkSort(stored.query.sort), grouping);
+  const sort = effectiveMyWorkSort(parseMyWorkSort(stored.query.sort), grouping, stored.query.mine === 'created' ? 'created' : 'assigned');
   if (sort !== null) params.append(SORT_PARAM, myWorkSortValue(sort));
   return params;
 }
@@ -155,6 +159,7 @@ function statusName(filters: MyWorkFilters, { projectStates }: MyWorkNameContext
 export function defaultMyWorkViewName(current: MyWorkViewState, context: MyWorkNameContext): string {
   const { layout, filters, grouping } = current;
   const parts = [
+    filters.mine === 'created' ? '我建立的' : null,
     filters.type === null ? null : typeName(filters.type, context),
     filters.project,
     statusName(filters, context),

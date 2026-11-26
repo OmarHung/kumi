@@ -3,8 +3,8 @@ import { useState } from 'react';
 /** 欄位 id 對到「顯示與否」。沒寫的欄位是顯示。 */
 export type ColumnVisibility = Readonly<Record<string, boolean>>;
 
-/** 預設不顯示的欄：週期與里程碑是規劃用的，不是每個人每天都要看。使用者打開或關上之後，以記下的為準。 */
-const DEFAULT_HIDDEN: ColumnVisibility = { cycle: false, milestone: false };
+/** 預設不顯示的欄：週期與里程碑是規劃用的、建立者是追蹤自己開出去的項目用的，都不是每個人每天都要看。使用者打開或關上之後，以記下的為準。 */
+const DEFAULT_HIDDEN: ColumnVisibility = { cycle: false, milestone: false, createdBy: false };
 
 /**
  * 使用者自己關掉的欄（「隱藏了 N 欄」只數這些）。預設就不顯示的欄不算：有週期的專案一打開就掛著「隱藏了 2 欄」，

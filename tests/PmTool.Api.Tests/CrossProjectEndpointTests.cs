@@ -32,6 +32,7 @@ public sealed class CrossProjectEndpointTests
         {
             Assert.That(data?["items"]?.AsArray().Select(i => i?["key"]?.GetValue<string>()), Is.EqualTo(new[] { "WEB-1", "APP-2" }));
             Assert.That(data?["items"]?[0]?["assignee"]?["displayName"]?.GetValue<string>(), Is.EqualTo(TestUsers.Owner.DisplayName));
+            Assert.That(data?["items"]?[0]?["createdBy"]?["personId"]?.GetValue<Guid>(), Is.EqualTo(TestData.Item().CreatedBy));
             Assert.That(data?["nextCursor"]?.GetValue<string>(), Is.EqualTo("page-2"));
             Assert.That(factory.Modules.People.FindManyCalls, Has.Count.EqualTo(1), "負責人的名字一次查齊");
             Assert.That(factory.Modules.Items.ListCalls, Is.Empty, "不走單一專案的清單");
@@ -81,7 +82,7 @@ public sealed class CrossProjectEndpointTests
         // Arrange
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
         using var client = await SignedInClientAsync(factory);
-        var query = "?type=task&stateCategory=not_started&stateCategory=in_progress&assignee=me&priority=high&dueTo=2026-11-22"
+        var query = "?type=task&stateCategory=not_started&stateCategory=in_progress&assignee=me&createdBy=me&priority=high&dueTo=2026-11-22"
             + "&noDue=false&q=%E7%99%BB%E5%85%A5&sort=due_date:desc&limit=100&cursor=abc";
 
         // Act
@@ -94,6 +95,7 @@ public sealed class CrossProjectEndpointTests
         var across = factory.Modules.Items.ListAcrossCalls.Single().Query;
         var project = factory.Modules.Items.ListCalls.Single().Query;
         Assert.That(across.AssigneeId, Is.EqualTo(TestUsers.Member.PersonId));
+        Assert.That(across.CreatedBy, Is.EqualTo(TestUsers.Member.PersonId));
         Assert.That(Describe(across), Is.EqualTo(Describe(project)));
     }
 
@@ -198,5 +200,5 @@ public sealed class CrossProjectEndpointTests
 
     private static string Describe(WorkItemQuery query) =>
         $"{string.Join(',', query.Types)}|{string.Join(',', query.States)}|{string.Join(',', query.StateCategories)}|"
-        + $"{query.AssigneeId}|{query.OnlyUnassigned}|{string.Join(',', query.Priorities)}|{query.DueFrom}|{query.DueTo}|{query.DatesFrom}|{query.DatesTo}|{query.OnlyWithoutDueDate}|{query.Search}|{query.ParentKey}|{query.SortBy}|{query.Descending}|{query.Limit}|{query.Cursor}";
+        + $"{query.AssigneeId}|{query.OnlyUnassigned}|{query.CreatedBy}|{string.Join(',', query.Priorities)}|{query.DueFrom}|{query.DueTo}|{query.DatesFrom}|{query.DatesTo}|{query.OnlyWithoutDueDate}|{query.Search}|{query.ParentKey}|{query.SortBy}|{query.Descending}|{query.Limit}|{query.Cursor}";
 }

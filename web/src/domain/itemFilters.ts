@@ -20,6 +20,8 @@ export interface ItemFilters {
   readonly state: string | null;
   /** `me`、`unassigned` 或人員編號。 */
   readonly assignee: string | null;
+  /** `me` 或人員編號。 */
+  readonly createdBy: string | null;
   readonly due: DueFilter | null;
   readonly priority: Priority | null;
   /** `current`（目前的週期）、`none` 或週期編號。 */
@@ -36,6 +38,7 @@ export const EMPTY_FILTERS: ItemFilters = {
   type: null,
   state: null,
   assignee: null,
+  createdBy: null,
   due: null,
   priority: null,
   cycle: null,
@@ -82,6 +85,7 @@ export function filtersFromSearchParams(params: URLSearchParams): ItemFilters {
     type: nonEmpty(params.get('type')),
     state: nonEmpty(params.get('state')),
     assignee: nonEmpty(params.get('assignee')),
+    createdBy: nonEmpty(params.get('createdBy')),
     due: parseDueFilter(params.get('due')),
     priority: parsePriority(params.get('priority')),
     cycle: parseCycleFilter(params.get('cycle')),
@@ -97,6 +101,7 @@ export function filtersToSearchParams(filters: ItemFilters): URLSearchParams {
   if (filters.type !== null) entries.push(['type', filters.type]);
   if (filters.state !== null) entries.push(['state', filters.state]);
   if (filters.assignee !== null) entries.push(['assignee', filters.assignee]);
+  if (filters.createdBy !== null) entries.push(['createdBy', filters.createdBy]);
   if (filters.due !== null) entries.push(['due', filters.due]);
   if (filters.priority !== null) entries.push(['priority', filters.priority]);
   if (filters.cycle !== null) entries.push(['cycle', filters.cycle]);
@@ -116,6 +121,7 @@ export function toItemQuery(filters: ItemFilters, limit: number, todayDate: Cale
     ...(filters.type !== null && { type: [filters.type] }),
     ...(filters.state !== null && { state: [filters.state] }),
     ...(filters.assignee !== null && { assignee: filters.assignee }),
+    ...(filters.createdBy !== null && { createdBy: filters.createdBy }),
     ...(filters.priority !== null && { priority: [filters.priority] }),
     ...dueQuery(filters.due, todayDate, weekStart),
     ...cycleQuery(filters.cycle, cycles, todayDate),
@@ -133,6 +139,7 @@ export function hasActiveFilters(filters: ItemFilters): boolean {
     filters.type !== null ||
     filters.state !== null ||
     filters.assignee !== null ||
+    filters.createdBy !== null ||
     filters.due !== null ||
     filters.priority !== null ||
     filters.cycle !== null ||

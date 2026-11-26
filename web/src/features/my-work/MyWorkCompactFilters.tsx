@@ -1,5 +1,5 @@
 import { Button } from '../../components/Button/Button';
-import { hasActiveMyWorkFilters, myWorkFilterEntries, type MyWorkFilters } from '../../domain/myWorkView';
+import { hasActiveMyWorkFilters, myWorkConditionCount, type MyWorkFilters } from '../../domain/myWorkView';
 import { FilterPopover, SearchField } from '../item-table/FilterFields';
 import { ALL_MY_WORK_CONDITIONS, MyWorkConditionFields } from './MyWorkConditionFields';
 import { MyWorkGroupingField } from './MyWorkGroupingField';
@@ -21,7 +21,7 @@ interface MyWorkCompactFiltersProps {
  */
 export function MyWorkCompactFilters({ filters, onChange, onClear, buttonId, isTable }: MyWorkCompactFiltersProps) {
   return (
-    <FilterPopover count={myWorkFilterEntries(filters).length} buttonId={buttonId} groupLabel="篩選項目">
+    <FilterPopover count={myWorkConditionCount(filters)} buttonId={buttonId} groupLabel="篩選項目">
       <SearchField value={filters.q} onSearch={(q) => { onChange({ ...filters, q }); }} />
       <MyWorkConditionFields filters={filters} keys={ALL_MY_WORK_CONDITIONS} onChange={onChange} />
       {isTable && <MyWorkGroupingField />}

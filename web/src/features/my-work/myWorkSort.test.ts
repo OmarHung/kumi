@@ -65,8 +65,20 @@ describe('依專案分組時沒有專案欄', () => {
     expect(myWorkSortOf(grouped)).toBeNull();
     expect(myWorkSortOf(byUrgency)).toEqual({ field: 'project', direction: 'desc' });
     expect(myWorkSortOf(other)).toEqual({ field: 'title', direction: 'desc' });
-    expect(effectiveMyWorkSort({ field: 'project', direction: 'asc' }, 'project')).toBeNull();
-    expect(effectiveMyWorkSort({ field: 'project', direction: 'asc' }, 'urgency')).toEqual({ field: 'project', direction: 'asc' });
+    expect(effectiveMyWorkSort({ field: 'project', direction: 'asc' }, 'project', 'assigned')).toBeNull();
+    expect(effectiveMyWorkSort({ field: 'project', direction: 'asc' }, 'urgency', 'assigned')).toEqual({ field: 'project', direction: 'asc' });
+  });
+});
+
+describe('沒有負責人欄時（看我負責的）', () => {
+  it('依負責人排序當成沒有排序；看我建立的才留著', () => {
+    // Arrange
+    const sort = 'sort=assignee:asc';
+
+    // Act / Assert
+    expect(myWorkSortOf(new URLSearchParams(sort))).toBeNull();
+    expect(myWorkSortOf(new URLSearchParams(`mine=created&${sort}`))).toEqual({ field: 'assignee', direction: 'asc' });
+    expect(effectiveMyWorkSort({ field: 'assignee', direction: 'desc' }, 'urgency', 'assigned')).toBeNull();
   });
 });
 

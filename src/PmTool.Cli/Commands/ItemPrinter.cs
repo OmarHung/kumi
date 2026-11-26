@@ -35,7 +35,8 @@ internal static class ItemPrinter
             $"負責人：{item.Get("assignee")?.Display("displayName") ?? "-"}　優先順序：{Labels.Priority(item.Text("priority"))}　上層：{item.Display("parentKey")}");
         await output.WriteLineAsync(
             $"開始：{item.Display("startDate")}　到期：{item.Display("dueDate")}　估點：{item.Display("estimate")}");
-        await output.WriteLineAsync($"建立：{JsonAccess.Moment(item.Text("createdAt"))}　更新：{JsonAccess.Moment(item.Text("updatedAt"))}");
+        await output.WriteLineAsync(
+            $"建立者：{item.Get("createdBy")?.Display("displayName") ?? "-"}　建立：{JsonAccess.Moment(item.Text("createdAt"))}　更新：{JsonAccess.Moment(item.Text("updatedAt"))}");
 
         if (item.Get("fields") is { ValueKind: JsonValueKind.Object } fields && fields.EnumerateObject().Any())
         {

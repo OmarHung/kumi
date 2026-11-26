@@ -8,7 +8,7 @@ import { useItemScope } from '../item-page/ItemContent';
 import { useItemPanelLink } from '../item-page/ItemPanelContext';
 import { StateCell } from '../item-table/cells/StateCell';
 import { ProjectTableProvider } from '../item-table/ProjectTableContext';
-import { DueDateText, PriorityText, StateBadge } from '../work-items/ItemCells';
+import { DueDateText, EmptyValue, PriorityText, StateBadge } from '../work-items/ItemCells';
 import { itemPagePath, useItemPageEntry } from '../work-items/itemLinks';
 import type { MyWorkColumnId } from './myWorkColumns';
 import { pinClass } from './MyWorkHeader';
@@ -107,6 +107,12 @@ function MyWorkCell({ id, item, project, todayDate, pinned }: CellProps) {
       return (
         <td className={cx(styles.dueCell, pin)}>
           <DueDateText dueDate={item.dueDate} category={item.stateCategory} today={todayDate} />
+        </td>
+      );
+    case 'assignee':
+      return (
+        <td className={cx(styles.clip, pin)} title={item.assignee?.displayName}>
+          {item.assignee?.displayName ?? <EmptyValue label="沒有負責人" />}
         </td>
       );
     case 'project':

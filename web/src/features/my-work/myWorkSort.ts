@@ -2,6 +2,7 @@ import type { SortDirection, StateCategory } from '../../api/blueprint';
 import type { Priority } from '../../api/types';
 import { compareDueThenKey } from '../../domain/dates';
 import type { MyWorkColumnId } from './myWorkColumns';
+import { myWorkMineOf, type MyWorkMine } from '../../domain/myWorkView';
 import { groupingOf, type MyWorkGrouping } from './myWorkGroups';
 import type { RowPlacement } from './useMyWorkRows';
 
@@ -13,7 +14,7 @@ import type { RowPlacement } from './useMyWorkRows';
  */
 
 /** 欄位的名稱和專案的表格一樣（存的檢視也是這幾個）；project 只有我的工作有。 */
-export type MyWorkSortField = 'number' | 'title' | 'state' | 'priority' | 'due_date' | 'project';
+export type MyWorkSortField = 'number' | 'title' | 'state' | 'priority' | 'due_date' | 'project' | 'assignee';
 
 export interface MyWorkSort {
   readonly field: MyWorkSortField;
@@ -28,6 +29,7 @@ export const SORT_FIELDS: Readonly<Record<MyWorkColumnId, MyWorkSortField>> = {
   priority: 'priority',
   due: 'due_date',
   project: 'project',
+  assignee: 'assignee',
 };
 
 /** 沒有排序時的順序：到期日早的在前、沒有到期日的最後，同一天照編號。 */
@@ -35,7 +37,7 @@ export const DEFAULT_MY_WORK_SORT: MyWorkSort = { field: 'due_date', direction: 
 
 export const SORT_PARAM = 'sort';
 
-const FIELDS: readonly MyWorkSortField[] = ['number', 'title', 'state', 'priority', 'due_date', 'project'];
+const FIELDS: readonly MyWorkSortField[] = ['number', 'title', 'state', 'priority', 'due_date', 'project', 'assignee'];
 const DIRECTIONS: readonly SortDirection[] = ['asc', 'desc'];
 
 function isDefault(sort: MyWorkSort): boolean {
@@ -58,16 +60,18 @@ export function parseMyWorkSort(value: string | null): MyWorkSort | null {
 }
 
 /**
- * 實際用的排序：依專案分組時沒有專案欄、每一組只有一個專案，依專案排就是預設——當成沒有排序，
+ * 實際用的排序：依專案分組時沒有專案欄、每一組只有一個專案，依專案排就是預設（沒有負責人欄時依負責人也一樣）——當成沒有排序，
  * 表頭、窄螢幕的下拉與存的檢視才不會留著一個看不見的排序（網址上的留著，換回依急迫程度時照舊）。
  */
-export function effectiveMyWorkSort(sort: MyWorkSort | null, grouping: MyWorkGrouping): MyWorkSort | null {
-  return sort?.field === 'project' && grouping === 'project' ? null : sort;
+export function effectiveMyWorkSort(sort: MyWorkSort | null, grouping: MyWorkGrouping, mine: MyWorkMine): MyWorkSort | null {
+  if (sort?.field === 'project' && grouping === 'project') return null;
+  // 負責人欄只有看「我建立的」時才有；看「我負責的」時每一列都是我，依負責人排沒有意思。
+  return sort?.field === 'assignee' && mine !== 'created' ? null : sort;
 }
 
 /** 網址上的排序（照分組換成實際用的，effectiveMyWorkSort）；null 是預設。 */
 export function myWorkSortOf(params: URLSearchParams): MyWorkSort | null {
-  return effectiveMyWorkSort(parseMyWorkSort(params.get(SORT_PARAM)), groupingOf(params));
+  return effectiveMyWorkSort(parseMyWorkSort(params.get(SORT_PARAM)), groupingOf(params), myWorkMineOf(params));
 }
 
 /** 換上新的排序，其他參數（條件、分組、開著的面板）留著；預設不寫進網址。 */
@@ -133,6 +137,9 @@ function comparatorOf(sort: MyWorkSort, projectName: (projectKey: string) => str
       return emptyLast(priorityRank, (x, y) => x - y, direction);
     case 'due_date':
       return emptyLast((row) => row.dueDate, ordinal, direction);
+    case 'assignee':
+      // 沒有負責人的兩個方向都排最後；名字照畫面上的。
+      return emptyLast((row) => row.assignee?.displayName ?? null, (x, y) => collator.compare(x, y), direction);
     case 'project': {
       // 照畫面上的名稱；還沒讀到專案內容的先用代號。
       const nameOf = (row: RowPlacement) => projectName(row.projectKey) ?? row.projectKey;

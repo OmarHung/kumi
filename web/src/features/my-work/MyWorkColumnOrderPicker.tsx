@@ -13,6 +13,8 @@ interface MyWorkColumnOrderPickerProps {
   readonly orderStore: ColumnOrderStore;
   /** 依專案分組時沒有專案欄：清單裡也不列。 */
   readonly showProject: boolean;
+  /** 只有看「我建立的」時有負責人欄。 */
+  readonly showAssignee: boolean;
 }
 
 interface MoveButtonProps {
@@ -104,9 +106,9 @@ function OrderList({ order, columns, buttonId, onMove }: OrderListProps) {
  * 一欄一行，每一行有往前、往後移；最下面「回到預設的順序」（按了不會不見、焦點留著）。
  * 按了焦點跟著那一欄的同一顆按鈕走（可以一直按下去），移到哪裡由 status 唸出來。
  */
-export function MyWorkColumnOrderPicker({ orderStore, showProject }: MyWorkColumnOrderPickerProps) {
+export function MyWorkColumnOrderPicker({ orderStore, showProject, showAssignee }: MyWorkColumnOrderPickerProps) {
   const { order } = useColumnOrder(orderStore);
-  const columns = myWorkColumns(order, showProject);
+  const columns = myWorkColumns(order, showProject, showAssignee);
   const baseId = useId();
   const [status, announce] = useAnnouncement();
   const buttonId = (column: MyWorkColumnId, step: -1 | 1) => `${baseId}-${column}-${step === -1 ? 'up' : 'down'}`;
@@ -118,7 +120,7 @@ export function MyWorkColumnOrderPicker({ orderStore, showProject }: MyWorkColum
     updateThenFocus(() => {
       orderStore.set(next);
     }, [buttonId(column.id, step)]);
-    const position = myWorkColumns(next, showProject).findIndex(({ id }) => id === column.id) + 1;
+    const position = myWorkColumns(next, showProject, showAssignee).findIndex(({ id }) => id === column.id) + 1;
     announce(`「${column.label}」移到第 ${String(position)} 欄。`);
   };
   return (

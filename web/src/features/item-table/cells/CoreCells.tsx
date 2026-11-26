@@ -30,6 +30,11 @@ export function KeyCell({ item }: ItemCellProps) {
   return <span className={styles.key}>{item.key}</span>;
 }
 
+/** 建立者：唯讀的人名（建立之後不能改，沒有編輯的格子）。 */
+export function CreatedByCell({ item }: ItemCellProps) {
+  return <span className={styles.static}>{item.createdBy.displayName}</span>;
+}
+
 export function TypeCell({ item }: ItemCellProps) {
   const { detail } = useProjectTable();
   return <span className={styles.static}>{itemTypeName(detail.blueprint, item.type)}</span>;

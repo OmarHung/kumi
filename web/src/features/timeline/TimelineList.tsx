@@ -2,7 +2,7 @@ import type { ProjectBlueprint } from '../../api/blueprint';
 import type { Item } from '../../api/types';
 import { List, ListRow } from '../../components/List/List';
 import { useItemSequence } from '../item-page/ItemPanelContext';
-import { stateMeta } from '../work-items/itemListMeta';
+import { assigneeMeta, stateMeta } from '../work-items/itemListMeta';
 import { itemPagePath, useItemPageEntry } from '../work-items/itemLinks';
 import type { TimelineRow } from './timelineModel';
 
@@ -12,7 +12,7 @@ import type { TimelineRow } from './timelineModel';
  * 窄螢幕不用面板：連結進整頁（和表格、看板一樣）。
  * 狀態的名稱照項目的專案藍圖（blueprintOf）：專案頁都是同一個，「我的工作」是每個項目自己的；還沒讀到時用類別的名稱。
  */
-export function TimelineList({ rows, blueprintOf }: { readonly rows: readonly TimelineRow[]; readonly blueprintOf: (item: Item) => ProjectBlueprint | undefined }) {
+export function TimelineList({ rows, blueprintOf, showAssignee = false }: { readonly rows: readonly TimelineRow[]; readonly blueprintOf: (item: Item) => ProjectBlueprint | undefined; readonly showAssignee?: boolean }) {
   const entry = useItemPageEntry();
   useItemSequence(rows.map((row) => row.item.key));
   return (
@@ -28,6 +28,7 @@ export function TimelineList({ rows, blueprintOf }: { readonly rows: readonly Ti
           meta={[
             { key: 'dates', label: '期間', content: row.range },
             stateMeta(row.item, blueprintOf(row.item)),
+            ...(showAssignee ? [assigneeMeta(row.item)] : []),
             ...(row.isOverdue ? [{ key: 'overdue', content: '已過期', isVisuallyHidden: true }] : []),
           ]}
         />

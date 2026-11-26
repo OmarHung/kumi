@@ -4,6 +4,7 @@ import {
   DEFAULT_MY_WORK_FILTERS,
   hasActiveMyWorkFilters,
   matchesMyWorkFilters,
+  myWorkConditionCount,
   myWorkFilterEntries,
   myWorkConditions,
   myWorkFiltersFromParams,
@@ -32,6 +33,7 @@ function item(overrides: Partial<Item> = {}): Item {
     state: 'doing',
     stateCategory: 'in_progress',
     assignee: { personId: ME, displayName: '我' },
+    createdBy: { personId: ME, displayName: '我' },
     priority: 'high',
     startDate: null,
     dueDate: '2026-11-20',
@@ -68,6 +70,7 @@ describe('myWorkFiltersFromParams', () => {
       due: 'week',
       priority: 'high',
       project: 'AGY',
+      mine: 'assigned',
     });
   });
 
@@ -100,6 +103,47 @@ describe('myWorkFiltersFromParams', () => {
   });
 });
 
+describe('我負責的／我建立的', () => {
+  it('mine=created 讀成我建立的，沒給或不認得是我負責的', () => {
+    // Assert
+    expect(myWorkFiltersFromParams(params('mine=created')).mine).toBe('created');
+    expect(myWorkFiltersFromParams(params('')).mine).toBe('assigned');
+    expect(myWorkFiltersFromParams(params('mine=everyone')).mine).toBe('assigned');
+  });
+
+  it('只有我建立的才寫進網址；它不算條件（清除條件留著它）', () => {
+    // Arrange
+    const created: MyWorkFilters = { ...DEFAULT_MY_WORK_FILTERS, mine: 'created' };
+
+    // Assert
+    expect(myWorkSearchParams('table', created).toString()).toBe('mine=created');
+    expect(myWorkSearchParams('table', DEFAULT_MY_WORK_FILTERS).toString()).toBe('');
+    expect(hasActiveMyWorkFilters(created)).toBe(false);
+    expect(hasActiveMyWorkFilters({ ...created, due: 'week' })).toBe(true);
+    expect(myWorkConditionCount({ ...created, due: 'week' })).toBe(1);
+  });
+
+  it('我建立的送 createdBy=me、不送 assignee', () => {
+    // Act
+    const query = myWorkConditions({ ...DEFAULT_MY_WORK_FILTERS, mine: 'created' }, TODAY, 'monday');
+
+    // Assert
+    expect(query).toEqual({ createdBy: 'me', stateCategory: ['backlog', 'not_started', 'in_progress'] });
+  });
+
+  it('我建立的比對建立者，不看負責人', () => {
+    // Arrange
+    const created: MyWorkFilters = { ...DEFAULT_MY_WORK_FILTERS, mine: 'created' };
+    const byMeForOther = item({ assignee: { personId: OTHER, displayName: '別人' } });
+    const byOther = item({ createdBy: { personId: OTHER, displayName: '別人' } });
+
+    // Assert
+    expect(matchesMyWorkFilters(byMeForOther, created, ME, TODAY, 'monday')).toBe(true);
+    expect(matchesMyWorkFilters(byOther, created, ME, TODAY, 'monday')).toBe(false);
+    expect(matchesMyWorkFilters(byMeForOther, DEFAULT_MY_WORK_FILTERS, ME, TODAY, 'monday')).toBe(false);
+  });
+});
+
 describe('myWorkSearchParams', () => {
   it('預設的條件不寫進網址，表格不寫 view', () => {
     // Assert
@@ -116,6 +160,7 @@ describe('myWorkSearchParams', () => {
       due: 'overdue',
       priority: 'urgent',
       project: 'CM',
+      mine: 'assigned',
     };
 
     // Act
@@ -185,7 +230,7 @@ describe('myWorkConditions', () => {
   it('帶上類型、狀態、優先度、搜尋與專案', () => {
     // Act
     const query = myWorkConditions(
-      { q: 'API', type: 'bug', status: { kind: 'state', state: 'waiting_client' }, due: null, priority: 'high', project: 'CM' },
+      { q: 'API', type: 'bug', status: { kind: 'state', state: 'waiting_client' }, due: null, priority: 'high', project: 'CM', mine: 'assigned' },
       TODAY,
       'monday',
     );
@@ -233,6 +278,7 @@ describe('matchesMyWorkFilters', () => {
       due: 'week',
       priority: 'high',
       project: 'AGY',
+      mine: 'assigned',
     };
 
     // Assert

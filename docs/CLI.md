@@ -219,6 +219,7 @@ kumi project search 192.0.2.10 --limit 20    # 預設 8 個，最多 20 個
 ```bash
 kumi item list --project WEB                         # 預設一頁 50 個
 kumi item list --project WEB --mine --category in_progress
+kumi item list -p WEB --created-by @me               # 我開出去的項目（0.14.0 起；可以和 --mine 一起用，是「而且」）
 kumi item list -p WEB --state todo --state doing --type task --limit 100
 kumi item list -p WEB --priority high --priority urgent   # 優先順序可以重複，是「或」
 kumi item list -p WEB --due-from 2026-11-16 --due-to 2026-11-22   # 到期日在這個範圍（含頭尾）
@@ -250,6 +251,7 @@ kumi item update WEB-1 WEB-2 --assignee @me --set priority=high --set dueDate=20
 ```
 
 - `--assignee`：`@me`、同事的 email，修改時 `none` 是清掉。
+- `--created-by`（`item list`，0.14.0 起）：`@me`、同事的 email 或人員編號，只列這個人建立的項目。項目的 `--json` 多 `createdBy`（`{ personId, displayName }`，一定有值，建立後不會變）；`item view` 的文字輸出多一行「建立者」。
 - 列表還有下一頁時，`kumi` 會提示用 `--cursor` 接著看，或加 `--all`；`--json` 的 `nextCursor` 就是 `--cursor` 要給的值（`--all` 時 `items` 是所有頁合起來，`nextCursor` 是 `null`）。`item view` 的下層與活動被截斷時也會說。
 - 單一項目的 `--json`（`item view`、建立、修改、改狀態）多一個 `descriptionRevision`：說明內容的版本（雜湊），網頁編輯說明時用來發現別人同時改過；`kumi` 改說明時不帶它，所以不檢查衝突，照舊是後寫的蓋掉先寫的。清單不帶。
 - `--set 欄位=值` 可以重複。`priority`、`startDate`、`dueDate`、`estimate`、`parentKey`、`description` 是項目本身的屬性（`estimate` 是數字，其他是文字）；其他名稱是藍圖裡的自訂欄位，**值依欄位在藍圖裡的型別轉**（`kumi` 會查一次專案的藍圖，專案是 `--project`，或項目編號 `WEB-12` 的前綴 `WEB`）：

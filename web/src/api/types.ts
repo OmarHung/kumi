@@ -145,6 +145,8 @@ export interface Item {
   readonly state: string;
   readonly stateCategory: StateCategory;
   readonly assignee: PersonRef | null;
+  /** 建立的人。一定有值（停用的人照樣帶名稱），不能改。 */
+  readonly createdBy: PersonRef;
   readonly priority: Priority;
   readonly startDate: CalendarDate | null;
   readonly dueDate: CalendarDate | null;
@@ -243,6 +245,8 @@ export interface ItemQuery {
   readonly stateCategory?: readonly StateCategory[];
   /** `me`、`unassigned` 或人員編號。 */
   readonly assignee?: string;
+  /** `me` 或人員編號：只要這個人建立的。可以和 assignee 一起用。 */
+  readonly createdBy?: string;
   /** 只要這些優先度的（`none` 是沒有設定）。 */
   readonly priority?: readonly Priority[];
   /** 到期日在這一天或之後、之前（含當天）；有設時沒有到期日的項目不算符合。 */
@@ -521,6 +525,10 @@ export interface SavedViewQuery {
   readonly type: string | null;
   readonly state: string | null;
   readonly assignee: string | null;
+  /** 只有專案的檢視用：`me` 或人員編號；null 是不限（舊的檢視也是）。 */
+  readonly createdBy: string | null;
+  /** 只有「我的工作」用：null 是我負責的（預設）、`created` 是我建立的。 */
+  readonly mine: string | null;
   readonly q: string | null;
   /** `<欄位>:asc|desc`，和網址的 sort 一樣。 */
   readonly sort: string | null;

@@ -20,7 +20,9 @@ internal static class ItemShapes
         IEnumerable<ItemActivity> activities,
         CancellationToken cancellationToken)
     {
-        var ids = items.Where(item => item.AssigneeId is not null).Select(item => item.AssigneeId!.Value)
+        var materialized = items.ToArray();
+        var ids = materialized.Where(item => item.AssigneeId is not null).Select(item => item.AssigneeId!.Value)
+            .Concat(materialized.Select(item => item.CreatedBy))
             .Concat(project?.Members.Select(member => member.PersonId) ?? [])
             .Concat(activities.Select(activity => activity.ActorId))
             .Distinct()
@@ -50,6 +52,7 @@ internal static class ItemShapes
         state = item.State,
         stateCategory = item.StateCategory,
         assignee = item.AssigneeId is { } id ? new { id, name = names.NameOf(id) } : null,
+        createdBy = new { id = item.CreatedBy, name = names.NameOf(item.CreatedBy) },
         priority = item.Priority,
         startDate = item.StartDate?.ToString("yyyy-MM-dd"),
         dueDate = item.DueDate?.ToString("yyyy-MM-dd"),

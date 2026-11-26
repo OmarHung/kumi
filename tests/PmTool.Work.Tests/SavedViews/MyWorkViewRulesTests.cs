@@ -29,6 +29,8 @@ public sealed class MyWorkViewRulesTests
     [TestCase("category", "done")]
     [TestCase("category", "canceled")]
     [TestCase("assignee", null)]
+    [TestCase("mine", null)]
+    [TestCase("mine", "created")]
     [TestCase("state", "review")]
     [TestCase("project", "CM")]
     [TestCase("project", "cm")]
@@ -58,6 +60,10 @@ public sealed class MyWorkViewRulesTests
     [TestCase("assignee", "unassigned")]
     [TestCase("assignee", PersonId)]
     [TestCase("assignee", "someone")]
+    [TestCase("mine", "assigned")]
+    [TestCase("mine", "Created")]
+    [TestCase("createdBy", "me")]
+    [TestCase("createdBy", PersonId)]
     [TestCase("group", "urgency")]
     [TestCase("group", "Project")]
     [TestCase("project", "web 1")]
@@ -184,6 +190,8 @@ public sealed class MyWorkViewRulesTests
     {
         "category" => query with { Category = value },
         "assignee" => query with { Assignee = value },
+        "mine" => query with { Mine = value },
+        "createdBy" => query with { CreatedBy = value },
         "state" => query with { State = value },
         "project" => query with { Project = value },
         "group" => query with { Group = value },

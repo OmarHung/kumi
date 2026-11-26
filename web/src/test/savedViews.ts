@@ -8,6 +8,8 @@ export const NO_CONDITIONS: SavedViewQuery = {
   type: null,
   state: null,
   assignee: null,
+  createdBy: null,
+  mine: null,
   q: null,
   sort: null,
   due: null,

@@ -21,12 +21,13 @@ export const CALENDAR_ITEM_LIMIT = 1000;
 
 const PRIORITY_RANK: Readonly<Record<Priority, number>> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
 
-/** 工具列上和到期無關的條件：類型、狀態、負責人、優先度、週期、里程碑、自訂欄位、搜尋。 */
+/** 工具列上和到期無關的條件：類型、狀態、負責人、建立者、優先度、週期、里程碑、自訂欄位、搜尋。 */
 function sharedConditions(filters: DateViewFilters, todayDate: CalendarDate, cycles: readonly Cycle[]): ItemQuery {
   return {
     ...(filters.type !== null && { type: [filters.type] }),
     ...(filters.state !== null && { state: [filters.state] }),
     ...(filters.assignee !== null && { assignee: filters.assignee }),
+    ...(filters.createdBy !== null && { createdBy: filters.createdBy }),
     ...(filters.priority !== null && { priority: [filters.priority] }),
     ...cycleQuery(filters.cycle, cycles, todayDate),
     ...milestoneQuery(filters.milestone),

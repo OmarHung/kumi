@@ -135,6 +135,83 @@ public sealed class CrossProjectFlowTests : RealStackTestBase
         }
     }
 
+    [Test]
+    public async Task CreatedBy_FiltersProjectAndCrossProjectLists_AndShowsTheCreatorInEveryItemShape()
+    {
+        // Arrange：擁有者與成員各在 XPE 開一個項目，成員另外在 XPF 開一個。
+        using var owner = await SignInAsOwnerAsync();
+        await RealStackSteps.CreateProjectAsync(owner.Client, "XPE", "simple_tasks");
+        await RealStackSteps.CreateProjectAsync(owner.Client, "XPF", "simple_tasks");
+        using var member = await AddMemberAsync(owner, "XPE", "editor", "Creator Member", RealStackSteps.UniqueEmail("creator"));
+        await RealStackSteps.SetMemberAsync(owner.Client, "XPF", member.PersonId, "editor");
+        await CreateTaskAsync(owner, "XPE", "擁有者開的");
+        await CreateTaskAsync(member, "XPE", "成員開的");
+        await CreateTaskAsync(member, "XPF", "成員在乙專案開的");
+
+        // Act
+        var memberInProject = await RealStackSteps.GetAsync(owner.Client, $"/v1/projects/XPE/items?createdBy={member.PersonId}");
+        var ownerMe = await RealStackSteps.GetAsync(owner.Client, "/v1/projects/XPE/items?createdBy=me");
+        var memberAcross = await RealStackSteps.GetAsync(member.Client, "/v1/items?createdBy=me");
+        var ownerAcross = await RealStackSteps.GetAsync(owner.Client, $"/v1/items?project=XPE&project=XPF&createdBy={member.PersonId}");
+        var single = await RealStackSteps.GetAsync(owner.Client, "/v1/items/XPE-2");
+        var mine = await RealStackSteps.GetAsync(member.Client, "/v1/my-work");
+        using var invalid = await owner.Client.GetAsync("/v1/projects/XPE/items?createdBy=nobody");
+
+        // Assert
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(invalid, HttpStatusCode.UnprocessableEntity, WorkErrorCodes.QueryInvalid);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Keys(memberInProject), Is.EqualTo(new[] { "XPE-2" }));
+            Assert.That(Keys(ownerMe), Is.EqualTo(new[] { "XPE-1" }));
+            Assert.That(Keys(memberAcross), Is.EqualTo(new[] { "XPE-2", "XPF-1" }));
+            Assert.That(Keys(ownerAcross), Is.EqualTo(new[] { "XPE-2", "XPF-1" }));
+            Assert.That(single["createdBy"]!["personId"]!.GetValue<Guid>(), Is.EqualTo(member.PersonId));
+            Assert.That(single["createdBy"]!["displayName"]!.GetValue<string>(), Is.EqualTo("Creator Member"));
+            Assert.That(memberInProject["items"]![0]!["createdBy"]!["personId"]!.GetValue<Guid>(), Is.EqualTo(member.PersonId));
+            Assert.That(mine["items"]!.AsArray(), Is.Empty, "沒有指派給他的項目：建立不等於負責");
+            Assert.That(details[0]?["path"]?.GetValue<string>(), Is.EqualTo("createdBy"));
+        }
+    }
+
+    [Test]
+    public async Task SavedViews_CreatedByAndMine_AreStoredReadBackAndValidated()
+    {
+        // Arrange
+        using var owner = await SignInAsOwnerAsync();
+        await RealStackSteps.CreateProjectAsync(owner.Client, "XPG", "simple_tasks");
+
+        // Act
+        using var projectView = await owner.Client.PostAsync(
+            "/v1/projects/XPG/saved-views", ApiRequests.Json(Body("我建立的", "table", new { createdBy = "me" })));
+        using var myWorkView = await owner.Client.PostAsync(ViewsRoute, ApiRequests.Json(Body("我開出去的", "table", new { mine = "created" })));
+        using var badProject = await owner.Client.PostAsync(
+            "/v1/projects/XPG/saved-views", ApiRequests.Json(Body("壞的", "table", new { createdBy = "nobody", mine = "created" })));
+        using var badMyWork = await owner.Client.PostAsync(
+            ViewsRoute, ApiRequests.Json(Body("壞的我的工作", "table", new { mine = "assigned", createdBy = "me" })));
+        var projectViews = await RealStackSteps.GetAsync(owner.Client, "/v1/projects/XPG/saved-views");
+        var myWorkViews = await RealStackSteps.GetAsync(owner.Client, ViewsRoute);
+
+        // Assert
+        var created = await ApiRequests.AssertSuccessEnvelopeAsync(projectView, HttpStatusCode.Created);
+        var createdMine = await ApiRequests.AssertSuccessEnvelopeAsync(myWorkView, HttpStatusCode.Created);
+        var badProjectDetails = await ApiRequests.AssertFailureEnvelopeAsync(
+            badProject, HttpStatusCode.UnprocessableEntity, WorkErrorCodes.SavedViewInvalid);
+        var badMyWorkDetails = await ApiRequests.AssertFailureEnvelopeAsync(
+            badMyWork, HttpStatusCode.UnprocessableEntity, WorkErrorCodes.SavedViewInvalid);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(created!["query"]!["createdBy"]!.GetValue<string>(), Is.EqualTo("me"));
+            Assert.That(created["query"]!["mine"] is null, Is.True);
+            Assert.That(createdMine!["query"]!["mine"]!.GetValue<string>(), Is.EqualTo("created"));
+            Assert.That(projectViews[0]!["query"]!["createdBy"]!.GetValue<string>(), Is.EqualTo("me"));
+            Assert.That(myWorkViews[0]!["query"]!["mine"]!.GetValue<string>(), Is.EqualTo("created"));
+            Assert.That(
+                badProjectDetails.Select(d => d?["path"]?.GetValue<string>()), Is.EquivalentTo(new[] { "query.createdBy", "query.mine" }));
+            Assert.That(
+                badMyWorkDetails.Select(d => d?["path"]?.GetValue<string>()), Is.EquivalentTo(new[] { "query.mine", "query.createdBy" }));
+        }
+    }
+
     private static async Task CreateTaskAsync(SignedInClient client, string projectKey, string title)
     {
         using var response = await client.Client.PostAsync(

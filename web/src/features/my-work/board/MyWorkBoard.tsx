@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react';
 import type { StateCategory } from '../../../api/blueprint';
 import { useProjectDetails } from '../../../api/queries';
 import type { CalendarDate, Item, ItemQuery, ProjectDetail } from '../../../api/types';
-import { useCurrentUser } from '../../../auth/CurrentUser';
 import { ErrorState, RefetchErrorNotice } from '../../../components/StatusViews/StatusViews';
 import { findState, workflowForType } from '../../../domain/blueprint';
 import { STATE_CATEGORY_LABELS } from '../../../domain/labels';
@@ -197,7 +196,6 @@ interface BoardDataProps extends MyWorkBoardProps {
 }
 
 function MyWorkBoardData({ filters, todayDate, conditions, focusFallback = NO_FALLBACK }: BoardDataProps) {
-  const { personId: me } = useCurrentUser();
   const data = useMyWorkBoardItems(conditions);
   const { result, items } = data;
   // 狀態的名稱、權限與流程在各專案的藍圖裡；拿到之前卡片先寫狀態類別、不能移動，不擋住整個看板。
@@ -210,7 +208,7 @@ function MyWorkBoardData({ filters, todayDate, conditions, focusFallback = NO_FA
   const value: MyWorkBoardContextValue = {
     projects,
     todayDate,
-    me,
+    showAssignee: filters.mine === 'created',
     pending: moves.pending,
     failedKeys,
     landedKey: moves.landed?.key ?? null,

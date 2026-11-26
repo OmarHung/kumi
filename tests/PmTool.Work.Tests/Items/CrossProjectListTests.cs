@@ -232,6 +232,31 @@ public sealed class CrossProjectListTests
     }
 
     [Test]
+    public async Task ListAcrossProjectsAsync_CreatedBy_FiltersAcrossProjectsAndCombinesWithAssignee()
+    {
+        // Arrange：成員在兩個專案各開一個項目，WEB 那個自己負責；其餘四個是管理員建的。
+        var scenario = await TwoProjectsAsync();
+        var member = await scenario.MemberAsync("WEB", "editor");
+        await _host.Projects.SetMemberAsync(scenario.Admin, "APP", member.PersonId, "editor", CancellationToken.None);
+        await scenario.CreateItemAsync("WEB", new NewWorkItem { Type = "task", Title = "成員的網站", AssigneeId = member.PersonId }, member);
+        await scenario.CreateItemAsync("APP", new NewWorkItem { Type = "task", Title = "成員的任務" }, member);
+
+        // Act
+        var byMember = await ListAsync(scenario.Admin, CrossProjectScope.All, new WorkItemQuery { CreatedBy = member.PersonId });
+        var byAdmin = await ListAsync(scenario.Admin, CrossProjectScope.All, new WorkItemQuery { CreatedBy = scenario.Admin.PersonId });
+        var combined = await ListAsync(
+            scenario.Admin, CrossProjectScope.All, new WorkItemQuery { CreatedBy = member.PersonId, AssigneeId = member.PersonId });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(byMember.Items.Select(i => i.Key), Is.EqualTo(new[] { "WEB-3", "APP-3" }));
+            Assert.That(byAdmin.Items, Has.Count.EqualTo(4));
+            Assert.That(combined.Items.Select(i => i.Key), Is.EqualTo(new[] { "WEB-3" }));
+        }
+    }
+
+    [Test]
     public async Task ListAcrossProjectsAsync_AssigneePriorityAndDueDate_Filter()
     {
         // Arrange

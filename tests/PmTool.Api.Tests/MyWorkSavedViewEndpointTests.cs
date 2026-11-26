@@ -17,18 +17,18 @@ public sealed class MyWorkSavedViewEndpointTests
 
     private const string Body = """
         {"name":"完成","layout":"board",
-         "query":{"type":"task","category":"done","project":"CM","group":"project","due":"week","priority":"high"}}
+         "query":{"type":"task","category":"done","project":"CM","group":"project","due":"week","priority":"high","mine":"created"}}
         """;
 
     private static readonly SavedViewDraft Draft = new(
         "完成",
         SavedViewLayout.Board,
-        new SavedViewQuery("task", null, null, null, null, "week", "high", Category: "done", Project: "CM", Group: "project"));
+        new SavedViewQuery("task", null, null, null, null, "week", "high", Category: "done", Project: "CM", Group: "project", Mine: "created"));
 
     private static readonly string ExpectedView = """
         {"id":"018f0000-0000-7000-8000-000000000001","name":"完成","layout":"board",
          "query":{"type":"task","state":null,"assignee":null,"q":null,"sort":null,"due":"week","priority":"high","cycle":null,"milestone":null,
-                  "fields":null,"group":"project","category":"done","project":"CM"},
+                  "fields":null,"group":"project","category":"done","project":"CM","createdBy":null,"mine":"created"},
          "createdAt":"2026-11-13T04:05:06Z","updatedAt":"2026-11-13T04:05:06Z"}
         """;
 

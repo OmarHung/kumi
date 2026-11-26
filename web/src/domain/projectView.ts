@@ -36,13 +36,13 @@ export function viewFromSearchParams(params: URLSearchParams): ProjectView {
 }
 
 /**
- * 切到另一種版面的查詢字串。只帶兩邊都有的條件（搜尋、負責人、到期、優先度、週期、里程碑、自訂欄位）：
+ * 切到另一種版面的查詢字串。只帶兩邊都有的條件（搜尋、負責人、建立者、到期、優先度、週期、里程碑、自訂欄位）：
  * 排序在看板、行事曆與時間軸上沒有意義（看板照編號排；行事曆與時間軸依日期排），看板的流程在其他版面上也沒有。
  * 類型與狀態在表格、行事曆與時間軸之間帶著（合約要求這兩種日期版面有類型、狀態篩選）；
  * 只有去看板時丟掉：看板依狀態分欄，狀態篩選沒有意義。
  */
 export function switchViewParams(params: URLSearchParams, view: ProjectView): URLSearchParams {
-  const { type, state, q, assignee, due, priority, cycle, milestone, fields } = filtersFromSearchParams(params);
+  const { type, state, q, assignee, createdBy, due, priority, cycle, milestone, fields } = filtersFromSearchParams(params);
   const entries: [string, string][] = view === 'table' ? [] : [[VIEW_PARAM, view]];
   if (view !== 'board') {
     if (type !== null) entries.push(['type', type]);
@@ -50,6 +50,7 @@ export function switchViewParams(params: URLSearchParams, view: ProjectView): UR
   }
   if (q !== '') entries.push(['q', q]);
   if (assignee !== null) entries.push(['assignee', assignee]);
+  if (createdBy !== null) entries.push(['createdBy', createdBy]);
   if (due !== null) entries.push(['due', due]);
   if (priority !== null) entries.push(['priority', priority]);
   if (cycle !== null) entries.push(['cycle', cycle]);
@@ -59,11 +60,13 @@ export function switchViewParams(params: URLSearchParams, view: ProjectView): UR
   return new URLSearchParams(entries);
 }
 
-/** 看板的條件。流程是「看哪一個看板」，不算篩選；搜尋、負責人、到期與優先度套用到每一欄。 */
+/** 看板的條件。流程是「看哪一個看板」，不算篩選；搜尋、負責人、建立者、到期與優先度套用到每一欄。 */
 export interface BoardFilters {
   /** 網址上的流程 key；沒給（或不認得）時用預設的流程。 */
   readonly workflow: string | null;
   readonly assignee: string | null;
+  /** `me` 或人員編號。 */
+  readonly createdBy: string | null;
   readonly due: DueFilter | null;
   readonly priority: Priority | null;
   readonly cycle: string | null;
@@ -95,10 +98,10 @@ export function dateViewFiltersFromSearchParams(params: URLSearchParams): DateVi
 }
 
 export function boardFiltersFromSearchParams(params: URLSearchParams): BoardFilters {
-  const { q, assignee, due, priority, cycle, milestone, fields } = filtersFromSearchParams(params);
+  const { q, assignee, createdBy, due, priority, cycle, milestone, fields } = filtersFromSearchParams(params);
   const workflow = params.get('workflow')?.trim() ?? '';
   const group = viewFromSearchParams(params) === 'board' ? parseBoardGroup(params.get(GROUP_PARAM)) : STATE_GROUP;
-  return { workflow: workflow === '' ? null : workflow, assignee, due, priority, cycle, milestone, fields, group, q };
+  return { workflow: workflow === '' ? null : workflow, assignee, createdBy, due, priority, cycle, milestone, fields, group, q };
 }
 
 /**
@@ -121,6 +124,7 @@ export function boardFiltersToSearchParams(
     if (filters.state != null) entries.push(['state', filters.state]);
   }
   if (filters.assignee !== null) entries.push(['assignee', filters.assignee]);
+  if (filters.createdBy !== null) entries.push(['createdBy', filters.createdBy]);
   if (filters.due !== null) entries.push(['due', filters.due]);
   if (filters.priority !== null) entries.push(['priority', filters.priority]);
   if (filters.cycle !== null) entries.push(['cycle', filters.cycle]);
@@ -136,6 +140,7 @@ export function hasActiveBoardFilters(filters: BoardFilters & Partial<DateViewTy
     (filters.type ?? null) !== null ||
     (filters.state ?? null) !== null ||
     filters.assignee !== null ||
+    filters.createdBy !== null ||
     filters.due !== null ||
     filters.priority !== null ||
     filters.cycle !== null ||
@@ -158,6 +163,7 @@ export function boardColumnQuery(
     type: types,
     state: [state],
     ...(filters.assignee !== null && { assignee: filters.assignee }),
+    ...(filters.createdBy !== null && { createdBy: filters.createdBy }),
     ...(filters.priority !== null && { priority: [filters.priority] }),
     ...dueQuery(filters.due, todayDate, weekStart),
     ...cycleQuery(filters.cycle, cycles, todayDate),
@@ -175,6 +181,10 @@ function matchesAssignee(item: Item, assignee: string | null, me: string): boole
   if (assignee === null) return true;
   if (assignee === 'unassigned') return item.assignee === null;
   return item.assignee?.personId === (assignee === 'me' ? me : assignee);
+}
+
+function matchesCreatedBy(item: Item, createdBy: string | null, me: string): boolean {
+  return createdBy === null || item.createdBy.personId === (createdBy === 'me' ? me : createdBy);
 }
 
 /** 和後端一樣：標題包含這段文字（不分大小寫），或這段文字就是這個項目的編號（SMK-7、smk-07 都算）。 */
@@ -223,6 +233,7 @@ export function matchesBoardFilters(
     matchesCycle(item, filters.cycle, cycles, todayDate) &&
     matchesMilestone(item, filters.milestone) &&
     matchesAssignee(item, filters.assignee, me) &&
+    matchesCreatedBy(item, filters.createdBy, me) &&
     (filters.priority === null || item.priority === filters.priority) &&
     matchesDue(filters.due, item.dueDate, item.stateCategory, todayDate, weekStart) &&
     matchesFieldFilters(item, filters.fields, me) &&

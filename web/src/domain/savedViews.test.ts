@@ -17,7 +17,7 @@ import {
 const BLUEPRINT = agyDetail().blueprint;
 const SPRINT_ID = '0190a000-0000-7000-8000-0000000000d1';
 const V1_ID = '0190a000-0000-7000-8000-0000000000e1';
-const NOTHING: SavedViewQuery = { type: null, state: null, assignee: null, q: null, sort: null, due: null, priority: null, cycle: null, milestone: null, fields: null, group: null, category: null, project: null };
+const NOTHING: SavedViewQuery = { type: null, state: null, assignee: null, q: null, sort: null, due: null, priority: null, cycle: null, milestone: null, fields: null, group: null, category: null, project: null, createdBy: null, mine: null };
 
 function savedView(layout: SavedView['layout'], query: Partial<SavedViewQuery>): SavedView {
   return {
@@ -48,6 +48,7 @@ describe('從目前的條件取出要存的內容', () => {
       ...EMPTY_FILTERS,
       type: 'task',
       assignee: 'me',
+      createdBy: null,
       due: 'week',
       priority: 'high',
       sort: { field: 'due_date', direction: 'asc' },
@@ -62,7 +63,7 @@ describe('從目前的條件取出要存的內容', () => {
 
   it('看板只存看板有的條件', () => {
     // Arrange
-    const filters = { workflow: 'task_flow', assignee: 'unassigned', due: null, priority: 'low', q: '首頁', cycle: 'current', milestone: SPRINT_ID , fields: {}, group: STATE_GROUP} as const;
+    const filters = { workflow: 'task_flow', assignee: 'unassigned', createdBy: null, due: null, priority: 'low', q: '首頁', cycle: 'current', milestone: SPRINT_ID , fields: {}, group: STATE_GROUP} as const;
 
     // Act
     const query = queryFromBoardFilters(filters);
@@ -72,10 +73,49 @@ describe('從目前的條件取出要存的內容', () => {
   });
 });
 
+describe('建立者存進檢視', () => {
+  it('表格與看板存 createdBy，mine 一律 null', () => {
+    // Arrange
+    const board = { workflow: null, assignee: null, createdBy: 'me', due: null, priority: null, q: '', cycle: null, milestone: null, fields: {}, group: STATE_GROUP } as const;
+
+    // Act / Assert
+    expect(queryFromTableFilters({ ...EMPTY_FILTERS, createdBy: 'p-2' })).toEqual({ ...NOTHING, createdBy: 'p-2' });
+    expect(queryFromBoardFilters(board)).toEqual({ ...NOTHING, createdBy: 'me' });
+  });
+
+  it('套用時寫回網址（四種版面都帶）；舊的檢視沒有就是不限', () => {
+    // Assert
+    expect(savedViewParams(savedView('table', { createdBy: 'me' }), BLUEPRINT).toString()).toBe('createdBy=me');
+    expect(savedViewParams(savedView('timeline', { createdBy: 'me' }), BLUEPRINT).toString()).toBe('view=timeline&createdBy=me');
+    expect(savedViewParams(savedView('board', {}), BLUEPRINT).has('createdBy')).toBe(false);
+  });
+
+  it('舊的檢視在伺服器上根本沒有 createdBy 欄位（undefined）：套用的網址不會冒出 createdBy=undefined', () => {
+    // Arrange：舊的 JSON 沒有這個鍵，型別上看不出來，所以拿掉鍵再斷言成目前的型別。
+    const legacy = Object.fromEntries(Object.entries(NOTHING).filter(([name]) => name !== 'createdBy'));
+    const view = { ...savedView('table', {}), query: legacy as SavedViewQuery };
+
+    // Act
+    const params = savedViewParams(view, BLUEPRINT);
+
+    // Assert
+    expect(params.toString()).toBe('');
+    expect(params.toString()).not.toContain('undefined');
+  });
+
+  it('預設名稱：我建立的', () => {
+    // Arrange
+    const context = { blueprint: BLUEPRINT, cycles: [], milestones: [], members: [exampleMember], me: exampleOwner.personId };
+
+    // Assert
+    expect(defaultViewName('table', { ...NOTHING, createdBy: 'me' }, context)).toBe('我建立的');
+  });
+});
+
 describe('行事曆與時間軸存類型與狀態', () => {
   it('queryFromBoardFilters：有給類型與狀態時存起來，沒給（看板）存 null', () => {
     // Arrange
-    const filters = { workflow: null, assignee: null, due: null, priority: null, q: '', cycle: null, milestone: null , fields: {}, group: STATE_GROUP} as const;
+    const filters = { workflow: null, assignee: null, createdBy: null, due: null, priority: null, q: '', cycle: null, milestone: null , fields: {}, group: STATE_GROUP} as const;
 
     // Act / Assert
     expect(queryFromBoardFilters({ ...filters, type: 'task', state: 'doing' })).toEqual({ ...NOTHING, type: 'task', state: 'doing' });
@@ -97,7 +137,7 @@ describe('行事曆與時間軸存類型與狀態', () => {
 describe('savedViewParams', () => {
   it('表格的檢視換成網址上的條件', () => {
     // Arrange
-    const view = savedView('table', { type: 'task', assignee: 'me', due: 'week', sort: 'title:desc' });
+    const view = savedView('table', { type: 'task', assignee: 'me', createdBy: null, due: 'week', sort: 'title:desc' });
 
     // Act
     const params = savedViewParams(view, BLUEPRINT);

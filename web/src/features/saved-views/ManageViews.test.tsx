@@ -51,7 +51,7 @@ describe('另存成檢視', () => {
     expect(app.backend.created[0]?.body).toEqual({
       name: '今天要處理的',
       layout: 'table',
-      query: { type: null, state: null, assignee: null, q: null, sort: 'title:desc', due: 'today', priority: 'urgent', cycle: null, milestone: null, fields: null, group: null, category: null, project: null },
+      query: { type: null, state: null, assignee: null, createdBy: null, mine: null, q: null, sort: 'title:desc', due: 'today', priority: 'urgent', cycle: null, milestone: null, fields: null, group: null, category: null, project: null },
     });
     const trigger = await screen.findByRole('button', { name: '檢視，目前是「今天要處理的」' });
     expect(trigger).toHaveFocus();
@@ -176,7 +176,7 @@ describe('重新命名與刪除', () => {
     expect(app.backend.replaced[0]?.body).toEqual({
       name: '本週交付',
       layout: 'table',
-      query: { type: null, state: null, assignee: null, q: null, sort: null, due: 'week', priority: 'high', cycle: null, milestone: null, fields: null, group: null, category: null, project: null },
+      query: { type: null, state: null, assignee: null, createdBy: null, mine: null, q: null, sort: null, due: 'week', priority: 'high', cycle: null, milestone: null, fields: null, group: null, category: null, project: null },
     });
     expect(await screen.findByRole('button', { name: '檢視，目前是「本週交付」' })).toBeInTheDocument();
   });

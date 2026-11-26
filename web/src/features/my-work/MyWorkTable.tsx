@@ -4,10 +4,11 @@ import { useProjectDetails } from '../../api/queries';
 import type { CalendarDate, Item, ProjectDetail } from '../../api/types';
 import type { ColumnWidthStore } from '../../components/Table/columnWidths';
 import { List, ListRow, type ListMeta } from '../../components/List/List';
+import { myWorkMineOf } from '../../domain/myWorkView';
 import { useIsCompact } from '../../lib/useMediaQuery';
 import type { RovingGridHandle } from '../../lib/useRovingGrid';
 import { useItemSequence } from '../item-page/ItemPanelContext';
-import { dueMeta, priorityMeta, projectMeta, stateMeta } from '../work-items/itemListMeta';
+import { assigneeMeta, dueMeta, priorityMeta, projectMeta, stateMeta } from '../work-items/itemListMeta';
 import { itemPagePath, useItemPageEntry } from '../work-items/itemLinks';
 import { MyWorkGrid, type MyWorkViewProps } from './MyWorkGrid';
 import { MyWorkGroupSection } from './MyWorkGroupSection';
@@ -22,10 +23,11 @@ import { useWeekStart } from '../../lib/weekStart';
  * 窄螢幕的第二行：狀態、專案（依專案分組時組名就是專案，不重複）、優先度與到期日（後兩個有設才有）。
  * 整筆是連結，名稱會把這一行唸出來，所以每一個欄位都帶著說法；欄位在 work-items/itemListMeta.tsx。
  */
-function myWorkMeta(item: Item, project: ProjectDetail | undefined, todayDate: CalendarDate, showProject: boolean): ListMeta[] {
+function myWorkMeta(item: Item, project: ProjectDetail | undefined, todayDate: CalendarDate, { showProject, showAssignee }: Pick<MyWorkViewProps, 'showProject' | 'showAssignee'>): ListMeta[] {
   return [
     stateMeta(item, project?.blueprint),
     ...(showProject ? [projectMeta(item, project)] : []),
+    ...(showAssignee ? [assigneeMeta(item)] : []),
     ...priorityMeta(item),
     ...dueMeta(item, todayDate),
   ];
@@ -35,7 +37,7 @@ function myWorkMeta(item: Item, project: ProjectDetail | undefined, todayDate: C
  * 窄螢幕：和專案的清單同一套（components/List，一筆兩行），跟著整頁捲；每一組一個標題與一份清單。
  * 就地編輯留在詳細頁（docs/DESIGN.md 7.1）：整筆是連到項目頁的連結，狀態在那裡改。
  */
-function MyWorkList({ groups, projects, todayDate, showProject, isLeaving, footer }: MyWorkViewProps & { readonly footer?: ReactNode }) {
+function MyWorkList({ groups, projects, todayDate, showProject, showAssignee, isLeaving, footer }: MyWorkViewProps & { readonly footer?: ReactNode }) {
   const entry = useItemPageEntry();
   // 窄螢幕不用面板；登記順序是為了從整頁用上一頁回來時，焦點放回這一筆。
   useItemSequence(groups.flatMap((group) => group.items.map((row) => row.key)));
@@ -55,7 +57,7 @@ function MyWorkList({ groups, projects, todayDate, showProject, isLeaving, foote
                   // 剛改成完成或取消的（視窗從寬螢幕變窄時）：標題劃掉，和表格一樣。
                   title={isLeaving(item) ? <span className={styles.settledTitle}>{item.title}</span> : item.title}
                   titleText={item.title}
-                  meta={myWorkMeta(item, projects.get(item.projectKey), todayDate, showProject)}
+                  meta={myWorkMeta(item, projects.get(item.projectKey), todayDate, { showProject, showAssignee })}
                   isContentStart={item.key === firstKey}
                 />
               ))}
@@ -89,7 +91,7 @@ function useMyWorkSort() {
   const onSort = (field: MyWorkSortField) => {
     setSearchParams((previous) => withMyWorkSort(previous, nextMyWorkSort(myWorkSortOf(previous), field)), { replace: true });
   };
-  return { sort: myWorkSortOf(searchParams), grouping: groupingOf(searchParams), onSort };
+  return { sort: myWorkSortOf(searchParams), grouping: groupingOf(searchParams), mine: myWorkMineOf(searchParams), onSort };
 }
 
 /**
@@ -100,7 +102,7 @@ export function MyWorkTable({ rows, widthStore, orderStore, todayDate, isLeaving
   // 狀態名稱在各專案的藍圖裡；拿到之前先顯示狀態類別，不擋住整張表。
   const projectKeys = [...new Set(rows.map((row) => row.projectKey))];
   const projects = useProjectDetails(projectKeys);
-  const { sort, grouping, onSort } = useMyWorkSort();
+  const { sort, grouping, mine, onSort } = useMyWorkSort();
   const weekStart = useWeekStart();
   const isCompact = useIsCompact();
   const projectName = (projectKey: string) => projects.get(projectKey)?.project.name;
@@ -108,7 +110,7 @@ export function MyWorkTable({ rows, widthStore, orderStore, todayDate, isLeaving
     ...group,
     items: sortMyWorkRows(group.items, sort, projectName),
   }));
-  const props: MyWorkViewProps = { groups, projects, todayDate, showProject: grouping !== 'project', isLeaving };
+  const props: MyWorkViewProps = { groups, projects, todayDate, showProject: grouping !== 'project', showAssignee: mine === 'created', isLeaving };
   if (isCompact) return <MyWorkList {...props} footer={footer} />;
   return <MyWorkGrid {...props} widthStore={widthStore} orderStore={orderStore} sort={sort} onSort={onSort} footer={footer} gridRef={gridRef} />;
 }

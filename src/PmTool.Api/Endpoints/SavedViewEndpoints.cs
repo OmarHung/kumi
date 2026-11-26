@@ -22,13 +22,15 @@ internal sealed record SavedViewQueryData(
     IReadOnlyDictionary<string, string>? Fields = null,
     string? Group = null,
     string? Category = null,
-    string? Project = null)
+    string? Project = null,
+    string? CreatedBy = null,
+    string? Mine = null)
 {
     public static SavedViewQueryData From(SavedViewQuery query) => new(
         query.Type, query.State, query.Assignee, query.Search, query.Sort, query.Due, query.Priority, query.Cycle, query.Milestone,
-        query.Fields, query.Group, query.Category, query.Project);
+        query.Fields, query.Group, query.Category, query.Project, query.CreatedBy, query.Mine);
 
-    public SavedViewQuery ToQuery() => new(Type, State, Assignee, Q, Sort, Due, Priority, Cycle, Milestone, Fields, Group, Category, Project);
+    public SavedViewQuery ToQuery() => new(Type, State, Assignee, Q, Sort, Due, Priority, Cycle, Milestone, Fields, Group, Category, Project, CreatedBy, Mine);
 }
 
 /// <summary>新增與整個換掉用的內文。</summary>

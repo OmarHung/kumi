@@ -22,6 +22,7 @@ function filterQuery(filters: DateViewFilters, todayDate: CalendarDate, weekStar
     ...(filters.type !== null && { type: [filters.type] }),
     ...(filters.state !== null && { state: [filters.state] }),
     ...(filters.assignee !== null && { assignee: filters.assignee }),
+    ...(filters.createdBy !== null && { createdBy: filters.createdBy }),
     ...(filters.priority !== null && { priority: [filters.priority] }),
     ...due,
     ...cycleQuery(filters.cycle, cycles, todayDate),

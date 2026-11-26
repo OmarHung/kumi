@@ -17,6 +17,7 @@ import {
 } from '../../domain/myWorkView';
 import { updateThenFocus, type FocusTarget } from '../../lib/updateThenFocus';
 import { useArrivalNotice } from '../../lib/useArrivalNotice';
+import { useIsCompact } from '../../lib/useMediaQuery';
 import { useToday } from '../../lib/useToday';
 import { useWeekStart } from '../../lib/weekStart';
 import type { RovingGridHandle } from '../../lib/useRovingGrid';
@@ -27,6 +28,7 @@ import { flattenItemPages } from '../item-table/itemCache';
 import { createColumnOrderStore, MY_WORK_ORDER_KEY } from './myWorkColumnOrder';
 import { MY_WORK_WIDTHS_KEY } from './myWorkColumns';
 import { pruneToProject } from './myWorkChoices';
+import { MyWorkMineSwitch } from './MyWorkMineSwitch';
 import { MyWorkResults } from './MyWorkResults';
 import { myWorkStatus } from './myWorkStatus';
 import { MyWorkToolbar } from './MyWorkToolbar';
@@ -108,6 +110,7 @@ function useMyWorkData(urlFilters: MyWorkFilters, setFilters: (next: MyWorkFilte
     isLoadFailed: conditions !== null && result.isLoadingError && !hasLoaded,
     isImpossible: conditions === null,
     isFiltered: hasActiveMyWorkFilters(filters),
+    mine: filters.mine,
     todayDate,
     isLeaving,
     result,
@@ -120,7 +123,7 @@ function useMyWorkData(urlFilters: MyWorkFilters, setFilters: (next: MyWorkFilte
  * 頁面上的控制：標題、搜尋框與「篩選」按鈕（焦點的去處）、表格的欄寬。
  * 「重設欄寬」「清除條件」按了就跟著不見：焦點不接手會掉回頁面本體（lib/updateThenFocus.ts）。
  */
-function usePageControls(setFilters: (next: MyWorkFilters) => void) {
+function usePageControls(filters: MyWorkFilters, setFilters: (next: MyWorkFilters) => void) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const filterButtonId = useId();
@@ -132,7 +135,8 @@ function usePageControls(setFilters: (next: MyWorkFilters) => void) {
   // 焦點到搜尋框；窄螢幕搜尋框收在浮層裡，到「篩選」按鈕。
   const clearFilters = () => {
     updateThenFocus(() => {
-      setFilters(DEFAULT_MY_WORK_FILTERS);
+      // 「我負責的／我建立的」是範圍不是條件：清除條件之後還在看同一份。
+      setFilters({ ...DEFAULT_MY_WORK_FILTERS, mine: filters.mine });
     }, [searchRef, filterButtonId]);
   };
   return { headingRef, searchRef, filterButtonId, widthStore, orderStore, resetWidths, clearFilters };
@@ -149,7 +153,9 @@ export function MyWorkPage() {
   const gridRef = useRef<RovingGridHandle>(null);
   const { layout, urlFilters, setFilters } = useMyWorkUrlState();
   const isTable = layout === 'table';
-  const controls = usePageControls(setFilters);
+  // 窄螢幕的工具列已經排滿（版面、「檢視」、「篩選」），範圍的下拉放在頁列右邊：多一個下拉不會把工具列折成兩列。
+  const isCompact = useIsCompact();
+  const controls = usePageControls(urlFilters, setFilters);
   const { headingRef, searchRef, filterButtonId, widthStore, orderStore, clearFilters } = controls;
   // 在項目面板裡刪除之後留在這裡：焦點到標題，「已刪除 …」填進一直掛著的 status。
   const arrival = useArrivalNotice(headingRef);
@@ -174,7 +180,7 @@ export function MyWorkPage() {
     <StateAnnouncementContext value={setFill}>
       <PageLayout
         variant={isTable ? 'list' : 'workspace'}
-        bar={<PageBar title="我的工作" headingRef={headingRef} />}
+        bar={<PageBar title="我的工作" headingRef={headingRef} actions={isCompact ? <MyWorkMineSwitch /> : undefined} />}
         toolbar={isLoadFailed ? undefined : toolbar}
       >
         {/* 點標題在右邊開項目面板（跨專案：面板用那個項目自己的專案內容）。 */}

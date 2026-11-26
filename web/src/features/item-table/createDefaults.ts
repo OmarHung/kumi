@@ -44,11 +44,11 @@ export function matchesTableFilters(
   weekStart: WeekStart,
   cycles: readonly Cycle[] = [],
 ): boolean {
-  const { assignee, due, priority, cycle, milestone, fields, q } = filters;
+  const { assignee, createdBy, due, priority, cycle, milestone, fields, q } = filters;
   return (
     (filters.type === null || item.type === filters.type) &&
     (filters.state === null || item.state === filters.state) &&
-    matchesBoardFilters(item, { workflow: null, assignee, due, priority, cycle, milestone, fields, group: STATE_GROUP, q }, me, todayDate, weekStart, cycles)
+    matchesBoardFilters(item, { workflow: null, assignee, createdBy, due, priority, cycle, milestone, fields, group: STATE_GROUP, q }, me, todayDate, weekStart, cycles)
   );
 }
 

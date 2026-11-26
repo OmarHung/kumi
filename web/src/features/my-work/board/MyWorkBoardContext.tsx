@@ -16,8 +16,8 @@ export interface MyWorkBoardContextValue {
   /** 讀到的專案內容（藍圖與權限），以專案代號為鍵；還沒讀到的卡片先寫類別、不能移動。 */
   readonly projects: ReadonlyMap<string, ProjectDetail>;
   readonly todayDate: CalendarDate;
-  /** 自己的人員編號：負責人不是自己的卡片才寫出負責人。 */
-  readonly me: string;
+  /** 看的是「我建立的」：負責人不一定是自己，卡片多寫出負責人（看「我負責的」時每一張都是自己，不寫）。 */
+  readonly showAssignee: boolean;
   readonly pending: readonly BoardMove[];
   /** 剛被擋下來、還沒關掉說明的卡片。 */
   readonly failedKeys: ReadonlySet<string>;

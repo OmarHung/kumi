@@ -111,6 +111,27 @@ public sealed class AssistantItemTests
     }
 
     [Test]
+    public async Task GetItem_CarriesTheCreatorWithIdAndName()
+    {
+        // Arrange：建立者不是負責人也不在活動裡，名稱仍要查得到，不能落到「已不在組織」。
+        var creator = Guid.NewGuid();
+        _h.WorkItems.Items["WEB-12"] = ItemSamples.Item() with { CreatedBy = creator };
+        var people = (FakePeopleDirectory)_h.Host.Get<PmTool.Identity.IPeopleDirectory>();
+        people.Set(_h.Actor.OrganizationId, creator, PmTool.Identity.OrganizationRole.Member);
+
+        // Act
+        var result = await RunToolAsync("get_item", new { itemKey = "WEB-12" });
+
+        // Assert
+        var createdBy = result.GetProperty("item").GetProperty("createdBy");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(createdBy.GetProperty("id").GetString(), Is.EqualTo(creator.ToString()));
+            Assert.That(createdBy.GetProperty("name").GetString(), Is.EqualTo("王小明"));
+        }
+    }
+
+    [Test]
     public async Task GetItem_DisabledMember_IsNotInTheMembersList()
     {
         // Arrange：系統提示要模型只指派、提及名單裡的人；停用的人不能被指派，和 MCP 的 get_item 一樣不列。

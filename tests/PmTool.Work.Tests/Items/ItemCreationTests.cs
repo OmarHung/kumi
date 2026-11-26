@@ -40,7 +40,10 @@ public sealed class ItemCreationTests
         var expected = new WorkItem(
             "WEB-1", "WEB", 1, "task", "首頁改版", "todo", StateCategory.NotStarted, scenario.Admin.PersonId, Priority.High,
             new DateOnly(2026, 11, 3), new DateOnly(2026, 11, 20), 3.5m, null, created.Value.Fields,
-            WorkTestHost.StartTime, WorkTestHost.StartTime);
+            WorkTestHost.StartTime, WorkTestHost.StartTime)
+        {
+            CreatedBy = scenario.Admin.PersonId,
+        };
         Assert.That(created.Value, Is.EqualTo(expected));
         Assert.That(readBack.Value, Is.EqualTo(expected with { Fields = readBack.Value.Fields }));
         Assert.That(readBack.Value.Fields, Is.Empty);

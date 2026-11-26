@@ -8,6 +8,7 @@ namespace PmTool.Work.SavedViews;
 internal static partial class SavedViewChecks
 {
     private const string All = "all";
+    private const string CreatedMine = "created";
     private const string ProjectGroup = "project";
 
     private static readonly string[] CategoryValues = [All, "backlog", "not_started", "in_progress", "done", "canceled"];
@@ -30,6 +31,8 @@ internal static partial class SavedViewChecks
                 CategoryProblem(query),
                 MyWorkAssigneeProblem(query.Assignee),
                 ProjectProblem(query.Project),
+                OneOfProblem("mine", query.Mine, [CreatedMine], "範圍"),
+                query.CreatedBy is null ? null : Problem($"{QueryPath}.createdBy", "「我的工作」的檢視沒有建立者的條件，要看自己建立的請用「我建立的」。"),
                 OneOfProblem("group", query.Group, [ProjectGroup], "分組"),
                 SearchProblem(query.Search),
                 MyWorkSortProblem(query.Sort),
@@ -59,6 +62,10 @@ internal static partial class SavedViewChecks
             yield return Problem($"{QueryPath}.project", "專案的檢視不能指定專案，只有「我的工作」的檢視才有。");
         }
 
+        if (query.Mine is not null)
+        {
+            yield return Problem($"{QueryPath}.mine", "專案的檢視沒有「我建立的」這個範圍，只有「我的工作」的檢視才有。");
+        }
     }
 
     // 跨專案的清單不能依自訂欄位排序（各專案的欄位不同），存了套用時會被 422 整頁擋掉。

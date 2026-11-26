@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router';
+import { myWorkMineOf } from '../../domain/myWorkView';
 import { SelectField } from '../../components/Field/Field';
 import type { SelectOption } from '../../components/Select/Select';
 import { DEFAULT_COLUMN_ORDER } from './myWorkColumnOrder';
@@ -17,7 +18,7 @@ const DIRECTIONS = [
  */
 export function MyWorkSortField() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const columns = myWorkColumns(DEFAULT_COLUMN_ORDER, groupingOf(searchParams) !== 'project');
+  const columns = myWorkColumns(DEFAULT_COLUMN_ORDER, groupingOf(searchParams) !== 'project', myWorkMineOf(searchParams) === 'created');
   const options: SelectOption[] = columns.flatMap((column) =>
     DIRECTIONS.map(({ direction, word }) => ({
       value: myWorkSortValue({ field: SORT_FIELDS[column.id], direction }),

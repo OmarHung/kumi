@@ -46,6 +46,7 @@ describe('檢視存得下自訂欄位的條件與看板的分組', () => {
     const filters = {
       workflow: null,
       assignee: null,
+      createdBy: null,
       due: null,
       priority: null,
       cycle: null,
@@ -71,6 +72,7 @@ describe('檢視存得下自訂欄位的條件與看板的分組', () => {
     const query = queryFromBoardFilters({
       workflow: null,
       assignee: null,
+      createdBy: null,
       due: null,
       priority: null,
       cycle: null,

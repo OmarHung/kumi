@@ -85,6 +85,7 @@ function activeBoardFilterCount(board: BoardFilterState): number {
     board.filters.type !== null,
     board.filters.state !== null,
     board.filters.assignee !== null,
+    board.filters.createdBy !== null,
     board.filters.due !== null,
     board.filters.priority !== null,
     board.filters.cycle !== null,
@@ -108,12 +109,12 @@ export function BoardToolbarControls({ board, view = 'board' }: { readonly board
   const { detail } = useProjectTable();
   const hasWorkflow = view === 'board' && board.workflows.length > 1 && board.filters.group.kind === 'state';
   const groupLabel = GROUP_LABELS[view];
-  // 可以收的條件：負責人、到期、優先度；行事曆與時間軸再加狀態與（多於一種類型時的）類型，看板依狀態分欄所以沒有。
+  // 可以收的條件：負責人、建立者、到期、優先度；行事曆與時間軸再加狀態與（多於一種類型時的）類型，看板依狀態分欄所以沒有。
   // 固定的：搜尋，看板多於一個流程時再加流程。週期與里程碑不算：它們一律在「更多條件」裡。
   const present: readonly CollapsibleCondition[] =
     view === 'board'
-      ? ['assignee', 'due', 'priority']
-      : [...(detail.blueprint.itemTypes.length > 1 ? (['type'] as const) : []), 'state', 'assignee', 'due', 'priority'];
+      ? ['assignee', 'createdBy', 'due', 'priority']
+      : [...(detail.blueprint.itemTypes.length > 1 ? (['type'] as const) : []), 'state', 'assignee', 'createdBy', 'due', 'priority'];
   // 分組另外算：篩選全部收完還放不下，它也收進「更多條件」（inlineConditions.ts 的 groupPlacement）。
   const { barRef, inlineKeys, moreKeys, hasMore, isGroupInline } = useInlineConditions(
     { present, fixedCount: hasWorkflow ? 2 : 1, hasGroup: view === 'board' },

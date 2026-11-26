@@ -73,7 +73,7 @@ function labels(menu: HTMLElement): string[] {
 }
 
 const EMPTY_QUERY = {
-  type: null, state: null, assignee: null, q: null, sort: null, due: null, priority: null,
+  type: null, state: null, assignee: null, createdBy: null, mine: null, q: null, sort: null, due: null, priority: null,
   cycle: null, milestone: null, fields: null, category: null, project: null, group: null,
 };
 

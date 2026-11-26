@@ -35,7 +35,7 @@ public sealed class ItemSearchEndpointTests
             Assert.That(items?[0]?["assignee"]?["displayName"]?.GetValue<string>(), Is.EqualTo(TestUsers.Member.DisplayName));
             Assert.That(items?[0]?.AsObject().ContainsKey("description"), Is.False, "和清單一樣不帶說明");
             Assert.That(data?.AsObject().Select(p => p.Key), Is.EqualTo(new[] { "items" }));
-            Assert.That(factory.Modules.People.FindManyCalls.Single().PersonIds, Is.EqualTo(new[] { TestUsers.Member.PersonId }));
+            Assert.That(factory.Modules.People.FindManyCalls.Single().PersonIds, Is.EquivalentTo(new[] { TestUsers.Member.PersonId, TestData.Item().CreatedBy }), "負責人與建立者的名字一次查齊");
         }
     }
 

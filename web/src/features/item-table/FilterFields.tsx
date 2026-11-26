@@ -158,19 +158,40 @@ interface AssigneeFieldProps extends ToolbarFieldProps {
  * 每一個選項前面都有頭像大小的小圖，字才對齊：「我」與成員是頭像，「所有人」「沒有負責人」是佔位的小圖。
  */
 export function AssigneeField({ value, onChange, isToolbar }: AssigneeFieldProps) {
+  return <PersonFilterField isToolbar={isToolbar} label="負責人" hasNobody value={value} onChange={onChange} />;
+}
+
+interface CreatedByFieldProps extends ToolbarFieldProps {
+  /** `me` 或人員編號；null 是所有人。 */
+  readonly value: string | null;
+  readonly onChange: (createdBy: string | null) => void;
+}
+
+/** 建立者篩選：和負責人同一種選人的下拉（所有人、我，再來是其他成員），沒有「沒有建立者」：建立者一定有。 */
+export function CreatedByField({ value, onChange, isToolbar }: CreatedByFieldProps) {
+  return <PersonFilterField isToolbar={isToolbar} label="建立者" value={value} onChange={onChange} />;
+}
+
+interface PersonFilterFieldProps extends CreatedByFieldProps {
+  readonly label: string;
+  /** 多一個「沒有負責人」。 */
+  readonly hasNobody?: boolean;
+}
+
+function PersonFilterField({ value, onChange, isToolbar, label, hasNobody = false }: PersonFilterFieldProps) {
   const { detail } = useProjectTable();
   const user = useCurrentUser();
   const others = detail.members.filter((member) => member.personId !== user.personId);
   const options: SelectOption[] = [
     { value: '', label: '所有人', leading: <EveryoneMark /> },
     { value: 'me', label: '我', leading: <PersonMark name={user.displayName} /> },
-    { value: 'unassigned', label: '沒有負責人', leading: <NobodyMark /> },
+    ...(hasNobody ? [{ value: 'unassigned', label: '沒有負責人', leading: <NobodyMark /> }] : []),
     ...others.map((member, index) => personOption(member, index === 0)),
   ];
   return (
     <SelectField
       {...toolbarFieldProps(isToolbar)}
-      label="負責人"
+      label={label}
       value={value ?? ''}
       options={options}
       onChange={(next) => {
@@ -219,12 +240,12 @@ export function TypeStateFields({ filters, onChange, isToolbar, hasType = true, 
   );
 }
 
-/** 篩選的條件：類型、狀態、負責人、到期、優先度、週期、里程碑、自訂欄位（工具列上的順序，也是「更多條件」浮層裡的順序）。 */
+/** 篩選的條件：類型、狀態、負責人、建立者、到期、優先度、週期、里程碑、自訂欄位（工具列上的順序，也是「更多條件」浮層裡的順序）。 */
 export type ConditionKey = CollapsibleCondition | MoreOnlyCondition;
 
-export const ALL_CONDITIONS: ReadonlySet<ConditionKey> = new Set<ConditionKey>(['type', 'state', 'assignee', 'due', 'priority', 'cycle', 'milestone', 'fields']);
+export const ALL_CONDITIONS: ReadonlySet<ConditionKey> = new Set<ConditionKey>(['type', 'state', 'assignee', 'createdBy', 'due', 'priority', 'cycle', 'milestone', 'fields']);
 
-export type ConditionValues = Pick<ItemFilters, 'type' | 'state' | 'assignee' | 'due' | 'priority' | 'cycle' | 'milestone' | 'fields'>;
+export type ConditionValues = Pick<ItemFilters, 'type' | 'state' | 'assignee' | 'createdBy' | 'due' | 'priority' | 'cycle' | 'milestone' | 'fields'>;
 
 interface ConditionFieldsProps extends ToolbarFieldProps {
   readonly filters: ConditionValues;
@@ -251,6 +272,7 @@ export function ConditionFields({ filters, onChange, isToolbar, keys }: Conditio
         />
       )}
       {keys.has('assignee') && <AssigneeField isToolbar={isToolbar} value={filters.assignee} onChange={(assignee) => { onChange({ assignee }); }} />}
+      {keys.has('createdBy') && <CreatedByField isToolbar={isToolbar} value={filters.createdBy} onChange={(createdBy) => { onChange({ createdBy }); }} />}
       {keys.has('due') && <DueField isToolbar={isToolbar} value={filters.due} onChange={(due) => { onChange({ due }); }} />}
       {keys.has('priority') && <PriorityField isToolbar={isToolbar} value={filters.priority} onChange={(priority) => { onChange({ priority }); }} />}
       {keys.has('cycle') && hasCycles && <CycleField isToolbar={isToolbar} value={filters.cycle} onChange={(cycle) => { onChange({ cycle }); }} />}

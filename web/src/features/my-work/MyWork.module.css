@@ -55,6 +55,7 @@
   --my-work-priority-width: 5rem;
   --my-work-due-width: 10.5rem;
   --my-work-project-width: 7rem;
+  --my-work-assignee-width: 8rem;
   /* 標題欄最少這麼寬（約 8 個中文字，放不下用省略號，完整的標題在 title 與連結的名稱）。 */
   --my-work-title-min: 8.5rem;
   /* 拉寬的標題欄最多到表格的寬度減掉它左邊固定的欄與這一段（myWorkColumns.ts）：開著面板時其他欄還捲得出來。 */
@@ -86,20 +87,29 @@
 
 /*
  * 最小寬度設在包住所有組的這一層：TableScroll 比的是第一個子元素的寬度。固定的欄加上標題欄的最小寬度：
- * 1024 寬加上展開的側欄（內容約 46～47rem）放得下；更窄（項目面板開著、48～64rem 而且側欄展開）時所有的組一起退回橫向捲動，
- * 編號與標題固定在左邊（7.1）。依專案分組沒有專案欄，最小寬度少那一欄。
+ * 看「我負責的」是 46rem（6.5 + 8.5 + 5 + 10.5 + 專案 7 + 標題 8.5）：1024 寬加上展開的側欄（內容約 46～47rem）放得下；
+ * 更窄（項目面板開著、48～64rem 而且側欄展開）時所有的組一起退回橫向捲動，編號與標題固定在左邊（7.1）。
+ * 依專案分組沒有專案欄，少 7rem（39rem）。看「我建立的」多負責人欄 8rem：54rem（依專案分組 47rem），
+ * 1024 寬加上展開的側欄放不下（依專案分組剛好在邊緣），退回橫向捲動，和上面更窄時一樣。
  */
 .gridGroups {
   /* 專案欄不一定有（依專案分組沒有專案欄）：沒有的話不算進最小寬度。 */
   --my-work-project-extra: var(--my-work-project-width);
 
+  /* 負責人欄只有看「我建立的」時才有：沒有的話不算進最小寬度。 */
+  --my-work-assignee-extra: 0px;
+
   min-width: calc(
-    var(--my-work-fixed-width) + var(--my-work-project-extra) + var(--my-work-title-min)
+    var(--my-work-fixed-width) + var(--my-work-project-extra) + var(--my-work-assignee-extra) + var(--my-work-title-min)
   );
 }
 
 .gridGroups[data-show-project='false'] {
   --my-work-project-extra: 0px;
+}
+
+.gridGroups[data-show-assignee='true'] {
+  --my-work-assignee-extra: var(--my-work-assignee-width);
 }
 
 /*
@@ -134,6 +144,10 @@
 
 .colProject {
   width: var(--my-work-project-width);
+}
+
+.colAssignee {
+  width: var(--my-work-assignee-width);
 }
 
 /* 標題欄拉過之後就是那個寬度（換掉的是它的最小寬度），後面空的欄吃掉剩下的寬度（MyWorkGrid 的 MyWorkColumns）。 */

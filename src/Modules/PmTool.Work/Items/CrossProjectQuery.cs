@@ -46,6 +46,7 @@ internal static class CrossProjectQuery
         filtered = query.OnlyUnassigned ? filtered.Where(i => i.AssigneeId == null)
             : query.AssigneeId is { } assignee ? filtered.Where(i => i.AssigneeId == assignee)
             : filtered;
+        filtered = query.CreatedBy is { } creator ? filtered.Where(i => i.CreatedBy == creator) : filtered;
         filtered = ItemQueryPlan.FilterByPriorityAndDue(filtered, query);
         filtered = ItemQueryPlan.FilterByPlanning(filtered, query);
         filtered = plan.Parent is null ? filtered : ChildrenOf(filtered, items, plan.Parent, projects);

@@ -3,7 +3,7 @@ using PmTool.Work;
 
 namespace PmTool.Api.Mcp.Tools;
 
-/// <summary>項目在 MCP 上的形狀：和 API 同一份（<see cref="ItemData"/>），負責人帶顯示名稱，代理不必另外查人員。</summary>
+/// <summary>項目在 MCP 上的形狀：和 API 同一份（<see cref="ItemData"/>），負責人與建立者帶顯示名稱，代理不必另外查人員。</summary>
 internal static class McpItemShapes
 {
     public static async Task<ItemDetailData> DetailAsync(McpToolContext context, WorkItem item, CancellationToken cancellationToken)

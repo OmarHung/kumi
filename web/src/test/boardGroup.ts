@@ -1,6 +1,7 @@
 import { http } from 'msw';
 import type { Item, ItemPage, ItemPatch } from '../api/types';
 import { failure, ok } from './api';
+import { matchesCreatedBy } from './createdBy';
 import { exampleOwner } from './fixtures';
 import { server } from './server';
 
@@ -27,6 +28,7 @@ function matches(item: Item, params: URLSearchParams): boolean {
   return (
     (categories.length === 0 || categories.includes(item.stateCategory)) &&
     (assignee === null || item.assignee?.personId === (assignee === 'me' ? exampleOwner.personId : assignee)) &&
+    matchesCreatedBy(item, params.get('createdBy'), exampleOwner.personId) &&
     fieldFilters.every(([name, value]) => item.fields[name.slice('field.'.length)] === value)
   );
 }

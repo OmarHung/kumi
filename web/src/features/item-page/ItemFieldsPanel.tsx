@@ -10,6 +10,7 @@ import { findItemType } from '../../domain/blueprint';
 import { fieldDefinition, typeAllowsParent } from '../../domain/fields';
 import {
   AssigneeCell,
+  CreatedByCell,
   DateCell,
   EstimateCell,
   ParentCell,
@@ -133,6 +134,9 @@ function FieldList({ item }: { readonly item: ItemDetail }) {
       </FieldRow>
       <FieldRow label="負責人">
         <AssigneeCell item={item} onAssigned={leaveWhenHidden} />
+      </FieldRow>
+      <FieldRow label="建立者">
+        <CreatedByCell item={item} />
       </FieldRow>
       <FieldRow label="優先度">
         <PriorityCell item={item} />

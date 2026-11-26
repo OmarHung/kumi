@@ -2,6 +2,7 @@ import { http } from 'msw';
 import type { StateCategory } from '../api/blueprint';
 import type { Item, ItemPage, ItemTypeSummary, Priority, ProjectDetail } from '../api/types';
 import { ok } from './api';
+import { matchesCreatedBy } from './createdBy';
 import { server } from './server';
 
 /**
@@ -50,6 +51,7 @@ function matches(item: Item, params: URLSearchParams, me: string): boolean {
     inList(params.getAll('priority'), item.priority) &&
     inList(params.getAll('project').map((key) => key.toUpperCase()), item.projectKey) &&
     matchesAssignee(item, params.get('assignee'), me) &&
+    matchesCreatedBy(item, params.get('createdBy'), me) &&
     matchesDates(item, params) &&
     matchesSearch(item, params.get('q'))
   );

@@ -1,5 +1,6 @@
 import type { Cycle, Milestone } from '../../api/planning';
 import type { CalendarDate, Item } from '../../api/types';
+import { assigneeNote } from '../../domain/assigneeNote';
 import { addDays, isOverdue } from '../../domain/dates';
 import { daysBetween, formatRangeIn, placeRange, type Placement, type TimelineWindow } from './timelineRange';
 
@@ -30,13 +31,13 @@ function spanOf(item: Item): { readonly start: CalendarDate; readonly end: Calen
   return first <= last ? { start: first, end: last } : { start: last, end: first };
 }
 
-function rowOf(item: Item, window: TimelineWindow, todayDate: CalendarDate): TimelineRow | null {
+function rowOf(item: Item, window: TimelineWindow, todayDate: CalendarDate, isAssigneeShown: boolean): TimelineRow | null {
   const span = spanOf(item);
   const placement = span === null ? null : placeRange(window, span.start, span.end);
   if (span === null || placement === null) return null;
   const overdue = isOverdue(item.dueDate, item.stateCategory, todayDate);
   const range = formatRangeIn(window, span.start, span.end);
-  const title = `${item.key} ${item.title}，${range}`;
+  const title = `${item.key} ${item.title}，${range}${isAssigneeShown ? `，${assigneeNote(item.assignee)}` : ''}`;
   return {
     item,
     kind: item.startDate !== null && item.dueDate !== null ? 'bar' : 'point',
@@ -58,9 +59,10 @@ function compareRows(a: TimelineRow, b: TimelineRow): number {
 /**
  * 項目變成時間軸的列：照開始日（沒有就用到期日）排，同一天照編號。
  * 完全在畫面外的不畫：伺服器的結果是照這個範圍讀的，但項目剛改了日期、快取還沒重抓時可能多一個。
+ * isAssigneeShown：名稱與提示多一句負責人（「我的工作」看「我建立的」時）。
  */
-export function timelineRows(items: readonly Item[], window: TimelineWindow, todayDate: CalendarDate): readonly TimelineRow[] {
-  return items.flatMap((item) => rowOf(item, window, todayDate) ?? []).toSorted(compareRows);
+export function timelineRows(items: readonly Item[], window: TimelineWindow, todayDate: CalendarDate, isAssigneeShown = false): readonly TimelineRow[] {
+  return items.flatMap((item) => rowOf(item, window, todayDate, isAssigneeShown) ?? []).toSorted(compareRows);
 }
 
 export interface HeaderCell {

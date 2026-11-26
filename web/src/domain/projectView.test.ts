@@ -83,7 +83,7 @@ describe('四種版面', () => {
 
   it('條件寫回網址時帶著目前的版面，行事曆不寫流程', () => {
     // Arrange
-    const filters = { workflow: 'task_flow', assignee: 'me', due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' };
+    const filters = { workflow: 'task_flow', assignee: 'me', createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' };
 
     // Act / Assert
     expect(boardFiltersToSearchParams(filters, undefined, 'calendar').toString()).toBe('view=calendar&assignee=me');
@@ -147,13 +147,13 @@ describe('看板的條件', () => {
     const filters = boardFiltersFromSearchParams(params);
 
     // Assert
-    expect(filters).toEqual({ workflow: 'delivery', assignee: 'me', due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '官網' });
-    expect(boardFiltersFromSearchParams(new URLSearchParams('workflow=%20'))).toEqual({ workflow: null, assignee: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' });
+    expect(filters).toEqual({ workflow: 'delivery', assignee: 'me', createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '官網' });
+    expect(boardFiltersFromSearchParams(new URLSearchParams('workflow=%20'))).toEqual({ workflow: null, assignee: null, createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' });
   });
 
   it('寫回網址時一定帶 view=board；選的是預設的流程就不寫', () => {
     // Arrange
-    const filters = { workflow: 'delivery', assignee: 'me', due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '官網' };
+    const filters = { workflow: 'delivery', assignee: 'me', createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '官網' };
 
     // Act
     const atDefault = boardFiltersToSearchParams(filters, 'delivery');
@@ -166,14 +166,14 @@ describe('看板的條件', () => {
 
   it('只有搜尋與負責人算篩選；換流程只是換一個看板', () => {
     // Arrange / Act / Assert
-    expect(hasActiveBoardFilters({ workflow: 'task_flow', assignee: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' })).toBe(false);
-    expect(hasActiveBoardFilters({ workflow: null, assignee: 'me', due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' })).toBe(true);
-    expect(hasActiveBoardFilters({ workflow: null, assignee: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '首頁' })).toBe(true);
+    expect(hasActiveBoardFilters({ workflow: 'task_flow', assignee: null, createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' })).toBe(false);
+    expect(hasActiveBoardFilters({ workflow: null, assignee: 'me', createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' })).toBe(true);
+    expect(hasActiveBoardFilters({ workflow: null, assignee: null, createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '首頁' })).toBe(true);
   });
 
   it('每一欄的條件：這個狀態、這個流程的類型、照編號遞增、一頁 50 個，再加上搜尋與負責人', () => {
     // Arrange
-    const filters = { workflow: null, assignee: 'unassigned', due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '官網' };
+    const filters = { workflow: null, assignee: 'unassigned', createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '官網' };
 
     // Act
     const query = boardColumnQuery(filters, ['requirement', 'change_request'], 'quoting', TODAY, 'monday');
@@ -187,7 +187,7 @@ describe('看板的條件', () => {
       sort: { field: 'number', direction: 'asc' },
       limit: 50,
     });
-    expect(boardColumnQuery({ workflow: null, assignee: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' }, ['task'], 'todo', TODAY, 'monday')).toEqual({
+    expect(boardColumnQuery({ workflow: null, assignee: null, createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' }, ['task'], 'todo', TODAY, 'monday')).toEqual({
       type: ['task'],
       state: ['todo'],
       sort: { field: 'number', direction: 'asc' },
@@ -196,9 +196,43 @@ describe('看板的條件', () => {
   });
 });
 
+describe('建立者在四種版面的網址上', () => {
+  it('看板、行事曆與時間軸讀得到，寫回網址時帶上，也算篩選', () => {
+    // Arrange
+    const params = new URLSearchParams('view=calendar&createdBy=me');
+
+    // Act
+    const filters = boardFiltersFromSearchParams(params);
+
+    // Assert
+    expect(filters.createdBy).toBe('me');
+    expect(boardFiltersToSearchParams(filters, undefined, 'calendar').toString()).toBe(new URLSearchParams('view=calendar&createdBy=me').toString());
+    expect(hasActiveBoardFilters(filters)).toBe(true);
+  });
+
+  it('每一欄的條件帶 createdBy', () => {
+    // Arrange
+    const filters = { ...boardFiltersFromSearchParams(new URLSearchParams('createdBy=p-9')) };
+
+    // Act
+    const query = boardColumnQuery(filters, ['task'], 'todo', TODAY, 'monday');
+
+    // Assert
+    expect(query.createdBy).toBe('p-9');
+  });
+
+  it('切換版面時建立者跟著帶過去', () => {
+    // Act
+    const next = switchViewParams(new URLSearchParams('createdBy=me&assignee=me'), 'board');
+
+    // Assert
+    expect(next.get('createdBy')).toBe('me');
+  });
+});
+
 describe('matchesBoardFilters', () => {
   const me = exampleOwner.personId;
-  const filters = (assignee: string | null, q = '') => ({ workflow: null, assignee, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q });
+  const filters = (assignee: string | null, q = '', createdBy: string | null = null) => ({ workflow: null, assignee, createdBy, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q });
 
   it('負責人：「我」、「沒有負責人」、指定的人；沒選就是所有人', () => {
     // Arrange
@@ -213,6 +247,19 @@ describe('matchesBoardFilters', () => {
     expect(matchesBoardFilters(mine, filters('unassigned'), me, TODAY, 'monday')).toBe(false);
     expect(matchesBoardFilters(mine, filters(me), me, TODAY, 'monday')).toBe(true);
     expect(matchesBoardFilters(mine, filters('someone-else'), me, TODAY, 'monday')).toBe(false);
+  });
+
+  it('建立者：「我」、指定的人；沒選就是所有人，和負責人可以一起用', () => {
+    // Arrange
+    const mine = smkItem({ number: 1 });
+    const byOther = smkItem({ number: 2, createdBy: { personId: 'someone-else', displayName: '另一位' } });
+
+    // Act / Assert
+    expect(matchesBoardFilters(byOther, filters(null), me, TODAY, 'monday')).toBe(true);
+    expect(matchesBoardFilters(mine, filters(null, '', 'me'), me, TODAY, 'monday')).toBe(true);
+    expect(matchesBoardFilters(byOther, filters(null, '', 'me'), me, TODAY, 'monday')).toBe(false);
+    expect(matchesBoardFilters(byOther, filters(null, '', 'someone-else'), me, TODAY, 'monday')).toBe(true);
+    expect(matchesBoardFilters(mine, filters('me', '', 'someone-else'), me, TODAY, 'monday')).toBe(false);
   });
 
   it('搜尋和後端一樣：標題包含這段文字（不分大小寫），或就是這個項目的編號', () => {

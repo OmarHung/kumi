@@ -82,5 +82,6 @@ internal static class ItemReader
         Description = item.Description,
         CycleId = item.CycleId,
         MilestoneId = item.MilestoneId,
+        CreatedBy = item.CreatedBy,
     };
 }

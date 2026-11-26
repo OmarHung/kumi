@@ -3,12 +3,13 @@ import { Button } from '../../components/Button/Button';
 import { useSearchParams } from 'react-router';
 import { useColumnWidthState, type ColumnWidthStore } from '../../components/Table/columnWidths';
 import { Toolbar } from '../../components/Toolbar/Toolbar';
-import type { MyWorkFilters, MyWorkLayout } from '../../domain/myWorkView';
+import { myWorkMineOf, type MyWorkFilters, type MyWorkLayout } from '../../domain/myWorkView';
 import { useIsCompact } from '../../lib/useMediaQuery';
 import { MyWorkCompactFilters } from './MyWorkCompactFilters';
 import { MyWorkFilterBar } from './MyWorkFilterBar';
 import { MyWorkGroupingField } from './MyWorkGroupingField';
 import { MyWorkViewMenu } from '../saved-views/MyWorkViewMenu';
+import { MyWorkMineSwitch } from './MyWorkMineSwitch';
 import { MyWorkViewSwitch } from './MyWorkViewSwitch';
 import { groupingOf } from './myWorkGroups';
 import type { ColumnOrderStore } from './myWorkColumnOrder';
@@ -49,7 +50,7 @@ function TableToolbarEnd({ message, widthStore, orderStore, onResetWidths }: Tab
   return (
     <>
       {!isCompact && <MyWorkGroupingField isToolbar />}
-      {!isCompact && <MyWorkColumnOrderPicker orderStore={orderStore} showProject={groupingOf(searchParams) !== 'project'} />}
+      {!isCompact && <MyWorkColumnOrderPicker orderStore={orderStore} showProject={groupingOf(searchParams) !== 'project'} showAssignee={myWorkMineOf(searchParams) === 'created'} />}
       {hasCustomWidths && !isCompact && (
         <Button variant="ghost" size="sm" onClick={onResetWidths}>
           重設欄寬
@@ -63,7 +64,8 @@ function TableToolbarEnd({ message, widthStore, orderStore, onResetWidths }: Tab
 }
 
 /**
- * 工具列（internal/HANDOFF-my-work-views.md 5.1）：由左到右是版面、「檢視」、篩選（寬螢幕整排、窄螢幕收進「篩選」）；
+ * 工具列（internal/HANDOFF-my-work-views.md 5.1）：由左到右是版面、範圍（我負責的｜我建立的，只有寬螢幕；窄螢幕在頁列右邊，見 MyWorkPage）、
+ * 「檢視」、篩選（寬螢幕整排、窄螢幕收進「篩選」）；
  * 右邊只有表格有：分組、「欄的順序」、「重設欄寬」、status。status 放在工具列上，訊息出現時下面的清單不會被推動。
  * 四種版面用同一個工具列，切換時版面的分頁是同一個元素（焦點與報讀軟體的位置不會跳走）。
  */
@@ -75,6 +77,7 @@ export function MyWorkToolbar(props: MyWorkToolbarProps) {
   return (
     <Toolbar end={isTable ? <TableToolbarEnd {...props} /> : undefined}>
       <MyWorkViewSwitch layout={layout} />
+      {!isCompact && <MyWorkMineSwitch />}
       <MyWorkViewMenu current={{ layout, filters, grouping: groupingOf(searchParams), sort: myWorkSortOf(searchParams) }} />
       {isCompact ? (
         <MyWorkCompactFilters filters={filters} onChange={onFiltersChange} onClear={onClear} buttonId={filterButtonId} isTable={isTable} />

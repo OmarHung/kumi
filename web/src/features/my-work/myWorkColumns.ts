@@ -9,7 +9,7 @@ import type { TableVariables } from '../../components/Table/Table';
 
 export const MY_WORK_WIDTHS_KEY = 'my-work.widths';
 
-export type MyWorkColumnId = 'key' | 'title' | 'state' | 'priority' | 'due' | 'project';
+export type MyWorkColumnId = 'key' | 'title' | 'state' | 'priority' | 'due' | 'project' | 'assignee';
 
 export interface MyWorkColumn {
   readonly id: MyWorkColumnId;
@@ -28,18 +28,20 @@ const COLUMNS: readonly MyWorkColumn[] = [
   { id: 'priority', label: '優先度', bounds: DEFAULT_BOUNDS },
   { id: 'due', label: '到期日', bounds: DEFAULT_BOUNDS },
   { id: 'project', label: '專案', bounds: DEFAULT_BOUNDS },
+  { id: 'assignee', label: '負責人', bounds: DEFAULT_BOUNDS },
 ];
 
 const BY_ID = new Map(COLUMNS.map((column) => [column.id, column]));
 
 /**
- * 畫面上的欄，照使用者的順序（myWorkColumnOrder.ts，預設是編號、專案、標題、狀態、優先度、到期日）。
- * 依專案分組沒有專案欄；沒有負責人欄（這一頁都是我負責的）。
+ * 畫面上的欄，照使用者的順序（myWorkColumnOrder.ts，預設是編號、專案、標題、狀態、優先度、到期日、負責人）。
+ * 依專案分組沒有專案欄；負責人欄只有看「我建立的」時才有（看「我負責的」時每一列都是我，不必多一欄）。
  */
-export function myWorkColumns(order: readonly MyWorkColumnId[], showProject: boolean): readonly MyWorkColumn[] {
+export function myWorkColumns(order: readonly MyWorkColumnId[], showProject: boolean, showAssignee = false): readonly MyWorkColumn[] {
   return order.flatMap((id) => {
     const column = BY_ID.get(id);
-    return column === undefined || (id === 'project' && !showProject) ? [] : [column];
+    const isHidden = (id === 'project' && !showProject) || (id === 'assignee' && !showAssignee);
+    return column === undefined || isHidden ? [] : [column];
   });
 }
 
@@ -54,6 +56,7 @@ const VARIABLES: Readonly<Record<MyWorkColumnId, `--${string}`>> = {
   priority: '--my-work-priority-width',
   due: '--my-work-due-width',
   project: '--my-work-project-width',
+  assignee: '--my-work-assignee-width',
 };
 
 /**

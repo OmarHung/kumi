@@ -81,7 +81,7 @@ describe('我的工作：欄的順序（docs/DESIGN.md 8.3「我的工作」）'
 
   it('記住的順序打開就照它排；被改壞的照規則整理（狀態不能在標題左邊）', async () => {
     // Arrange
-    localStorage.setItem(ORDER_KEY, JSON.stringify(['state', 'title', 'key', 'due', 'priority', 'project']));
+    localStorage.setItem(ORDER_KEY, JSON.stringify(['state', 'title', 'key', 'due', 'priority', 'project', 'assignee']));
 
     // Act
     await openMyWork();
@@ -103,7 +103,7 @@ describe('我的工作：欄的順序（docs/DESIGN.md 8.3「我的工作」）'
       for (const name of ['已過期', '沒有到期日']) {
         expect(headerNames(name)).toEqual(['編號', '標題', '專案', '狀態', '優先度', '到期日']);
       }
-      expect(JSON.parse(localStorage.getItem(ORDER_KEY) ?? 'null')).toEqual(['key', 'title', 'project', 'state', 'priority', 'due']);
+      expect(JSON.parse(localStorage.getItem(ORDER_KEY) ?? 'null')).toEqual(['key', 'title', 'project', 'state', 'priority', 'due', 'assignee']);
       expect(within(dialog).getByRole('button', { name: '把「專案」往後移' })).toHaveFocus();
       expect(within(dialog).getByRole('status')).toHaveTextContent('「專案」移到第 3 欄。');
       expect(within(dialog).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['編號', '標題', '專案', '狀態', '優先度', '到期日']);
@@ -136,7 +136,7 @@ describe('我的工作：欄的順序（docs/DESIGN.md 8.3「我的工作」）'
 
     it('「回到預設的順序」：表頭回到預設、清掉記住的，按鈕留著', async () => {
       // Arrange
-      localStorage.setItem(ORDER_KEY, JSON.stringify(['key', 'title', 'state', 'priority', 'due', 'project']));
+      localStorage.setItem(ORDER_KEY, JSON.stringify(['key', 'title', 'state', 'priority', 'due', 'project', 'assignee']));
       const { user } = await openMyWork();
       const dialog = await openPicker(user);
 
@@ -175,7 +175,7 @@ describe('我的工作：欄的順序（docs/DESIGN.md 8.3「我的工作」）'
       await waitFor(() => {
         expect(headerNames('沒有到期日')).toEqual(['編號', '標題', '狀態', '優先度', '到期日', '專案']);
       });
-      expect(JSON.parse(localStorage.getItem(ORDER_KEY) ?? 'null')).toEqual(['key', 'title', 'state', 'priority', 'due', 'project']);
+      expect(JSON.parse(localStorage.getItem(ORDER_KEY) ?? 'null')).toEqual(['key', 'title', 'state', 'priority', 'due', 'project', 'assignee']);
       expect(currentPath(router)).toBe('/my-work');
     });
 

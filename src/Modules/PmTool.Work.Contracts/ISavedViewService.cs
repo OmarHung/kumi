@@ -58,6 +58,12 @@ public enum SavedViewLayout
 /// 和 State 只能有一個。「我的工作」的 Assignee 也不同：null 是「我」（預設），<c>all</c> 是所有人，另外是 <c>unassigned</c> 或人員編號。
 /// </param>
 /// <param name="Project">只有「我的工作」用：只看這個專案（代號）。「我的工作」的 State 只有在有 Project 時才有意義（狀態是專案的流程定義的）。</param>
+/// <param name="CreatedBy">
+/// 只有專案的檢視用：建立者的條件，<c>me</c> 或人員編號（和網址的 <c>createdBy</c> 同一種寫法）。
+/// </param>
+/// <param name="Mine">
+/// 只有「我的工作」用：null 是我負責的（預設），<c>created</c> 是我建立的（這時只看我建立的，負責人不列為條件）。
+/// </param>
 public sealed record SavedViewQuery(
     string? Type,
     string? State,
@@ -71,7 +77,9 @@ public sealed record SavedViewQuery(
     IReadOnlyDictionary<string, string>? Fields = null,
     string? Group = null,
     string? Category = null,
-    string? Project = null);
+    string? Project = null,
+    string? CreatedBy = null,
+    string? Mine = null);
 
 public sealed record SavedViewDraft(string Name, SavedViewLayout Layout, SavedViewQuery Query);
 

@@ -73,6 +73,7 @@ export function MyWorkCalendar({ filters, todayDate }: MyWorkDateViewProps) {
       projectKey={null}
       visibleQuery={(grid, weekStart, mode) => (mode === 'span' ? visibleSpanQuery : visibleQuery)(filters, grid, todayDate, weekStart)}
       isDueNoneFilter={filters.due === 'none'}
+      isAssigneeShown={filters.mine === 'created'}
       renderNoDue={(placement, mode) => <MyWorkNoDueNotice filters={filters} todayDate={todayDate} placement={placement} mode={mode} />}
     />
   );

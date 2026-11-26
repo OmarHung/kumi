@@ -55,6 +55,12 @@ public sealed record WorkItem(
 
     /// <summary>歸屬的里程碑；沒有是 null。</summary>
     public Guid? MilestoneId { get; init; }
+
+    /// <summary>
+    /// 建立項目的人（人員編號）。建立之後不能改：PM 追「我開出去的項目」靠它，執行者「只看自己的」也靠它。
+    /// 歷史匯入時是 <see cref="HistoryItem.CreatedBy"/>（對不上的人是匯入時指定的替代帳號）。
+    /// </summary>
+    public required Guid CreatedBy { get; init; }
 }
 
 /// <summary>刪除（封存）的結果。</summary>
@@ -168,6 +174,9 @@ public sealed record WorkItemQuery
     public Guid? AssigneeId { get; init; }
 
     public bool OnlyUnassigned { get; init; }
+
+    /// <summary>只要這個人建立的（<see cref="WorkItem.CreatedBy"/>）。可以和負責人的條件一起用。</summary>
+    public Guid? CreatedBy { get; init; }
 
     /// <summary>只要這些優先度的（None 是「沒有設定」）。空的是不限。</summary>
     public IReadOnlyList<Priority> Priorities { get; init; } = [];

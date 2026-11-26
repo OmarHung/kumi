@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import type { Item } from '../../api/types';
+import { assigneeNote } from '../../domain/assigneeNote';
 import { isOverdue } from '../../domain/dates';
 import { cx } from '../../lib/cx';
 import { useItemPanelLink } from '../item-page/ItemPanelContext';
@@ -30,12 +31,12 @@ interface CalendarItemProps {
  * 同一個項目好幾段時只有第一段在 Tab 的順序裡，其餘 tabIndex=-1，報讀軟體與鍵盤不重複走同一個項目。
  */
 export function CalendarItem({ item, isTitleOnly = false, range = null, segment }: CalendarItemProps) {
-  const { todayDate } = useCalendarScope();
+  const { todayDate, isAssigneeShown } = useCalendarScope();
   const panelLink = useItemPanelLink(item.key);
   // 刪除項目之後回到這裡（行事曆與它的條件）。
   const entry = useItemPageEntry();
   const overdue = isOverdue(item.dueDate, item.stateCategory, todayDate);
-  const baseName = `${item.key} ${item.title}${range === null ? '' : `，${range}`}`;
+  const baseName = `${item.key} ${item.title}${range === null ? '' : `，${range}`}${isAssigneeShown ? `，${assigneeNote(item.assignee)}` : ''}`;
   const name = overdue ? `${baseName}（已過期）` : baseName;
   return (
     <Link
@@ -49,8 +50,8 @@ export function CalendarItem({ item, isTitleOnly = false, range = null, segment 
         segment?.continuesAfter === true && styles.barOpenEnd,
       )}
       title={name}
-      // 範圍不在可見的內容裡（格子上只畫標題），名稱靠 aria-label 給完整的一句；沒有範圍的照舊從內容串起來。
-      aria-label={range === null ? undefined : name}
+      // 範圍與負責人不在可見的內容裡（格子上只畫標題），名稱靠 aria-label 給完整的一句；兩者都沒有的照舊從內容串起來。
+      aria-label={range === null && !isAssigneeShown ? undefined : name}
       tabIndex={segment?.isTabbable === false ? -1 : undefined}
       {...panelLink}
     >

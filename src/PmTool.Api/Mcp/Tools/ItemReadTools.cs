@@ -39,6 +39,7 @@ internal static class ItemReadTools
                 ("state", McpSchemas.Text("只要這個狀態的 key。")),
                 ("stateCategory", McpSchemas.Enum<StateCategory>("只要這個狀態類別的。")),
                 ("assignee", McpSchemas.Text("負責人：me（你自己）、none（沒有負責人）、專案成員的 Email 或人員編號。")),
+                ("createdBy", McpSchemas.Text("建立者：me（你自己）或人員編號（項目的 createdBy.personId）。")),
                 ("dueFrom", McpSchemas.Text("到期日在這天或之後，YYYY-MM-DD。")),
                 ("dueTo", McpSchemas.Text("到期日在這天或之前，YYYY-MM-DD。")),
                 ("limit", McpSchemas.Integer($"一頁最多幾筆，1 到 {McpLimits.MaxListLimit}，預設 {McpLimits.DefaultListLimit}。")),
@@ -112,6 +113,7 @@ internal static class ItemReadTools
             StateCategories = arguments.OptionalEnum<StateCategory>("stateCategory") is { } category ? [category] : [],
             AssigneeId = assignee,
             OnlyUnassigned = unassigned,
+            CreatedBy = CreatedByOf(context, arguments.OptionalPlain("createdBy")),
             DueFrom = arguments.OptionalDate("dueFrom"),
             DueTo = arguments.OptionalDate("dueTo"),
             Limit = arguments.OptionalInt("limit", 1, McpLimits.MaxListLimit) ?? McpLimits.DefaultListLimit,
@@ -122,6 +124,15 @@ internal static class ItemReadTools
             ? McpToolResult.FromFailure(failure)
             : await ItemListAsync(context, result.Value.Items, result.Value.NextCursor, cancellationToken);
     }
+
+    // 建立者只是篩選條件：範圍仍受呼叫的人看得到的項目限制，所以編號不必像指派那樣限定專案成員。
+    private static Guid? CreatedByOf(McpToolContext context, string? text) => text?.Trim() switch
+    {
+        null => null,
+        var value when value.Equals(McpAssignees.Me, StringComparison.OrdinalIgnoreCase) => context.Actor.PersonId,
+        var value when Guid.TryParse(value, out var personId) => personId,
+        _ => throw new McpArgumentException("createdBy 要是 me 或人員編號。"),
+    };
 
     private static async Task<McpToolResult> MyWorkAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {

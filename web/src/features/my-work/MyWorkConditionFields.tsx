@@ -38,7 +38,8 @@ export function isConditionActive(filters: MyWorkFilters, key: MyWorkConditionKe
     case 'state':
       return filters.status.kind !== 'open';
     case 'assignee':
-      // 共用的條件型別（inlineConditions.ts）有負責人；「我的工作」沒有這個條件。
+    case 'createdBy':
+      // 共用的條件型別（inlineConditions.ts）有負責人與建立者；「我的工作」沒有這兩個條件（範圍由「我負責的｜我建立的」決定）。
       return false;
     case 'due':
       return filters.due !== null;

@@ -28,11 +28,11 @@ function queriesOf(filters: MyWorkFilters, window: TimelineWindow, todayDate: My
 }
 
 /** 窄螢幕的清單：每個項目的狀態名稱用它自己專案的藍圖（還沒讀到時 TimelineList 用類別的名稱）。 */
-function MyWorkTimelineList({ rows }: { readonly rows: readonly TimelineRow[] }) {
+function MyWorkTimelineList({ rows, showAssignee }: { readonly rows: readonly TimelineRow[]; readonly showAssignee: boolean }) {
   const projectKeys = useMemo(() => [...new Set(rows.map((row) => row.item.projectKey))], [rows]);
   const projects = useProjectDetails(projectKeys);
   const blueprintOf = (item: Item): ProjectBlueprint | undefined => projects.get(item.projectKey)?.blueprint;
-  return <TimelineList rows={rows} blueprintOf={blueprintOf} />;
+  return <TimelineList rows={rows} blueprintOf={blueprintOf} showAssignee={showAssignee} />;
 }
 
 /**
@@ -47,7 +47,8 @@ export function MyWorkTimeline({ filters, todayDate }: MyWorkDateViewProps) {
       todayDate={todayDate}
       queriesFor={(window, weekStart) => queriesOf(filters, window, todayDate, weekStart)}
       undatedHref={`/my-work?${undatedSearch}`}
-      renderList={(rows) => <MyWorkTimelineList rows={rows} />}
+      renderList={(rows) => <MyWorkTimelineList rows={rows} showAssignee={filters.mine === 'created'} />}
+      isAssigneeShown={filters.mine === 'created'}
     />
   );
 }

@@ -64,6 +64,7 @@ function restoredDetail(item: DeletedItemSummary): ItemDetail {
     state: item.state,
     stateCategory: item.stateCategory,
     assignee: { personId: exampleOwner.personId, displayName: exampleOwner.displayName },
+    createdBy: { personId: exampleOwner.personId, displayName: exampleOwner.displayName },
     priority: 'none',
     startDate: null,
     dueDate: null,

@@ -5,6 +5,7 @@ import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { EmptyState, ErrorState, RefetchErrorNotice } from '../../components/StatusViews/StatusViews';
 import type { ColumnWidthStore } from '../../components/Table/columnWidths';
 import type { RovingGridHandle } from '../../lib/useRovingGrid';
+import type { MyWorkMine } from '../../domain/myWorkView';
 import { focusLastPage, LoadMore } from '../item-table/LoadMore';
 import { MyWorkEmpty } from './MyWorkEmpty';
 import type { ColumnOrderStore } from './myWorkColumnOrder';
@@ -33,6 +34,8 @@ interface MyWorkResultsProps {
   /** 伺服器給的項目（載入更多的計數與焦點用，不含留在原位的）。 */
   readonly listed: readonly Item[];
   readonly isFiltered: boolean;
+  /** 看的是我負責的還是我建立的：沒有項目時的說法不同。 */
+  readonly mine: MyWorkMine;
   readonly onClear: () => void;
   readonly todayDate: CalendarDate;
   readonly isLeaving: (item: Item) => boolean;
@@ -56,7 +59,7 @@ export function MyWorkResults(props: MyWorkResultsProps) {
 }
 
 function MyWorkBody(props: MyWorkResultsProps) {
-  const { result, isImpossible, rows, listed, isFiltered, onClear, gridRef } = props;
+  const { result, isImpossible, rows, listed, isFiltered, mine, onClear, gridRef } = props;
   if (!isImpossible && result.isLoadingError) {
     return (
       <ErrorState
@@ -72,7 +75,7 @@ function MyWorkBody(props: MyWorkResultsProps) {
     return <Skeleton label="正在載入我的工作…" rows={SKELETON_ROWS} />;
   }
   if (rows.length === 0) {
-    return isFiltered ? <NoMatches onClear={onClear} /> : <MyWorkEmpty />;
+    return isFiltered ? <NoMatches onClear={onClear} /> : <MyWorkEmpty mine={mine} />;
   }
   const footer = (
     <LoadMore

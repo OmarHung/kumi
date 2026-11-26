@@ -60,7 +60,7 @@ export function useBoardFilters(detail: ProjectDetail): BoardFilterState {
   // 「清除條件」按了就跟著不見：焦點不接手會掉回頁面本體（lib/updateThenFocus.ts）。
   function clearFilters() {
     updateThenFocus(() => {
-      setFilters({ ...filters, type: null, state: null, assignee: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, q: '' });
+      setFilters({ ...filters, type: null, state: null, assignee: null, createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, q: '' });
     }, [searchRef, filterButtonId]);
   }
 

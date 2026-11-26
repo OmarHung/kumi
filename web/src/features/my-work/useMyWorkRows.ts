@@ -10,7 +10,7 @@ const NO_ITEMS: readonly Item[] = [];
  * 分組與排序看的欄位（myWorkGroups.ts、myWorkSort.ts）：「放在哪裡」。這一頁看過或改過的項目用第一次記下時清單裡的樣子，
  * 停在原組原位——補填到期日之後列不會換到別組的表格（換組會連同格子與補填的對話框一起卸下），改了優先度也不會在組裡跳走。
  */
-export type RowPlacement = Pick<Item, 'key' | 'projectKey' | 'number' | 'dueDate' | 'title' | 'state' | 'stateCategory' | 'priority'>;
+export type RowPlacement = Pick<Item, 'key' | 'projectKey' | 'number' | 'dueDate' | 'title' | 'state' | 'stateCategory' | 'priority' | 'assignee'>;
 
 /** 畫面上的一列：放在哪裡（RowPlacement），加上要顯示的最新那一份（item）。 */
 export interface MyWorkRow extends RowPlacement {
@@ -35,8 +35,8 @@ function isNotOlder(copy: Item, listed: Item): boolean {
 
 /** 要顯示的那一份放在 placement 記下的位置。 */
 export function rowOf(item: Item, placement: Item): MyWorkRow {
-  const { key, projectKey, number, dueDate, title, state, stateCategory, priority } = placement;
-  return { key, projectKey, number, dueDate, title, state, stateCategory, priority, item };
+  const { key, projectKey, number, dueDate, title, state, stateCategory, priority, assignee } = placement;
+  return { key, projectKey, number, dueDate, title, state, stateCategory, priority, assignee, item };
 }
 
 /** 清單裡的項目換上不比它舊的那一份（側欄的數量也用：只算伺服器給的，加上剛改的狀態）。 */

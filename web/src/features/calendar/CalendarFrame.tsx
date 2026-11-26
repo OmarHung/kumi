@@ -50,6 +50,8 @@ export interface CalendarFrameProps {
   readonly visibleQuery: (grid: MonthGrid, weekStart: WeekStart, mode: CalendarDateMode) => ItemQuery | null;
   /** 工具列的到期條件是「沒有到期日」：期間排法後端不能和日期範圍一起用，讀回來由這裡把有到期日的拿掉。 */
   readonly isDueNoneFilter?: boolean;
+  /** 項目的名稱與提示多一句負責人（「我的工作」看「我建立的」時）。 */
+  readonly isAssigneeShown?: boolean;
   /** 沒有日期的提示（依到期日：「N 個項目沒有到期日」；期間：「…沒有開始日也沒有到期日」）；窄螢幕放在議程最下面。0 個時它自己回 null。 */
   readonly renderNoDue: (placement: 'top' | 'bottom', mode: CalendarDateMode) => ReactNode;
 }
@@ -99,6 +101,7 @@ export function CalendarFrame({
   problem = null,
   visibleQuery,
   isDueNoneFilter = false,
+  isAssigneeShown = false,
   renderNoDue,
 }: CalendarFrameProps) {
   const [searchParams] = useSearchParams();
@@ -119,7 +122,7 @@ export function CalendarFrame({
   const spanLayout = useMemo(() => (mode === 'span' ? layoutWeeks(grid.weeks, spanItems) : null), [mode, grid.weeks, spanItems]);
   const markers = useMemo(() => markersByDay(cycles, milestones), [cycles, milestones]);
   const regionRef = useRef<HTMLDivElement>(null);
-  const scope = useMemo<CalendarScope>(() => ({ todayDate, projectKey }), [todayDate, projectKey]);
+  const scope = useMemo<CalendarScope>(() => ({ todayDate, projectKey, isAssigneeShown }), [todayDate, projectKey, isAssigneeShown]);
   // 面板裡的「上一個、下一個」走行事曆上的順序：依到期日排時日期由早到晚、同一天依優先度與編號；期間排法照開始日、再照編號。
   useItemSequence(
     mode === 'span' ? itemSequence(spanItems) : grid.weeks.flat().flatMap((date) => (days.get(date) ?? []).map((item) => item.key)),

@@ -22,6 +22,8 @@ export interface MyWorkViewProps {
   readonly todayDate: CalendarDate;
   /** 依專案分組時組名就是專案，不再每一列重複。 */
   readonly showProject: boolean;
+  /** 看「我建立的」時多一欄負責人：每一列的負責人不一定是我。 */
+  readonly showAssignee: boolean;
   /** 這個項目是不是剛改成完成、取消而不再符合條件（myWorkStatus.ts 的 IsLeaving）。 */
   readonly isLeaving: (item: Item) => boolean;
 }
@@ -34,6 +36,7 @@ const COLUMN_CLASSES: Readonly<Record<MyWorkColumnId, string | undefined>> = {
   priority: styles.colPriority,
   due: styles.colDue,
   project: styles.colProject,
+  assignee: styles.colAssignee,
 };
 
 /** 畫面上的欄（照使用者的順序）與其中固定在左邊的（標題和它左邊的）。 */
@@ -69,7 +72,7 @@ interface SortProps {
   readonly onSort: (field: MyWorkSortField) => void;
 }
 
-interface GroupTableProps extends Omit<MyWorkViewProps, 'groups' | 'showProject'>, WidthProps, SortProps {
+interface GroupTableProps extends Omit<MyWorkViewProps, 'groups' | 'showProject' | 'showAssignee'>, WidthProps, SortProps {
   readonly group: MyWorkGroup<MyWorkRow>;
   readonly layout: ColumnLayout;
   readonly firstKey: string | undefined;
@@ -138,7 +141,7 @@ interface MyWorkGridProps extends MyWorkViewProps, SortProps {
  * 所有組的表格合起來只有一個 Tab 停駐點（docs/DESIGN.md 8.3「清單的鍵盤操作」，lib/useRovingGrid.ts 掛在包住所有組的容器上）：
  * 方向鍵在格子之間移動、跨過組時走過下一組的表頭；捲動的區塊不再多一個停駐點。
  */
-export function MyWorkGrid({ groups, widthStore, orderStore, sort, onSort, footer, gridRef, showProject, ...rest }: MyWorkGridProps) {
+export function MyWorkGrid({ groups, widthStore, orderStore, sort, onSort, footer, gridRef, showProject, showAssignee, ...rest }: MyWorkGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const hintId = useId();
   // 項目面板的上一個／下一個照畫面的順序：一組接著一組。關上面板時在這裡面找那一列放焦點。
@@ -149,7 +152,7 @@ export function MyWorkGrid({ groups, widthStore, orderStore, sort, onSort, foote
   const { gridProps, handle } = useRovingGrid(containerRef);
   useImperativeHandle(gridRef, () => handle, [handle]);
   const { order } = useColumnOrder(orderStore);
-  const columns = myWorkColumns(order, showProject);
+  const columns = myWorkColumns(order, showProject, showAssignee);
   const ids = columns.map((column) => column.id);
   const layout: ColumnLayout = { columns, pinned: pinnedColumnsOf(ids) };
   const firstKey = groups[0]?.items[0]?.key;
@@ -157,7 +160,7 @@ export function MyWorkGrid({ groups, widthStore, orderStore, sort, onSort, foote
     <GroupsScroll widthStore={widthStore} pinned={layout.pinned}>
       <MyWorkColumnDragScope orderStore={orderStore} visible={ids}>
         {/* TableScroll 量的是第一個子元素有沒有比它寬：最小寬度設在這一層（MyWork.module.css 的 .gridGroups）。 */}
-        <div ref={containerRef} className={cx(styles.groups, styles.gridGroups)} data-show-project={showProject} {...gridProps}>
+        <div ref={containerRef} className={cx(styles.groups, styles.gridGroups)} data-show-project={showProject} data-show-assignee={showAssignee} {...gridProps}>
           {groups.map((group) => (
             <MyWorkGroupSection key={group.key} group={group}>
               <GroupTable

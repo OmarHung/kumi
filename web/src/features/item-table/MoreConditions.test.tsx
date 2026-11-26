@@ -48,23 +48,37 @@ describe('工具列放不下時，條件依序收進「更多條件」（表格�
     resize.report(BAR, 1100);
 
     // Assert
+    expect(within(bar()).getByRole('combobox', { name: '建立者' })).toBeInTheDocument();
     expect(within(bar()).getByRole('combobox', { name: '到期' })).toBeInTheDocument();
     expect(within(bar()).queryByRole('button', { name: '更多條件' })).not.toBeInTheDocument();
   });
 
   it('列剛好放得下全部欄位與預留的「清除條件」時，不預留「更多條件」的位置：它沒有出現', async () => {
-    // Arrange：AGY 有好幾種類型，列上是六個欄位加「清除條件」= 896px；950px 放得下，沒有東西要收。
+    // Arrange：AGY 有好幾種類型，列上是七個欄位（含建立者）加「清除條件」= 1032px；1040px 放得下，沒有東西要收。
     const { resize, bar } = await openTable();
 
     // Act
-    resize.report(BAR, 950);
+    resize.report(BAR, 1040);
 
     // Assert
     expect(within(bar()).getByRole('combobox', { name: '優先度' })).toBeInTheDocument();
     expect(within(bar()).queryByRole('button', { name: '更多條件' })).not.toBeInTheDocument();
   });
 
-  it('差一點放不下時先收優先度，再放不下才收到期；類型、狀態、負責人留在列上', async () => {
+  it('差一點放不下時建立者最先收（它比負責人、優先度少用），其他條件還留在列上', async () => {
+    // Arrange：收掉建立者之後，六個欄位加「清除條件」與「更多條件」要 1008px。
+    const { resize, bar } = await openTable();
+
+    // Act
+    resize.report(BAR, 1010);
+
+    // Assert
+    expect(within(bar()).queryByRole('combobox', { name: '建立者' })).not.toBeInTheDocument();
+    expect(within(bar()).getByRole('combobox', { name: '優先度' })).toBeInTheDocument();
+    expect(within(bar()).getByRole('button', { name: '更多條件' })).toBeInTheDocument();
+  });
+
+  it('建立者收起來之後還放不下，先收優先度，再放不下才收到期；類型、狀態、負責人留在列上', async () => {
     // Arrange：收掉優先度之後，五個欄位加「清除條件」與「更多條件」要 872px。
     const { resize, bar } = await openTable();
 
@@ -105,7 +119,8 @@ describe('工具列放不下時，條件依序收進「更多條件」（表格�
     expect(within(bar()).queryByRole('combobox', { name: '到期' })).not.toBeInTheDocument();
     await user.click(within(bar()).getByRole('button', { name: '更多條件' }));
     const popover = await screen.findByRole('dialog', { name: '更多條件' });
-    expect(within(popover).getAllByRole('combobox')).toHaveLength(4);
+    expect(within(popover).getAllByRole('combobox')).toHaveLength(5);
+    expect(within(popover).getByRole('combobox', { name: '建立者' })).toBeInTheDocument();
     expect(within(popover).getByRole('combobox', { name: '類型' })).toBeInTheDocument();
     expect(within(popover).getByRole('combobox', { name: '狀態' })).toBeInTheDocument();
     expect(within(popover).getByRole('combobox', { name: '到期' })).toBeInTheDocument();
@@ -113,7 +128,7 @@ describe('工具列放不下時，條件依序收進「更多條件」（表格�
     expect(within(popover).queryByRole('combobox', { name: '負責人' })).not.toBeInTheDocument();
   });
 
-  it('窄到連負責人也放不下時，只剩搜尋在列上，其餘全在浮層裡，順序是類型、狀態、負責人、到期、優先度', async () => {
+  it('窄到連負責人也放不下時，只剩搜尋在列上，其餘全在浮層裡，順序是類型、狀態、負責人、建立者、到期、優先度', async () => {
     // Arrange
     const { user, resize, bar } = await openTable();
 
@@ -128,7 +143,7 @@ describe('工具列放不下時，條件依序收進「更多條件」（表格�
       .getAllByRole('combobox')
       .map((box) => box.getAttribute('aria-labelledby'))
       .map((id) => (id === null ? '' : (document.getElementById(id)?.textContent ?? '')));
-    expect(names).toEqual(['類型', '狀態', '負責人', '到期', '優先度']);
+    expect(names).toEqual(['類型', '狀態', '負責人', '建立者', '到期', '優先度']);
   });
 
   it('用了其中幾個條件，按鈕上顯示數字，完整的說法在 aria-describedby', async () => {

@@ -8,6 +8,8 @@ import type { CalendarDate } from '../../api/types';
 export interface CalendarScope {
   readonly todayDate: CalendarDate;
   readonly projectKey: string | null;
+  /** 項目的名稱與提示多一句負責人（「我的工作」看「我建立的」時；負責人不一定是自己）。 */
+  readonly isAssigneeShown: boolean;
 }
 
 export const CalendarScopeContext = createContext<CalendarScope | null>(null);

@@ -6,6 +6,7 @@ import { fieldSort, isSortableField } from '../../domain/fieldFilters';
 import { anyTypeHasParents, typeAllowsParent, typeHasField } from '../../domain/fields';
 import {
   AssigneeCell,
+  CreatedByCell,
   DateCell,
   EstimateCell,
   KeyCell,
@@ -70,6 +71,7 @@ function coreColumns(blueprint: ProjectBlueprint): ItemColumn[] {
     ...(hasTypes ? [typeColumn] : []),
     column('state', { label: '狀態', sortField: 'state' }, (item) => <StateCell item={item} />),
     column('assignee', { label: '負責人' }, (item) => <AssigneeCell item={item} />),
+    column('createdBy', { label: '建立者' }, (item) => <CreatedByCell item={item} />),
     column('priority', { label: '優先度', sortField: 'priority', width: 'short' }, (item) => <PriorityCell item={item} />),
     column('start_date', { label: '開始日', sortField: 'start_date', width: 'date' }, (item) => (
       <DateCell item={item} field="startDate" />
@@ -99,7 +101,7 @@ export interface PlanningColumns {
 
 const NO_PLANNING_COLUMNS: PlanningColumns = { hasCycles: false, hasMilestones: false };
 
-/** 預設不顯示（columnVisibility.ts 的 DEFAULT_HIDDEN），從「顯示的欄位」打開。 */
+/** 預設不顯示（columnVisibility.ts 的 DEFAULT_HIDDEN；建立者也是），從「顯示的欄位」打開。 */
 function planningColumns({ hasCycles, hasMilestones }: PlanningColumns): ItemColumn[] {
   return [
     ...(hasCycles ? [column('cycle', { label: '週期' }, (item) => <CycleCell item={item} />)] : []),

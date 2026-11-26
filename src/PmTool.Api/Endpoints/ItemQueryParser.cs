@@ -31,6 +31,7 @@ internal static class ItemQueryParser
     {
         var categories = ParseCategories(query["stateCategory"]);
         var assignee = QueryParameters.Single(query, "assignee").Then(value => ParseAssignee(value, me));
+        var createdBy = QueryParameters.Single(query, "createdBy").Then(value => ParseCreatedBy(value, me));
         var sort = QueryParameters.Single(query, "sort").Then(ParseSort);
         var limit = QueryParameters.LimitOf(query, WorkItemQuery.DefaultLimit);
         var search = QueryParameters.Single(query, "q");
@@ -49,7 +50,7 @@ internal static class ItemQueryParser
 
         var failure = QueryParameters.FailureOf(
             [.. fields.Problems,
-            categories.Problem, assignee.Problem, sort.Problem, limit.Problem, search.Problem, parent.Problem, cursor.Problem,
+            categories.Problem, assignee.Problem, createdBy.Problem, sort.Problem, limit.Problem, search.Problem, parent.Problem, cursor.Problem,
             priorities.Problem, dueFrom.Problem, dueTo.Problem, datesFrom.Problem, datesTo.Problem, noDue.Problem, cycle.Problem, milestone.Problem]);
         if (failure is not null)
         {
@@ -63,6 +64,7 @@ internal static class ItemQueryParser
             StateCategories = categories.Value,
             AssigneeId = assignee.Value.PersonId,
             OnlyUnassigned = assignee.Value.OnlyUnassigned,
+            CreatedBy = createdBy.Value,
             Priorities = priorities.Value,
             DueFrom = dueFrom.Value,
             DueTo = dueTo.Value,
@@ -133,6 +135,14 @@ internal static class ItemQueryParser
         AssigneeUnassigned => new Parsed<AssigneeFilter>(new AssigneeFilter(null, true)),
         _ when Guid.TryParse(value, out var personId) => new Parsed<AssigneeFilter>(new AssigneeFilter(personId, false)),
         _ => Parsed<AssigneeFilter>.Invalid(new AssigneeFilter(null, false), "assignee", "負責人要是 me、unassigned 或人員編號。"),
+    };
+
+    private static Parsed<Guid?> ParseCreatedBy(string? value, Guid me) => value switch
+    {
+        null => new Parsed<Guid?>(null),
+        AssigneeMe => new Parsed<Guid?>(me),
+        _ when Guid.TryParse(value, out var personId) => new Parsed<Guid?>(personId),
+        _ => Parsed<Guid?>.Invalid(null, "createdBy", "建立者要是 me 或人員編號。"),
     };
 
     private static Parsed<SortOrder> ParseSort(string? value)

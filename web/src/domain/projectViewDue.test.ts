@@ -12,7 +12,7 @@ import {
 } from './projectView';
 
 const TODAY = '2026-11-18';
-const NO_FILTERS = { workflow: null, assignee: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' } as const;
+const NO_FILTERS = { workflow: null, assignee: null, createdBy: null, due: null, priority: null, cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '' } as const;
 
 describe('看板的到期與優先度', () => {
   it('切換表格與看板時帶著到期與優先度，類型與狀態不帶', () => {
@@ -35,7 +35,7 @@ describe('看板的到期與優先度', () => {
     const written = boardFiltersToSearchParams(filters, undefined);
 
     // Assert
-    expect(filters).toEqual({ workflow: null, assignee: 'me', due: 'overdue', priority: 'low', cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '首頁' });
+    expect(filters).toEqual({ workflow: null, assignee: 'me', createdBy: null, due: 'overdue', priority: 'low', cycle: null, milestone: null, fields: {}, group: STATE_GROUP, q: '首頁' });
     expect(written.toString()).toBe(new URLSearchParams('view=board&assignee=me&due=overdue&priority=low&q=首頁').toString());
   });
 

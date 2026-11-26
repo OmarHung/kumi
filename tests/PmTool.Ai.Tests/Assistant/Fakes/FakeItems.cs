@@ -16,6 +16,7 @@ internal static class ItemSamples
             null, null, null, null, new Dictionary<string, JsonElement>(), DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
         {
             Description = description,
+            CreatedBy = MemberId,
         };
 
     public static readonly IReadOnlyList<string> EditorPermissions =

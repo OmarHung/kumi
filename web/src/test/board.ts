@@ -4,6 +4,7 @@ import { ok } from './api';
 import type { ProjectBlueprint } from '../api/blueprint';
 import { matchesFieldParams, sortByFieldParam } from './fieldQuery';
 import { exampleOwner } from './fixtures';
+import { matchesCreatedBy } from './createdBy';
 import { server } from './server';
 
 interface BoardServerOptions {
@@ -38,6 +39,7 @@ function matches(item: Item, params: URLSearchParams, me: string): boolean {
     (states.length === 0 || states.includes(item.state)) &&
     (types.length === 0 || types.includes(item.type)) &&
     matchesAssignee(item, params.get('assignee'), me) &&
+    matchesCreatedBy(item, params.get('createdBy'), me) &&
     matchesFieldParams(item, params, me) &&
     (q === null || item.title.includes(q) || item.key === q)
   );

@@ -153,7 +153,7 @@ describe('檢視選單：目前的檢視', () => {
     expect(app.backend.replaced[0]?.body).toEqual({
       name: '本週要交',
       layout: 'table',
-      query: { type: null, state: null, assignee: null, q: null, sort: null, due: null, priority: 'urgent', cycle: null, milestone: null, fields: null, group: null, category: null, project: null },
+      query: { type: null, state: null, assignee: null, createdBy: null, mine: null, q: null, sort: null, due: null, priority: 'urgent', cycle: null, milestone: null, fields: null, group: null, category: null, project: null },
     });
     expect(await screen.findByRole('button', { name: '檢視，目前是「本週要交」' })).toBeInTheDocument();
   });

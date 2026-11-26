@@ -60,6 +60,8 @@ export interface TimelineFrameProps {
   readonly undatedHref: string;
   /** 窄螢幕取代時間軸的清單。 */
   readonly renderList: (rows: readonly TimelineRow[]) => ReactNode;
+  /** 項目的名稱與提示多一句負責人（「我的工作」看「我建立的」時）。 */
+  readonly isAssigneeShown?: boolean;
 }
 
 interface MessageInput {
@@ -96,13 +98,14 @@ export function TimelineFrame({
   blocker = null,
   undatedHref,
   renderList,
+  isAssigneeShown = false,
 }: TimelineFrameProps) {
   const [searchParams] = useSearchParams();
   const weekStart = useWeekStart();
   const window = windowOf(scaleFromSearchParams(searchParams), fromFromSearchParams(searchParams, todayDate, weekStart));
   const isCompact = useIsCompact();
   const data = useTimelineData(source, queriesFor(window, weekStart), !isWaiting && blocker === null);
-  const rows = timelineRows(data.dated.visible, window, todayDate);
+  const rows = timelineRows(data.dated.visible, window, todayDate, isAssigneeShown);
   const segments = cycleSegments(cycles, window);
   const marks = milestoneMarks(milestones, window);
   const message = statusMessage({ blocker, isWaiting, data, hasRows: rows.length > 0 });

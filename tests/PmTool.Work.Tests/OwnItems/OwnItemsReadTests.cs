@@ -62,6 +62,62 @@ public sealed class OwnItemsReadTests
     }
 
     [Test]
+    public async Task ListAsync_FilteredByCreatorOtherThanSelf_ShowsOnlyThoseAssignedToThem()
+    {
+        // Arrange：編輯者建立了「指派給執行者」與「只有編輯者」兩個項目，執行者只該看到前一個。
+        var world = await OwnItemsWorld.CreateAsync(_host);
+
+        // Act
+        var page = await _host.Items.ListAsync(
+            world.Contributor, "WEB", new WorkItemQuery { CreatedBy = world.Editor.PersonId }, CancellationToken.None);
+
+        // Assert
+        Assert.That(page.Value.Items.Select(i => i.Key), Is.EqualTo(new[] { world.Assigned.Key }));
+    }
+
+    [Test]
+    public async Task ListAsync_FilteredByCreatorSelf_ShowsTheirUnassignedItem()
+    {
+        // Arrange
+        var world = await OwnItemsWorld.CreateAsync(_host);
+
+        // Act
+        var page = await _host.Items.ListAsync(
+            world.Contributor, "WEB", new WorkItemQuery { CreatedBy = world.Contributor.PersonId }, CancellationToken.None);
+
+        // Assert
+        Assert.That(page.Value.Items.Select(i => i.Key), Is.EqualTo(new[] { world.Created.Key }));
+    }
+
+    [Test]
+    public async Task ListAcrossProjectsAsync_FilteredByCreatorOtherThanSelf_ShowsOnlyThoseAssignedToThem()
+    {
+        // Arrange
+        var world = await OwnItemsWorld.CreateAsync(_host);
+
+        // Act
+        var page = await _host.Items.ListAcrossProjectsAsync(
+            world.Contributor, CrossProjectScope.All, new WorkItemQuery { CreatedBy = world.Editor.PersonId }, CancellationToken.None);
+
+        // Assert
+        Assert.That(page.Value.Items.Select(i => i.Key), Is.EqualTo(new[] { world.Assigned.Key }));
+    }
+
+    [Test]
+    public async Task ListAcrossProjectsAsync_FilteredByCreatorSelf_ShowsTheirUnassignedItem()
+    {
+        // Arrange
+        var world = await OwnItemsWorld.CreateAsync(_host);
+
+        // Act
+        var page = await _host.Items.ListAcrossProjectsAsync(
+            world.Contributor, CrossProjectScope.All, new WorkItemQuery { CreatedBy = world.Contributor.PersonId }, CancellationToken.None);
+
+        // Assert
+        Assert.That(page.Value.Items.Select(i => i.Key), Is.EqualTo(new[] { world.Created.Key }));
+    }
+
+    [Test]
     public async Task ListAsync_RoleWithItemReadAsWell_SeesEverything()
     {
         // Arrange：自訂角色同時有 item.read 與 item.read_own，以看得到全部為準。

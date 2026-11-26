@@ -32,6 +32,33 @@ public sealed class ItemQueryTests
     }
 
     [Test]
+    public async Task ListAsync_CreatedBy_FiltersByCreatorAndCombinesWithAssignee()
+    {
+        // Arrange：成員建了一個自己負責的項目與一個沒人負責的項目；其餘四個是管理員建的。
+        var (scenario, member) = await AgencyWithItemsAsync();
+        var own = await scenario.CreateItemAsync(
+            "WEB", new NewWorkItem { Type = "task", Title = "成員開的", AssigneeId = member.PersonId }, member);
+        await scenario.CreateItemAsync("WEB", new NewWorkItem { Type = "task", Title = "成員開的沒人做" }, member);
+
+        // Act
+        var byMember = await ListAsync(scenario, new WorkItemQuery { CreatedBy = member.PersonId });
+        var byAdmin = await ListAsync(scenario, new WorkItemQuery { CreatedBy = scenario.Admin.PersonId });
+        var both = await ListAsync(scenario, new WorkItemQuery { CreatedBy = scenario.Admin.PersonId, AssigneeId = member.PersonId });
+        var stranger = await ListAsync(scenario, new WorkItemQuery { CreatedBy = Guid.NewGuid() });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Numbers(byMember), Is.EqualTo(new long[] { 5, 6 }));
+            Assert.That(Numbers(byAdmin), Is.EqualTo(new long[] { 1, 2, 3, 4 }));
+            Assert.That(Numbers(both), Is.EqualTo(new long[] { 2, 4 }));
+            Assert.That(stranger.Items, Is.Empty);
+            Assert.That(own.CreatedBy, Is.EqualTo(member.PersonId));
+            Assert.That(byAdmin.Items.Select(i => i.CreatedBy), Is.All.EqualTo(scenario.Admin.PersonId));
+        }
+    }
+
+    [Test]
     public async Task ListAsync_TypesStatesAndCategories_AreOrWithinAndAndBetween()
     {
         // Arrange

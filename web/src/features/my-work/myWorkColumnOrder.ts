@@ -11,8 +11,11 @@ import type { MyWorkColumnId } from './myWorkColumns';
 
 export const MY_WORK_ORDER_KEY = 'my-work.column-order';
 
-/** 預設：編號、專案、標題、狀態、優先度、到期日（使用者 2026-11-21：專案放在標題左邊）。 */
-export const DEFAULT_COLUMN_ORDER: readonly MyWorkColumnId[] = ['key', 'project', 'title', 'state', 'priority', 'due'];
+/**
+ * 預設：編號、專案、標題、狀態、優先度、到期日（使用者 2026-11-21：專案放在標題左邊），負責人在最後：
+ * 它只在看「我建立的」時才畫出來，放在最後不動到原本的欄的位置。
+ */
+export const DEFAULT_COLUMN_ORDER: readonly MyWorkColumnId[] = ['key', 'project', 'title', 'state', 'priority', 'due', 'assignee'];
 
 /** 可以放在標題左邊（固定在左邊）的欄。 */
 const LEADING: ReadonlySet<MyWorkColumnId> = new Set<MyWorkColumnId>(['key', 'project']);
@@ -25,7 +28,7 @@ function isValid(order: readonly MyWorkColumnId[]): boolean {
   return order.slice(0, order.indexOf('title')).every((id) => LEADING.has(id));
 }
 
-/** 少了的欄補在預設順序裡它前面那一欄的後面（前面沒有就放最前面）。 */
+/** 少了的欄補在預設順序裡它前面那一欄的後面（前面沒有就放最前面）；負責人補在最後。 */
 function withMissing(known: readonly MyWorkColumnId[]): readonly MyWorkColumnId[] {
   return DEFAULT_COLUMN_ORDER.reduce<readonly MyWorkColumnId[]>((order, id, index) => {
     if (order.includes(id)) return order;

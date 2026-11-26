@@ -37,6 +37,8 @@ export function queryFromTableFilters(filters: ItemFilters): SavedViewQuery {
     type: filters.type,
     state: filters.state,
     assignee: filters.assignee,
+    createdBy: filters.createdBy,
+    mine: null,
     q: orNull(filters.q),
     sort: filters.sort === null ? null : `${filters.sort.field}:${filters.sort.direction}`,
     due: filters.due,
@@ -59,6 +61,8 @@ export function queryFromBoardFilters(filters: BoardFilters & Partial<DateViewTy
     type: filters.type ?? null,
     state: filters.state ?? null,
     assignee: filters.assignee,
+    createdBy: filters.createdBy,
+    mine: null,
     q: orNull(filters.q),
     sort: null,
     due: filters.due,
@@ -74,12 +78,14 @@ export function queryFromBoardFilters(filters: BoardFilters & Partial<DateViewTy
 
 function paramsOfQuery(query: SavedViewQuery): URLSearchParams {
   const entries: [string, string][] = [];
-  const add = (name: string, value: string | null) => {
-    if (value !== null) entries.push([name, value]);
+  // 伺服器存的 JSON 可能是舊的、沒有後來新增的欄位（undefined）：和 null 一樣不寫，不然網址會冒出 createdBy=undefined。
+  const add = (name: string, value: string | null | undefined) => {
+    if (value != null) entries.push([name, value]);
   };
   add('type', query.type);
   add('state', query.state);
   add('assignee', query.assignee);
+  add('createdBy', query.createdBy);
   add('due', query.due);
   add('priority', query.priority);
   add('cycle', query.cycle);
@@ -112,11 +118,11 @@ export function paramsOfViewState(state: ViewState, blueprint: ProjectBlueprint)
   if (state.layout === 'table') {
     return filtersToSearchParams(filters);
   }
-  const { type, state: itemState, assignee, due, priority, cycle, milestone, fields, q } = filters;
+  const { type, state: itemState, assignee, createdBy, due, priority, cycle, milestone, fields, q } = filters;
   const dateView = state.layout === 'board' ? {} : { type, state: itemState };
   const group = state.layout === 'board' ? knownBoardGroup(parseBoardGroup(state.query.group), blueprint) : STATE_GROUP;
   return boardFiltersToSearchParams(
-    { workflow: null, ...dateView, assignee, due, priority, cycle, milestone, fields, group, q },
+    { workflow: null, ...dateView, assignee, createdBy, due, priority, cycle, milestone, fields, group, q },
     undefined,
     state.layout,
   );
@@ -145,6 +151,13 @@ interface NameContext {
   readonly members: readonly Member[];
   /** 目前使用者的人員編號：負責人是自己時寫「我」。 */
   readonly me: string;
+}
+
+// 「我建立的」「某某建立的」：單獨一個「我」分不出是負責人還是建立者。
+function createdByName(createdBy: string, context: NameContext): string {
+  const { members, me } = context;
+  const name = createdBy === 'me' || createdBy === me ? '我' : (members.find((member) => member.personId === createdBy)?.displayName ?? '某位成員');
+  return `${name}建立的`;
 }
 
 function assigneeName(assignee: string, { members, me }: NameContext): string {
@@ -214,6 +227,7 @@ export function defaultViewName(layout: SavedViewLayout, query: SavedViewQuery, 
     query.type === null ? null : itemTypeName(context.blueprint, query.type),
     stateName(query, context.blueprint),
     query.assignee === null ? null : assigneeName(query.assignee, context),
+    query.createdBy === null ? null : createdByName(query.createdBy, context),
     due === null ? null : DUE_FILTER_LABELS[due],
     priority === null ? null : priorityName(priority),
     query.cycle === null ? null : cycleName(query.cycle, context),

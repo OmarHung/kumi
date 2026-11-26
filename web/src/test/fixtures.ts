@@ -139,6 +139,7 @@ export function makeItem(overrides: Partial<Item> = {}): Item {
     state: 'todo',
     stateCategory: 'not_started',
     assignee: { personId: exampleOwner.personId, displayName: exampleOwner.displayName },
+    createdBy: { personId: exampleOwner.personId, displayName: exampleOwner.displayName },
     priority: 'none',
     startDate: null,
     dueDate: null,

@@ -53,6 +53,7 @@ public sealed class McpReadToolTests
             Assert.That(mcp.Modules.Items.SearchCalls, Is.EqualTo(new[] { (TestUsers.Member.ToActor(), "首頁", 8) }));
             Assert.That(body["items"]![0]!["key"]!.GetValue<string>(), Is.EqualTo("WEB-2"));
             Assert.That(body["items"]![0]!["assignee"]!["displayName"]!.GetValue<string>(), Is.EqualTo(TestUsers.Owner.DisplayName));
+            Assert.That(body["items"]![0]!["createdBy"]!["personId"]!.GetValue<Guid>(), Is.EqualTo(TestData.Item().CreatedBy));
             Assert.That(body["items"]![0]!["stateCategory"]!.GetValue<string>(), Is.EqualTo("in_progress"));
         }
     }
@@ -110,6 +111,7 @@ public sealed class McpReadToolTests
             state = "doing",
             stateCategory = "in_progress",
             assignee = TestUsers.Owner.Email,
+            createdBy = TestUsers.Owner.PersonId,
             dueFrom = "2026-11-01",
             dueTo = "2026-11-30",
             limit = 10,
@@ -126,11 +128,31 @@ public sealed class McpReadToolTests
             Assert.That(query.States, Is.EqualTo(new[] { "doing" }));
             Assert.That(query.StateCategories, Is.EqualTo(new[] { StateCategory.InProgress }));
             Assert.That(query.AssigneeId, Is.EqualTo(TestUsers.Owner.PersonId));
+            Assert.That(query.CreatedBy, Is.EqualTo(TestUsers.Owner.PersonId));
             Assert.That(query.DueFrom, Is.EqualTo(new DateOnly(2026, 11, 1)));
             Assert.That(query.DueTo, Is.EqualTo(new DateOnly(2026, 11, 30)));
             Assert.That(query.Limit, Is.EqualTo(10));
             Assert.That(query.Cursor, Is.EqualTo("abc"));
             Assert.That(body["nextCursor"]!.GetValue<string>(), Is.EqualTo("next-page"));
+        }
+    }
+
+    [Test]
+    public async Task ListItems_CreatedByMe_MeansTheActor_AndABadValueIsAToolError()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartAsync();
+
+        // Act
+        var (meError, _) = await mcp.CallAsync("list_items", new { projectKey = "WEB", createdBy = "me" });
+        var (badError, _) = await mcp.CallAsync("list_items", new { projectKey = "WEB", createdBy = "nobody@example.com" });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(meError, Is.False);
+            Assert.That(badError, Is.True);
+            Assert.That(mcp.Modules.Items.ListCalls.Single().Query.CreatedBy, Is.EqualTo(TestUsers.Member.PersonId));
         }
     }
 
@@ -217,6 +239,7 @@ public sealed class McpReadToolTests
     [TestCase("list_items", "state")]
     [TestCase("list_items", "cursor")]
     [TestCase("list_items", "assignee")]
+    [TestCase("list_items", "createdBy")]
     [TestCase("list_items", "stateCategory")]
     [TestCase("list_items", "projectKey")]
     [TestCase("my_work", "cursor")]

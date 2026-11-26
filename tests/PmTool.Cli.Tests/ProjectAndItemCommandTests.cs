@@ -20,6 +20,7 @@ public sealed class ProjectAndItemCommandTests
         state,
         stateCategory = "not_started",
         assignee = new { personId = PersonId, displayName = "王小明" },
+        createdBy = new { personId = "creator-1", displayName = "李小華" },
         priority = "high",
         startDate = (string?)null,
         dueDate = "2026-12-01",
@@ -114,6 +115,42 @@ public sealed class ProjectAndItemCommandTests
         }
     }
 
+    [TestCase("@me", "me")]
+    [TestCase("me", "me")]
+    [TestCase("018f0000-0000-7000-8000-0000000000aa", "018f0000-0000-7000-8000-0000000000aa")]
+    public async Task ItemList_CreatedBy_SendsMeOrThePersonId(string given, string expected)
+    {
+        // Arrange
+        using var cli = LoggedIn();
+        cli.Server.On("GET", "/v1/projects/WEB", WebProject);
+        cli.Server.On("GET", "/v1/projects/WEB/items", new { items = new[] { Item() }, nextCursor = (string?)null });
+
+        // Act
+        var result = await cli.RunAsync("item", "list", "-p", "WEB", "--created-by", given, "--mine");
+
+        // Assert
+        var request = cli.Server.To("GET", "/v1/projects/WEB/items").Single();
+        Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+        Assert.That((request.Query("createdBy"), request.Query("assignee")), Is.EqualTo((expected, "me")));
+    }
+
+    [Test]
+    public async Task ItemList_CreatedByEmail_LooksThePersonUpInThePeopleList()
+    {
+        // Arrange
+        using var cli = LoggedIn();
+        cli.Server.On("GET", "/v1/projects/WEB", WebProject);
+        cli.Server.On("GET", "/v1/people", new[] { new { personId = PersonId, email = "Ming@Example.com", displayName = "王小明" } });
+        cli.Server.On("GET", "/v1/projects/WEB/items", new { items = new[] { Item() }, nextCursor = (string?)null });
+
+        // Act
+        var result = await cli.RunAsync("item", "list", "-p", "WEB", "--created-by", "ming@example.com");
+
+        // Assert
+        Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+        Assert.That(cli.Server.To("GET", "/v1/projects/WEB/items").Single().Query("createdBy"), Is.EqualTo(PersonId));
+    }
+
     [Test]
     public async Task ItemList_NoFilters_SendsNoQueryAndJsonKeepsTheCursor()
     {
@@ -177,6 +214,7 @@ public sealed class ProjectAndItemCommandTests
             Assert.That((children.Query("parent"), children.Query("limit")), Is.EqualTo(("WEB-1", "50")));
             Assert.That(cli.Server.Requests.Single(r => r.Path.EndsWith("/activity")).Query("limit"), Is.EqualTo("200"));
             Assert.That(result.Out, Does.Contain("WEB-1  改首頁").And.Contain("類型：任務").And.Contain("狀態：待辦（未開始）").And.Contain("優先順序：高").And.Contain("上層：WEB-9"));
+            Assert.That(result.Out, Does.Contain("建立者：李小華"));
             Assert.That(result.Out, Does.Contain("預算：1200").And.Contain("標籤：a、b"));
             Assert.That(result.Out, Does.Contain("  第一行").And.Contain("  第二行"));
             Assert.That(result.Out, Does.Contain("下層（1）").And.Contain("WEB-2  改首頁［進行中］"));

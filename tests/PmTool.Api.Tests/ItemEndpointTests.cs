@@ -177,6 +177,7 @@ public sealed class ItemEndpointTests
             ["state"] = "doing",
             ["stateCategory"] = "in_progress",
             ["assignee"] = new JsonObject { ["personId"] = TestUsers.Owner.PersonId, ["displayName"] = TestUsers.Owner.DisplayName },
+            ["createdBy"] = new JsonObject { ["personId"] = TestUsers.Owner.PersonId, ["displayName"] = TestUsers.Owner.DisplayName },
             ["priority"] = "high",
             ["startDate"] = "2026-11-01",
             ["dueDate"] = "2026-11-30",
@@ -195,7 +196,7 @@ public sealed class ItemEndpointTests
     }
 
     [Test]
-    public async Task GetItem_Unassigned_WritesNullAssigneeWithoutLookingUpPeople()
+    public async Task GetItem_Unassigned_WritesNullAssigneeAndStillNamesTheCreator()
     {
         // Arrange
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
@@ -207,7 +208,8 @@ public sealed class ItemEndpointTests
 
         // Assert
         Assert.That(data?.AsObject().ContainsKey("assignee") == true && data["assignee"] is null, Is.True);
-        Assert.That(factory.Modules.People.FindManyCalls, Is.Empty);
+        Assert.That(data?["createdBy"]?["displayName"]?.GetValue<string>(), Is.EqualTo(TestUsers.Owner.DisplayName));
+        Assert.That(factory.Modules.People.FindManyCalls, Has.Count.EqualTo(1));
     }
 
     [Test]
@@ -309,7 +311,7 @@ public sealed class ItemEndpointTests
             Assert.That(data?["items"]?.AsArray().Select(i => i?["key"]?.GetValue<string>()), Is.EqualTo(new[] { "WEB-1", "WEB-2" }));
             Assert.That(data?["items"]?[1]?["assignee"]?["displayName"]?.GetValue<string>(), Is.EqualTo(TestUsers.Member.DisplayName));
             Assert.That(factory.Modules.Items.MyWorkCalls, Is.EqualTo(new[] { TestUsers.Member.ToActor() }));
-            Assert.That(factory.Modules.People.FindManyCalls.Single().PersonIds, Is.EqualTo(new[] { TestUsers.Member.PersonId }));
+            Assert.That(factory.Modules.People.FindManyCalls.Single().PersonIds, Is.EquivalentTo(new[] { TestUsers.Member.PersonId, TestData.Item().CreatedBy }), "負責人與建立者的名字一次查齊");
         }
     }
 

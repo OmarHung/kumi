@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SavedView } from '../api/types';
+import type { SavedView, SavedViewQuery } from '../api/types';
 import { savedViewOf } from '../test/savedViews';
 import { DEFAULT_MY_WORK_FILTERS, type MyWorkFilters } from './myWorkView';
 import {
@@ -37,7 +37,7 @@ const context: MyWorkNameContext = {
 describe('條件轉成檢視的條件', () => {
   it('預設的條件全是 null：負責人存 null、狀態「未結束」不存類別', () => {
     expect(myWorkQueryOf(state())).toEqual({
-      type: null, state: null, assignee: null, q: null, sort: null, due: null, priority: null,
+      type: null, state: null, assignee: null, createdBy: null, mine: null, q: null, sort: null, due: null, priority: null,
       cycle: null, milestone: null, fields: null, category: null, project: null, group: null,
     });
   });
@@ -68,6 +68,42 @@ describe('條件轉成檢視的條件', () => {
     expect(myWorkQueryOf(state({}, 'table', 'project')).group).toBe('project');
     expect(myWorkQueryOf(state({}, 'table', 'urgency')).group).toBeNull();
     expect(myWorkQueryOf(state({}, 'board', 'project')).group).toBeNull();
+  });
+});
+
+describe('我負責的／我建立的存進檢視', () => {
+  it('我建立的存 mine=created，預設存 null；專案的 createdBy 一律 null', () => {
+    expect(myWorkQueryOf(state({ mine: 'created' }))).toMatchObject({ mine: 'created', createdBy: null, assignee: null });
+    expect(myWorkQueryOf(state())).toMatchObject({ mine: null });
+  });
+
+  it('套用時寫成 mine=created；舊的檢視沒有 mine 就是我負責的', () => {
+    expect(myWorkViewParams(viewOf({ mine: 'created', category: 'done' })).toString()).toBe(new URLSearchParams('mine=created&category=done').toString());
+    expect(myWorkViewParams(viewOf({})).has('mine')).toBe(false);
+  });
+
+  it('舊的檢視在伺服器上沒有 mine 欄位（undefined）：套用的網址沒有 mine，也不寫 undefined', () => {
+    // Arrange：舊的 JSON 沒有這個鍵，拿掉鍵再斷言成目前的型別。
+    const legacy = Object.fromEntries(Object.entries(viewOf({ category: 'done' }).query).filter(([name]) => name !== 'mine'));
+    const view = { ...viewOf({}), query: legacy as SavedViewQuery };
+
+    // Act
+    const params = myWorkViewParams(view);
+
+    // Assert
+    expect(params.has('mine')).toBe(false);
+    expect(params.toString()).not.toContain('undefined');
+  });
+
+  it('範圍不同不是同一個檢視；我建立的算有條件', () => {
+    expect(myWorkViewMatches(viewOf({ mine: 'created' }), state({ mine: 'created' }))).toBe(true);
+    expect(myWorkViewMatches(viewOf({}), state({ mine: 'created' }))).toBe(false);
+    expect(hasMyWorkViewConditions(state({ mine: 'created' }))).toBe(true);
+  });
+
+  it('預設名稱帶「我建立的」', () => {
+    expect(defaultMyWorkViewName(state({ mine: 'created' }), context)).toBe('我建立的');
+    expect(defaultMyWorkViewName(state({ mine: 'created', due: 'week' }), context)).toBe('我建立的・本週到期');
   });
 });
 

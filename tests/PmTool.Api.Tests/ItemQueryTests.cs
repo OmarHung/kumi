@@ -69,6 +69,27 @@ public sealed class ItemQueryTests
         Assert.That(query.AssigneeId, Is.EqualTo(TestUsers.Owner.PersonId));
     }
 
+    [Test]
+    public async Task List_CreatedByMe_MeansTheSignedInPerson()
+    {
+        // Act
+        var query = await QueryForAsync("?createdBy=me");
+
+        // Assert
+        Assert.That(query.CreatedBy, Is.EqualTo(TestUsers.Member.PersonId));
+    }
+
+    [Test]
+    public async Task List_CreatedById_IsPassedAsIsAndCombinesWithAssignee()
+    {
+        // Act
+        var query = await QueryForAsync($"?createdBy={TestUsers.Owner.PersonId}&assignee=me");
+
+        // Assert
+        Assert.That(query.CreatedBy, Is.EqualTo(TestUsers.Owner.PersonId));
+        Assert.That(query.AssigneeId, Is.EqualTo(TestUsers.Member.PersonId));
+    }
+
     [TestCase("number", WorkItemSortField.Number)]
     [TestCase("title", WorkItemSortField.Title)]
     [TestCase("state", WorkItemSortField.State)]
@@ -204,7 +225,7 @@ public sealed class ItemQueryTests
     public async Task List_EmptyValues_AreTreatedAsAbsent()
     {
         // Act：網頁把空的篩選欄位照樣送出來，不該變成「找類型是空字串的項目」。
-        var query = await QueryForAsync("?type=&state=&stateCategory=&assignee=&q=&parent=&sort=&priority=&dueFrom=&dueTo=&datesFrom=&datesTo=&noDue=&limit=&cursor=");
+        var query = await QueryForAsync("?type=&state=&stateCategory=&assignee=&createdBy=&q=&parent=&sort=&priority=&dueFrom=&dueTo=&datesFrom=&datesTo=&noDue=&limit=&cursor=");
 
         // Assert
         Assert.That(Describe(query), Is.EqualTo(Describe(new WorkItemQuery())));
@@ -216,6 +237,9 @@ public sealed class ItemQueryTests
     [TestCase("limit=ten", "limit", TestName = "List_LimitNotANumber_Returns422")]
     [TestCase("limit=99999999999", "limit", TestName = "List_LimitTooBigForANumber_Returns422")]
     [TestCase("assignee=bob", "assignee", TestName = "List_AssigneeNeitherKeywordNorId_Returns422")]
+    [TestCase("createdBy=bob", "createdBy", TestName = "List_CreatedByNeitherMeNorId_Returns422")]
+    [TestCase("createdBy=unassigned", "createdBy", TestName = "List_CreatedByUnassigned_Returns422")]
+    [TestCase("createdBy=me&createdBy=me", "createdBy", TestName = "List_CreatedByGivenTwice_Returns422")]
     [TestCase("assignee=me&assignee=unassigned", "assignee", TestName = "List_AssigneeGivenTwice_Returns422")]
     [TestCase("stateCategory=finished", "stateCategory", TestName = "List_UnknownStateCategory_Returns422")]
     [TestCase("stateCategory=1", "stateCategory", TestName = "List_StateCategoryAsNumber_Returns422")]
@@ -375,5 +399,5 @@ public sealed class ItemQueryTests
     // 清單是不同的實體，record 的相等比的是參考；寫成字串再比。
     private static string Describe(WorkItemQuery query) =>
         $"{string.Join(',', query.Types)}|{string.Join(',', query.States)}|{string.Join(',', query.StateCategories)}|"
-        + $"{query.AssigneeId}|{query.OnlyUnassigned}|{string.Join(',', query.Priorities)}|{query.DueFrom}|{query.DueTo}|{query.DatesFrom}|{query.DatesTo}|{query.OnlyWithoutDueDate}|{query.Search}|{query.ParentKey}|{query.FieldFilters.Count}|{query.SortBy}|{query.SortFieldKey}|{query.Descending}|{query.Limit}|{query.Cursor}";
+        + $"{query.AssigneeId}|{query.OnlyUnassigned}|{query.CreatedBy}|{string.Join(',', query.Priorities)}|{query.DueFrom}|{query.DueTo}|{query.DatesFrom}|{query.DatesTo}|{query.OnlyWithoutDueDate}|{query.Search}|{query.ParentKey}|{query.FieldFilters.Count}|{query.SortBy}|{query.SortFieldKey}|{query.Descending}|{query.Limit}|{query.Cursor}";
 }

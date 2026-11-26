@@ -52,6 +52,7 @@ internal static partial class SavedViewChecks
                 KeyProblem("type", query.Type, "類型"),
                 KeyProblem("state", query.State, "狀態"),
                 AssigneeProblem(query.Assignee),
+                CreatedByProblem(query.CreatedBy),
                 SearchProblem(query.Search),
                 SortProblem(query.Sort),
                 GroupProblem(query.Group),
@@ -105,6 +106,12 @@ internal static partial class SavedViewChecks
         value is null or Me or Unassigned || Guid.TryParseExact(value, "D", out _)
             ? null
             : Problem($"{QueryPath}.assignee", $"負責人要是 {Me}、{Unassigned} 或人員編號。");
+
+    // 檢視只收小寫 me 與 D 格式的 GUID：存下來的值要和網頁組網址的寫法一致，網頁才能原樣比對；REST 的解析（ItemQueryParser）比較寬。
+    private static FailureDetail? CreatedByProblem(string? value) =>
+        value is null or Me || Guid.TryParseExact(value, "D", out _)
+            ? null
+            : Problem($"{QueryPath}.createdBy", $"建立者要是 {Me} 或人員編號。");
 
     private static FailureDetail? SearchProblem(string? value)
     {

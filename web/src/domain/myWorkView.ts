@@ -27,8 +27,14 @@ export type MyWorkStatus =
   | { readonly kind: 'category'; readonly category: StateCategory }
   | { readonly kind: 'state'; readonly state: string };
 
-/** 「我的工作」就是我負責的：送給後端的負責人一律是這個值（使用者 2026-11-19 的決定，沒有負責人的篩選）。 */
-const ASSIGNEE_ME = 'me';
+/** 「我的工作」的人一律是我（使用者 2026-11-19 的決定，沒有負責人的篩選）；是負責的還是建立的看 `mine`。 */
+const PERSON_ME = 'me';
+
+/** 我負責的（預設）、我建立的。網址的 `mine=created`；預設不寫。 */
+export type MyWorkMine = 'assigned' | 'created';
+
+const MINE_PARAM = 'mine';
+const MINE_CREATED = 'created';
 
 export interface MyWorkFilters {
   readonly q: string;
@@ -39,6 +45,8 @@ export interface MyWorkFilters {
   readonly priority: Priority | null;
   /** 專案代號（大寫）；null 是所有看得到的專案。 */
   readonly project: string | null;
+  /** 範圍：我負責的或我建立的。不算條件（「清除條件」留著它）：切換的是這一頁在看哪一份。 */
+  readonly mine: MyWorkMine;
 }
 
 export const DEFAULT_MY_WORK_FILTERS: MyWorkFilters = {
@@ -48,6 +56,7 @@ export const DEFAULT_MY_WORK_FILTERS: MyWorkFilters = {
   due: null,
   priority: null,
   project: null,
+  mine: 'assigned',
 };
 
 /** 清單、看板一次讀這麼多個（API 的上限），往下用「載入更多」。 */
@@ -82,6 +91,11 @@ function statusOf(params: URLSearchParams, project: string | null): MyWorkStatus
   return isCategory(category) ? { kind: 'category', category } : { kind: 'open' };
 }
 
+/** 網址上的範圍：`mine=created` 是我建立的，沒給或不認得是我負責的。 */
+export function myWorkMineOf(params: URLSearchParams): MyWorkMine {
+  return params.get(MINE_PARAM) === MINE_CREATED ? 'created' : 'assigned';
+}
+
 export function myWorkFiltersFromParams(params: URLSearchParams): MyWorkFilters {
   const project = nonEmpty(params.get('project'))?.toUpperCase() ?? null;
   return {
@@ -91,6 +105,7 @@ export function myWorkFiltersFromParams(params: URLSearchParams): MyWorkFilters 
     due: parseDueFilter(params.get('due')),
     priority: parsePriority(params.get('priority')),
     project,
+    mine: myWorkMineOf(params),
   };
 }
 
@@ -109,7 +124,7 @@ function statusEntries(status: MyWorkStatus): [string, string][] {
 
 /** 條件寫成網址的參數；預設的不寫（網址短一點，預設改了也跟著換）。 */
 export function myWorkFilterEntries(filters: MyWorkFilters): [string, string][] {
-  const entries: [string, string][] = [];
+  const entries: [string, string][] = filters.mine === 'created' ? [[MINE_PARAM, MINE_CREATED]] : [];
   if (filters.q.trim() !== '') entries.push(['q', filters.q.trim()]);
   if (filters.type !== null) entries.push(['type', filters.type]);
   entries.push(...statusEntries(filters.status));
@@ -141,9 +156,14 @@ export function switchMyWorkLayoutParams(params: URLSearchParams, layout: MyWork
   return next;
 }
 
-/** 和預設不一樣就算有條件（「清除條件」回到預設：我負責、還沒結束的）。 */
+/** 條件的數目：和預設不一樣的條件，不含「我負責的／我建立的」（它是範圍，不是篩掉項目的條件）。 */
+export function myWorkConditionCount(filters: MyWorkFilters): number {
+  return myWorkFilterEntries(filters).filter(([name]) => name !== MINE_PARAM).length;
+}
+
+/** 和預設不一樣就算有條件（「清除條件」回到預設的條件：還沒結束的、不篩；範圍留著）。 */
 export function hasActiveMyWorkFilters(filters: MyWorkFilters): boolean {
-  return myWorkFilterEntries(filters).length > 0;
+  return myWorkConditionCount(filters) > 0;
 }
 
 /** 狀態的條件包含哪些類別；null 是不限類別（所有狀態，或某一個狀態——那個狀態的類別要看專案的藍圖）。 */
@@ -176,7 +196,7 @@ export function myWorkConditions(filters: MyWorkFilters, todayDate: CalendarDate
     ...(filters.type !== null && { type: [filters.type] }),
     ...(filters.status.kind === 'state' && { state: [filters.status.state] }),
     ...(categories !== null && { stateCategory: categories }),
-    assignee: ASSIGNEE_ME,
+    ...(filters.mine === 'created' ? { createdBy: PERSON_ME } : { assignee: PERSON_ME }),
     ...(filters.priority !== null && { priority: [filters.priority] }),
     ...dueRange,
     ...(filters.q !== '' && { q: filters.q }),
@@ -198,7 +218,7 @@ export function matchesMyWorkFilters(item: Item, filters: MyWorkFilters, me: str
   return (
     (filters.type === null || item.type === filters.type) &&
     matchesStatus(item, filters.status) &&
-    item.assignee?.personId === me &&
+    (filters.mine === 'created' ? item.createdBy.personId : item.assignee?.personId) === me &&
     (filters.priority === null || item.priority === filters.priority) &&
     matchesDue(filters.due, item.dueDate, item.stateCategory, todayDate, weekStart) &&
     (filters.project === null || item.projectKey === filters.project) &&

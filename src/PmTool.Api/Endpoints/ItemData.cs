@@ -10,7 +10,7 @@ internal sealed record PersonReference(Guid PersonId, string DisplayName);
 
 /// <summary>
 /// 項目在 API 上的形狀，清單與「我的工作」用這個：沒有說明，一頁兩百個項目不必帶著長文字。
-/// 負責人帶顯示名稱，網頁不必另外查。
+/// 負責人與建立者帶顯示名稱，網頁不必另外查。
 /// </summary>
 internal record ItemData(
     string Key,
@@ -21,6 +21,7 @@ internal record ItemData(
     string State,
     StateCategory StateCategory,
     PersonReference? Assignee,
+    PersonReference CreatedBy,
     Priority Priority,
     DateOnly? StartDate,
     DateOnly? DueDate,
@@ -41,6 +42,7 @@ internal record ItemData(
         item.State,
         item.StateCategory,
         item.AssigneeId is { } assignee ? new PersonReference(assignee, names.NameOf(assignee)) : null,
+        names.Reference(item.CreatedBy),
         item.Priority,
         item.StartDate,
         item.DueDate,
@@ -57,7 +59,7 @@ internal record ItemData(
         IReadOnlyList<WorkItem> items, IPeopleDirectory people, Guid organizationId, CancellationToken cancellationToken)
     {
         var names = await PeopleNames.LookupAsync(
-            people, organizationId, items.Select(i => i.AssigneeId).OfType<Guid>(), cancellationToken);
+            people, organizationId, items.Select(i => i.AssigneeId).OfType<Guid>().Concat(items.Select(i => i.CreatedBy)), cancellationToken);
         return [.. items.Select(item => From(item, names))];
     }
 }

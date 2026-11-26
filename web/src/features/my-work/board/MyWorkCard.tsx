@@ -16,10 +16,11 @@ import styles from './MyWorkBoard.module.css';
 
 /**
  * 底下的事實：專案、狀態（類別裡有好幾個狀態，要看得出是哪一個；名稱是這張卡片自己專案的藍圖，
- * 還沒讀到時先寫類別）、優先度、到期日（有值才有），負責人不是自己時多一個負責人。放不下時換行，不縮短。
+ * 還沒讀到時先寫類別）、優先度、到期日（有值才有）。看「我建立的」時多一個負責人（負責人不一定是自己；沒有負責人也寫出來，
+ * 那正是追開出去的項目時要看的）。放不下時換行，不縮短。
  */
 function CardMeta({ item }: { readonly item: Item }) {
-  const { projects, todayDate } = useMyWorkBoard();
+  const { projects, todayDate, showAssignee } = useMyWorkBoard();
   const detail = projects.get(item.projectKey);
   return (
     <dl className={cx(cardStyles.cardMeta, styles.meta)}>
@@ -33,6 +34,12 @@ function CardMeta({ item }: { readonly item: Item }) {
           <StateBadge label={stateLabel(detail?.blueprint, item.type, item.state, item.stateCategory)} category={item.stateCategory} />
         </dd>
       </div>
+      {showAssignee && (
+        <div className={cardStyles.cardFact}>
+          <dt className="visually-hidden">負責人</dt>
+          <dd>{item.assignee?.displayName ?? '沒有負責人'}</dd>
+        </div>
+      )}
       {item.priority !== 'none' && (
         <div className={cardStyles.cardFact}>
           <dt className="visually-hidden">優先度</dt>

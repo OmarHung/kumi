@@ -232,7 +232,7 @@ describe('項目頁：權限', () => {
     const fields = screen.getByRole('region', { name: '欄位' });
     expect(await within(fields).findByText('進行中')).toBeInTheDocument();
     expect(within(fields).queryByRole('button')).not.toBeInTheDocument();
-    expect(within(fields).getByText('範例使用者')).toBeInTheDocument();
+    expect(within(fields).getByText('負責人').nextElementSibling).toHaveTextContent('範例使用者');
     const description = screen.getByRole('region', { name: '說明' });
     expect(within(description).getByText('第一段說明')).toBeInTheDocument();
     expect(within(description).queryByRole('button')).not.toBeInTheDocument();
