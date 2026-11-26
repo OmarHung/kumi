@@ -32,6 +32,22 @@ describe('AI 的四種接法', () => {
     expect(within(map).getByRole('link', { name: '本機代理' })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('每一格寫好處與代價，左欄給選擇的建議', async () => {
+    // Arrange
+    signedInAs(exampleMember);
+
+    // Act
+    const map = await openAiAccounts();
+
+    // Assert
+    expect(within(map).getByText(/^建議：全組織共用先開組織的 API 金鑰/)).toBeInTheDocument();
+    const hostCell = within(map).getByText('主機 AI 代理').closest('td');
+    expect(hostCell).toHaveTextContent('好處：成員不用設定，用的是 Claude Code／Codex 本身');
+    expect(hostCell).toHaveTextContent('代價：一次只跑一則、其他人排隊；要有人維護主機上的 ai-worker');
+    const localCell = within(map).getByRole('link', { name: '本機代理' }).closest('td');
+    expect(localCell).toHaveTextContent('好處：用已經有的訂閱，不另外按用量付費');
+  });
+
   it('一般成員：組織的兩格沒有連結，寫由誰設定', async () => {
     // Arrange
     signedInAs(exampleMember);

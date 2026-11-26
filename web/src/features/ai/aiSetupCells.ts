@@ -16,6 +16,9 @@ export interface AiSetupCell {
   readonly label: string;
   /** 一句話：費用算誰、登入的限制。 */
   readonly detail: string;
+  /** 選它的好處與代價（各一句），讓人比較四種的差別。 */
+  readonly pros: string;
+  readonly cons: string;
   readonly href: string;
   readonly page: AiSetupPage;
   readonly access: Access;
@@ -32,15 +35,15 @@ export const AI_SETUP_ROWS: readonly AiSetupRow[] = [
   {
     label: '全組織共用',
     cells: [
-      { kind: 'organization_keys', label: '組織的 API 金鑰', detail: '按用量計費，算在組織的供應商帳號', href: '/ai-settings', page: 'organization', access: 'admin' },
-      { kind: 'host_agent', label: '主機 AI 代理', detail: '裝在 Kumi 主機上；只收 API 計費的登入，不能用訂閱', href: '/ai-settings/host', page: 'host', access: 'owner' },
+      { kind: 'organization_keys', label: '組織的 API 金鑰', detail: '按用量計費，算在組織的供應商帳號', pros: '成員不用設定、不用排隊，各家供應商的模型都能開', cons: '按用量付費，管理員要保管金鑰', href: '/ai-settings', page: 'organization', access: 'admin' },
+      { kind: 'host_agent', label: '主機 AI 代理', detail: '裝在 Kumi 主機上；只收 API 計費的登入，不能用訂閱', pros: '成員不用設定，用的是 Claude Code／Codex 本身', cons: '一次只跑一則、其他人排隊；要有人維護主機上的 ai-worker', href: '/ai-settings/host', page: 'host', access: 'owner' },
     ],
   },
   {
     label: '只有自己',
     cells: [
-      { kind: 'personal_keys', label: '我的 API 金鑰', detail: '按用量計費，算在自己的供應商帳號；要組織允許', href: '/account/ai#ai-keys', page: 'personal', access: 'everyone' },
-      { kind: 'local_agent', label: '本機代理', detail: '自己電腦上的，可以用自己的訂閱；要組織允許', href: '/account/ai#local-agent', page: 'personal', access: 'everyone' },
+      { kind: 'personal_keys', label: '我的 API 金鑰', detail: '按用量計費，算在自己的供應商帳號；要組織允許', pros: '自己選供應商與模型，費用不算組織', cons: '按用量付費，每個人自己接', href: '/account/ai#ai-keys', page: 'personal', access: 'everyone' },
+      { kind: 'local_agent', label: '本機代理', detail: '自己電腦上的，可以用自己的訂閱；要組織允許', pros: '用已經有的訂閱，不另外按用量付費', cons: '電腦要開著並執行 kumi agent', href: '/account/ai#local-agent', page: 'personal', access: 'everyone' },
     ],
   },
 ];

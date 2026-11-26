@@ -6,6 +6,8 @@ import styles from './AiSetupMap.module.css';
 
 const TITLE = 'AI 的四種接法';
 const DESCRIPTION = '看兩件事：誰能用，和用什麼登入。費用一律算在登入的那個帳號。';
+const ADVICE =
+  '建議：全組織共用先開組織的 API 金鑰（快、不排隊、不用維護主機）；想讓大家用 Claude Code／Codex 又不想各自安裝，再加主機 AI 代理。已經有 Claude、ChatGPT 訂閱的人，用本機代理最省。';
 
 function CellBody({ cell, page }: { readonly cell: AiSetupCell; readonly page: AiSetupPage }) {
   const user = useCurrentUser();
@@ -21,8 +23,26 @@ function CellBody({ cell, page }: { readonly cell: AiSetupCell; readonly page: A
         <span className={styles.label}>{cell.label}</span>
       )}
       <span className={styles.detail}>{cell.detail}</span>
+      <span className={styles.detail}>
+        <span className={styles.term}>好處：</span>
+        {cell.pros}
+      </span>
+      <span className={styles.detail}>
+        <span className={styles.term}>代價：</span>
+        {cell.cons}
+      </span>
       {!canOpenAiSetup(cell, user) && managedBy !== null && <span className={styles.detail}>{managedBy}</span>}
     </td>
+  );
+}
+
+/** 左欄：怎麼看這張表，和一句選擇的建議（四格各自的好處與代價寫在格子裡）。 */
+function MapNote() {
+  return (
+    <>
+      <p>{DESCRIPTION}</p>
+      <p>{ADVICE}</p>
+    </>
   );
 }
 
@@ -33,7 +53,7 @@ function CellBody({ cell, page }: { readonly cell: AiSetupCell; readonly page: A
  */
 export function AiSetupMap({ page }: { readonly page: AiSetupPage }) {
   return (
-    <SettingsSection title={TITLE} description={<p>{DESCRIPTION}</p>} isContentStart>
+    <SettingsSection title={TITLE} description={<MapNote />} isContentStart>
       <table className={styles.table}>
         <thead>
           <tr>

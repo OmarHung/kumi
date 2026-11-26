@@ -75,3 +75,9 @@ a.label {
     outline-offset: -2px;
   }
 }
+
+/* 「好處」「代價」：小標用一般的字色與半粗，和後面的說明分得出來（不用顏色表達好壞，第 9 節：顏色只表達意義）。 */
+.term {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
