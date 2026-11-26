@@ -18,7 +18,8 @@ const GLOBAL_FILE = 'src/styles/global.css';
 // 項目的浮動視窗拖拉調整的寬度（ModalFrame 的外框上一個 CSS 變數，FloatingPanel 給）、
 // 右下角 AI 助理面板拖拉調整的大小（PanelWindow 在根元素上設兩個 CSS 變數，新通知的提示要讀），
 // 右下角 AI 助理按鈕被使用者拖到的位置（useLauncherAnchor 在根元素上設 --launcher-right、--launcher-bottom；位置執行時才有，面板要讀同一份），
-// 整頁 AI 助理的對話列表拖拉調整的寬度（AssistantWorkspace 在外框上設一個 CSS 變數；寬度由使用者拖，執行時才算得出來）。
+// 整頁 AI 助理的對話列表拖拉調整的寬度（AssistantWorkspace 在外框上設一個 CSS 變數；寬度由使用者拖，執行時才算得出來），
+// 專案總覽的狀態分段橫條（StateBar 在每一段上設 --count：段的長度是項目數的比例，執行時才算得出來）。
 const STYLE_ALLOWED = new Set([
   'src/components/Dialog/ModalFrame.tsx',
   'src/components/Floating/Floating.tsx',
@@ -27,6 +28,7 @@ const STYLE_ALLOWED = new Set([
   'src/features/assistant-panel/PanelWindow.tsx',
   'src/features/assistant-panel/useLauncherAnchor.ts',
   'src/features/assistant/AssistantWorkspace.tsx',
+  'src/features/overview/StateBar.tsx',
   'src/features/timeline/At.tsx',
 ]);
 // 原生的下拉（<select>、<option>）：選項清單是作業系統畫的，樣式與深色模式管不到，一律用 components/Select（規範 7.3）。

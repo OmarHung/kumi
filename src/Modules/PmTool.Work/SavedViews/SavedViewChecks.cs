@@ -20,7 +20,7 @@ internal static partial class SavedViewChecks
     private const string Ascending = "asc";
     private const string Descending = "desc";
 
-    private static readonly string[] DueValues = ["overdue", "today", "week", "none"];
+    private static readonly string[] DueValues = ["overdue", "today", "week", "soon", "none"];
     private static readonly string[] PriorityValues = ["none", "low", "medium", "high", "urgent"];
 
     // 和 API 的 sort 參數同一套：列舉名稱的 snake_case。模組不認得 HTTP，所以這裡自己用同一個規則轉。
@@ -65,8 +65,11 @@ internal static partial class SavedViewChecks
             .OfType<FailureDetail>()
             .Concat(MyWorkOnlyProblems(query))
             .ToArray();
-        return details.Length > 0 ? WorkFailures.Invalid(details) : draft with { Name = name, Query = query };
+        return details.Length > 0 ? WorkFailures.Invalid(details) : draft with { Name = name, Query = query with { Open = OnlyTrue(query.Open), Stale = OnlyTrue(query.Stale) } };
     }
+
+    // false 和沒開是同一件事，存成 null，讀回來不會有兩種寫法。
+    private static bool? OnlyTrue(bool? value) => value == true ? true : null;
 
     private static FailureDetail? NameProblem(string name)
     {

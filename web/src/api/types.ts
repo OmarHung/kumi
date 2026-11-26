@@ -247,6 +247,8 @@ export interface ItemQuery {
   readonly assignee?: string;
   /** `me` 或人員編號：只要這個人建立的。可以和 assignee 一起用。 */
   readonly createdBy?: string;
+  /** 只要最後更新早於這個時間的（ISO 8601，含時區）；「停滯」用，要和還沒結束的狀態類別一起送才是「很久沒動」。 */
+  readonly updatedBefore?: string;
   /** 只要這些優先度的（`none` 是沒有設定）。 */
   readonly priority?: readonly Priority[];
   /** 到期日在這一天或之後、之前（含當天）；有設時沒有到期日的項目不算符合。 */
@@ -547,6 +549,13 @@ export interface SavedViewQuery {
   readonly category: string | null;
   /** 只有「我的工作」用：只看這個專案（代號）。state 只有在有 project 時才有意義。 */
   readonly project: string | null;
+  /**
+   * 只有專案的表格檢視用：只看還沒結束的（`open=1`）。舊的檢視沒有這個欄位（undefined）；沒開時不送，所以是選填。
+   * 後端的 SavedViewQuery 要有同名的欄位才存得住（2026-11-26 還沒有，見回報）。
+   */
+  readonly open?: boolean | null;
+  /** 只有專案的表格檢視用：「14 天沒有更新」（`stale=1`）。存的是這個說法，不是日期；打開時才換成當下的時間。 */
+  readonly stale?: boolean | null;
   /** 分組。專案的檢視是看板的：`assignee`、`field.<key>`，依狀態（預設）時是 null；「我的工作」是表格的：`project`，依急迫程度（預設）時是 null。 */
   readonly group: string | null;
 }

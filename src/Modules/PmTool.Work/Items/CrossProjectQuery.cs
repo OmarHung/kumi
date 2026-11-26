@@ -47,6 +47,8 @@ internal static class CrossProjectQuery
             : query.AssigneeId is { } assignee ? filtered.Where(i => i.AssigneeId == assignee)
             : filtered;
         filtered = query.CreatedBy is { } creator ? filtered.Where(i => i.CreatedBy == creator) : filtered;
+        // timestamptz 只收 Offset 是 0 的值，呼叫端傳進來的可能是別的時區。
+        filtered = query.UpdatedBefore?.ToUniversalTime() is { } updatedBefore ? filtered.Where(i => i.UpdatedAt < updatedBefore) : filtered;
         filtered = ItemQueryPlan.FilterByPriorityAndDue(filtered, query);
         filtered = ItemQueryPlan.FilterByPlanning(filtered, query);
         filtered = plan.Parent is null ? filtered : ChildrenOf(filtered, items, plan.Parent, projects);

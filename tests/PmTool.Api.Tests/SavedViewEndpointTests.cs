@@ -17,7 +17,7 @@ public sealed class SavedViewEndpointTests
 
     private const string ExpectedView = """
         {"id":"018f0000-0000-7000-8000-000000000001","name":"我本週要交的","layout":"board",
-         "query":{"type":"task","state":"in_progress","assignee":"me","q":"登入","sort":"due_date:asc","due":"week","priority":"high","cycle":null,"milestone":null,"fields":null,"group":null,"category":null,"project":null,"createdBy":null,"mine":null},
+         "query":{"type":"task","state":"in_progress","assignee":"me","q":"登入","sort":"due_date:asc","due":"week","priority":"high","cycle":null,"milestone":null,"fields":null,"group":null,"category":null,"project":null,"createdBy":null,"mine":null,"open":null,"stale":null},
          "createdAt":"2026-11-13T04:05:06Z","updatedAt":"2026-11-13T04:05:06Z"}
         """;
 
@@ -62,7 +62,7 @@ public sealed class SavedViewEndpointTests
         var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
 
         // Assert
-        var expectedQuery = JsonNode.Parse("""{"type":null,"state":null,"assignee":null,"q":null,"sort":null,"due":null,"priority":null,"cycle":null,"milestone":null,"fields":null,"group":null,"category":null,"project":null,"createdBy":null,"mine":null}""");
+        var expectedQuery = JsonNode.Parse("""{"type":null,"state":null,"assignee":null,"q":null,"sort":null,"due":null,"priority":null,"cycle":null,"milestone":null,"fields":null,"group":null,"category":null,"project":null,"createdBy":null,"mine":null,"open":null,"stale":null}""");
         Assert.That(JsonNode.DeepEquals(data?[0]?["query"], expectedQuery), Is.True, data?.ToJsonString());
         Assert.That(data?[0]?["layout"]?.GetValue<string>(), Is.EqualTo("table"));
     }

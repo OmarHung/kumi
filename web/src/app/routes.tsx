@@ -7,6 +7,7 @@ import { OpenRouterCallbackPage } from '../features/ai-login/OpenRouterCallbackP
 import { CliAuthorizePage } from '../features/cli-login/CliAuthorizePage';
 import { OAuthConsentPage } from '../features/oauth/OAuthConsentPage';
 import { MyWorkPage } from '../features/my-work/MyWorkPage';
+import { OverviewPage } from '../features/overview/OverviewPage';
 import { PeoplePage } from '../features/people/PeoplePage';
 import { ProjectListPage } from '../features/projects/ProjectListPage';
 import { ProjectPage } from '../features/projects/ProjectPage';
@@ -68,6 +69,7 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <Navigate to="/my-work" replace /> },
               { path: 'my-work', element: <MyWorkPage /> },
+              { path: 'overview', element: <OverviewPage /> },
               { path: 'inbox', element: <LazyInboxPage /> },
               // 知識庫：頁面編號可有可無（空間首頁與一頁是同一個路由，左邊的頁面樹換頁時不重新掛上）；
               // trash、settings 是靜態的片段，比 :pageNumber 優先。

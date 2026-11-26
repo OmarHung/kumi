@@ -76,6 +76,8 @@ export function signedInAs(user: SessionUser, options: SignedInOptions = {}): vo
     // 專案頁的頁列問有沒有綁這個專案的知識庫空間；預設一個都沒有，要空間的測試用 serveKnowledge 蓋掉。
     http.get('/v1/knowledge/spaces', () => ok([])),
     http.get('/v1/my-work/saved-views', () => ok([])),
+    // 專案總覽：預設沒有專案，要列的測試用 serveOverview 蓋掉。
+    http.get('/v1/overview/projects', () => ok([])),
     // 快速跳轉的跨專案搜尋：預設找不到東西，要結果的測試用 serveSearch 蓋掉。
     http.get('/v1/search/items', () => ok({ items: [] })),
     // 快速跳轉與專案清單頁的專案搜尋（代號、名稱、說明）：預設找不到，要結果的測試用 serveProjectSearch 蓋掉。

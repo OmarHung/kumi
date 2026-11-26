@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeLiveConnection } from '../../test/liveConnection';
 import { LiveRejectedError } from './liveTypes';
 import { noteOwnWrites, RECENT_WRITE_MS } from './recentWrites';
-import { WRITE_WAIT_LIMIT_MS } from './liveInvalidation';
+import { OVERVIEW_THROTTLE_MS, WRITE_WAIT_LIMIT_MS } from './liveInvalidation';
 import { retryDelay, startLiveUpdates } from './startLiveUpdates';
 
 const COALESCE_MS = 150;
@@ -51,7 +51,74 @@ describe('startLiveUpdates', () => {
       ['item', 'MNT-1'],
       ['item', 'MNT-7'],
       ['my-work'],
+      ['overview'],
     ]);
+  });
+
+  describe('專案總覽的節流', () => {
+    const overviewCount = (invalidate: ReturnType<typeof setup>['invalidate']) =>
+      invalidatedKeys(invalidate).filter((key) => key?.[0] === 'overview').length;
+    const itemListCount = (invalidate: ReturnType<typeof setup>['invalidate']) =>
+      invalidatedKeys(invalidate).filter((key) => key?.[0] === 'project' && key[2] === 'items').length;
+
+    it('第一次馬上失效；10 秒內又來的先不動，到期補一次，清單照舊每次都失效', async () => {
+      // Arrange
+      const { connection, invalidate } = setup();
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Act
+      connection.emitItems({ projectKey: 'MNT', itemKeys: ['MNT-1'] });
+      await vi.advanceTimersByTimeAsync(COALESCE_MS);
+      connection.emitItems({ projectKey: 'MNT', itemKeys: ['MNT-2'] });
+      await vi.advanceTimersByTimeAsync(COALESCE_MS);
+      connection.emitItems({ projectKey: 'MNT', itemKeys: ['MNT-3'] });
+      await vi.advanceTimersByTimeAsync(COALESCE_MS);
+
+      // Assert
+      expect(overviewCount(invalidate)).toBe(1);
+      expect(itemListCount(invalidate)).toBe(3);
+
+      // Act：節流到期
+      await vi.advanceTimersByTimeAsync(OVERVIEW_THROTTLE_MS);
+
+      // Assert：期間內的兩次併成一次補上
+      expect(overviewCount(invalidate)).toBe(2);
+    });
+
+    it('節流過了之後再來的馬上失效；補上之後不會再多補', async () => {
+      // Arrange
+      const { connection, invalidate } = setup();
+      await vi.advanceTimersByTimeAsync(0);
+      connection.emitItems({ projectKey: 'MNT', itemKeys: ['MNT-1'] });
+      await vi.advanceTimersByTimeAsync(COALESCE_MS);
+
+      // Act
+      await vi.advanceTimersByTimeAsync(OVERVIEW_THROTTLE_MS * 2);
+      connection.emitItems({ projectKey: 'MNT', itemKeys: ['MNT-2'] });
+      await vi.advanceTimersByTimeAsync(COALESCE_MS);
+
+      // Assert
+      expect(overviewCount(invalidate)).toBe(2);
+      await vi.advanceTimersByTimeAsync(OVERVIEW_THROTTLE_MS * 2);
+      expect(overviewCount(invalidate)).toBe(2);
+    });
+
+    it('停掉之後不再補', async () => {
+      // Arrange
+      const { connection, invalidate, stop } = setup();
+      await vi.advanceTimersByTimeAsync(0);
+      connection.emitItems({ projectKey: 'MNT', itemKeys: ['MNT-1'] });
+      await vi.advanceTimersByTimeAsync(COALESCE_MS);
+      connection.emitItems({ projectKey: 'MNT', itemKeys: ['MNT-2'] });
+      await vi.advanceTimersByTimeAsync(COALESCE_MS);
+
+      // Act
+      stop();
+      await vi.advanceTimersByTimeAsync(OVERVIEW_THROTTLE_MS * 2);
+
+      // Assert
+      expect(overviewCount(invalidate)).toBe(1);
+    });
   });
 
   it('itemKeys 是 null 時，編號以專案代號開頭的項目全部失效，別的專案不動', async () => {

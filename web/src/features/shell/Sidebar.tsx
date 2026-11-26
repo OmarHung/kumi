@@ -148,6 +148,7 @@ export function Sidebar({ ref, id, isOpen, isCollapsed, onClose }: SidebarProps)
         <MainLink to="/my-work" icon="myWork" label="我的工作" describedBy={myWorkCountId}>
           <MyWorkCount id={myWorkCountId} />
         </MainLink>
+        <MainLink to="/overview" icon="overview" label="專案總覽" />
         <MainLink to="/inbox" icon="notifications" label="收件匣" describedBy={inboxCountId}>
           <InboxCount id={inboxCountId} />
         </MainLink>

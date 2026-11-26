@@ -12,6 +12,7 @@ export interface ListConditions {
   readonly stateCategory: readonly string[] | undefined;
   readonly assignee: string | undefined;
   readonly createdBy: string | undefined;
+  readonly updatedBefore: string | undefined;
   readonly priority: readonly string[] | undefined;
   readonly dueFrom: string | undefined;
   readonly dueTo: string | undefined;
@@ -87,6 +88,7 @@ export function conditionsOf(queryKey: QueryKey, queryIndex = 3): ListConditions
     stateCategory: stringsOf(read(query, 'stateCategory')),
     assignee: textOf(read(query, 'assignee')),
     createdBy: textOf(read(query, 'createdBy')),
+    updatedBefore: textOf(read(query, 'updatedBefore')),
     priority: stringsOf(read(query, 'priority')),
     dueFrom: textOf(read(query, 'dueFrom')),
     dueTo: textOf(read(query, 'dueTo')),
@@ -114,6 +116,7 @@ export function touchesConditions(conditions: ListConditions, before: Item, afte
     [conditions.state, (item) => item.state],
     [conditions.stateCategory, (item) => item.stateCategory],
     [conditions.assignee, (item) => item.assignee?.personId ?? null],
+    [conditions.updatedBefore, (item) => item.updatedAt],
     [conditions.priority, (item) => item.priority],
     [conditions.dueFrom, (item) => item.dueDate],
     [conditions.dueTo, (item) => item.dueDate],
@@ -160,6 +163,7 @@ export function dependsOnServer(conditions: ListConditions): boolean {
   return (
     conditions.assignee !== undefined ||
     conditions.createdBy !== undefined ||
+    conditions.updatedBefore !== undefined ||
     conditions.q !== undefined ||
     conditions.priority !== undefined ||
     conditions.dueFrom !== undefined ||

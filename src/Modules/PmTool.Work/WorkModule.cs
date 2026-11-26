@@ -10,6 +10,7 @@ using PmTool.Work.ChangeSets;
 using PmTool.Work.Events;
 using PmTool.Work.History;
 using PmTool.Work.Items;
+using PmTool.Work.Overview;
 using PmTool.Work.Persistence;
 using PmTool.Work.Planning;
 using PmTool.Work.Projects;
@@ -64,6 +65,7 @@ public static class WorkModule
         services.TryAddScoped<IItemActivityService, ItemActivityService>();
         services.TryAddScoped<ISavedViewService, SavedViewService>();
         services.TryAddScoped<IPlanningService, PlanningService>();
+        services.TryAddScoped<IProjectOverviewService, ProjectOverviewService>();
         services.TryAddScoped<IAttachmentService, AttachmentService>();
 
         // 儲存空間的配額：兩個模組各報自己的用量，加總的實作在 Storage。上限由組合根先註冊，沒註冊就用預設值。

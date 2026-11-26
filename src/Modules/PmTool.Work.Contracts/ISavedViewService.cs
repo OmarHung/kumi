@@ -61,6 +61,11 @@ public enum SavedViewLayout
 /// <param name="CreatedBy">
 /// 只有專案的檢視用：建立者的條件，<c>me</c> 或人員編號（和網址的 <c>createdBy</c> 同一種寫法）。
 /// </param>
+/// <param name="Open">只有專案的檢視用：true 是「只看還沒結束的」（網址 <c>open=1</c>）；沒開是 null。</param>
+/// <param name="Stale">
+/// 只有專案的檢視用：true 是「很久沒有更新」（網址 <c>stale=1</c>，<see cref="ProjectOverviewRules.StaleDays"/> 天）。
+/// 存的是這個說法不是日期，套用時才換成當下的時間。
+/// </param>
 /// <param name="Mine">
 /// 只有「我的工作」用：null 是我負責的（預設），<c>created</c> 是我建立的（這時只看我建立的，負責人不列為條件）。
 /// </param>
@@ -79,7 +84,9 @@ public sealed record SavedViewQuery(
     string? Category = null,
     string? Project = null,
     string? CreatedBy = null,
-    string? Mine = null);
+    string? Mine = null,
+    bool? Open = null,
+    bool? Stale = null);
 
 public sealed record SavedViewDraft(string Name, SavedViewLayout Layout, SavedViewQuery Query);
 

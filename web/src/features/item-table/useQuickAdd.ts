@@ -21,13 +21,15 @@ export interface QuickAddState {
   readonly setDraft: (next: SetStateAction<CreateItemDraft>) => void;
   readonly isDialogOpen: boolean;
   readonly setIsDialogOpen: (isOpen: boolean) => void;
+  /** 「停滯」的分界用的「現在」，和結果清單同一個，查詢鍵才對得上。 */
+  readonly staleNow: Date;
 }
 
 /**
  * 類型預設是篩選的類型（只選一種、而且是這個專案有的；docs/DESIGN.md 8.1 第 7 點），否則是第一個類型。
  * 篩選的類型換了，類型跟著換（上層清掉：上層的選項看類型）；篩選沒換時，使用者自己選的類型照舊。
  */
-export function useQuickAddState(detail: ProjectDetail, filters: ItemFilters): QuickAddState {
+export function useQuickAddState(detail: ProjectDetail, filters: ItemFilters, staleNow: Date): QuickAddState {
   const [draft, setDraft] = useState<CreateItemDraft>(() => ({ type: defaultItemType(detail, filters.type), parentKey: '', title: '' }));
   const [followedType, setFollowedType] = useState(filters.type);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -39,7 +41,7 @@ export function useQuickAddState(detail: ProjectDetail, filters: ItemFilters): Q
       setDraft({ ...draft, type: next, parentKey: '' });
     }
   }
-  return { draft, setDraft, isDialogOpen, setIsDialogOpen };
+  return { draft, setDraft, isDialogOpen, setIsDialogOpen, staleNow };
 }
 
 /**
@@ -60,7 +62,7 @@ export function useQuickAdd(filters: ItemFilters, state: QuickAddState) {
   const hasTypes = itemTypes.length > 1;
   const hasParent = parentTypes.length > 0;
   const fields: CreateItemField[] = [...(hasTypes ? (['type'] as const) : []), ...(hasParent ? (['parent'] as const) : []), 'title'];
-  const listKey = queryKeys.items(detail.project.key, toItemQuery(filters, ITEMS_PAGE_SIZE, todayDate, weekStart, cycles));
+  const listKey = queryKeys.items(detail.project.key, toItemQuery(filters, ITEMS_PAGE_SIZE, todayDate, weekStart, cycles, state.staleNow));
   const create = useCreateItem({
     listKey,
     position: 'first',
@@ -71,7 +73,7 @@ export function useQuickAdd(filters: ItemFilters, state: QuickAddState) {
       ...itemDefaultsFromFilters(filters, todayDate, cycles, milestones),
       fieldsFor: (type) => fieldDefaultsFromFilters(detail.blueprint, filters.fields, type, me, detail.members),
     },
-    matches: (item) => matchesTableFilters(item, filters, me, todayDate, weekStart, cycles),
+    matches: (item) => matchesTableFilters(item, filters, me, todayDate, weekStart, cycles, state.staleNow),
   });
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {

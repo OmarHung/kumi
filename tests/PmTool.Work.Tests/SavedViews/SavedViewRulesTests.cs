@@ -131,7 +131,7 @@ public sealed class SavedViewRulesTests
         // Arrange
         var scenario = new Scenario(_host);
         await scenario.CreateProjectAsync("WEB");
-        var query = new SavedViewQuery("Task", "x", "someone", new string('字', 201), "due_date", "soon", "huge");
+        var query = new SavedViewQuery("Task", "x", "someone", new string('字', 201), "due_date", "tomorrow", "huge");
 
         // Act
         var result = await _host.SavedViews.CreateAsync(
@@ -266,6 +266,42 @@ public sealed class SavedViewRulesTests
         // Assert
         Assert.That(result.Value.Query.CreatedBy, Is.EqualTo(createdBy));
         Assert.That(listed.Value.Single().Query.CreatedBy, Is.EqualTo(createdBy));
+    }
+
+    [Test]
+    public async Task CreateAsync_OpenStaleAndDueSoon_AreAcceptedAndKept()
+    {
+        // Arrange
+        var scenario = new Scenario(_host);
+        await scenario.CreateProjectAsync("WEB");
+        var query = Empty with { Due = "soon", Open = true, Stale = true };
+
+        // Act
+        var result = await Create(scenario.Admin, "停滯的", query: query);
+        var listed = await _host.SavedViews.ListAsync(scenario.Admin, "WEB", CancellationToken.None);
+
+        // Assert
+        var kept = listed.Value.Single().Query;
+        Assert.That(result.Succeeded, Is.True, () => result.Failure!.Message);
+        Assert.That((kept.Due, kept.Open, kept.Stale), Is.EqualTo(("soon", (bool?)true, (bool?)true)));
+    }
+
+    [Test]
+    public async Task CreateAsync_OpenAndStaleFalse_AreStoredAsNull()
+    {
+        // Arrange
+        var scenario = new Scenario(_host);
+        await scenario.CreateProjectAsync("WEB");
+        var query = Empty with { Open = false, Stale = false };
+
+        // Act
+        var result = await Create(scenario.Admin, "關掉的", query: query);
+        var listed = await _host.SavedViews.ListAsync(scenario.Admin, "WEB", CancellationToken.None);
+
+        // Assert
+        Assert.That(result.Succeeded, Is.True, () => result.Failure!.Message);
+        var kept = listed.Value.Single().Query;
+        Assert.That((result.Value.Query.Open, result.Value.Query.Stale, kept.Open, kept.Stale), Is.EqualTo(((bool?)null, (bool?)null, (bool?)null, (bool?)null)));
     }
 
     [TestCase("query.createdBy", "someone")]

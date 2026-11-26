@@ -1,0 +1,23 @@
+/*
+ * 表格上方開著的「開關型」條件：膠囊形的中性標記，後面一顆小的拿掉按鈕。
+ * 左右的內距和下面的快速新增一樣（--space-4），字才對齊；沒有任何一個開著時整列不存在。
+ */
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-4) 0;
+  list-style: none;
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-left: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-soft);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}

@@ -29,6 +29,7 @@ internal static class ApiRoutes
             .MapSavedViewEndpoints()
             .MapMyWorkSavedViewEndpoints()
             .MapPlanningEndpoints()
+            .MapOverviewEndpoints()
             .MapNotificationEndpoints()
             .MapEmailEndpoints()
             .MapAiSettingsEndpoints()

@@ -1,0 +1,67 @@
+/*
+ * 依狀態分段的橫條（docs/DESIGN.md 7 節 StateBar）：一條 0.75rem 高的橫條，每一段是一個連結，
+ * 寬度是 flex-grow 照 --count（項目數）分；段與段之間 2px 的縫（用紙色的邊，不畫外框）。
+ * 點擊範圍：色條維持細的，但每一段可以點的範圍用 .link::after 撐到 --target-min 見方（滑鼠 24px、觸控 44px，
+ * docs/DESIGN.md 第 5 節），不推動版面。只有幾個項目的段比 --target-min 窄，撐出去的部分會蓋到相鄰的段，這是為了點得到所做的取捨。
+ * 顏色照狀態類別：待規劃淺灰、未開始深灰、進行中藍、完成綠、已取消淡灰加框；進行中不借強調色（第 4 節）。
+ */
+.bar {
+  display: flex;
+  gap: var(--space-0-5);
+  min-width: 8rem;
+  height: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.segment {
+  display: flex;
+  flex: var(--count) 1 0;
+  /* 只有一個項目的狀態也要點得到、看得見。 */
+  min-width: var(--space-1);
+}
+
+.link {
+  position: relative;
+  flex: 1;
+  border-radius: var(--radius-sm);
+  background: var(--color-border-strong);
+}
+
+.link::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  min-width: var(--target-min);
+  height: var(--target-min);
+  transform: translate(-50%, -50%);
+}
+
+.link[data-category='not_started'] {
+  background: var(--color-state-idle);
+}
+
+.link[data-category='in_progress'] {
+  background: var(--color-state-active);
+}
+
+.link[data-category='done'] {
+  background: var(--color-state-done);
+}
+
+.link[data-category='canceled'] {
+  background: var(--color-neutral-soft);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.link:hover {
+  filter: brightness(0.9);
+}
+
+.empty {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

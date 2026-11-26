@@ -212,6 +212,32 @@ public sealed class CrossProjectFlowTests : RealStackTestBase
         }
     }
 
+    [Test]
+    public async Task SavedViews_OpenStaleAndDueSoon_AreStoredReadBackAndRejectedOnMyWork()
+    {
+        // Arrange
+        using var owner = await SignInAsOwnerAsync();
+        await RealStackSteps.CreateProjectAsync(owner.Client, "XPH", "simple_tasks");
+
+        // Act
+        using var projectView = await owner.Client.PostAsync(
+            "/v1/projects/XPH/saved-views", ApiRequests.Json(Body("停滯的", "table", new { due = "soon", open = true, stale = true })));
+        using var badMyWork = await owner.Client.PostAsync(ViewsRoute, ApiRequests.Json(Body("壞的", "table", new { open = true, stale = true })));
+        var projectViews = await RealStackSteps.GetAsync(owner.Client, "/v1/projects/XPH/saved-views");
+
+        // Assert
+        await ApiRequests.AssertSuccessEnvelopeAsync(projectView, HttpStatusCode.Created);
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(badMyWork, HttpStatusCode.UnprocessableEntity, WorkErrorCodes.SavedViewInvalid);
+        var query = projectViews[0]!["query"]!;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(query["due"]!.GetValue<string>(), Is.EqualTo("soon"));
+            Assert.That(query["open"]!.GetValue<bool>(), Is.True);
+            Assert.That(query["stale"]!.GetValue<bool>(), Is.True);
+            Assert.That(details.Select(d => d?["path"]?.GetValue<string>()), Is.EquivalentTo(new[] { "query.open", "query.stale" }));
+        }
+    }
+
     private static async Task CreateTaskAsync(SignedInClient client, string projectKey, string title)
     {
         using var response = await client.Client.PostAsync(

@@ -1,0 +1,201 @@
+/*
+ * 專案總覽（docs/DESIGN.md 7 節 StateBar 與總覽表格）：整頁捲動的清單頁（6.2）。寬螢幕是表格、窄螢幕是卡片，
+ * 數字是連結（強調色）或淡化的 0；狀態分段橫條自己的樣式在 StateBar.module.css。
+ */
+.results[aria-busy='true'] {
+  opacity: 0.6;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+/* 專案的名稱格：代號與名稱連到專案，下面接「只算…」的提醒與最近更新。 */
+.projectCell {
+  min-width: 9rem;
+}
+
+/* 文字連結本身只有一行字高：撐到最小點擊範圍（docs/DESIGN.md：滑鼠 24px、觸控 44px），不改字的位置。 */
+.projectLink,
+.number,
+.plannedName {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
+/* 代號與名稱是兩個彈性項目：inline-flex 會吃掉中間的空白，所以用 gap 隔開；名稱長了自己換行，代號不跟著被擠。 */
+.projectLink {
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  padding-block: var(--space-1);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.projectLink:hover {
+  text-decoration: underline;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.projectMeta {
+  display: block;
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+}
+
+.barCell {
+  min-width: 7rem;
+  width: 8rem;
+}
+
+/* 數字靠右（表頭也是，才對得上）；數字本身不換行。 */
+.numberHead,
+.numberCell {
+  text-align: right;
+}
+
+/* 表頭一行一個 span（overviewColumns 的 head）：斷行的位置是寫死的，不讓瀏覽器斷在中文字中間。 */
+.headLine {
+  display: block;
+}
+
+.numberCell {
+  white-space: nowrap;
+}
+
+.number {
+  min-width: var(--target-min);
+  justify-content: flex-end;
+  color: var(--color-accent);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.number:hover {
+  text-decoration: underline;
+}
+
+/* 0 沒有東西可看：用次要文字色、不是連結。不疊 opacity：疊了之後對比會掉到 AA 以下（text-muted 對 surface 是 6.3，docs/design/02-tokens.md）。 */
+.zero {
+  color: var(--color-text-muted);
+}
+
+.plain {
+  color: var(--color-text);
+}
+
+.none {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.plannedCell {
+  min-width: 8rem;
+}
+
+/* 週期、里程碑：名稱、日期、進度條疊在一起。 */
+.planned {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block: var(--space-1);
+}
+
+.plannedName {
+  font-weight: var(--weight-medium);
+  color: var(--color-accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.plannedName:hover {
+  text-decoration: underline;
+}
+
+.plannedDate {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 表格下面的數字定義：灰色小字，限在閱讀寬度。 */
+.notes {
+  max-width: var(--reading-max);
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.notes ul {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+/* 窄螢幕：一個專案一張卡片，不用橫向捲動。卡片不再包卡片，裡面靠留白與細線分。 */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+/* 數字：一格一格、放不下就換行（最小寬度到 6rem 一排最多三格）。 */
+.numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.numberItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.numberItem dt,
+.planning dt {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.numberItem dd {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.planning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.planning dd {
+  margin: 0;
+}

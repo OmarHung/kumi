@@ -100,6 +100,27 @@ public sealed class CrossProjectEndpointTests
     }
 
     [Test]
+    public async Task List_UpdatedBefore_ReachesTheModuleAndAnInvalidOneIs422AtItsPath()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await SignedInClientAsync(factory);
+
+        // Act
+        using var good = await client.GetAsync($"{ItemsRoute}?updatedBefore=2026-11-10T04:00:00Z");
+        await ApiRequests.AssertSuccessEnvelopeAsync(good, HttpStatusCode.OK);
+        using var bad = await client.GetAsync($"{ItemsRoute}?updatedBefore=2026-11-10T04:00:00");
+        var details = await ApiRequests.AssertFailureEnvelopeAsync(bad, HttpStatusCode.UnprocessableEntity, WorkErrorCodes.QueryInvalid);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(factory.Modules.Items.ListAcrossCalls.Single().Query.UpdatedBefore, Is.EqualTo(new DateTimeOffset(2026, 11, 10, 4, 0, 0, TimeSpan.Zero)));
+            Assert.That(details[0]?["path"]?.GetValue<string>(), Is.EqualTo("updatedBefore"));
+        }
+    }
+
+    [Test]
     public async Task List_BadParameter_Returns422WithThePathAndDoesNotCallTheModule()
     {
         // Arrange

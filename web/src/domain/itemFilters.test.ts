@@ -32,6 +32,8 @@ describe('filtersFromSearchParams', () => {
       priority: null,
       cycle: null,
       milestone: null,
+      open: false,
+      stale: false,
       fields: {},
       q: '首頁',
       sort: { field: 'due_date', direction: 'desc' },

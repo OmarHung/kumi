@@ -79,6 +79,28 @@ public sealed class ItemQueryTests
         Assert.That(query.CreatedBy, Is.EqualTo(TestUsers.Member.PersonId));
     }
 
+    [TestCase("2026-11-10T04:00:00Z", "2026-11-10T04:00:00+00:00")]
+    [TestCase("2026-11-10T12:00:00%2B08:00", "2026-11-10T04:00:00+00:00")]
+    [TestCase("2026-11-10T04:00:00.250Z", "2026-11-10T04:00:00.250+00:00")]
+    public async Task List_UpdatedBeforeWithATimeZone_BecomesThatInstant(string value, string expected)
+    {
+        // Act
+        var query = await QueryForAsync($"?updatedBefore={value}");
+
+        // Assert
+        Assert.That(query.UpdatedBefore, Is.EqualTo(DateTimeOffset.Parse(expected, System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    [Test]
+    public async Task List_UpdatedBeforeWithANonUtcOffset_IsConvertedToUtc()
+    {
+        // Act
+        var query = await QueryForAsync("?updatedBefore=2026-11-10T12:00:00%2B08:00");
+
+        // Assert
+        Assert.That(query.UpdatedBefore!.Value.Offset, Is.EqualTo(TimeSpan.Zero));
+    }
+
     [Test]
     public async Task List_CreatedById_IsPassedAsIsAndCombinesWithAssignee()
     {
@@ -225,7 +247,7 @@ public sealed class ItemQueryTests
     public async Task List_EmptyValues_AreTreatedAsAbsent()
     {
         // Act：網頁把空的篩選欄位照樣送出來，不該變成「找類型是空字串的項目」。
-        var query = await QueryForAsync("?type=&state=&stateCategory=&assignee=&createdBy=&q=&parent=&sort=&priority=&dueFrom=&dueTo=&datesFrom=&datesTo=&noDue=&limit=&cursor=");
+        var query = await QueryForAsync("?type=&state=&stateCategory=&assignee=&createdBy=&updatedBefore=&q=&parent=&sort=&priority=&dueFrom=&dueTo=&datesFrom=&datesTo=&noDue=&limit=&cursor=");
 
         // Assert
         Assert.That(Describe(query), Is.EqualTo(Describe(new WorkItemQuery())));
@@ -237,6 +259,13 @@ public sealed class ItemQueryTests
     [TestCase("limit=ten", "limit", TestName = "List_LimitNotANumber_Returns422")]
     [TestCase("limit=99999999999", "limit", TestName = "List_LimitTooBigForANumber_Returns422")]
     [TestCase("assignee=bob", "assignee", TestName = "List_AssigneeNeitherKeywordNorId_Returns422")]
+    [TestCase("updatedBefore=2026-11-10T04:00:00", "updatedBefore", TestName = "List_UpdatedBeforeWithoutATimeZone_Returns422")]
+    [TestCase("updatedBefore=2026-11-10", "updatedBefore", TestName = "List_UpdatedBeforeWithOnlyADate_Returns422")]
+    [TestCase("updatedBefore=yesterday", "updatedBefore", TestName = "List_UpdatedBeforeNotATime_Returns422")]
+    [TestCase("updatedBefore=Tue,%2010%20Nov%202026%2004:00:00%20GMT", "updatedBefore", TestName = "List_UpdatedBeforeInRfc1123_Returns422")]
+    [TestCase("updatedBefore=04:00:00Z", "updatedBefore", TestName = "List_UpdatedBeforeWithoutADate_Returns422")]
+    [TestCase("updatedBefore=2026-11-10T04:00:00%2B0800", "updatedBefore", TestName = "List_UpdatedBeforeOffsetWithoutColon_Returns422")]
+    [TestCase("updatedBefore=2026-11-10T04:00:00Z&updatedBefore=2026-11-11T04:00:00Z", "updatedBefore", TestName = "List_UpdatedBeforeGivenTwice_Returns422")]
     [TestCase("createdBy=bob", "createdBy", TestName = "List_CreatedByNeitherMeNorId_Returns422")]
     [TestCase("createdBy=unassigned", "createdBy", TestName = "List_CreatedByUnassigned_Returns422")]
     [TestCase("createdBy=me&createdBy=me", "createdBy", TestName = "List_CreatedByGivenTwice_Returns422")]
@@ -399,5 +428,5 @@ public sealed class ItemQueryTests
     // 清單是不同的實體，record 的相等比的是參考；寫成字串再比。
     private static string Describe(WorkItemQuery query) =>
         $"{string.Join(',', query.Types)}|{string.Join(',', query.States)}|{string.Join(',', query.StateCategories)}|"
-        + $"{query.AssigneeId}|{query.OnlyUnassigned}|{query.CreatedBy}|{string.Join(',', query.Priorities)}|{query.DueFrom}|{query.DueTo}|{query.DatesFrom}|{query.DatesTo}|{query.OnlyWithoutDueDate}|{query.Search}|{query.ParentKey}|{query.FieldFilters.Count}|{query.SortBy}|{query.SortFieldKey}|{query.Descending}|{query.Limit}|{query.Cursor}";
+        + $"{query.AssigneeId}|{query.OnlyUnassigned}|{query.CreatedBy}|{query.UpdatedBefore}|{string.Join(',', query.Priorities)}|{query.DueFrom}|{query.DueTo}|{query.DatesFrom}|{query.DatesTo}|{query.OnlyWithoutDueDate}|{query.Search}|{query.ParentKey}|{query.FieldFilters.Count}|{query.SortBy}|{query.SortFieldKey}|{query.Descending}|{query.Limit}|{query.Cursor}";
 }

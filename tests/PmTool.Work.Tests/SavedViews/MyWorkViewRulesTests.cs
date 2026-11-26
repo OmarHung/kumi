@@ -180,6 +180,35 @@ public sealed class MyWorkViewRulesTests
         AssertFailure(all, FailureKind.Invalid, WorkErrorCodes.SavedViewInvalid);
     }
 
+    [Test]
+    public async Task CreateMyWorkAsync_DueSoon_IsAccepted()
+    {
+        // Arrange
+        var person = new Scenario(_host).Person();
+
+        // Act
+        var result = await CreateAsync(person, Empty with { Due = "soon" });
+
+        // Assert
+        Assert.That(result.Value.Query.Due, Is.EqualTo("soon"));
+    }
+
+    [TestCase("query.open")]
+    [TestCase("query.stale")]
+    public async Task CreateMyWorkAsync_ProjectOnlyOpenOrStale_IsInvalidAtThatPath(string path)
+    {
+        // Arrange
+        var person = new Scenario(_host).Person();
+        var query = path == "query.open" ? Empty with { Open = true } : Empty with { Stale = true };
+
+        // Act
+        var result = await CreateAsync(person, query);
+
+        // Assert
+        AssertFailure(result, FailureKind.Invalid, WorkErrorCodes.SavedViewInvalid);
+        Assert.That(result.Failure!.Details.Select(d => d.Path), Is.EqualTo(new[] { path }));
+    }
+
     private Task<Result<SavedView>> CreateProjectViewAsync(Actor actor, string name, SavedViewQuery query) =>
         _host.SavedViews.CreateAsync(actor, "WEB", new SavedViewDraft(name, SavedViewLayout.Table, query), CancellationToken.None);
 

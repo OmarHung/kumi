@@ -2,7 +2,7 @@ import type { SortDirection } from '../api/blueprint';
 import type { Cycle } from '../api/planning';
 import type { CalendarDate, ItemQuery, ItemSort, ItemSortField, Priority } from '../api/types';
 import type { WeekStart } from '../lib/weekStart';
-import { dueQuery, parseDueFilter, parsePriority, type DueFilter } from './dueFilter';
+import { dueQuery, OPEN_CATEGORIES, parseDueFilter, parsePriority, type DueFilter } from './dueFilter';
 import {
   fieldFilterEntries,
   fieldFiltersFromSearchParams,
@@ -12,6 +12,7 @@ import {
   sortFieldKey,
   type FieldFilters,
 } from './fieldFilters';
+import { STALE_DAYS } from './overviewRules';
 import { cycleQuery, milestoneQuery, parseCycleFilter, parseMilestoneFilter } from './planningFilter';
 
 /** 項目表格的篩選與排序。放在網址的查詢字串裡，重新整理或分享網址都還在。 */
@@ -28,6 +29,10 @@ export interface ItemFilters {
   readonly cycle: string | null;
   /** `none` 或里程碑編號。 */
   readonly milestone: string | null;
+  /** 只看還沒結束的（網址 `open=1`）：總覽的「沒有負責人」「停滯」點進來帶的條件，篩選列上看得到、能拿掉。 */
+  readonly open: boolean;
+  /** 停滯：STALE_DAYS 天沒有更新（網址 `stale=1`）。換成時間是送出時的事（staleCutoff），所以網址與存的檢視存的是這個說法。 */
+  readonly stale: boolean;
   /** 自訂欄位的條件，網址上是 `field.<key>=值`。 */
   readonly fields: FieldFilters;
   readonly q: string;
@@ -43,10 +48,24 @@ export const EMPTY_FILTERS: ItemFilters = {
   priority: null,
   cycle: null,
   milestone: null,
+  open: false,
+  stale: false,
   fields: NO_FIELD_FILTERS,
   q: '',
   sort: null,
 };
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_MINUTE = 60 * 1000;
+
+/**
+ * 「停滯」的分界：現在往前 STALE_DAYS 天（ISO 8601）。取到分鐘：查詢鍵裡有這個時間，
+ * 每次畫面重畫都用新的毫秒會讓清單一直重抓；同一分鐘內的幾次呼叫（結果清單與快速新增）要得到同一個值才對得上同一份快取。
+ */
+export function staleCutoff(now: Date = new Date()): string {
+  const cutoff = now.getTime() - STALE_DAYS * MS_PER_DAY;
+  return new Date(Math.floor(cutoff / MS_PER_MINUTE) * MS_PER_MINUTE).toISOString();
+}
 
 export const SORT_FIELDS: readonly ItemSortField[] = [
   'number',
@@ -90,6 +109,8 @@ export function filtersFromSearchParams(params: URLSearchParams): ItemFilters {
     priority: parsePriority(params.get('priority')),
     cycle: parseCycleFilter(params.get('cycle')),
     milestone: parseMilestoneFilter(params.get('milestone')),
+    open: params.get('open') === '1',
+    stale: params.get('stale') === '1',
     fields: fieldFiltersFromSearchParams(params),
     q: params.get('q')?.trim() ?? '',
     sort: parseSort(params.get('sort')),
@@ -106,6 +127,8 @@ export function filtersToSearchParams(filters: ItemFilters): URLSearchParams {
   if (filters.priority !== null) entries.push(['priority', filters.priority]);
   if (filters.cycle !== null) entries.push(['cycle', filters.cycle]);
   if (filters.milestone !== null) entries.push(['milestone', filters.milestone]);
+  if (filters.open) entries.push(['open', '1']);
+  if (filters.stale) entries.push(['stale', '1']);
   entries.push(...fieldFilterEntries(filters.fields));
   if (filters.q.trim() !== '') entries.push(['q', filters.q.trim()]);
   if (filters.sort !== null) entries.push(['sort', `${filters.sort.field}:${filters.sort.direction}`]);
@@ -116,7 +139,14 @@ export function filtersToSearchParams(filters: ItemFilters): URLSearchParams {
  * 給 API 的條件。沒設的不送，後端用預設（依編號遞增）。todayDate 是使用者所在地的今天（到期與「目前的週期」用），
  * cycles 是專案的週期清單（「目前的週期」從這裡換成編號）。
  */
-export function toItemQuery(filters: ItemFilters, limit: number, todayDate: CalendarDate, weekStart: WeekStart, cycles: readonly Cycle[] = []): ItemQuery {
+export function toItemQuery(
+  filters: ItemFilters,
+  limit: number,
+  todayDate: CalendarDate,
+  weekStart: WeekStart,
+  cycles: readonly Cycle[] = [],
+  now: Date = new Date(),
+): ItemQuery {
   return {
     ...(filters.type !== null && { type: [filters.type] }),
     ...(filters.state !== null && { state: [filters.state] }),
@@ -124,6 +154,9 @@ export function toItemQuery(filters: ItemFilters, limit: number, todayDate: Cale
     ...(filters.createdBy !== null && { createdBy: filters.createdBy }),
     ...(filters.priority !== null && { priority: [filters.priority] }),
     ...dueQuery(filters.due, todayDate, weekStart),
+    // 和狀態條件同時有時兩個都送（而且）：選了「已完成」又只看還沒結束的，結果就是空的，不另外猜哪個優先。
+    ...((filters.open || filters.stale) && { stateCategory: OPEN_CATEGORIES }),
+    ...(filters.stale && { updatedBefore: staleCutoff(now) }),
     ...cycleQuery(filters.cycle, cycles, todayDate),
     ...milestoneQuery(filters.milestone),
     ...fieldsQuery(filters.fields),
@@ -144,6 +177,8 @@ export function hasActiveFilters(filters: ItemFilters): boolean {
     filters.priority !== null ||
     filters.cycle !== null ||
     filters.milestone !== null ||
+    filters.open ||
+    filters.stale ||
     hasFieldFilters(filters.fields) ||
     filters.q !== ''
   );

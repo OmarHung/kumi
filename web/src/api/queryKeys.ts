@@ -110,6 +110,9 @@ export const queryKeys = {
   commentRevisions: (itemKey: string, commentId: string) => ['item', itemKey, 'activity', 'revisions', commentId],
   // 附件清單在項目底下：項目被刪除、換成別人看時，跟著那個項目一起清掉。
   attachments: (itemKey: string) => ['item', itemKey, 'attachments'],
+  // 專案總覽（跨專案的數字）：任何專案的項目變了就讓整組失效（features/live/liveInvalidation.ts）。
+  overview: (scope: string) => ['overview', scope],
+  overviews: ['overview'],
   myWork: ['my-work'],
   // 「我的工作」四種版面的清單（跨專案，GET /v1/items）放在 my-work 底下：項目改了讓 myWork 失效時一起重抓。
   // 側欄的數量用的是上面那一個（完全相同的鍵），兩邊的資料形狀不同，不能共用。

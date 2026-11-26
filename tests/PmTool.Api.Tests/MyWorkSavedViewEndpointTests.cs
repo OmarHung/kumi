@@ -28,7 +28,7 @@ public sealed class MyWorkSavedViewEndpointTests
     private static readonly string ExpectedView = """
         {"id":"018f0000-0000-7000-8000-000000000001","name":"完成","layout":"board",
          "query":{"type":"task","state":null,"assignee":null,"q":null,"sort":null,"due":"week","priority":"high","cycle":null,"milestone":null,
-                  "fields":null,"group":"project","category":"done","project":"CM","createdBy":null,"mine":"created"},
+                  "fields":null,"group":"project","category":"done","project":"CM","createdBy":null,"mine":"created","open":null,"stale":null},
          "createdAt":"2026-11-13T04:05:06Z","updatedAt":"2026-11-13T04:05:06Z"}
         """;
 

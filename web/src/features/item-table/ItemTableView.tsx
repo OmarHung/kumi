@@ -1,5 +1,6 @@
 import { useIsCompact } from '../../lib/useMediaQuery';
 import { BulkNotice } from '../bulk-edit/BulkNotice';
+import { ActiveFlags } from './ActiveFlags';
 import { AddItemDialog } from './AddItemDialog';
 import { ItemResults } from './ItemResults';
 import { useProjectTable } from './ProjectTableContext';
@@ -19,6 +20,7 @@ export function ItemTableView({ table }: { readonly table: ItemTableState }) {
   return (
     <section className={styles.view} aria-label="項目">
       {!isCompact && <BulkNotice projectKey={detail.project.key} bulk={table.bulk} />}
+      <ActiveFlags table={table} />
       {can.create && !isCompact && <QuickAddItem filters={table.filters} state={table.quickAdd} />}
       <ItemResults table={table} />
       {can.create && table.quickAdd.isDialogOpen && <AddItemDialog filters={table.filters} state={table.quickAdd} />}

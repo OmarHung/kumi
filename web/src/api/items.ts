@@ -37,6 +37,7 @@ function queryString(query: ItemQuery): string {
   if (query.noMilestone === true) params.append('milestone', 'none');
   if (query.assignee !== undefined) params.append('assignee', query.assignee);
   if (query.createdBy !== undefined) params.append('createdBy', query.createdBy);
+  if (query.updatedBefore !== undefined) params.append('updatedBefore', query.updatedBefore);
   if (query.q !== undefined && query.q !== '') params.append('q', query.q);
   // 自訂欄位：同一個欄位的多個值重複帶（是「或」），不同欄位是「而且」。
   Object.entries(query.fields ?? {}).forEach(([key, values]) => {

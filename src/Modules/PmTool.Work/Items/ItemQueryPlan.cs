@@ -155,6 +155,8 @@ internal sealed record ItemQueryPlan(WorkItemQuery Query, int Offset, string? Se
             : query.AssigneeId is { } assignee ? filtered.Where(i => i.AssigneeId == assignee)
             : filtered;
         filtered = query.CreatedBy is { } creator ? filtered.Where(i => i.CreatedBy == creator) : filtered;
+        // timestamptz 只收 Offset 是 0 的值，呼叫端傳進來的可能是別的時區。
+        filtered = query.UpdatedBefore?.ToUniversalTime() is { } updatedBefore ? filtered.Where(i => i.UpdatedAt < updatedBefore) : filtered;
         filtered = FilterByPriorityAndDue(filtered, query);
         filtered = FilterByPlanning(filtered, query);
         filtered = query.FieldFilters.Count > 0 ? FieldQuery.Filter(filtered, query.FieldFilters, schema, me) : filtered;

@@ -49,6 +49,9 @@ export function queryFromTableFilters(filters: ItemFilters): SavedViewQuery {
     category: null,
     project: null,
     group: null,
+    // 沒開時不放進去：舊的檢視與伺服器回來的形狀都沒有這兩個，比對「是不是同一個檢視」才不會因為 false 與缺少不同。
+    ...(filters.open && { open: true }),
+    ...(filters.stale && { stale: true }),
   };
 }
 
@@ -90,6 +93,8 @@ function paramsOfQuery(query: SavedViewQuery): URLSearchParams {
   add('priority', query.priority);
   add('cycle', query.cycle);
   add('milestone', query.milestone);
+  if (query.open === true) entries.push(['open', '1']);
+  if (query.stale === true) entries.push(['stale', '1']);
   entries.push(...fieldFilterEntries(query.fields ?? {}));
   add('q', query.q);
   add('sort', query.sort);

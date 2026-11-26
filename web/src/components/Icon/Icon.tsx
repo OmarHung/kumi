@@ -43,6 +43,7 @@ import {
   Info,
   Italic,
   KeyRound,
+  LayoutDashboard,
   Link,
   List,
   Lock,
@@ -130,6 +131,8 @@ const ICONS = {
   warning: TriangleAlert,
   error: CircleAlert,
   myWork: Inbox,
+  // 專案總覽（側欄）：一次看多個專案的進度。
+  overview: LayoutDashboard,
   // 收件匣（PM-1 協作）與關注：側欄的「收件匣」、項目的「關注」切換（不用 Inbox：那是「我的工作」）。
   notifications: Bell,
   following: BellRing,

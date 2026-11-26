@@ -7,6 +7,8 @@ function invalidateAfterArchiveChange(queryClient: QueryClient, projectKey: stri
   void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
   void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectKey) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
+  // 專案總覽列的是沒封存的專案：封存、取消封存會讓列出現或消失。
+  void queryClient.invalidateQueries({ queryKey: queryKeys.overviews });
 }
 
 /** 封存：可以復原，所以直接做、不確認。成功後專案換成唯讀（重抓專案之後 archivedAt 有值、權限只剩讀取）。 */
@@ -38,6 +40,7 @@ export function useRenameProject(projectKey: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectKey), exact: true });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.overviews });
     },
   });
 }

@@ -24,13 +24,15 @@ internal sealed record SavedViewQueryData(
     string? Category = null,
     string? Project = null,
     string? CreatedBy = null,
-    string? Mine = null)
+    string? Mine = null,
+    bool? Open = null,
+    bool? Stale = null)
 {
     public static SavedViewQueryData From(SavedViewQuery query) => new(
         query.Type, query.State, query.Assignee, query.Search, query.Sort, query.Due, query.Priority, query.Cycle, query.Milestone,
-        query.Fields, query.Group, query.Category, query.Project, query.CreatedBy, query.Mine);
+        query.Fields, query.Group, query.Category, query.Project, query.CreatedBy, query.Mine, query.Open, query.Stale);
 
-    public SavedViewQuery ToQuery() => new(Type, State, Assignee, Q, Sort, Due, Priority, Cycle, Milestone, Fields, Group, Category, Project, CreatedBy, Mine);
+    public SavedViewQuery ToQuery() => new(Type, State, Assignee, Q, Sort, Due, Priority, Cycle, Milestone, Fields, Group, Category, Project, CreatedBy, Mine, Open, Stale);
 }
 
 /// <summary>新增與整個換掉用的內文。</summary>

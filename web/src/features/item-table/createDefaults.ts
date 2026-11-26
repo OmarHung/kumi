@@ -3,7 +3,8 @@ import type { Cycle, Milestone } from '../../api/planning';
 import type { CalendarDate, FieldValue, Item, Member, Priority, ProjectDetail } from '../../api/types';
 import type { WeekStart } from '../../lib/weekStart';
 import type { DueFilter } from '../../domain/dueFilter';
-import type { ItemFilters } from '../../domain/itemFilters';
+import { OPEN_CATEGORIES } from '../../domain/dueFilter';
+import { staleCutoff, type ItemFilters } from '../../domain/itemFilters';
 import { cycleDefault, milestoneDefault } from '../../domain/planningFilter';
 import { matchesBoardFilters } from '../../domain/projectView';
 import { STATE_GROUP } from '../../domain/boardGroup';
@@ -43,11 +44,15 @@ export function matchesTableFilters(
   todayDate: CalendarDate,
   weekStart: WeekStart,
   cycles: readonly Cycle[] = [],
+  now: Date = new Date(),
 ): boolean {
   const { assignee, createdBy, due, priority, cycle, milestone, fields, q } = filters;
   return (
     (filters.type === null || item.type === filters.type) &&
     (filters.state === null || item.state === filters.state) &&
+    // 新增的項目是剛更新的，不會落在「停滯」裡：新增之後的訊息會說它不在這份清單。
+    (!(filters.open || filters.stale) || OPEN_CATEGORIES.includes(item.stateCategory)) &&
+    (!filters.stale || Date.parse(item.updatedAt) < Date.parse(staleCutoff(now))) &&
     matchesBoardFilters(item, { workflow: null, assignee, createdBy, due, priority, cycle, milestone, fields, group: STATE_GROUP, q }, me, todayDate, weekStart, cycles)
   );
 }

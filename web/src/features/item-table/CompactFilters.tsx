@@ -9,7 +9,7 @@ import type { ItemTableState } from './useItemTableState';
 
 /** 有幾個條件在篩選（排序不算：只換順序，項目還是全部）。 */
 export function activeFilterCount(filters: ItemFilters): number {
-  return [filters.type !== null, filters.state !== null, filters.assignee !== null, filters.createdBy !== null, filters.due !== null, filters.priority !== null, filters.cycle !== null, filters.milestone !== null, filters.q !== ''].filter(Boolean).length + Object.keys(filters.fields).length;
+  return [filters.type !== null, filters.state !== null, filters.assignee !== null, filters.createdBy !== null, filters.due !== null, filters.priority !== null, filters.cycle !== null, filters.milestone !== null, filters.open, filters.stale, filters.q !== ''].filter(Boolean).length + Object.keys(filters.fields).length;
 }
 
 interface SortChoice {

@@ -25,6 +25,7 @@ public sealed class AccessTokenScopeTests
         yield return Case("GET", "/v1/my-work", ItemsRead);
         yield return Case("GET", "/v1/items", ItemsRead);
         yield return Case("GET", "/v1/item-types", ItemsRead);
+        yield return Case("GET", "/v1/overview/projects", ItemsRead);
         yield return Case("GET", "/v1/search/items?q=a", ItemsRead);
         yield return Case("GET", "/v1/templates", ItemsRead);
         yield return Case("GET", "/v1/people", ItemsRead);

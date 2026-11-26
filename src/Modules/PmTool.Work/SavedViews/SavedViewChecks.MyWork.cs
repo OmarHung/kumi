@@ -41,6 +41,8 @@ internal static partial class SavedViewChecks
                 query.Cycle is null ? null : Problem($"{QueryPath}.cycle", "「我的工作」的檢視沒有週期的條件：週期是各專案自己的。"),
                 query.Milestone is null ? null : Problem($"{QueryPath}.milestone", "「我的工作」的檢視沒有里程碑的條件：里程碑是各專案自己的。"),
                 query.Fields is null ? null : Problem($"{QueryPath}.fields", "「我的工作」的檢視沒有自訂欄位的條件：欄位是各專案自己的。"),
+                query.Open is null ? null : Problem($"{QueryPath}.open", "「我的工作」的檢視用狀態的條件選「未結束的狀態」，沒有 open。"),
+                query.Stale is null ? null : Problem($"{QueryPath}.stale", "「我的工作」的檢視沒有「很久沒有更新」的條件，只有專案的檢視才有。"),
             }
             .OfType<FailureDetail>()
             .ToArray();

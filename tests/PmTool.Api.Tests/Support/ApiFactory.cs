@@ -251,6 +251,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<IKnowledgeAttachmentService>();
         services.RemoveAll<ISavedViewService>();
         services.RemoveAll<IPlanningService>();
+        services.RemoveAll<IProjectOverviewService>();
         services.RemoveAll<IBlueprintChangeService>();
         services.RemoveAll<INotificationInbox>();
         services.RemoveAll<IItemSubscriptionService>();
@@ -302,6 +303,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<IKnowledgeAttachmentService>(Modules.KnowledgeAttachments);
         services.AddSingleton<ISavedViewService>(Modules.SavedViews);
         services.AddSingleton<IPlanningService>(Modules.Planning);
+        services.AddSingleton<IProjectOverviewService>(Modules.Overview);
         services.AddSingleton<IBlueprintChangeService>(Modules.Changes);
         services.AddSingleton<INotificationInbox>(Modules.Notifications);
         services.AddSingleton<IItemSubscriptionService>(Modules.Subscriptions);

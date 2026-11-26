@@ -178,6 +178,12 @@ public sealed record WorkItemQuery
     /// <summary>只要這個人建立的（<see cref="WorkItem.CreatedBy"/>）。可以和負責人的條件一起用。</summary>
     public Guid? CreatedBy { get; init; }
 
+    /// <summary>
+    /// 只要最後更新（<see cref="WorkItem.UpdatedAt"/>）早於這個時間的。專案總覽的「停滯」連到清單時用
+    /// （<see cref="ProjectOverviewRules.StaleDays"/>），和狀態類別的條件一起用才是「還沒結束而且很久沒動」。
+    /// </summary>
+    public DateTimeOffset? UpdatedBefore { get; init; }
+
     /// <summary>只要這些優先度的（None 是「沒有設定」）。空的是不限。</summary>
     public IReadOnlyList<Priority> Priorities { get; init; } = [];
 

@@ -55,6 +55,8 @@ export function useSetMemberRole(projectKey: string) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.project(projectKey), exact: true }),
         queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
+        // 「只看我管理的」看的是我有沒有專案管理權限：角色變了，總覽的列跟著增減。
+        queryClient.invalidateQueries({ queryKey: queryKeys.overviews }),
       ]);
     },
   });
@@ -93,6 +95,7 @@ export function useRemoveMember(projectKey: string) {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.project(projectKey), exact: true }),
           queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.overviews }),
         ]);
         return;
       }
@@ -103,6 +106,7 @@ export function useRemoveMember(projectKey: string) {
       removeQueriesWhenUnobserved(queryClient, queryKeys.project(projectKey));
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.overviews });
     },
   });
 }

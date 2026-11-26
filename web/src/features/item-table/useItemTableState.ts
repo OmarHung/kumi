@@ -18,6 +18,7 @@ import { buildColumns, type ItemColumn } from './columns';
 import { useColumnVisibility, type ColumnVisibility } from './columnVisibility';
 import { widthStorageKey } from './itemColumnWidths';
 import { usePlanning } from './usePlanning';
+import { useStaleAnchor } from './useStaleAnchor';
 import { useQuickAddState, type QuickAddState } from './useQuickAdd';
 
 /**
@@ -35,6 +36,8 @@ export interface ItemTableState {
   /** 使用者拉的欄寬（docs/DESIGN.md 7.1「欄寬」）：表格調、「顯示的欄位」裡重設。 */
   readonly widths: ColumnWidthStore;
   readonly quickAdd: QuickAddState;
+  /** 「停滯」的分界用的「現在」：條件換了才重取，清單與快速新增共用（useStaleAnchor）。 */
+  readonly staleNow: Date;
   /** 寬螢幕工具列上的搜尋框。 */
   readonly searchRef: RefObject<HTMLInputElement | null>;
   /** 窄螢幕的「篩選」按鈕的 id。 */
@@ -63,7 +66,8 @@ export function useItemTableState(detail: ProjectDetail): ItemTableState {
     [detail.blueprint, hasCycles, hasMilestones, canSelect],
   );
   // 快速新增的類型跟著篩選的類型（新增沿用當下的條件）。
-  const quickAdd = useQuickAddState(detail, filters);
+  const staleNow = useStaleAnchor(filters);
+  const quickAdd = useQuickAddState(detail, filters, staleNow);
   const searchRef = useRef<HTMLInputElement>(null);
   const filterButtonId = useId();
   // 換專案、條件、排序就清空選取：選的是「這一份清單裡的這幾個」。
@@ -83,5 +87,5 @@ export function useItemTableState(detail: ProjectDetail): ItemTableState {
     }, [searchRef, filterButtonId]);
   }
 
-  return { filters, setFilters, clearFilters, columns, visibility, setVisibility, widths, quickAdd, searchRef, filterButtonId, selection, bulk };
+  return { filters, setFilters, clearFilters, columns, visibility, setVisibility, widths, quickAdd, staleNow, searchRef, filterButtonId, selection, bulk };
 }

@@ -37,7 +37,7 @@ async function openAgy(path = '/projects/AGY') {
 }
 
 describe('表格的到期與優先度篩選', () => {
-  it('到期的選項：所有到期日、已過期、今天到期、本週到期、沒有到期日', async () => {
+  it('到期的選項：所有到期日、已過期、今天到期、本週到期、7 天內到期、沒有到期日', async () => {
     // Arrange
     const { user, filters } = await openAgy();
 
@@ -45,7 +45,7 @@ describe('表格的到期與優先度篩選', () => {
     const options = await openOptions(user, within(filters).getByRole('combobox', { name: '到期' }));
 
     // Assert
-    expect(options.map((option) => option.textContent)).toEqual(['所有到期日', '已過期', '今天到期', '本週到期', '沒有到期日']);
+    expect(options.map((option) => option.textContent)).toEqual(['所有到期日', '已過期', '今天到期', '本週到期', '7 天內到期', '沒有到期日']);
   });
 
   it('優先度的選項：所有優先度、緊急、高、中、低、未設定（和項目上顯示的一樣）', async () => {

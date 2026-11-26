@@ -39,7 +39,7 @@ function mergeMessage(pending: Pending, message: ItemsMessage): Pending {
   return next;
 }
 
-function invalidateItems(queryClient: QueryClient, pending: Pending): void {
+function invalidateItems(queryClient: QueryClient, pending: Pending, invalidateOverviews: () => void): void {
   pending.forEach((itemKeys, projectKey) => {
     projectKeys(projectKey).forEach((queryKey) => {
       void queryClient.invalidateQueries({ queryKey });
@@ -54,6 +54,37 @@ function invalidateItems(queryClient: QueryClient, pending: Pending): void {
   });
   // 側欄的數量與「我的工作」的四種版面。
   void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
+  // 專案總覽的數字（任何專案的項目變了都可能動到）；有節流，見 createOverviewThrottle。
+  invalidateOverviews();
+}
+
+/** 專案總覽最多這麼久失效一次（毫秒）：後端每次都掃全組織的項目，不能跟著每 500 毫秒一輪的推送重抓。 */
+export const OVERVIEW_THROTTLE_MS = 10_000;
+
+/**
+ * 總覽失效的節流：前緣馬上做（第一次不用等），期間內又來的記成一次，到期補上，不會丟掉最後一次。
+ * 清單等其他快取不走這裡。
+ */
+function createOverviewThrottle(queryClient: QueryClient) {
+  let lastAt: number | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  function run(): void {
+    timer = undefined;
+    lastAt = Date.now();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.overviews });
+  }
+  return {
+    invalidate: (): void => {
+      if (timer !== undefined) return;
+      const waitMs = lastAt === undefined ? 0 : Math.max(0, OVERVIEW_THROTTLE_MS - (Date.now() - lastAt));
+      if (waitMs === 0) run();
+      else timer = setTimeout(run, waitMs);
+    },
+    dispose: (): void => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    },
+  };
 }
 
 /** 寫入還在送，最多先記著這麼久（毫秒）：卡住或離線暫停的寫入不能讓即時更新整個停住。拖曳、輸入沒有上限。 */
@@ -132,6 +163,7 @@ export interface LiveInvalidatorOptions {
  */
 export function createLiveInvalidator(queryClient: QueryClient, { delayMs = COALESCE_MS, selfId = () => undefined }: LiveInvalidatorOptions = {}): LiveInvalidator {
   const work = createPendingWork();
+  const overviewThrottle = createOverviewThrottle(queryClient);
   let isDisposed = false;
   let isWaitingOnWrite = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -150,7 +182,7 @@ export function createLiveInvalidator(queryClient: QueryClient, { delayMs = COAL
     }
     const batch = work.takeItems();
     if (batch === 'all') void queryClient.invalidateQueries();
-    else if (batch !== null) invalidateItems(queryClient, batch);
+    else if (batch !== null) invalidateItems(queryClient, batch, overviewThrottle.invalidate);
   }
 
   function schedule(): void {
@@ -180,6 +212,7 @@ export function createLiveInvalidator(queryClient: QueryClient, { delayMs = COAL
       isDisposed = true;
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
+      overviewThrottle.dispose();
       stopWatching.forEach((stop) => { stop(); });
     },
   };

@@ -48,6 +48,7 @@ function useCreateProject() {
     mutationFn: (request: NewProjectRequest) => createProject(request),
     onSuccess: async (project) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.overviews });
       await navigate(`/projects/${encodeURIComponent(project.key)}`);
     },
     onError: (error) => {

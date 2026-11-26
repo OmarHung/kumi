@@ -59,6 +59,8 @@ internal sealed class FakeModules
 
     public FakePlanningService Planning { get; } = new();
 
+    public FakeProjectOverviewService Overview { get; } = new();
+
     public FakeBlueprintChangeService Changes { get; } = new();
 
     public FakeNotificationInbox Notifications { get; } = new();

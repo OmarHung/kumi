@@ -29,29 +29,40 @@ internal static class ItemQueryParser
 
     public static Result<WorkItemQuery> Parse(IQueryCollection query, Guid me)
     {
-        var categories = ParseCategories(query["stateCategory"]);
-        var assignee = QueryParameters.Single(query, "assignee").Then(value => ParseAssignee(value, me));
-        var createdBy = QueryParameters.Single(query, "createdBy").Then(value => ParseCreatedBy(value, me));
-        var sort = QueryParameters.Single(query, "sort").Then(ParseSort);
-        var limit = QueryParameters.LimitOf(query, WorkItemQuery.DefaultLimit);
-        var search = QueryParameters.Single(query, "q");
-        var parent = QueryParameters.Single(query, "parent");
-        var cursor = QueryParameters.Single(query, QueryParameters.Cursor);
-        var priorities = ParsePriorities(query["priority"]);
-        var dueFrom = QueryParameters.Single(query, "dueFrom").Then(value => ParseDate(value, "dueFrom"));
-        var dueTo = QueryParameters.Single(query, "dueTo").Then(value => ParseDate(value, "dueTo"));
-        var datesFrom = QueryParameters.Single(query, "datesFrom").Then(value => ParseDate(value, "datesFrom"));
-        var datesTo = QueryParameters.Single(query, "datesTo").Then(value => ParseDate(value, "datesTo"));
-        var noDue = QueryParameters.Single(query, "noDue").Then(ParseNoDue);
-        var cycle = QueryParameters.Single(query, "cycle").Then(value => ParseReference(value, "cycle", "週期"));
-        var milestone = QueryParameters.Single(query, "milestone").Then(value => ParseReference(value, "milestone", "里程碑"));
+        return ToQuery(query, ParseAll(query, me));
+    }
 
-        var fields = ParseFieldFilters(query);
+    private static ParsedQuery ParseAll(IQueryCollection query, Guid me)
+    {
+        return new ParsedQuery(
+            ParseFieldFilters(query),
+            ParseCategories(query["stateCategory"]),
+            QueryParameters.Single(query, "assignee").Then(value => ParseAssignee(value, me)),
+            QueryParameters.Single(query, "createdBy").Then(value => ParseCreatedBy(value, me)),
+            QueryParameters.Single(query, "updatedBefore").Then(ParseInstant),
+            QueryParameters.Single(query, "sort").Then(ParseSort),
+            QueryParameters.LimitOf(query, WorkItemQuery.DefaultLimit),
+            QueryParameters.Single(query, "q"),
+            QueryParameters.Single(query, "parent"),
+            QueryParameters.Single(query, QueryParameters.Cursor),
+            ParsePriorities(query["priority"]),
+            DateRange(query, "dueFrom", "dueTo"),
+            DateRange(query, "datesFrom", "datesTo"),
+            QueryParameters.Single(query, "noDue").Then(ParseNoDue),
+            QueryParameters.Single(query, "cycle").Then(value => ParseReference(value, "cycle", "週期")),
+            QueryParameters.Single(query, "milestone").Then(value => ParseReference(value, "milestone", "里程碑")));
+    }
 
+    private static DateBounds DateRange(IQueryCollection query, string from, string to) =>
+        new(QueryParameters.Single(query, from).Then(value => ParseDate(value, from)),
+            QueryParameters.Single(query, to).Then(value => ParseDate(value, to)));
+
+    private static Result<WorkItemQuery> ToQuery(IQueryCollection query, ParsedQuery p)
+    {
         var failure = QueryParameters.FailureOf(
-            [.. fields.Problems,
-            categories.Problem, assignee.Problem, createdBy.Problem, sort.Problem, limit.Problem, search.Problem, parent.Problem, cursor.Problem,
-            priorities.Problem, dueFrom.Problem, dueTo.Problem, datesFrom.Problem, datesTo.Problem, noDue.Problem, cycle.Problem, milestone.Problem]);
+            [.. p.Fields.Problems,
+            p.Categories.Problem, p.Assignee.Problem, p.CreatedBy.Problem, p.UpdatedBefore.Problem, p.Sort.Problem, p.Limit.Problem, p.Search.Problem, p.Parent.Problem, p.Cursor.Problem,
+            p.Priorities.Problem, p.Due.From.Problem, p.Due.To.Problem, p.Dates.From.Problem, p.Dates.To.Problem, p.NoDue.Problem, p.Cycle.Problem, p.Milestone.Problem]);
         if (failure is not null)
         {
             return failure;
@@ -61,28 +72,29 @@ internal static class ItemQueryParser
         {
             Types = QueryParameters.NonEmpty(query["type"]),
             States = QueryParameters.NonEmpty(query["state"]),
-            StateCategories = categories.Value,
-            AssigneeId = assignee.Value.PersonId,
-            OnlyUnassigned = assignee.Value.OnlyUnassigned,
-            CreatedBy = createdBy.Value,
-            Priorities = priorities.Value,
-            DueFrom = dueFrom.Value,
-            DueTo = dueTo.Value,
-            DatesFrom = datesFrom.Value,
-            DatesTo = datesTo.Value,
-            OnlyWithoutDueDate = noDue.Value,
-            CycleId = cycle.Value.Id,
-            OnlyWithoutCycle = cycle.Value.OnlyNone,
-            MilestoneId = milestone.Value.Id,
-            OnlyWithoutMilestone = milestone.Value.OnlyNone,
-            Search = search.Value,
-            ParentKey = parent.Value,
-            FieldFilters = fields.Filters,
-            SortBy = sort.Value.Field,
-            SortFieldKey = sort.Value.FieldKey,
-            Descending = sort.Value.Descending,
-            Limit = limit.Value,
-            Cursor = cursor.Value,
+            StateCategories = p.Categories.Value,
+            AssigneeId = p.Assignee.Value.PersonId,
+            OnlyUnassigned = p.Assignee.Value.OnlyUnassigned,
+            CreatedBy = p.CreatedBy.Value,
+            UpdatedBefore = p.UpdatedBefore.Value,
+            Priorities = p.Priorities.Value,
+            DueFrom = p.Due.From.Value,
+            DueTo = p.Due.To.Value,
+            DatesFrom = p.Dates.From.Value,
+            DatesTo = p.Dates.To.Value,
+            OnlyWithoutDueDate = p.NoDue.Value,
+            CycleId = p.Cycle.Value.Id,
+            OnlyWithoutCycle = p.Cycle.Value.OnlyNone,
+            MilestoneId = p.Milestone.Value.Id,
+            OnlyWithoutMilestone = p.Milestone.Value.OnlyNone,
+            Search = p.Search.Value,
+            ParentKey = p.Parent.Value,
+            FieldFilters = p.Fields.Filters,
+            SortBy = p.Sort.Value.Field,
+            SortFieldKey = p.Sort.Value.FieldKey,
+            Descending = p.Sort.Value.Descending,
+            Limit = p.Limit.Value,
+            Cursor = p.Cursor.Value,
         };
     }
 
@@ -110,6 +122,33 @@ internal static class ItemQueryParser
         value is null ? new Parsed<DateOnly?>(null)
         : DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? new Parsed<DateOnly?>(date)
         : Parsed<DateOnly?>.Invalid(null, parameter, "日期要寫成 YYYY-MM-DD。");
+
+    // 只收帶時區（Z 或 ±HH:mm）的 ISO 8601，小數秒可有可無：沒帶時區的時間不知道是哪裡的幾點，伺服器不猜；
+    // 寬鬆的解析會把 RFC 1123 這類寫法也收進來。結果一律換成 UTC，資料庫的 timestamptz 只收 Offset 是 0 的值。
+    private static readonly string[] InstantFormats =
+    [
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'",
+        "yyyy-MM-dd'T'HH:mm:sszzz",
+        "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFzzz",
+    ];
+
+    private static Parsed<DateTimeOffset?> ParseInstant(string? value)
+    {
+        if (value is null)
+        {
+            return new Parsed<DateTimeOffset?>(null);
+        }
+
+        // 引號裡的 Z 不帶時區資訊，要明說當 UTC，否則會照伺服器的本地時區算。zzz 也收 +0800，這裡擋掉。
+        return HasStandardZone(value)
+            && DateTimeOffset.TryParseExact(value, InstantFormats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var instant)
+            ? new Parsed<DateTimeOffset?>(instant.ToUniversalTime())
+            : Parsed<DateTimeOffset?>.Invalid(null, "updatedBefore", "時間要寫成含時區的 ISO 8601，例如 2026-11-26T10:00:00Z。");
+    }
+
+    private static bool HasStandardZone(string value) =>
+        value.EndsWith('Z') || (value.Length > 6 && value[^3] == ':' && value[^6] is '+' or '-');
 
     private static Parsed<bool> ParseNoDue(string? value) => value switch
     {
@@ -208,6 +247,26 @@ internal static class ItemQueryParser
     private sealed record AssigneeFilter(Guid? PersonId, bool OnlyUnassigned);
 
     private sealed record SortOrder(WorkItemSortField Field, bool Descending, string? FieldKey = null);
+
+    private sealed record DateBounds(Parsed<DateOnly?> From, Parsed<DateOnly?> To);
+
+    private sealed record ParsedQuery(
+        ParsedFields Fields,
+        Parsed<IReadOnlyList<StateCategory>> Categories,
+        Parsed<AssigneeFilter> Assignee,
+        Parsed<Guid?> CreatedBy,
+        Parsed<DateTimeOffset?> UpdatedBefore,
+        Parsed<SortOrder> Sort,
+        Parsed<int> Limit,
+        Parsed<string?> Search,
+        Parsed<string?> Parent,
+        Parsed<string?> Cursor,
+        Parsed<IReadOnlyList<Priority>> Priorities,
+        DateBounds Due,
+        DateBounds Dates,
+        Parsed<bool> NoDue,
+        Parsed<ReferenceFilter> Cycle,
+        Parsed<ReferenceFilter> Milestone);
 
     private sealed record ParsedFields(IReadOnlyList<FieldFilter> Filters, IReadOnlyList<FailureDetail> Problems);
 }

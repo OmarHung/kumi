@@ -124,14 +124,10 @@ internal static class ReadableProjects
             .Where(m => m.OrganizationId == actor.OrganizationId && m.PersonId == actor.PersonId)
             .Join(db.Projects, m => m.ProjectId, p => p.Id, (m, p) => new { p.Id, p.CurrentBlueprintVersion, m.Role })
             .ToListAsync(cancellationToken);
-        var memberships = new List<Membership>(rows.Count);
-        foreach (var row in rows)
-        {
-            // 自訂角色的權限寫在藍圖裡；藍圖有快取，這裡通常不會查資料庫。
-            var schema = await cache.GetAsync(db, actor.OrganizationId, row.Id, row.CurrentBlueprintVersion, cancellationToken);
-            memberships.Add(new Membership(row.Id, row.Role, schema));
-        }
 
-        return memberships;
+        // 自訂角色的權限寫在藍圖裡；藍圖有快取，沒快取的合成一個查詢讀（不是一個專案查一次）。
+        var schemas = await cache.GetManyAsync(
+            db, actor.OrganizationId, [.. rows.Select(row => (row.Id, row.CurrentBlueprintVersion))], cancellationToken);
+        return [.. rows.Select(row => new Membership(row.Id, row.Role, schemas[row.Id]))];
     }
 }

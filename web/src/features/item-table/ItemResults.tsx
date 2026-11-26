@@ -104,14 +104,14 @@ function LoadError({ result }: { readonly result: ItemsResult }) {
  * 依條件讀項目。這三種情況項目的請求都不送：清單還沒載入（換成編號之前先送，會多打一次沒有結果的請求）、
  * 清單讀不到（結果說不準，不能當成沒有）、現在沒有進行中的週期（結果一定是空的，也不送假編號）。
  */
-function useItemResults(filters: ItemFilters) {
+function useItemResults(filters: ItemFilters, staleNow: Date) {
   const { detail, todayDate } = useProjectTable();
   const planning = usePlanning(detail.project.key);
   const weekStart = useWeekStart();
   const isWaitingForCycles = filters.cycle === CURRENT_CYCLE && planning.isCyclesPending;
   const isBlocked = isPlanningFilterBlocked(planning, filters);
   const hasNoCurrent = !isWaitingForCycles && !isBlocked && hasNoCurrentCycle(filters.cycle, planning.cycles, todayDate);
-  const query = toItemQuery(filters, ITEMS_PAGE_SIZE, todayDate, weekStart, planning.cycles);
+  const query = toItemQuery(filters, ITEMS_PAGE_SIZE, todayDate, weekStart, planning.cycles, staleNow);
   const result = useProjectItems(detail.project.key, query, !isWaitingForCycles && !isBlocked && !hasNoCurrent);
   return { planning, isBlocked, hasNoCurrent, result };
 }
@@ -127,7 +127,7 @@ function sortedBy(filters: ItemFilters, field: ItemSortField): ItemFilters {
 export function ItemResults({ table }: { readonly table: ItemTableState }) {
   const { filters, setFilters, clearFilters, columns, visibility, selection } = table;
   const isCompact = useIsCompact();
-  const { planning, isBlocked, hasNoCurrent, result } = useItemResults(filters);
+  const { planning, isBlocked, hasNoCurrent, result } = useItemResults(filters, table.staleNow);
   const items = useMemo(() => flattenItemPages(result.data), [result.data]);
   const gridRef = useRef<RovingGridHandle>(null);
   useSyncSelection(selection, items, isCompact);

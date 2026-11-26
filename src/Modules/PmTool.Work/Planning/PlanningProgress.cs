@@ -29,6 +29,24 @@ internal static class PlanningProgress
             i => i.MilestoneId,
             cancellationToken);
 
+    /// <summary>
+    /// 一批週期的進度，項目範圍由呼叫端給（總覽跨專案，已經套好各專案的範圍）。週期的編號全域唯一，不必再分專案。
+    /// </summary>
+    public static Task<IReadOnlyDictionary<Guid, ItemProgress>> OfCyclesAsync(
+        IQueryable<ItemEntity> scopedItems, IReadOnlyCollection<Guid> cycleIds, CancellationToken cancellationToken)
+    {
+        var ids = cycleIds.ToArray();
+        return SummarizeAsync(scopedItems.Where(i => i.CycleId != null && ids.Contains(i.CycleId.Value)), i => i.CycleId, cancellationToken);
+    }
+
+    public static Task<IReadOnlyDictionary<Guid, ItemProgress>> OfMilestonesAsync(
+        IQueryable<ItemEntity> scopedItems, IReadOnlyCollection<Guid> milestoneIds, CancellationToken cancellationToken)
+    {
+        var ids = milestoneIds.ToArray();
+        return SummarizeAsync(
+            scopedItems.Where(i => i.MilestoneId != null && ids.Contains(i.MilestoneId.Value)), i => i.MilestoneId, cancellationToken);
+    }
+
     /// <summary>這個專案、呼叫者看得到的項目：只看自己的人，進度只算他看得到的，不讓人從數字推出看不到的項目。</summary>
     private static IQueryable<ItemEntity> InScope(WorkDbContext db, ProjectAccess access) =>
         access.Items.Apply(ItemStore.Live(db).Where(i => i.OrganizationId == access.Project.OrganizationId && i.ProjectId == access.Project.Id));

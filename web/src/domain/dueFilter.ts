@@ -1,18 +1,23 @@
 import type { StateCategory } from '../api/blueprint';
 import type { CalendarDate, ItemQuery, Priority } from '../api/types';
-import { addDays, endOfWeek, isOverdue } from './dates';
+import { addDays, endOfWeek, isOverdue, isTerminal } from './dates';
 import type { WeekStart } from '../lib/weekStart';
 import { PRIORITY_LABELS } from './labels';
+import { DUE_SOON_DAYS } from './overviewRules';
 
-/** 篩選的「到期」：已過期、今天、本週（今天到這一週的最後一天，一週從哪天開始看個人偏好）、沒有到期日。 */
-export type DueFilter = 'overdue' | 'today' | 'week' | 'none';
+/**
+ * 篩選的「到期」：已過期、今天、本週（今天到這一週的最後一天，一週從哪天開始看個人偏好）、
+ * 7 天內（今天到 6 天後，專案總覽的「快到期」，和一週從哪天開始無關）、沒有到期日。
+ */
+export type DueFilter = 'overdue' | 'today' | 'week' | 'soon' | 'none';
 
-export const DUE_FILTERS: readonly DueFilter[] = ['overdue', 'today', 'week', 'none'];
+export const DUE_FILTERS: readonly DueFilter[] = ['overdue', 'today', 'week', 'soon', 'none'];
 
 export const DUE_FILTER_LABELS: Readonly<Record<DueFilter, string>> = {
   overdue: '已過期',
   today: '今天到期',
   week: '本週到期',
+  soon: `${String(DUE_SOON_DAYS)} 天內到期`,
   none: '沒有到期日',
 };
 
@@ -46,6 +51,9 @@ export function dueQuery(due: DueFilter | null, todayDate: CalendarDate, weekSta
       return { dueFrom: todayDate, dueTo: todayDate };
     case 'week':
       return { dueFrom: todayDate, dueTo: endOfWeek(todayDate, weekStart) };
+    // 和總覽的「快到期」同一個定義（還沒結束），點進來的筆數才對得上。
+    case 'soon':
+      return { dueFrom: todayDate, dueTo: addDays(todayDate, DUE_SOON_DAYS - 1), stateCategory: OPEN_CATEGORIES };
     case 'none':
       return { noDue: true };
     case null:
@@ -70,6 +78,8 @@ export function matchesDue(
       return dueDate === todayDate;
     case 'week':
       return dueDate !== null && dueDate >= todayDate && dueDate <= endOfWeek(todayDate, weekStart);
+    case 'soon':
+      return dueDate !== null && !isTerminal(category) && dueDate >= todayDate && dueDate <= addDays(todayDate, DUE_SOON_DAYS - 1);
     case 'none':
       return dueDate === null;
   }
