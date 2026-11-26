@@ -28,6 +28,8 @@ export interface HostEngineStatus {
   readonly problem: string | null;
   readonly authorizedAt: string | null;
   readonly authorizedBy: { readonly personId: string; readonly displayName: string } | null;
+  /** 擁有者按了登出、主機還沒回報做完；這時 problem 是登出中的說明。 */
+  readonly logoutPending: boolean;
 }
 
 export type HostLoginState = 'pending' | 'claimed' | 'completed' | 'failed' | 'cancelled';

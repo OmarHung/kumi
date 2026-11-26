@@ -65,7 +65,7 @@ public sealed class HostAgentAdminEndpointTests
               "machineName":"host-01","agentVersion":"0.9.0","serverUrl":"http://api:8080",
               "engines":[{"kind":"claude_code","readiness":"ready","version":"2.1.330","loggedIn":true,"billing":"api",
                 "models":[{"id":"default","displayName":"預設","efforts":["low","high"],"defaultEffort":"high"}],
-                "problem":null,"authorizedAt":"2026-11-24T03:00:00Z","authorizedBy":{{owner}}}],
+                "problem":null,"authorizedAt":"2026-11-24T03:00:00Z","authorizedBy":{{owner}},"logoutPending":false}],
               "logins":[{"id":"{{FakeHostAgentAdminService.LoginId}}","engine":"claude_code","state":"pending","expiresAt":"2026-11-24T03:15:00Z",
                 "error":null,"startedBy":{{owner}},"createdAt":"2026-11-24T03:00:00Z"}],
               "pairingExpiresAt":null,"createdAt":"2026-11-23T03:00:00Z",

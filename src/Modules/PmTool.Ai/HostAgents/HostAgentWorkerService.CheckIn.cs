@@ -42,8 +42,13 @@ internal sealed partial class HostAgentWorkerService
             return registered;
         }
 
-        var job = await WaitForJobAsync(agent, capacity, cancellationToken);
-        return registered with { Job = job };
+        // 這次登記就要它登出的照樣等：登出失敗、CLI 還登入著時，每次登記都會再要求一次，不等的話 worker 會不停地登記、重跑登出。
+        var loggedIn = valid.Value.Engines
+            .Where(e => e.LoggedIn && !registered.Logout.Contains(e.Kind))
+            .Select(e => AiEnumNames.NameOf(e.Kind))
+            .ToHashSet();
+        var (job, logout) = await WaitForJobAsync(agent, capacity, loggedIn, cancellationToken);
+        return registered with { Job = job, Logout = [.. registered.Logout.Union(logout)] };
     }
 
     /// <summary>
@@ -130,8 +135,11 @@ internal sealed partial class HostAgentWorkerService
     /// <summary>
     /// 先看有沒有可以領的（不開交易的 EXISTS），有才開交易領；沒有就等同一個程序內排進工作時發的訊號，
     /// 或最多等 <see cref="HostTimings.ClaimPollInterval"/> 再問資料庫（別的 API 程序收進來的工作）。呼叫端斷線時什麼都不領。
+    /// 等的時候擁有者新要求登出（<paramref name="loggedIn"/> 裡的引擎）也馬上回、帶著要登出的引擎：
+    /// worker 大部分時間都在這裡等，不回的話登出要 25 秒以上才生效，看起來像沒成功。
     /// </summary>
-    private async Task<HostJob?> WaitForJobAsync(HostAgentIdentity agent, int capacity, CancellationToken cancellationToken)
+    private async Task<(HostJob? Job, IReadOnlyList<AiProviderKind> Logout)> WaitForJobAsync(
+        HostAgentIdentity agent, int capacity, IReadOnlySet<string> loggedIn, CancellationToken cancellationToken)
     {
         var started = time.GetTimestamp();
         try
@@ -142,13 +150,18 @@ internal sealed partial class HostAgentWorkerService
                 var wake = signals.Next(agent.AgentId);
                 if (await HasClaimableAsync(agent, cancellationToken) && await TryClaimAsync(agent, capacity, cancellationToken) is { } job)
                 {
-                    return job;
+                    return (job, []);
+                }
+
+                if (await PendingLogoutAsync(agent, loggedIn, cancellationToken) is { Count: > 0 } logout)
+                {
+                    return (null, logout);
                 }
 
                 var remaining = timings.PollWait - time.GetElapsedTime(started);
                 if (remaining <= TimeSpan.Zero)
                 {
-                    return null;
+                    return (null, []);
                 }
 
                 await Task.WhenAny(wake, Task.Delay(remaining < timings.ClaimPollInterval ? remaining : timings.ClaimPollInterval, cancellationToken));
@@ -157,8 +170,27 @@ internal sealed partial class HostAgentWorkerService
         }
         catch (OperationCanceledException)
         {
-            return null;
+            return (null, []);
         }
+    }
+
+    /// <summary>擁有者要求登出、而且在 <paramref name="loggedIn"/> 裡（這次登記時還登入著、還沒告訴 worker 要登出）的引擎。</summary>
+    private async Task<IReadOnlyList<AiProviderKind>> PendingLogoutAsync(
+        HostAgentIdentity agent, IReadOnlySet<string> loggedIn, CancellationToken cancellationToken)
+    {
+        if (loggedIn.Count == 0)
+        {
+            return [];
+        }
+
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var requested = await db.HostAgents.AsNoTracking()
+            .Where(a => a.Id == agent.AgentId && a.OrganizationId == agent.OrganizationId)
+            .Select(a => a.LogoutRequested)
+            .SingleOrDefaultAsync(cancellationToken);
+        return requested is null
+            ? []
+            : [.. HostEnginesJson.DeserializeNames(requested).Where(loggedIn.Contains).Select(AiEnumNames.ParseKind)];
     }
 
     private async Task<bool> HasClaimableAsync(HostAgentIdentity agent, CancellationToken cancellationToken)

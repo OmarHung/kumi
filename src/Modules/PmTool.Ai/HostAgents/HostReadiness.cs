@@ -15,7 +15,24 @@ internal sealed record HostSourceView(HostSourceRow Source, HostAgentRow Agent, 
 /// </summary>
 internal static class HostReadiness
 {
-    public static HostEngineStatus Evaluate(AiProviderKind kind, StoredHostEngine? report, HostAuthorization? authorization)
+    /// <param name="logoutRequested">擁有者要求這個引擎登出、worker 還沒回報做完（<c>host_agents.logout_requested</c>）。</param>
+    public static HostEngineStatus Evaluate(AiProviderKind kind, StoredHostEngine? report, HostAuthorization? authorization, bool logoutRequested)
+    {
+        var status = EvaluateReport(kind, report, authorization);
+        if (!logoutRequested || !status.LoggedIn)
+        {
+            return status;
+        }
+
+        // 授權在按下登出時就作廢了，這時照一般的規則會是「需要重新授權、請重新登入」，看起來像登出沒成功。
+        return status with { LogoutPending = true, Problem = $"已要求 {HostEnums.EngineLabel(kind)} 登出，等主機回報（通常幾秒內）。" };
+    }
+
+    /// <summary>某個代理的某個引擎是不是正等著登出。</summary>
+    public static bool IsLogoutRequested(HostAgentRow agent, AiProviderKind kind) =>
+        HostEnginesJson.DeserializeNames(agent.LogoutRequested).Contains(AiEnumNames.NameOf(kind));
+
+    private static HostEngineStatus EvaluateReport(AiProviderKind kind, StoredHostEngine? report, HostAuthorization? authorization)
     {
         var label = HostEnums.EngineLabel(kind);
         if (report is not { Installed: true })
@@ -149,6 +166,6 @@ internal static class HostReadiness
     {
         var kind = AiEnumNames.ParseKind(source.Engine);
         auths.TryGetValue((agent.Id, source.Engine), out var auth);
-        return new HostSourceView(source, agent, Evaluate(kind, ReportOf(agent, kind), auth));
+        return new HostSourceView(source, agent, Evaluate(kind, ReportOf(agent, kind), auth, IsLogoutRequested(agent, kind)));
     }
 }

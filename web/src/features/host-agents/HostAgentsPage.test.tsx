@@ -473,8 +473,25 @@ describe('主機 AI 代理：引擎登入', () => {
     await waitFor(() => {
       expect(backend.logouts).toEqual([{ agentId: 'agent-1', engine: 'claude_code' }]);
     });
-    expect(await within(engineRow('Claude Code')).findByText('需要登入')).toBeInTheDocument();
+    // 主機還沒回報之前是「登出中」，不是「需要重新授權」，也不再給登出、登入的按鈕（看起來才不像沒成功）。
+    expect(await within(engineRow('Claude Code')).findByText('登出中')).toBeInTheDocument();
+    expect(within(engineRow('Claude Code')).getByText(/已要求 Claude Code 登出/)).toBeInTheDocument();
     expect(within(engineRow('Claude Code')).queryByRole('button', { name: '登出 Claude Code' })).not.toBeInTheDocument();
+    expect(within(engineRow('Claude Code')).queryByRole('button', { name: /登入 Claude Code/ })).not.toBeInTheDocument();
+  });
+
+  it('主機回報已經登出之後顯示需要登入、可以重新開始登入', async () => {
+    // Arrange
+    const loggedOut = exampleEngine({ readiness: 'not_logged_in', loggedIn: false, authorizedAt: null, authorizedBy: null, problem: '還沒登入。' });
+
+    // Act
+    await openHostSection({ agents: [exampleHostAgent({ engines: [loggedOut] })] });
+
+    // Assert
+    const claude = await waitFor(() => engineRow('Claude Code'));
+    expect(within(claude).getByText('需要登入')).toBeInTheDocument();
+    expect(within(claude).getByRole('button', { name: '開始登入 Claude Code' })).toBeInTheDocument();
+    expect(within(claude).queryByRole('button', { name: '登出 Claude Code' })).not.toBeInTheDocument();
   });
 
   it('開始登入被拒絕：說明寫在那個引擎底下', async () => {

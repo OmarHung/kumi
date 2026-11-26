@@ -34,6 +34,7 @@ export function exampleEngine(overrides: Partial<HostEngineStatus> = {}): HostEn
     problem: null,
     authorizedAt: AT,
     authorizedBy: OWNER,
+    logoutPending: false,
     ...overrides,
   };
 }
@@ -254,7 +255,12 @@ export function serveHostAgents(initial: Partial<HostAgentOverview> = {}): HostA
       if (agent === undefined) return missingAgent();
       replaceAgent({
         ...agent,
-        engines: agent.engines.map((engine) => (engine.kind === params.engine ? { ...engine, readiness: 'not_logged_in' as const, loggedIn: false, authorizedAt: null, authorizedBy: null } : engine)),
+        // 和真的伺服器一樣：授權馬上作廢，CLI 要等主機回報才是登出的，這之間是「登出中」。
+        engines: agent.engines.map((engine) =>
+          engine.kind === params.engine
+            ? { ...engine, readiness: 'not_authorized' as const, authorizedAt: null, authorizedBy: null, logoutPending: true, problem: `已要求 ${engine.kind === 'codex' ? 'Codex' : 'Claude Code'} 登出，等主機回報（通常幾秒內）。` }
+            : engine,
+        ),
       });
       return new Response(null, { status: 204 });
     }),

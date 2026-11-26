@@ -42,7 +42,8 @@ internal sealed record HostEngineStatusData(
     IReadOnlyList<AiModelOptionData> Models,
     string? Problem,
     DateTimeOffset? AuthorizedAt,
-    PersonReference? AuthorizedBy)
+    PersonReference? AuthorizedBy,
+    bool LogoutPending)
 {
     public static HostEngineStatusData From(HostEngineStatus engine, PeopleNames names) => new(
         engine.Kind,
@@ -53,7 +54,8 @@ internal sealed record HostEngineStatusData(
         [.. engine.Models.Select(m => new AiModelOptionData(m.Id, m.DisplayName, m.Efforts, m.DefaultEffort))],
         engine.Problem,
         engine.AuthorizedAt,
-        engine.AuthorizedBy is { } person ? new PersonReference(person, names.NameOf(person)) : null);
+        engine.AuthorizedBy is { } person ? new PersonReference(person, names.NameOf(person)) : null,
+        engine.LogoutPending);
 }
 
 internal sealed record HostLoginData(

@@ -39,12 +39,17 @@ function EngineFacts({ status }: { readonly status: HostEngineStatus }) {
   return parts.length === 0 ? null : <p className={styles.note}>{parts.join(' · ')}</p>;
 }
 
+function statusText(status: HostEngineStatus | undefined): string {
+  if (status === undefined) return '還沒回報';
+  return status.logoutPending ? '登出中' : READINESS_TEXT[status.readiness];
+}
+
 function EngineTitle({ id, label, status }: { readonly id: string; readonly label: string; readonly status: HostEngineStatus | undefined }) {
   return (
     <div className={styles.info}>
       <p className={styles.name}>
         <span id={id}>{label}</span>
-        <span className={styles.status}>{status === undefined ? '還沒回報' : READINESS_TEXT[status.readiness]}</span>
+        <span className={styles.status}>{statusText(status)}</span>
       </p>
       {status !== undefined && <EngineFacts status={status} />}
     </div>
@@ -184,8 +189,10 @@ export function EngineRow({ agent, engine }: EngineRowProps) {
   const rowRef = useFocusRowAfterCode(started !== null);
   const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
   const label = engineLabel(engine);
-  const isAuthorized = status !== undefined && (status.loggedIn || status.authorizedAt !== null);
-  const canLogin = agent.state === 'active' && (login === undefined || login.state === 'failed');
+  // 登出中不給登出、登入：再按一次沒有意義，這時開始的登入也會被接著執行的登出登掉。
+  const isLoggingOut = status?.logoutPending === true;
+  const isAuthorized = status !== undefined && !isLoggingOut && (status.loggedIn || status.authorizedAt !== null);
+  const canLogin = agent.state === 'active' && !isLoggingOut && (login === undefined || login.state === 'failed');
   const problem = status?.problem ?? '';
   const error = [start, cancel].find((mutation) => mutation.isError)?.error;
 

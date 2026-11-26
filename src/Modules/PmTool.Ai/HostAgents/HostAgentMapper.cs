@@ -22,7 +22,7 @@ internal static class HostAgentMapper
         [.. HostEnginesJson.Deserialize(row.Engines).Select(report =>
         {
             auths.TryGetValue((row.Id, AiEnumNames.NameOf(report.Kind)), out var auth);
-            return HostReadiness.Evaluate(report.Kind, report, auth);
+            return HostReadiness.Evaluate(report.Kind, report, auth, HostReadiness.IsLogoutRequested(row, report.Kind));
         })],
         [.. logins.Where(l => l.AgentId == row.Id && IsVisible(l, now)).OrderBy(l => l.CreatedAt).Select(ToLogin)],
         row.State == HostAgentStates.AwaitingPairing ? row.PairingExpiresAt : null,

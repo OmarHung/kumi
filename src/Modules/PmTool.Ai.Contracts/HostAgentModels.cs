@@ -265,7 +265,14 @@ public sealed record HostEngineStatus(
     IReadOnlyList<AiModelOption> Models,
     string? Problem,
     DateTimeOffset? AuthorizedAt,
-    Guid? AuthorizedBy);
+    Guid? AuthorizedBy)
+{
+    /// <summary>
+    /// 擁有者按了登出、worker 還沒回報已經登出：網頁顯示「登出中」，不要讓還登入著的 CLI 看起來像「需要重新授權」。
+    /// 這時 <see cref="Problem"/> 是登出中的說明。
+    /// </summary>
+    public bool LogoutPending { get; init; }
+}
 
 /// <summary>擁有者的設定頁看到的一台主機代理。</summary>
 /// <param name="Online">最近 <see cref="AiRules.HostAgentOnlineWindow"/> 內登記過。</param>
