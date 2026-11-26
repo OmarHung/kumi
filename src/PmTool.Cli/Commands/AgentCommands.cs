@@ -72,6 +72,8 @@ internal static class AgentCommands
     {
         var context = call.Context;
         using var held = await AcquireLockAsync(call, service);
+        var connection = new ConnectionTracker(held.Report, () => DateTimeOffset.Now);
+        connection.Connecting();
         var (api, credentials) = ConnectForAgent(call);
         var console = new AgentConsole(logs?.Out ?? call.Out, logs?.Error ?? call.Error, call.Json);
         var options = service ? context.AgentOptions with { MaxBackoff = ServiceRetry.MaxBackoff } : context.AgentOptions;
@@ -83,12 +85,14 @@ internal static class AgentCommands
             if (service)
             {
                 await ServiceRetry.RunAsync(
-                    async () => { await EnsureScopesAsync(api, stop.Token); return true; }, options, console.Notice, stop.Token);
+                    async () => { await EnsureScopesAsync(api, stop.Token); return true; }, options, console.Notice, connection, stop.Token);
             }
             else
             {
                 await EnsureScopesAsync(api, stop.Token);
             }
+
+            connection.Succeeded();
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
@@ -110,7 +114,7 @@ internal static class AgentCommands
         var machineName = MachineIdentity.ResolveName(call.Arguments.Value("name"));
         var loop = new AgentLoop(
             api, discovery.Engines, MachineIdentity.LoadOrCreateKey(context.ConfigPath), machineName, HelpText.VersionNumber,
-            options, console, () => DateTimeOffset.Now);
+            options, console, () => DateTimeOffset.Now, connection);
 
         console.Ready(api.Server, machineName, discovery.Engines, service);
         await loop.RunAsync(stop.Token);

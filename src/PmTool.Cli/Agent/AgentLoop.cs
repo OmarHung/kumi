@@ -17,7 +17,8 @@ internal sealed class AgentLoop(
     string agentVersion,
     AgentOptions options,
     AgentConsole console,
-    Func<DateTimeOffset> now)
+    Func<DateTimeOffset> now,
+    ConnectionTracker? connection = null)
 {
     private sealed record RunningJob(Guid JobId, Task Task, CancellationTokenSource Cancel);
 
@@ -42,6 +43,7 @@ internal sealed class AgentLoop(
                 {
                     response = await CheckInAsync(capacity, loopStop.Token);
                     failures = 0;
+                    connection?.Succeeded();
                 }
                 catch (OperationCanceledException) when (loopStop.IsCancellationRequested)
                 {
@@ -50,6 +52,7 @@ internal sealed class AgentLoop(
                 catch (CliException exception) when (IsTransient(exception))
                 {
                     failures++;
+                    connection?.Failed(exception.Message);
                     var wait = Backoff(failures);
                     console.Notice($"{exception.Message}（{wait.TotalSeconds:0} 秒後重試）");
                     await WaitAsync(wait, loopStop.Token);

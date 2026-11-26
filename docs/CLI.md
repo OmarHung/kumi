@@ -354,15 +354,16 @@ kumi agent start [--name 名稱] [--engine claude-code|codex]… [--json]
 
 ```bash
 kumi agent enable [--server 網址] [--name 名稱] [--engine claude-code|codex]… [--json]   # 設定並立刻在背景啟動
-kumi agent status [--json]                                                              # 設定了沒、有沒有在跑、記錄檔最後 10 行
+kumi agent status [--json]                                                              # 設定了沒、有沒有在跑、連不連得上、記錄檔最後 10 行
 kumi agent disable [--json]                                                             # 停掉背景程序並取消
 ```
 
 - `enable` 的檢查（任何一項不過就結束代碼 1，什麼都不改）：作業系統要是 macOS 或 Windows；權杖要存在設定檔（背景程序讀不到你的環境變數，用 `KUMI_TOKEN` 時請先 `kumi agent login`）且有 `agent:run` 等範圍；PATH 上要找得到 `claude` 或 `codex`；沒有前景的 `kumi agent start` 在跑（在跑的話說 PID，請先關掉那個視窗）。通過後先停掉舊的背景程序、寫入啟動項目、立刻在背景啟動，最多等 10 秒看到它拿到鎖；沒等到時啟動項目照樣留著，結束代碼 1，並印出記錄檔最後幾行。`--json` 印 `{"enabled":true,"running":…,"logPath":"…"}`。
 - `disable`：停掉背景程序（先請系統收尾，8 秒沒停才強制結束，而且結束前會確認程序名稱是 kumi）、移除啟動項目；沒設定過就說「沒有設定自動啟動。」（代碼 0）。前景的本機代理不受影響。`--json` 印 `{"enabled":false,"wasEnabled":…}`。
-- `status --json`：`{"supported","enabled","running","pid","background","logPath","recentLog":[]}`；不支援的作業系統 `supported` 是 false。
-- 背景程序跑的是 `kumi agent start --service`：和 `start` 一樣，差別在連不上伺服器（登入電腦時網路常還沒好）、5xx、429 時**不結束**，依退避（1、2、4…最多 60 秒）一直重試；401、403（權杖失效或被撤銷、組織不開放）與沒有能用的引擎才結束（代碼 1，原因寫在記錄檔）。輸出每行前面加時間。
-- **macOS**：`~/Library/LaunchAgents/kumi.local-agent.plist`（`RunAtLoad`，沒設 `KeepAlive`，401、403 時不會被一直重開），用 `launchctl bootstrap／bootout gui/<uid>/kumi.local-agent`；記錄檔 `~/Library/Logs/Kumi/agent.log`（超過 5 MB 時 `enable` 先清掉）。plist 帶執行 `enable` 當下的 `PATH`，有設才帶 `XDG_CONFIG_HOME`、`KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH`；**不帶任何權杖**，權杖由背景程序從設定檔讀。
+- `status`：在跑的本機代理（前景或背景）會回報和伺服器的連線，`status` 多印一行「連線：」——「正在連線」（剛啟動，連不上時要等一兩分鐘才逾時）、「已連上伺服器」或「連不上或伺服器有問題，某時起一直在重試：原因」（連不上、5xx、429；時間是第一次失敗的時間；網路、VPN、proxy、防火牆或伺服器暫時的問題排除之後會自己接上，不用重新啟動）。kumi 0.9.1 起才回報，0.9.0 以前的沒有這一行。設了自動啟動、記錄檔卻不在時（多半是整個資料夾被清理工具刪掉，launchd 不會自己建回來）提醒執行 `kumi agent enable` 重建。
+- `status --json`：`{"supported","enabled","running","pid","background","connection","logPath","logMissing","recentLog":[]}`；不支援的作業系統 `supported` 是 false。`connection` 沒在跑或沒有回報時是 null，不然是 `{"state":"connecting|connected|retrying","since":"ISO 8601","error":…}`（`error` 只有 `retrying` 有，最多 300 字）；`logMissing` 是「設了自動啟動而記錄檔不在」。
+- 背景程序跑的是 `kumi agent start --service`：和 `start` 一樣，差別在連不上伺服器（登入電腦時網路常還沒好）、5xx、429 時**不結束**，依退避（1、2、4…最多 60 秒）一直重試；401、403（權杖失效或被撤銷、組織不開放）與沒有能用的引擎才結束（代碼 1，原因寫在記錄檔）。輸出每行前面加時間。連線狀態寫在設定檔資料夾的 `agent.lock.json`（拿著鎖時才可信，結束時刪掉），`kumi agent status` 讀它。
+- **macOS**：`~/Library/LaunchAgents/kumi.local-agent.plist`（`RunAtLoad`，沒設 `KeepAlive`，401、403 時不會被一直重開），用 `launchctl bootstrap／bootout gui/<uid>/kumi.local-agent`；記錄檔 `~/Library/Logs/Kumi/agent.log`（資料夾 700；超過 5 MB 時 `enable` 先清掉）。背景程序啟動時記錄檔不存在，代表 launchd 開不了它（資料夾被刪掉了），標準輸出沒有人接：kumi 自己建資料夾、自己寫進記錄檔（建不了就照舊只寫標準輸出，不影響執行）。plist 帶執行 `enable` 當下的 `PATH`，有設才帶 `XDG_CONFIG_HOME`、`KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH`；**不帶任何權杖**，權杖由背景程序從設定檔讀。
 - **Windows**：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `KumiLocalAgent`（整行命令，含空白與引號的參數照 Windows 規則加引號）；背景程序藏起主控台視窗，輸出寫到 `%LOCALAPPDATA%\Kumi\agent.log`；停止是結束程序（不能請它收尾，正在跑的工作由伺服器當逾時）。這一段沒有在真的 Windows 上驗證過。
 - kumi 搬了位置、或用 `kumi update` 換了新檔之後，執行一次 `kumi agent enable` 讓啟動項目指到新的路徑。
 
@@ -410,7 +411,7 @@ kumi agent disable [--json]                                                     
 
 **疑難排解**
 
-- 網頁上看不到「Claude Code（電腦名稱）」：`kumi agent start` 還開著嗎？（設了自動啟動的話，`kumi agent status` 看背景程序在不在、記錄檔最後幾行寫什麼。）（60 秒內有登記才算在線）組織有開「允許成員使用自己的 AI 帳號」嗎？啟動時有沒有說某個引擎被略過？
+- 網頁上看不到「Claude Code（電腦名稱）」：`kumi agent start` 還開著嗎？（設了自動啟動的話，`kumi agent status` 看背景程序在不在、連不連得上、記錄檔最後幾行寫什麼。「連線：連不上或伺服器有問題」時先確認瀏覽器打得開 Kumi：伺服器限制來源位址時要先連 VPN。）（60 秒內有登記才算在線）組織有開「允許成員使用自己的 AI 帳號」嗎？啟動時有沒有說某個引擎被略過？
 - 「這台電腦的 Claude Code 沒有登入」：在終端機執行 `claude`，依畫面登入；Codex 是 `codex login`。
 - 「本機的 Claude Code 沒有照預期關掉內建工具」「連不上 Kumi 的 MCP」：引擎的版本和預期不同，或連不上 `/mcp`（網址是伺服器的網址加 `/mcp`，檢查 proxy 與防火牆）。這件工作會立刻停下，不會讓引擎繼續。
 - 「本機的 Codex 想用 Kumi 以外的工具，已經停下」：Codex 嘗試執行指令、改檔案或上網，一律停下。更新 Codex 後再試。

@@ -17,19 +17,9 @@ internal sealed partial class LaunchAgentBackend(AutostartEnvironment environmen
     public Task InstallAsync(AutostartSpec spec, CancellationToken cancellation)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(PlistPath)!);
-        EnsurePrivateDirectory(Path.GetDirectoryName(spec.LogPath)!);
+        AutostartManager.EnsurePrivateDirectory(Path.GetDirectoryName(spec.LogPath)!);
         File.WriteAllText(PlistPath, RenderPlist(spec), new UTF8Encoding(false));
         return Task.CompletedTask;
-    }
-
-    /// <summary>記錄檔會有伺服器網址、電腦名稱與工作的錯誤訊息：資料夾只給自己讀寫。已經存在的也改成 700。</summary>
-    private static void EnsurePrivateDirectory(string directory)
-    {
-        Directory.CreateDirectory(directory);
-        if (!OperatingSystem.IsWindows())
-        {
-            File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        }
     }
 
     public async Task LaunchAsync(AutostartSpec spec, CancellationToken cancellation)

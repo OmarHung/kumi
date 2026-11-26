@@ -37,7 +37,7 @@ public sealed class ServiceStartTests
         exit 0
         """);
 
-    private CliHarness NewCli(FakeAutostart? os = null)
+    private CliHarness NewCli(FakeAutostart? os = null, bool createMacLog = true)
     {
         var cli = new CliHarness
         {
@@ -64,7 +64,15 @@ public sealed class ServiceStartTests
                 },
             },
         };
-        cli.Autostart = (os ?? _os).Build(cli.ConfigPath);
+        var system = os ?? _os;
+        cli.Autostart = system.Build(cli.ConfigPath);
+        if (system.Os == AutostartOs.MacOS && createMacLog)
+        {
+            // launchd 在啟動程序之前就開好 StandardOutPath：記錄檔存在，輸出走標準輸出。
+            Directory.CreateDirectory(Path.GetDirectoryName(system.LogPath)!);
+            File.WriteAllText(system.LogPath, string.Empty);
+        }
+
         new ConfigStore(cli.ConfigPath).Save(new StoredConfig { Server = CliHarness.ServerUrl, Token = CliHarness.Token });
         cli.Environment[ExecutableLocator.ClaudeVariable] = FakeClaude();
         cli.Environment[ExecutableLocator.CodexVariable] = Path.Combine(_scripts.Directory, "no-codex");
@@ -252,7 +260,7 @@ public sealed class ServiceStartTests
         await cli.RunAsync("agent", "start");
 
         // Assert
-        Assert.That(seen, Is.EqualTo(new AgentHolder(7001, false)));
+        Assert.That(seen is { Pid: 7001, Background: false }, Is.True, $"{seen}");
     }
 
     [Test]
@@ -293,5 +301,135 @@ public sealed class ServiceStartTests
         // Assert
         Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Error));
         Assert.That(File.ReadAllText(os.LogPath), Does.Contain("權杖無效"));
+    }
+
+    [Test]
+    public async Task Service_WhileItCannotReachTheServer_ReportsRetryingWithTheReasonThenConnected()
+    {
+        // Arrange
+        using var cli = NewCli();
+        var seen = new List<AgentConnection?>();
+        var calls = 0;
+        cli.Server.On("GET", "/v1/session", _ =>
+        {
+            seen.Add(AgentLock.Peek(cli.ConfigPath)?.Connection);
+            return Interlocked.Increment(ref calls) <= 2
+                ? Unavailable()
+                : FakeServer.Envelope(HttpStatusCode.OK, new { scopes = new[] { "agent:run", "blueprint:read", "blueprint:write" } });
+        });
+        cli.Server.On("POST", "/v1/agent/check-in", _ =>
+        {
+            seen.Add(AgentLock.Peek(cli.ConfigPath)?.Connection);
+            cli.Interrupt!();
+            return FakeAgentServer.Ok(new { job = (object?)null });
+        });
+
+        // Act
+        var result = await cli.RunAsync("agent", "start", "--service");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(seen.Select(connection => connection?.State), Is.EqualTo(new[]
+            {
+                AgentConnectionState.Connecting, AgentConnectionState.Retrying, AgentConnectionState.Retrying, AgentConnectionState.Connected,
+            }));
+            Assert.That(seen[1]!.Error, Does.Contain("伺服器暫時不能用"));
+            Assert.That(seen[2]!.Since, Is.EqualTo(seen[1]!.Since), "一直連不上時保留第一次失敗的時間");
+        }
+    }
+
+    [Test]
+    public async Task Service_WhenCheckInStartsFailing_ReportsRetryingAndRecovers()
+    {
+        // Arrange
+        using var cli = NewCli();
+        cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write"));
+        var seen = new List<AgentConnection?>();
+        var calls = 0;
+        cli.Server.On("POST", "/v1/agent/check-in", _ =>
+        {
+            seen.Add(AgentLock.Peek(cli.ConfigPath)?.Connection);
+            var call = Interlocked.Increment(ref calls);
+            if (call is 2 or 3)
+            {
+                return Unavailable();
+            }
+
+            if (call == 5)
+            {
+                cli.Interrupt!();
+            }
+
+            return FakeAgentServer.Ok(new { job = (object?)null });
+        });
+
+        // Act
+        var result = await cli.RunAsync("agent", "start", "--service");
+
+        // Assert
+        Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+        Assert.That(seen.Select(connection => connection?.State), Is.EqualTo(new[]
+        {
+            AgentConnectionState.Connected, AgentConnectionState.Connected, AgentConnectionState.Retrying,
+            AgentConnectionState.Retrying, AgentConnectionState.Connected,
+        }));
+    }
+
+    [Test]
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    public async Task ServiceOnMac_WhenLaunchdCouldNotOpenTheLog_CreatesThePrivateDirectoryAndWritesTheLogItself()
+    {
+        // Arrange：記錄檔的資料夾被刪掉了，launchd 開不了記錄檔，標準輸出沒有人接。
+        using var cli = NewCli(createMacLog: false);
+        FailSessionThenStop(cli, failures: 1);
+
+        // Act
+        var result = await cli.RunAsync("agent", "start", "--service");
+
+        // Assert
+        var log = File.ReadAllText(_os.LogPath);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(log, Does.Contain("1 秒後重試").And.Contain("已連線"));
+            Assert.That(result.Out + result.Error, Is.Empty, "輸出都進記錄檔");
+            Assert.That(
+                File.GetUnixFileMode(Path.GetDirectoryName(_os.LogPath)!),
+                Is.EqualTo(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute));
+            Assert.That(_os.HideConsoleCalls, Is.Zero, "macOS 沒有主控台視窗要藏");
+        }
+    }
+
+    [Test]
+    public async Task ServiceOnMac_WhenLaunchdOpenedTheLog_LeavesTheOutputToLaunchd()
+    {
+        // Arrange
+        using var cli = NewCli();
+        FailSessionThenStop(cli, failures: 1);
+
+        // Act
+        var result = await cli.RunAsync("agent", "start", "--service");
+
+        // Assert
+        Assert.That(result.Error, Does.Contain("1 秒後重試"));
+        Assert.That(File.ReadAllText(_os.LogPath), Is.Empty, "launchd 已經接好，不要寫兩份");
+    }
+
+    [Test]
+    public async Task ServiceOnMac_WhenItCannotCreateTheLogItself_StillRunsAndWritesToStandardOutput()
+    {
+        // Arrange：記錄檔的位置被一個資料夾佔住，自己開不了檔案。
+        using var cli = NewCli(createMacLog: false);
+        Directory.CreateDirectory(_os.LogPath);
+        FailSessionThenStop(cli, failures: 1);
+
+        // Act
+        var result = await cli.RunAsync("agent", "start", "--service");
+
+        // Assert
+        Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+        Assert.That(result.Error, Does.Contain("1 秒後重試"));
     }
 }

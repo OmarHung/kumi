@@ -8,7 +8,8 @@ internal static class ServiceRetry
 {
     public static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(60);
 
-    public static async Task<T> RunAsync<T>(Func<Task<T>> action, AgentOptions options, Action<string> notice, CancellationToken cancellation)
+    public static async Task<T> RunAsync<T>(
+        Func<Task<T>> action, AgentOptions options, Action<string> notice, ConnectionTracker connection, CancellationToken cancellation)
     {
         for (var failures = 1; ; failures++)
         {
@@ -18,6 +19,7 @@ internal static class ServiceRetry
             }
             catch (CliException exception) when (AgentLoop.IsTransient(exception))
             {
+                connection.Failed(exception.Message);
                 var wait = AgentLoop.BackoffFor(failures, MaxBackoff);
                 notice($"{exception.Message}（{wait.TotalSeconds:0} 秒後重試）");
                 await options.Delay(wait, cancellation);

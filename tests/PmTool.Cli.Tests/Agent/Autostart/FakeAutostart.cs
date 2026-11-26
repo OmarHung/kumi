@@ -87,6 +87,9 @@ internal sealed class FakeAutostart : IDisposable
         return AgentLock.TryAcquire(_configPath!, pid, background).Lock!;
     }
 
+    /// <summary>背景程序回報它和伺服器的連線（真的程序寫在鎖的資訊檔裡）。</summary>
+    public void ReportBackground(AgentConnection connection) => _background!.Report(connection);
+
     public void Dispose()
     {
         StopBackground();

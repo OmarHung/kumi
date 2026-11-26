@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using PmTool.Cli.Commands;
 using PmTool.Cli.Settings;
@@ -95,13 +96,14 @@ internal static class AutostartCommands
 
         var recent = logPath is null ? [] : AutostartManager.LogTail(logPath, StatusLogLines);
         var enabled = backend?.IsInstalled() ?? false;
+        var report = new StatusReport(backend is not null, enabled, state, logPath, enabled && logPath is not null && !File.Exists(logPath), recent);
         if (call.Json)
         {
-            call.Out.WriteLine(StatusJson(backend is not null, enabled, state, logPath, recent).ToJsonString());
+            call.Out.WriteLine(StatusJson(report).ToJsonString());
         }
         else
         {
-            WriteStatusText(call.Out, backend is not null, enabled, state, logPath, recent);
+            WriteStatusText(call.Out, report);
         }
 
         return ExitCodes.Success;
@@ -171,31 +173,54 @@ internal static class AutostartCommands
         return ExitCodes.Error;
     }
 
-    private static JsonObject StatusJson(bool supported, bool enabled, AgentRunState state, string? logPath, IReadOnlyList<string> recent) => new()
+    /// <param name="LogMissing">設了自動啟動、記錄檔卻不在：多半是資料夾被清理工具刪掉，launchd 不會自己建回來。</param>
+    private sealed record StatusReport(
+        bool Supported, bool Enabled, AgentRunState State, string? LogPath, bool LogMissing, IReadOnlyList<string> Recent);
+
+    private static JsonObject StatusJson(StatusReport report) => new()
     {
-        ["supported"] = supported,
-        ["enabled"] = enabled,
-        ["running"] = state.Running,
-        ["pid"] = state.Pid,
-        ["background"] = state.Running ? state.Background : null,
-        ["logPath"] = logPath,
-        ["recentLog"] = new JsonArray([.. recent.Select(line => (JsonNode?)line)]),
+        ["supported"] = report.Supported,
+        ["enabled"] = report.Enabled,
+        ["running"] = report.State.Running,
+        ["pid"] = report.State.Pid,
+        ["background"] = report.State.Running ? report.State.Background : null,
+        ["connection"] = report.State is { Running: true, Connection: { } connection }
+            ? new JsonObject
+            {
+                ["state"] = connection.State,
+                ["since"] = connection.Since.ToString("O", CultureInfo.InvariantCulture),
+                ["error"] = connection.Error,
+            }
+            : null,
+        ["logPath"] = report.LogPath,
+        ["logMissing"] = report.LogMissing,
+        ["recentLog"] = new JsonArray([.. report.Recent.Select(line => (JsonNode?)line)]),
     };
 
-    private static void WriteStatusText(
-        TextWriter output, bool supported, bool enabled, AgentRunState state, string? logPath, IReadOnlyList<string> recent)
+    private static void WriteStatusText(TextWriter output, StatusReport report)
     {
-        output.WriteLine(!supported ? "自動啟動：這個作業系統不支援（請自己開著 kumi agent start）"
-            : enabled ? "自動啟動：已設定（登入電腦時在背景啟動）" : "自動啟動：沒有設定（kumi agent enable 可以設定）");
+        var (state, logPath, recent) = (report.State, report.LogPath, report.Recent);
+        output.WriteLine(!report.Supported ? "自動啟動：這個作業系統不支援（請自己開著 kumi agent start）"
+            : report.Enabled ? "自動啟動：已設定（登入電腦時在背景啟動）" : "自動啟動：沒有設定（kumi agent enable 可以設定）");
         var pid = state.Pid is { } value ? $"，PID {value}" : string.Empty;
         output.WriteLine(!state.Running ? "執行中：沒有"
             : state.Background ? $"執行中：是（背景{pid}）" : $"執行中：是（前景，在某個終端機視窗裡{pid}）");
+        if (state is { Running: true, Connection: { } connection })
+        {
+            WriteConnectionText(output, connection);
+        }
+
         if (logPath is null)
         {
             return;
         }
 
         output.WriteLine($"記錄檔：{logPath}");
+        if (report.LogMissing)
+        {
+            output.WriteLine("  記錄檔不見了（可能整個資料夾被清理工具刪掉），背景程序的輸出沒有留下來。執行 kumi agent enable 重新設定，記錄檔會重建。");
+        }
+
         if (recent.Count > 0)
         {
             output.WriteLine("最近的記錄：");
@@ -203,6 +228,25 @@ internal static class AutostartCommands
             {
                 output.WriteLine("  " + line);
             }
+        }
+    }
+
+    private static void WriteConnectionText(TextWriter output, AgentConnection connection)
+    {
+        var since = connection.Since.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+        switch (connection.State)
+        {
+            case AgentConnectionState.Connected:
+                output.WriteLine($"連線：已連上伺服器（{since} 起）");
+                break;
+            case AgentConnectionState.Retrying:
+                var reason = connection.Error is { Length: > 0 } error ? $"：{error}" : string.Empty;
+                output.WriteLine($"連線：連不上或伺服器有問題，{since} 起一直在重試{reason}");
+                output.WriteLine("  網路、VPN、proxy、防火牆或伺服器暫時的問題排除之後會自己接上，不用重新啟動。");
+                break;
+            default:
+                output.WriteLine($"連線：正在連線（{since} 開始；連不上時要等一兩分鐘才會逾時）");
+                break;
         }
     }
 }

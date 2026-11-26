@@ -1,9 +1,14 @@
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace PmTool.Cli.Agent;
 
-/// <summary>鎖現在被誰拿著。<see cref="Pid"/> 讀不到時是 null（拿鎖的人還來不及寫，或寫到一半）。</summary>
-internal sealed record AgentHolder(int? Pid, bool Background);
+/// <summary>
+/// 鎖現在被誰拿著。<see cref="Pid"/> 讀不到時是 null（拿鎖的人還來不及寫，或寫到一半）。
+/// <see cref="Connection"/> 是它最近回報的連線狀態；舊版的 kumi 不回報，也是 null。
+/// </summary>
+internal sealed record AgentHolder(int? Pid, bool Background, AgentConnection? Connection = null);
 
 /// <summary>
 /// 這台電腦上本機代理同時只能有一個：前景的 <c>kumi agent start</c> 與開機自動啟動的背景程序搶同一把鎖，
@@ -19,6 +24,10 @@ internal sealed class AgentLock : IDisposable
 
     private readonly FileStream _stream;
     private readonly string _infoPath;
+    private readonly object _gate = new();
+    private int _pid;
+    private bool _background;
+    private bool _disposed;
 
     private AgentLock(FileStream stream, string infoPath)
     {
@@ -84,19 +93,38 @@ internal sealed class AgentLock : IDisposable
         return null;
     }
 
+    /// <summary>把和伺服器的連線狀態寫進資訊檔，給 <c>kumi agent status</c> 看；回傳有沒有寫成。放掉鎖之後再回報就略過。</summary>
+    public bool Report(AgentConnection connection)
+    {
+        lock (_gate)
+        {
+            return !_disposed && WriteInfo(_pid, _background, connection);
+        }
+    }
+
     public void Dispose()
     {
-        // 先刪資訊檔再放鎖：反過來的話，放鎖的瞬間別人拿到新鎖、寫了自己的資訊，這裡會把它刪掉。
-        try
+        lock (_gate)
         {
-            File.Delete(_infoPath);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // 資訊檔留著不影響：沒有鎖的時候不會有人讀它。
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        _stream.Dispose();
+            _disposed = true;
+            // 先刪資訊檔再放鎖：反過來的話，放鎖的瞬間別人拿到新鎖、寫了自己的資訊，這裡會把它刪掉。
+            try
+            {
+                File.Delete(_infoPath);
+                File.Delete(TemporaryInfoPath);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // 資訊檔留著不影響：沒有鎖的時候不會有人讀它。
+            }
+
+            _stream.Dispose();
+        }
     }
 
     private static AgentHolder? ReadHolder(string infoPath)
@@ -107,7 +135,7 @@ internal sealed class AgentLock : IDisposable
             var root = document.RootElement;
             int? pid = root.TryGetProperty("pid", out var pidValue) && pidValue.TryGetInt32(out var parsed) && parsed > 0 ? parsed : null;
             var background = root.TryGetProperty("background", out var flag) && flag.ValueKind == JsonValueKind.True;
-            return new AgentHolder(pid, background);
+            return new AgentHolder(pid, background, ReadConnection(root));
         }
         catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -115,20 +143,54 @@ internal sealed class AgentLock : IDisposable
         }
     }
 
-    private void WriteInfo(int pid, bool background)
+    /// <summary>連線狀態少了欄位或格式不對就當作沒有：只是給人看的資訊，讀不懂不影響鎖。</summary>
+    private static AgentConnection? ReadConnection(JsonElement root)
+    {
+        if (!root.TryGetProperty("connection", out var connection) || connection.ValueKind != JsonValueKind.Object
+            || !connection.TryGetProperty("state", out var state) || state.ValueKind != JsonValueKind.String
+            || !connection.TryGetProperty("since", out var since) || since.ValueKind != JsonValueKind.String
+            || !DateTimeOffset.TryParse(since.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var sinceValue))
+        {
+            return null;
+        }
+
+        var error = connection.TryGetProperty("error", out var text) && text.ValueKind == JsonValueKind.String ? text.GetString() : null;
+        return new AgentConnection(state.GetString()!, sinceValue, error);
+    }
+
+    private string TemporaryInfoPath => _infoPath + ".tmp";
+
+    private bool WriteInfo(int pid, bool background, AgentConnection? connection = null)
     {
         if (pid <= 0)
         {
-            return;
+            return false;
         }
 
+        _pid = pid;
+        _background = background;
+        var info = new JsonObject { ["pid"] = pid, ["background"] = background };
+        if (connection is not null)
+        {
+            info["connection"] = new JsonObject
+            {
+                ["state"] = connection.State,
+                ["since"] = connection.Since.ToString("O", CultureInfo.InvariantCulture),
+                ["error"] = connection.Error,
+            };
+        }
+
+        // 先寫暫存檔再換名字：status 隨時會讀，不能讀到寫到一半的檔案（讀不懂會被當成「前景、沒有 PID」）。
         try
         {
-            File.WriteAllText(_infoPath, JsonSerializer.Serialize(new { pid, background }));
+            File.WriteAllText(TemporaryInfoPath, info.ToJsonString());
+            File.Move(TemporaryInfoPath, _infoPath, overwrite: true);
+            return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // 寫不進去只是讓別人讀不到 PID，鎖本身照樣有效。
+            // 寫不進去只是讓別人讀不到 PID 與連線狀態，鎖本身照樣有效；連線狀態由呼叫的人下次再寫。
+            return false;
         }
     }
 

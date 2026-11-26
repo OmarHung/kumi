@@ -1,7 +1,7 @@
 namespace PmTool.Cli.Agent.Autostart;
 
-/// <summary>背景程序現在的樣子，給 status 與 enable 用。</summary>
-internal sealed record AgentRunState(bool Running, int? Pid, bool Background);
+/// <summary>背景程序現在的樣子，給 status 與 enable 用。<see cref="Connection"/> 是它最近回報的連線狀態（沒有回報是 null）。</summary>
+internal sealed record AgentRunState(bool Running, int? Pid, bool Background, AgentConnection? Connection = null);
 
 /// <summary>
 /// 啟動、停止背景的本機代理，與回報它的狀態。是不是在跑只看 <see cref="AgentLock"/>：
@@ -16,7 +16,9 @@ internal sealed class AutostartManager(AutostartEnvironment environment, IAutost
     public AgentRunState State()
     {
         var holder = AgentLock.Peek(configPath);
-        return holder is null ? new AgentRunState(false, null, false) : new AgentRunState(true, holder.Pid, holder.Background);
+        return holder is null
+            ? new AgentRunState(false, null, false)
+            : new AgentRunState(true, holder.Pid, holder.Background, holder.Connection);
     }
 
     /// <summary>停掉背景的程序：先請啟動管理員收尾，等不到再結束程序（確認名稱是 kumi 才動手）。回傳是否已經停了。</summary>
@@ -47,6 +49,16 @@ internal sealed class AutostartManager(AutostartEnvironment environment, IAutost
 
     public bool IsKumi(int pid) =>
         environment.GetProcessName(pid) is { } name && name.StartsWith(ProcessNamePrefix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>記錄檔會有伺服器網址、電腦名稱與工作的錯誤訊息：資料夾只給自己讀寫。已經存在的也改成 700。</summary>
+    public static void EnsurePrivateDirectory(string directory)
+    {
+        Directory.CreateDirectory(directory);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
 
     /// <summary>記錄檔太大（超過 5 MB）就清掉重來：背景程序一直寫，不然會越長越大。</summary>
     public static void TrimLog(string logPath)

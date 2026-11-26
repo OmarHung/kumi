@@ -18,7 +18,7 @@ public sealed class AutostartCommandTests
     {
         _scripts = new FakeEngineScripts();
         _os = new FakeAutostart();
-        _cli = NewCli(_os);
+        _cli = NewEnabledCli(_os, _scripts);
     }
 
     [TearDown]
@@ -35,7 +35,10 @@ public sealed class AutostartCommandTests
         scopes,
     };
 
-    private CliHarness NewCli(FakeAutostart os, bool withEngine = true)
+    private CliHarness NewCli(FakeAutostart os, bool withEngine = true) => NewEnabledCli(os, _scripts, withEngine);
+
+    /// <summary>登入好、權杖範圍夠、PATH 上有假的 claude：kumi agent enable 會成功的 CLI。</summary>
+    internal static CliHarness NewEnabledCli(FakeAutostart os, FakeEngineScripts scripts, bool withEngine = true)
     {
         var cli = new CliHarness();
         cli.Autostart = os.Build(cli.ConfigPath);
@@ -43,7 +46,7 @@ public sealed class AutostartCommandTests
         cli.Environment["PATH"] = "/usr/bin:/bin";
         if (withEngine)
         {
-            cli.Environment[ExecutableLocator.ClaudeVariable] = _scripts.Script("claude", "exit 0");
+            cli.Environment[ExecutableLocator.ClaudeVariable] = scripts.Script("claude", "exit 0");
         }
 
         cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write"));
