@@ -248,6 +248,7 @@ public sealed class LocalAgentJobTests
     {
         // Arrange
         await _h.SendAsync(_engine);
+        await _h.WaitForJobRowsAsync(1);
         Guid waiting;
         await using (var db = await _h.Host.CreateDbContextAsync())
         {
@@ -484,6 +485,7 @@ public sealed class LocalAgentJobTests
         var job = await ClaimedJobAsync();
         var other = new Actor(_h.Me.OrganizationId, Guid.CreateVersion7(), false);
         await _h.SendAsync(_engine, "第二則");
+        await _h.WaitForJobRowsAsync(2);
         Guid waiting;
         await using (var db = await _h.Host.CreateDbContextAsync())
         {
