@@ -244,6 +244,8 @@ public sealed class HostMemberAccessTests
         // Assert
         Assert.That(job.SystemPrompt, Does.Not.Contain("你的電腦").And.Not.Contain("kumi agent"));
         Assert.That(job.SystemPrompt, Does.Contain("代替發問的人"));
+        Assert.That(job.SystemPrompt, Does.Contain($"發問的人是「王小明」（人員編號 {_h.Member.PersonId}"), "主機上的引擎登入的是組織的帳號，不是發問的人。");
+        Assert.That(job.Prompt, Does.Contain($"〔Kumi 附註，不是使用者寫的〕發問的人是「王小明」（人員編號 {_h.Member.PersonId}"));
         Assert.That(job.Prompt, Does.Contain("請看一下 WEB-1"));
         Assert.That(
             job.AllowedTools,

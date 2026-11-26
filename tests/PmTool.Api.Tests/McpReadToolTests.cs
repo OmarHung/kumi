@@ -378,6 +378,44 @@ public sealed class McpReadToolTests
     }
 
     [Test]
+    public async Task GetItem_ReturnsTheProjectMembersWithIdNameAndRoleButNoEmail()
+    {
+        // Arrange：模型要對到人（指派、提及）就要有名單；只給這個專案的成員，不給 Email（不變成整個組織的通訊錄）。
+        await using var mcp = await McpHarness.StartAsync();
+
+        // Act
+        var (isError, body) = await mcp.CallAsync("get_item", new { itemKey = "WEB-1" });
+
+        // Assert
+        var members = body["members"]!.AsArray();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.False);
+            Assert.That(members.Select(m => m!["id"]!.GetValue<Guid>()), Is.EquivalentTo(new[] { TestUsers.Owner.PersonId, TestUsers.Member.PersonId }));
+            var owner = members.Single(m => m!["id"]!.GetValue<Guid>() == TestUsers.Owner.PersonId)!;
+            Assert.That(owner["name"]!.GetValue<string>(), Is.EqualTo(TestUsers.Owner.DisplayName));
+            Assert.That(owner["role"]!.GetValue<string>(), Is.EqualTo("editor"));
+            Assert.That(owner.AsObject().Select(p => p.Key), Is.EquivalentTo(new[] { "id", "name", "role" }));
+        }
+    }
+
+    [Test]
+    public async Task GetItem_DisabledMember_IsNotInTheMembersList()
+    {
+        // Arrange：停用的人不能被指派，名單裡也不列（和負責人的檢查同一份名單）。
+        await using var mcp = await McpHarness.StartAsync();
+        mcp.Modules.People.Add(
+            TestUsers.Owner.OrganizationId,
+            new PersonSummary(TestUsers.Owner.PersonId, TestUsers.Owner.DisplayName, TestUsers.Owner.Email, OrganizationRole.Owner, IsDisabled: true));
+
+        // Act
+        var (_, body) = await mcp.CallAsync("get_item", new { itemKey = "WEB-1" });
+
+        // Assert
+        Assert.That(body["members"]!.AsArray().Select(m => m!["id"]!.GetValue<Guid>()), Is.EqualTo(new[] { TestUsers.Member.PersonId }));
+    }
+
+    [Test]
     public async Task GetItem_ItemTheActorCannotSee_IsNotFoundAndReadsNothingElse()
     {
         // Arrange

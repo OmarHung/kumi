@@ -356,7 +356,7 @@ internal sealed class AssistantReplyRunner(
         var messages = new List<ChatMessage>
         {
             new(ChatRole.System, AssistantPrompt.SystemPrompt),
-            new(ChatRole.System, AssistantPrompt.ProjectNote(request.ProjectKey, request.Permissions)),
+            new(ChatRole.System, AssistantPrompt.ProjectNote(request.ProjectKey, request.Permissions, request.Asker)),
         };
         if (request.ItemKey is not null)
         {

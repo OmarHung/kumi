@@ -39,6 +39,8 @@ internal sealed partial class AssistantService
             return noProject;
         }
 
+        // 在預留名額、拿租約之前查：查人失敗時什麼都還沒存，不會留下沒放掉的預留。
+        var asker = await FindAskerAsync(actor, cancellationToken);
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var conversation = await FindVisibleConversationAsync(db, actor, project.Value, conversationId, cancellationToken);
         if (conversation is null)
@@ -146,6 +148,7 @@ internal sealed partial class AssistantService
             text.Value)
         {
             McpUrl = mcpUrl,
+            Asker = asker,
             ItemKey = item?.Key,
             HostJobId = hostJobId,
             CountsUsage = countsUsage,
@@ -154,6 +157,15 @@ internal sealed partial class AssistantService
         });
         return new AssistantRun(
             AssistantMessageMapper.ToMessage(started.User, AttachmentSelection.ToContracts(attachments.Value)), assistantMessageId, session);
+    }
+
+    /// <summary>發問的人自己的帳號資料（寫給模型的說明用）；查不到（理論上不會）就不寫，不擋這則訊息。</summary>
+    private async Task<Asker?> FindAskerAsync(Actor actor, CancellationToken cancellationToken)
+    {
+        var found = await people.FindManyAsync(actor.OrganizationId, [actor.PersonId], cancellationToken);
+        return found.TryGetValue(actor.PersonId, out var person)
+            ? new Asker(person.PersonId, person.DisplayName, person.Email, person.Role)
+            : null;
     }
 
     /// <summary>選的是本機或主機的引擎時，那個來源的能力；API 的模型是 null（都讀得到）。</summary>

@@ -19,7 +19,7 @@ internal static class ItemProposalTools
             "對一個項目提出修改建議（不會真的改）：使用者在 Kumi 網頁上看到後按「套用」才會寫入。changes 是 [{field, value}]，" +
             $"field 可以是 title、description（Markdown）、status（狀態的 key）、assignee（人員編號，null 清掉）、priority（none、low、medium、high、urgent）、" +
             $"startDate、dueDate（yyyy-MM-dd，null 清掉）、estimate（數字，null 清掉）、fields.<自訂欄位的 key>；同一個欄位只能出現一次，最多 {AiRules.MaxItemProposalChanges} 個。" +
-            "comment 是要一併加上的留言。改說明時一定要帶 descriptionRevision（get_item 回的那個），沒帶會被擋下；說明超過 20000 字的項目不能改說明，請改用留言。assignee 的值可以寫 me、none 或專案成員的 Email。提出之後告訴使用者「請按套用」，不要說已經改好了。",
+            "comment 是要一併加上的留言。改說明時一定要帶 descriptionRevision（get_item 回的那個），沒帶會被擋下；說明超過 20000 字的項目不能改說明，請改用留言。assignee 的值寫 get_item 回的 members 裡的 id，或 me、none、專案成員的 Email。留言裡要提及成員時寫成 @[名稱](mention:<members 裡的 id>)。提出之後告訴使用者「請按套用」，不要說已經改好了。",
             McpSchemas.Object(
                 required: ["projectKey", "itemKey"],
                 ("projectKey", McpSchemas.Text("這一則對話的專案代號，項目要在這個專案裡。")),
@@ -76,11 +76,12 @@ internal static class ItemProposalTools
         });
     }
 
-    // 代理不知道人員編號：assignee 和其他 MCP 工具一樣收 me、none、Email，在這裡換成人員編號；已經是編號的照舊交給模組檢查。
+    // assignee 和其他 MCP 工具一樣收 me、none、Email 與成員的編號，一律在這裡照同一份名單換成人員編號：
+    // 編號也要經過，停用的成員才會和 update_item 一樣被擋、錯誤是同一句。null 照舊交給模組（清掉負責人）。
     private static async Task<JsonElement> ResolveAssigneeAsync(
         McpToolContext context, string projectKey, JsonElement value, CancellationToken cancellationToken)
     {
-        if (value.ValueKind != JsonValueKind.String || Guid.TryParse(value.GetString(), out _))
+        if (value.ValueKind != JsonValueKind.String)
         {
             return value;
         }

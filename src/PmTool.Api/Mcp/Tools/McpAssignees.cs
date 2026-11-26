@@ -3,8 +3,8 @@ using PmTool.Identity;
 namespace PmTool.Api.Mcp.Tools;
 
 /// <summary>
-/// 負責人的寫法：<c>me</c>（授權的人自己）、<c>none</c>（沒有負責人）、那個專案成員的 Email。
-/// 代理不知道人員編號，也不該去猜；只在專案的成員裡找（AG-10：網頁的人員目錄刻意不給訪客看整個組織，
+/// 負責人的寫法：<c>me</c>（授權的人自己）、<c>none</c>（沒有負責人）、那個專案成員的 Email 或人員編號（get_item 的成員名單）。
+/// 編號只能是 get_item 給的成員名單裡的，代理不該去猜；不論哪種寫法都只在專案的成員裡找（AG-10：網頁的人員目錄刻意不給訪客看整個組織，
 /// 在整個組織裡用 Email 找人，就能逐一確認誰在組織裡）。Email 找不到、不是這個專案的成員、找到的是停用的人、
 /// 或呼叫的人看不到這個專案，回同一句錯誤：不透露組織裡有沒有這個人，也不讓代理探測哪些人停用了。
 /// </summary>
@@ -36,6 +36,13 @@ internal static class McpAssignees
         if (project.Failure is not null)
         {
             throw notFound;
+        }
+
+        // get_item 的成員名單給的是編號：編號只在現在能指派的成員裡找，和 Email 一樣找不到回同一句。
+        if (Guid.TryParse(value, out var personId))
+        {
+            var members = await McpMembers.OfAsync(context, project.Value, cancellationToken);
+            return members.Any(member => member.Id == personId) ? personId : throw notFound;
         }
 
         var memberIds = project.Value.Members.Select(member => member.PersonId).ToHashSet();

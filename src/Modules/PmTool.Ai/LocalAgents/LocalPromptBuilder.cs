@@ -41,21 +41,21 @@ internal static partial class LocalPromptBuilder
 
     /// <summary>內建助理的系統提示，加上這個專案與權限的一句說明、本機用 MCP 工具的說法。</summary>
     public static string SystemPrompt(
-        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null) =>
+        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null) =>
         string.Join(
             "\n\n",
             AssistantPrompt.SystemPrompt,
-            AssistantPrompt.ProjectNote(projectKey, permissions),
+            AssistantPrompt.ProjectNote(projectKey, permissions, asker),
             AssistantPrompt.ReadResource("local-agent.md").Trim(),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
 
     /// <summary>主機代理（組織來源）的版本：工具的說法和本機相同，只是引擎跑在 Kumi 主機上、代替發問的人操作，不提「你的電腦」。</summary>
     public static string HostSystemPrompt(
-        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null) =>
+        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null) =>
         string.Join(
             "\n\n",
             AssistantPrompt.SystemPrompt,
-            AssistantPrompt.ProjectNote(projectKey, permissions),
+            AssistantPrompt.ProjectNote(projectKey, permissions, asker),
             AssistantPrompt.ReadResource("host-agent.md").Trim(),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
 
@@ -63,10 +63,12 @@ internal static partial class LocalPromptBuilder
     /// 對話排成文字：<c>&lt;&lt;&lt;使用者&gt;&gt;&gt;</c>、<c>&lt;&lt;&lt;助理&gt;&gt;&gt;</c> 開頭、<c>&lt;&lt;&lt;結束&gt;&gt;&gt;</c> 結尾，一則一段，工具只寫「（用了 get_blueprint）」，最後一則是這次的訊息。
     /// 超過 <see cref="AiRules.MaxLocalPromptLength"/> 時從最舊的截掉並註明。
     /// </summary>
-    public static string Prompt(IReadOnlyList<ChatMessage> history, string userText)
+    public static string Prompt(IReadOnlyList<ChatMessage> history, string userText, Asker? asker = null)
     {
         var turns = TurnsOf(history);
-        var last = Wrap(UserLabel, userText);
+        // 發問的人的附註接在最後一則前面（理由見 AssistantPrompt.AskerReminder），名字照樣跳脫：不能變出假的段落。
+        var reminder = asker is null ? string.Empty : Escape(AssistantPrompt.AskerReminder(asker)) + "\n\n";
+        var last = reminder + Wrap(UserLabel, userText);
         var dropped = 0;
         while (turns.Count > 0 && Length(turns, last) > AiRules.MaxLocalPromptLength)
         {

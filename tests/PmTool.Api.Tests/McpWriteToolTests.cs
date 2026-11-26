@@ -189,6 +189,26 @@ public sealed class McpWriteToolTests
     }
 
     [Test]
+    public async Task UpdateItem_AssigneeAsAMemberId_AssignsThatMemberAndAnOutsiderIdIsRefused()
+    {
+        // Arrange：get_item 回成員名單之後，模型拿到的是人員編號；只收這個專案的成員，Guest 在組織裡卻不是成員。
+        await using var mcp = await McpHarness.StartAsync();
+
+        // Act
+        var (memberError, _) = await mcp.CallAsync("update_item", new { itemKey = "WEB-1", assignee = TestUsers.Owner.PersonId.ToString() });
+        var (outsiderError, body) = await mcp.CallAsync("update_item", new { itemKey = "WEB-1", assignee = TestUsers.Guest.PersonId.ToString() });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(memberError, Is.False);
+            Assert.That(mcp.Modules.Items.UpdateCalls.Single().Patch.AssigneeId, Is.EqualTo(new Optional<Guid?>(TestUsers.Owner.PersonId)));
+            Assert.That(outsiderError, Is.True);
+            Assert.That(body["error"]!.GetValue<string>(), Is.EqualTo($"找不到可以指派的人：{TestUsers.Guest.PersonId}"));
+        }
+    }
+
+    [Test]
     public async Task UpdateItem_NothingToChange_IsAToolErrorBeforeTheModule()
     {
         // Arrange

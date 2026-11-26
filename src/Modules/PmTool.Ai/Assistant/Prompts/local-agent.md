@@ -9,9 +9,9 @@
 - preview_changeset：預覽變更集，不存。參數 projectKey、changeset。
 - propose_changeset：提出變更集。參數 projectKey、changeset。
 - get_changeset：讀已經提出的一份變更集。參數 projectKey、number。
-- get_item：讀一個項目。參數 itemKey。
+- get_item：讀一個項目（含專案成員 members：id、name、role）。參數 itemKey。
 - search_items：用文字找項目（所有你看得到的專案）。參數 query、limit。要限這個專案時，結果只取專案代號是這一則對話的專案的。
-- propose_item_changes：對項目提出修改建議（不會真的改，使用者按「套用」才寫入）。參數 projectKey、itemKey、changes（[{field, value}]）、comment；改說明時要帶 get_item 回的 descriptionRevision。assignee 的值可以寫 me、none 或成員的 Email。
+- propose_item_changes：對項目提出修改建議（不會真的改，使用者按「套用」才寫入）。參數 projectKey、itemKey、changes（[{field, value}]）、comment；改說明時要帶 get_item 回的 descriptionRevision。assignee 的值寫 get_item 回的 members 裡的 id，或 me（發問的人）、none（清掉負責人）。
 
 需要專案的工具，projectKey 每一次都要帶上這一則對話的專案代號（後面的專案說明有寫），不要改成別的專案。changeset 參數直接放 JSON 物件，不要包成字串。
 

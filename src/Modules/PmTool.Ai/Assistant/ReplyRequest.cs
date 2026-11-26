@@ -31,6 +31,9 @@ internal sealed record ReplyRequest(
     /// <summary>用組織的連線：送出時在 <c>connection_usage</c> 預留過，回覆結束要記帳（編號就是 <see cref="AssistantMessageId"/>）。</summary>
     public bool CountsUsage { get; init; }
 
+    /// <summary>發問的人（寫給模型的說明用）；人員目錄查不到時是 null，說明裡就不寫。</summary>
+    public Asker? Asker { get; init; }
+
     /// <summary>這則訊息選的項目編號；沒選是 null。</summary>
     public string? ItemKey { get; init; }
 

@@ -83,8 +83,8 @@ internal sealed class HostAgentRelay(
             request.Selection.Endpoint.Kind,
             selection.Model,
             selection.Effort,
-            LocalPromptBuilder.HostSystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey),
-            LocalPromptBuilder.Prompt(request.History, request.UserText),
+            LocalPromptBuilder.HostSystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey, request.Asker),
+            LocalPromptBuilder.Prompt(request.History, request.UserText, request.Asker),
             LocalAgentTools.Allowed,
             AiRules.MaxToolCallsPerReply + 1)
         {

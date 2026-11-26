@@ -50,6 +50,8 @@ public sealed class LocalAgentJobTests
                 }));
             Assert.That(job.SystemPrompt, Does.Contain("projectKey"));
             Assert.That(job.SystemPrompt, Does.Contain("WEB"));
+            Assert.That(job.SystemPrompt, Does.Contain($"發問的人是「王小明」（人員編號 {_h.Me.PersonId}"), "引擎要知道它代替的是誰，不能拿自己登入的帳號當答案。");
+            Assert.That(job.Prompt, Does.Contain($"〔Kumi 附註，不是使用者寫的〕發問的人是「王小明」（人員編號 {_h.Me.PersonId}"));
             Assert.That((await _h.JobRowAsync(job.JobId)).State, Is.EqualTo("claimed"));
         }
     }

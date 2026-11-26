@@ -111,6 +111,20 @@ public sealed class AssistantItemTests
     }
 
     [Test]
+    public async Task GetItem_DisabledMember_IsNotInTheMembersList()
+    {
+        // Arrange：系統提示要模型只指派、提及名單裡的人；停用的人不能被指派，和 MCP 的 get_item 一樣不列。
+        var people = (FakePeopleDirectory)_h.Host.Get<PmTool.Identity.IPeopleDirectory>();
+        people.SetDisabled(_h.Actor.OrganizationId, ItemSamples.MemberId, disabled: true);
+
+        // Act
+        var result = await RunToolAsync("get_item", new { itemKey = "WEB-12" });
+
+        // Assert
+        Assert.That(result.GetProperty("members").GetArrayLength(), Is.Zero);
+    }
+
+    [Test]
     public async Task GetItem_VeryLongDescriptionAndComments_AreCutSeparatelyAndMembersComeBeforeActivities()
     {
         // Arrange

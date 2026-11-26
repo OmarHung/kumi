@@ -65,6 +65,17 @@ public sealed class AssistantPromptRulesTests
     }
 
     [TestCaseSource(nameof(Prompts))]
+    public void SystemPrompt_TellsTheModelHowToMentionMembersOnly(string prompt)
+    {
+        // Act & Assert：寫成「@小明」只是文字，不會通知任何人；格式要和 PmTool.Work 的 Mentions 一致，編號只能用成員名單裡的。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompt, Does.Contain("@[名稱](mention:<人員編號>)"));
+            Assert.That(prompt, Does.Contain("只能用 get_item 回的 members 裡的人"));
+        }
+    }
+
+    [TestCaseSource(nameof(Prompts))]
     public void SystemPrompt_TellsTheModelNotToWriteItsReasoningIntoTheReply(string prompt)
     {
         // Act & Assert：模型偶爾把思考寫進回覆的文字（英文、半截），使用者看到的回覆裡不該有它。

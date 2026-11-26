@@ -4,6 +4,7 @@ using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Providers;
+using PmTool.Identity;
 using PmTool.Work;
 
 namespace PmTool.Ai.Assistant;
@@ -24,6 +25,7 @@ internal sealed partial class AssistantService(
     HostReservations hostReservations,
     ConnectionUsageLedger usageLedger,
     AttachmentTextLimits textLimits,
+    IPeopleDirectory people,
     TimeProvider time,
     AssistantTimings timings,
     HostTimings hostTimings) : IAssistantService

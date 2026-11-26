@@ -86,6 +86,35 @@ public sealed class McpItemProposalToolTests
     }
 
     [Test]
+    public async Task Call_AssigneeAsAMemberId_IsCheckedAgainstTheSameListAsUpdateItem()
+    {
+        // Arrange：編號也要經過同一份名單，停用的成員和不是成員的人都回同一句，和 update_item 一致。
+        await using var mcp = await McpHarness.StartForAgentAsync("WEB", AgentScopes);
+        mcp.Modules.People.Add(
+            TestUsers.Member.OrganizationId,
+            new PersonSummary(TestUsers.Owner.PersonId, TestUsers.Owner.DisplayName, TestUsers.Owner.Email, OrganizationRole.Owner, IsDisabled: true));
+
+        // Act
+        var (memberError, _) = await mcp.CallAsync("propose_item_changes", new
+        {
+            projectKey = "WEB", itemKey = "WEB-12", changes = new[] { new { field = "assignee", value = (object?)TestUsers.Member.PersonId.ToString() } },
+        });
+        var (disabledError, body) = await mcp.CallAsync("propose_item_changes", new
+        {
+            projectKey = "WEB", itemKey = "WEB-12", changes = new[] { new { field = "assignee", value = (object?)TestUsers.Owner.PersonId.ToString() } },
+        });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(memberError, Is.False);
+            Assert.That(mcp.Modules.ItemProposals.Creates.Single().Draft.Changes.Single().Value.GetString(), Is.EqualTo(TestUsers.Member.PersonId.ToString()));
+            Assert.That(disabledError, Is.True);
+            Assert.That(body["error"]?.GetValue<string>(), Is.EqualTo($"找不到可以指派的人：{TestUsers.Owner.PersonId}"));
+        }
+    }
+
+    [Test]
     public async Task Call_DescriptionRevision_IsPassedToTheCreator()
     {
         // Arrange
