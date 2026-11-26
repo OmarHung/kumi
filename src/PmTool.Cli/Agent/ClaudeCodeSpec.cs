@@ -8,8 +8,9 @@ namespace PmTool.Cli.Agent;
 /// </summary>
 internal sealed class ClaudeCodeSpec : IEngineSpec
 {
-    // 中文照原樣寫，不轉成 \u：標準輸入小一點，記錄看得懂；控制字元照舊會跳脫，一行還是一行。
-    private static readonly JsonSerializerOptions LineOptions = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+    // 預設的編碼器（非 ASCII 一律跳脫成 \u）：串流輸入是「一行一則」，U+2028、U+2029、U+0085 這幾個換行字元
+    // 不能原樣留在行裡（有些讀行的實作會把它們當換行切開），中文轉成 \u 只是標準輸入大一點。
+    private static readonly JsonSerializerOptions LineOptions = new();
 
     public const string TokenVariable = "KUMI_MCP_TOKEN";
 

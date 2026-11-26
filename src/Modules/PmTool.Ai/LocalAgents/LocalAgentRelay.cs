@@ -160,7 +160,7 @@ internal sealed class LocalAgentRelay(
         return status switch
         {
             AssistantMessageStatus.Complete => new ReplyOutcome(status, null),
-            AssistantMessageStatus.Failed => new ReplyOutcome(status, job.FinishError ?? UnreportedFailureMessage),
+            AssistantMessageStatus.Failed => new ReplyOutcome(status, job.FinishError ?? UnreportedFailureMessage) { ReportedByEngine = true },
             _ => new ReplyOutcome(status, job.FinishError),
         };
     }

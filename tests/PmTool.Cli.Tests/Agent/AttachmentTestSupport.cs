@@ -56,3 +56,56 @@ internal sealed class FakeAttachmentSource : IAttachmentSource
         return Task.FromResult(new DownloadStream(new HttpResponseMessage(), new MemoryStream(content), null, content.Length, null));
     }
 }
+
+/// <summary>內容由測試給的串流（斷線、卡住）；不管要哪個附件都回同一個。</summary>
+internal sealed class StreamAttachmentSource(Func<CancellationToken, Stream> open) : IAttachmentSource
+{
+    public Task<DownloadStream> OpenAsync(Guid jobId, Guid attachmentId, CancellationToken cancellation) =>
+        Task.FromResult(new DownloadStream(new HttpResponseMessage(), open(cancellation), null, 1000, null));
+}
+
+/// <summary>先給一段資料，再照指定的方式出狀況：丟 <see cref="IOException"/>，或一直等到被取消。</summary>
+internal sealed class BrokenStream(byte[] firstChunk, bool hang) : Stream
+{
+    private bool _gaveFirst;
+
+    public override bool CanRead => true;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => false;
+
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        if (!_gaveFirst)
+        {
+            _gaveFirst = true;
+            firstChunk.CopyTo(buffer);
+            return firstChunk.Length;
+        }
+
+        if (!hang)
+        {
+            throw new IOException("The response ended prematurely.");
+        }
+
+        await Task.Delay(Timeout.Infinite, cancellationToken);
+        return 0;
+    }
+
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    public override void Flush()
+    {
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override void SetLength(long value) => throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+}

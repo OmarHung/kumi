@@ -48,10 +48,10 @@ internal sealed class ProcessEngine(
         job = job with { McpUrl = JobValidation.NormalizeMcpUrl(job.McpUrl, server)! };
 
         var name = EngineKinds.DisplayName(spec.Kind);
-        var workDirectory = Directory.CreateTempSubdirectory("kumi-agent-");
+        var workDirectory = WorkDirectories.Create(options.WorkRoot);
         try
         {
-            var staged = await AttachmentStaging.StageAsync(job, workDirectory.FullName, attachments, cancellation);
+            var staged = await AttachmentStaging.StageAsync(job, workDirectory.FullName, attachments, cancellation, options.DownloadIdleTimeout);
             var plan = spec.Plan(job, workDirectory.FullName, staged);
             foreach (var (file, content) in plan.Files)
             {
@@ -74,7 +74,7 @@ internal sealed class ProcessEngine(
         }
         finally
         {
-            DeleteQuietly(workDirectory);
+            await WorkDirectories.DeleteQuietlyAsync(workDirectory, options.DeleteRetryDelay, options.Delay);
         }
     }
 
@@ -133,18 +133,6 @@ internal sealed class ProcessEngine(
 
     private JobOutcome Scrub(JobOutcome outcome) =>
         outcome.Error is null ? outcome : outcome with { Error = ErrorText.Sanitize(outcome.Error, mcpToken) };
-
-    private static void DeleteQuietly(DirectoryInfo directory)
-    {
-        try
-        {
-            directory.Delete(recursive: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // 刪不掉就算了：裡面沒有機密（權杖只在環境變數裡），系統的暫存資料夾也會清。
-        }
-    }
 }
 
 /// <summary>送出之前再清一次錯誤文字：權杖的字面值（轉換器不知道它）與路徑都不能出現在伺服器上。</summary>

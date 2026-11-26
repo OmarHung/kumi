@@ -43,7 +43,7 @@ public sealed class AgentAttachmentReplayTests
             Assert.That(TextOf(result.Messages[2]), Does.Contain("〔附件 2：規格.pdf（附在這則訊息的最後）〕"));
             Assert.That(TextOf(result.Messages[2]), Does.Contain("〔附件 3：最新.png（附在這則訊息的最後）〕"));
             Assert.That(result.AgentAttachments.Select(a => a.Id), Is.EqualTo(new[] { old.Id, spec.Id, latest.Id }));
-            Assert.That(result.HistoryBinaryIds, Is.Empty);
+            Assert.That(result.HistoryBinaryIds, Is.EqualTo(new[] { old.Id }), "這一則自己的不算歷史");
         }
     }
 

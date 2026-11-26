@@ -48,4 +48,7 @@ internal sealed record ReplyRequest(
     /// 沒有是空的。
     /// </summary>
     public IReadOnlyList<LocalAgentJobAttachment> JobAttachments { get; init; } = [];
+
+    /// <summary><see cref="JobAttachments"/> 裡屬於歷史（不是這一則）的那幾個；引擎失敗時記下不再重送。</summary>
+    public IReadOnlyList<Guid> HistoryJobAttachmentIds { get; init; } = [];
 }

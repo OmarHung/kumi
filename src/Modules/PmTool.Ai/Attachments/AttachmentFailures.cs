@@ -75,7 +75,7 @@ internal static class AttachmentFailures
 
     public static Failure CodexNoPdf(AgentSource source) =>
         new(FailureKind.Invalid, AiErrorCodes.AttachmentUnsupported,
-            $"Codex 讀不到 PDF（圖片可以）：「{source.Name}」是 Codex，請移除 PDF，或改選 Claude Code 或 API 的模型。");
+            $"Codex 讀不到 PDF（圖片可以）：你選的是「{source.Name}」，請移除 PDF，或改選 Claude Code 或 API 的模型。");
 
     /// <summary>超過的是組織的總量還是這個人的每日量，代碼不同、說的話也不同。</summary>
     public static Failure Quota(StorageQuotaCheck check) =>

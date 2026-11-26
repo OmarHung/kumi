@@ -88,7 +88,7 @@ export function unreadableShortNote(source: EngineSource): string {
   return `${ENGINE_LABELS[source.engine]} 讀不到 PDF`;
 }
 
-/** 輸入框上方的說明：是哪一個來源、能怎麼做。 */
+/** 輸入框上方的說明：是哪一個來源、能怎麼做。連線名稱本身就帶引擎（例如「Codex（某台電腦）」），不再另外寫引擎。 */
 export function unreadableNote(source: EngineSource): string {
-  return `你選的 ${ENGINE_LABELS[source.engine]}（${source.name}）讀不到 PDF：移除它，或改選 Claude Code。`;
+  return `你選的「${source.name}」讀不到 PDF：移除它，或改選 Claude Code。`;
 }

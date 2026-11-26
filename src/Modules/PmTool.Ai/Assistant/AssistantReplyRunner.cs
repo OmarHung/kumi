@@ -36,6 +36,8 @@ internal sealed class AssistantReplyRunner(
 
     public const string TruncatedMessage = "回覆超過長度上限被截斷了，請把要求拆小一點再試。";
 
+    public const string HistoryBinarySkippedNote = "之前附的圖片或 PDF 下一則不會再送；如果是它們讓引擎讀不了，再送一次就好。";
+
     public const string SaveFailedMessage = "回覆沒有存下來，請再送一次。";
 
     private const string CallLimitNote = "（這一則回覆呼叫工具的次數到了上限，先停在這裡。請告訴我接下來要做什麼。）";
@@ -56,6 +58,7 @@ internal sealed class AssistantReplyRunner(
         var localRecorder = new LocalReplyAccumulator();
         IReplyRecorder recorder = isLocal || isHosted ? localRecorder : accumulator;
         var outcome = new ReplyOutcome(AssistantMessageStatus.Complete, null);
+        var sent = request;
         try
         {
             // 主機來源的兩段期限（排隊、執行）由轉送自己管；這裡只是整則回覆的最後防線。
@@ -64,11 +67,17 @@ internal sealed class AssistantReplyRunner(
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(session.StopToken, timeout.Token);
             try
             {
-                outcome = isHosted
-                    ? await hostRelay.RunAsync(await ResolveForHostAsync(request, localRecorder, linked.Token), localRecorder, session, linked.Token)
-                    : isLocal
-                        ? await relay.RunAsync(await ResolveAttachmentsAsync(request, linked.Token), localRecorder, session, linked.Token)
-                        : await StreamAsync(request, accumulator, session, linked.Token);
+                if (isHosted || isLocal)
+                {
+                    sent = isHosted ? await ResolveForHostAsync(request, localRecorder, linked.Token) : await ResolveAttachmentsAsync(request, linked.Token);
+                    outcome = isHosted
+                        ? await hostRelay.RunAsync(sent, localRecorder, session, linked.Token)
+                        : await relay.RunAsync(sent, localRecorder, session, linked.Token);
+                }
+                else
+                {
+                    outcome = await StreamAsync(request, accumulator, session, linked.Token);
+                }
             }
             catch (OperationCanceledException) when (linked.IsCancellationRequested)
             {
@@ -82,6 +91,7 @@ internal sealed class AssistantReplyRunner(
                 outcome = new ReplyOutcome(AssistantMessageStatus.Failed, AiProviderFailures.Describe(exception, host: null, request.Selection.Endpoint.ApiKey, request.Selection.Endpoint.Personal));
             }
 
+            outcome = await SkipHistoryBinaryAfterEngineFailureAsync(sent, outcome);
             var message = await FinishAsync(request, recorder, outcome, session);
             await SettleUsageQuietlyAsync(request, recorder, outcome);
             if (localRecorder.JobId is { } jobId)
@@ -195,6 +205,21 @@ internal sealed class AssistantReplyRunner(
         }
     }
 
+    /// <summary>
+    /// 本機或主機的引擎失敗、而這件工作帶著歷史的圖片或 PDF：不知道是不是它們讓引擎讀不了，但留著的話之後每一則都帶同一張、永遠失敗，
+    /// 所以和 API 的路徑一樣記下不再重送，並在失敗訊息說明。不自動重跑（使用者的訊息已經算過一次了）。
+    /// </summary>
+    private async Task<ReplyOutcome> SkipHistoryBinaryAfterEngineFailureAsync(ReplyRequest sent, ReplyOutcome outcome)
+    {
+        if (outcome is not { Status: AssistantMessageStatus.Failed, ReportedByEngine: true } || sent.HistoryJobAttachmentIds.Count == 0)
+        {
+            return outcome;
+        }
+
+        await MarkReplaySkippedQuietlyAsync(sent, sent.HistoryJobAttachmentIds);
+        return outcome with { Error = string.IsNullOrEmpty(outcome.Error) ? HistoryBinarySkippedNote : outcome.Error + "\n" + HistoryBinarySkippedNote };
+    }
+
     private async Task RecordRejectedCallQuietlyAsync(ReplyRequest request)
     {
         if (!request.CountsUsage)
@@ -267,6 +292,7 @@ internal sealed class AssistantReplyRunner(
             History = [.. resolved.Take(resolved.Count - 1)],
             UserText = userText,
             JobAttachments = await LoadJobAttachmentsAsync(request, replayed.AgentAttachments, cancellationToken),
+            HistoryJobAttachmentIds = replayed.HistoryBinaryIds,
         };
     }
 

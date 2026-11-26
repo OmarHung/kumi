@@ -52,6 +52,15 @@ internal sealed record AgentOptions
     /// <summary>送出結束與最後一批進度的時限；Ctrl-C 之後不能讓使用者等很久。</summary>
     public TimeSpan FinishTimeout { get; init; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>每件工作的暫存資料夾放在哪裡；null 是系統的暫存資料夾。測試指到自己的資料夾，才看得出有沒有刪乾淨。</summary>
+    public string? WorkRoot { get; init; }
+
+    /// <summary>刪暫存資料夾失敗時，等多久再試一次。</summary>
+    public TimeSpan DeleteRetryDelay { get; init; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>下載附件時，一次讀等多久都沒有資料就當作斷線。</summary>
+    public TimeSpan DownloadIdleTimeout { get; init; } = AttachmentStaging.DefaultIdleTimeout;
+
     /// <summary>等待用；測試換成假的，才不必真的等。</summary>
     public Func<TimeSpan, CancellationToken, Task> Delay { get; init; } = Task.Delay;
 }

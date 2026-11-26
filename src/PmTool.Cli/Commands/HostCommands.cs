@@ -85,6 +85,7 @@ internal static class HostCommands
         var kinds = ResolveKinds(call.Arguments.Values("engine"));
         var store = HostStateStore.FromEnvironment(context.GetEnvironmentVariable);
         var console = new AgentConsole(call.Out, call.Error, json: false);
+        AgentCommands.SweepStaleWorkDirectories(context.AgentOptions, console);
         var service = new HostService(
             store, context.Http, new HostEngineProbe(context.GetEnvironmentVariable, context.AgentOptions), kinds, context.HostOptions,
             context.AgentOptions, console, HelpText.VersionNumber, () => DateTimeOffset.Now,

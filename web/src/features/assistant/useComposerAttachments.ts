@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { AssistantAttachment, AssistantAttachmentKind } from '../../api/aiTypes';
 import { deleteAssistantAttachment, releaseAssistantAttachment, uploadAssistantAttachment } from '../../api/assistantAttachments';
 import { errorMessage, isApiError } from '../../api/http';
@@ -120,7 +120,8 @@ function useUpload(projectKey: string, setState: SetState, controllers: RefObjec
 function useReleaseOnUnmount(projectKey: string, state: State, isSending: boolean): RefObject<boolean> {
   const mountedRef = useRef(true);
   const latest = useRef({ projectKey, state, isSending });
-  useEffect(() => {
+  // 和畫面同一次提交就更新：小卡一出現，離開（pagehide、卸載）時就要刪得到它，不能等被動的 effect 晚一步跑。
+  useLayoutEffect(() => {
     latest.current = { projectKey, state, isSending };
   });
   useEffect(() => {

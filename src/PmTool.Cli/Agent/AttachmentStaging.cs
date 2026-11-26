@@ -31,8 +31,11 @@ internal static class AttachmentStaging
 {
     private const int BufferSize = 81_920;
 
+    /// <summary>回應的內容一直收不到資料的時限：一次讀等超過這麼久就當作斷線（網路卡住不會自己出錯）。</summary>
+    public static readonly TimeSpan DefaultIdleTimeout = TimeSpan.FromSeconds(30);
+
     public static async Task<IReadOnlyList<StagedAttachment>> StageAsync(
-        AgentJob job, string directory, IAttachmentSource? source, CancellationToken cancellation)
+        AgentJob job, string directory, IAttachmentSource? source, CancellationToken cancellation, TimeSpan? idleTimeout = null)
     {
         if (job.Attachments.Count == 0)
         {
@@ -49,7 +52,7 @@ internal static class AttachmentStaging
         {
             var attachment = job.Attachments[index];
             var path = Path.Combine(directory, attachment.LocalFileName(index + 1));
-            await DownloadOneAsync(job.JobId, attachment, path, index + 1, source, cancellation);
+            await DownloadOneAsync(job.JobId, attachment, path, index + 1, source, idleTimeout ?? DefaultIdleTimeout, cancellation);
             staged.Add(new StagedAttachment(path, attachment.ContentType, attachment.Kind));
         }
 
@@ -57,12 +60,12 @@ internal static class AttachmentStaging
     }
 
     private static async Task DownloadOneAsync(
-        Guid jobId, AgentAttachment attachment, string path, int number, IAttachmentSource source, CancellationToken cancellation)
+        Guid jobId, AgentAttachment attachment, string path, int number, IAttachmentSource source, TimeSpan idleTimeout, CancellationToken cancellation)
     {
         try
         {
             using var download = await source.OpenAsync(jobId, attachment.Id, cancellation);
-            var (size, hash) = await WriteAsync(download.Content, path, attachment.SizeBytes, cancellation);
+            var (size, hash) = await WriteAsync(download.Content, path, attachment.SizeBytes, number, idleTimeout, cancellation);
             if (size != attachment.SizeBytes)
             {
                 throw new AttachmentStagingException($"下載附件失敗：第 {number} 個附件的大小和伺服器說的不一樣。");
@@ -78,32 +81,77 @@ internal static class AttachmentStaging
             // 訊息是整理過的（連不上、404 的原因），不含權杖；檔名不放進去。
             throw new AttachmentStagingException($"下載附件失敗：第 {number} 個附件：{exception.Message}");
         }
-        catch (IOException)
-        {
-            throw new AttachmentStagingException($"下載附件失敗：第 {number} 個附件寫不進暫存資料夾。");
-        }
     }
 
-    /// <summary>寫到 <paramref name="path"/>；超過宣告的大小就停（伺服器多送、被換掉的回應都不能塞滿磁碟）。回實際的大小與小寫十六進位雜湊。</summary>
-    private static async Task<(long Size, string Hash)> WriteAsync(Stream content, string path, long limit, CancellationToken cancellation)
+    /// <summary>
+    /// 寫到 <paramref name="path"/>；超過宣告的大小就停（伺服器多送、被換掉的回應都不能塞滿磁碟）。回實際的大小與小寫十六進位雜湊。
+    /// 讀網路與寫檔分開處理：斷線、卡住與磁碟寫不進是兩種原因，使用者要的處置不同。
+    /// </summary>
+    private static async Task<(long Size, string Hash)> WriteAsync(
+        Stream content, string path, long limit, int number, TimeSpan idleTimeout, CancellationToken cancellation)
     {
         using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[BufferSize];
         long total = 0;
-        await using var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
-        int read;
-        while ((read = await content.ReadAsync(buffer, cancellation)) > 0)
+        FileStream file;
+        try
         {
-            total += read;
-            if (total > limit)
-            {
-                break;
-            }
+            file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
+        }
+        catch (IOException)
+        {
+            throw DiskFailure(number);
+        }
 
-            hasher.AppendData(buffer, 0, read);
-            await file.WriteAsync(buffer.AsMemory(0, read), cancellation);
+        await using (file)
+        {
+            while (true)
+            {
+                var read = await ReadAsync(content, buffer, number, idleTimeout, cancellation);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                total += read;
+                if (total > limit)
+                {
+                    break;
+                }
+
+                hasher.AppendData(buffer, 0, read);
+                try
+                {
+                    await file.WriteAsync(buffer.AsMemory(0, read), cancellation);
+                }
+                catch (IOException)
+                {
+                    throw DiskFailure(number);
+                }
+            }
         }
 
         return (total, Convert.ToHexStringLower(hasher.GetHashAndReset()));
     }
+
+    private static async Task<int> ReadAsync(Stream content, byte[] buffer, int number, TimeSpan idleTimeout, CancellationToken cancellation)
+    {
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        idle.CancelAfter(idleTimeout);
+        try
+        {
+            return await content.ReadAsync(buffer, idle.Token);
+        }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+        {
+            throw new AttachmentStagingException($"下載附件失敗：第 {number} 個附件超過 {(int)idleTimeout.TotalSeconds} 秒沒有收到資料，連線可能卡住了。");
+        }
+        catch (Exception exception) when (exception is IOException or HttpRequestException)
+        {
+            throw new AttachmentStagingException($"下載附件失敗：第 {number} 個附件下載到一半連線斷了。");
+        }
+    }
+
+    private static AttachmentStagingException DiskFailure(int number) =>
+        new($"下載附件失敗：第 {number} 個附件寫不進暫存資料夾。");
 }

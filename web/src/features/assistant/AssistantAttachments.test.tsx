@@ -320,7 +320,7 @@ describe('助理：本機與主機的引擎讀得到哪些附件', () => {
     await addAndFinish(user, '規格.pdf', 1000, 'application/pdf');
 
     // Assert
-    expect(await screen.findByText(`你選的 Codex（${sourceName}）讀不到 PDF：移除它，或改選 Claude Code。`)).toBeInTheDocument();
+    expect(await screen.findByText(`你選的「${sourceName}」讀不到 PDF：移除它，或改選 Claude Code。`)).toBeInTheDocument();
     expect(screen.getByText('Codex 讀不到 PDF')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '送出' })).toBeDisabled();
 

@@ -215,21 +215,21 @@ public sealed class AttachmentTests
     }
 
     [Test]
-    public void Codex_Plan_PassesEachImageWithDashIBeforeTheFinalStdinMarker()
+    public void Codex_Plan_PassesEachImageAsItsOwnImageOptionBeforeTheFinalStdinMarker()
     {
         // Arrange
         var first = Stage("attachment-1.png", [1], "image/png", AttachmentKinds.Image);
         var second = Stage("attachment-2.jpg", [2], "image/jpeg", AttachmentKinds.Image);
 
         // Act
-        var plan = new CodexSpec(["shell_tool"]).Plan(TestJobs.Make(EngineKinds.Codex), WorkDirectory, [first, second]);
+        var plan = new CodexSpec(["shell_tool"]).Plan(TestJobs.Make(EngineKinds.Codex), _directory, [first, second]);
 
         // Assert
         var args = plan.Arguments.ToList();
         using (Assert.EnterMultipleScope())
         {
             Assert.That(args[^1], Is.EqualTo("-"));
-            Assert.That(args.GetRange(args.Count - 5, 4), Is.EqualTo(new[] { "-i", first.Path, "-i", second.Path }));
+            Assert.That(args.GetRange(args.Count - 3, 2), Is.EqualTo(new[] { "--image=attachment-1.png", "--image=attachment-2.jpg" }));
             Assert.That(plan.StandardInput, Is.EqualTo(TestJobs.Make(EngineKinds.Codex).Prompt));
         }
     }
@@ -241,7 +241,7 @@ public sealed class AttachmentTests
         var plan = new CodexSpec([]).Plan(TestJobs.Make(EngineKinds.Codex), WorkDirectory);
 
         // Assert
-        Assert.That(plan.Arguments, Does.Not.Contain("-i"));
+        Assert.That(plan.Arguments, Has.None.StartsWith("--image").And.None.EqualTo("-i"));
     }
 
     // 下載與核對

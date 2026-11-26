@@ -102,6 +102,7 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
         var source = run.Options.Agent!;
         var budget = run.Budget;
         var chosen = new HashSet<Guid>();
+        var chosenFromHistory = new HashSet<Guid>();
         for (var index = messages.Count - 1; index >= 0; index--)
         {
             var isCurrent = index == messages.Count - 1;
@@ -129,6 +130,10 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
                 {
                     budget.BinaryBytes -= reference.SizeBytes;
                     chosen.Add(reference.Id);
+                    if (!isCurrent)
+                    {
+                        chosenFromHistory.Add(reference.Id);
+                    }
                 }
             }
         }
@@ -137,6 +142,11 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
         {
             run.AgentAttachments.Add(reference);
             run.Numbers[reference.Id] = run.AgentAttachments.Count;
+            if (chosenFromHistory.Contains(reference.Id))
+            {
+                // 引擎失敗時要記下不再重送的就是這些（和 API 的路徑被退回時一樣）。
+                run.HistoryBinaryIds.Add(reference.Id);
+            }
         }
     }
 

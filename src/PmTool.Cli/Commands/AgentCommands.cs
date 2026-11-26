@@ -65,6 +65,16 @@ internal static class AgentCommands
         }
     }
 
+    /// <summary>上次當掉或沒刪乾淨的暫存資料夾（裡面可能有使用者的圖片與 PDF）：啟動時清掉超過 6 小時的。</summary>
+    internal static void SweepStaleWorkDirectories(AgentOptions options, AgentConsole console)
+    {
+        var removed = WorkDirectories.SweepStale(options.WorkRoot ?? Path.GetTempPath(), DateTime.UtcNow, WorkDirectories.StaleAfter);
+        if (removed > 0)
+        {
+            console.Notice($"清掉 {removed} 個上次殘留的暫存資料夾。");
+        }
+    }
+
     private const int ServiceLockAttempts = 5;
     private static readonly TimeSpan ServiceLockInterval = TimeSpan.FromSeconds(1);
 
@@ -77,6 +87,7 @@ internal static class AgentCommands
         var (api, credentials) = ConnectForAgent(call);
         var console = new AgentConsole(logs?.Out ?? call.Out, logs?.Error ?? call.Error, call.Json);
         var options = service ? context.AgentOptions with { MaxBackoff = ServiceRetry.MaxBackoff } : context.AgentOptions;
+        SweepStaleWorkDirectories(options, console);
 
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(call.CancellationToken);
         using var registration = context.RegisterInterrupt(() => stop.Cancel());

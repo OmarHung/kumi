@@ -38,8 +38,8 @@ if (args[0] === 'features' && args[1] === 'list') {
     process.exit(1);
   }
   const prompt = readStdin();
-  // 圖片用 -i <路徑> 交給引擎；Codex 沒有 PDF。
-  const received = { images: args.filter((arg, index) => args[index - 1] === '-i' && require('fs').existsSync(arg)).length, pdfs: 0 };
+  // 圖片每張一個 --image=<檔名>（相對於工作目錄）交給引擎；Codex 沒有 PDF。
+  const received = { images: args.filter((arg) => arg.startsWith('--image=') && require('fs').existsSync(arg.slice('--image='.length))).length, pdfs: 0 };
   const config = (key) => {
     const entry = args.find((arg, index) => args[index - 1] === '-c' && arg.startsWith(`${key}=`));
     return entry ? entry.slice(key.length + 1) : null;

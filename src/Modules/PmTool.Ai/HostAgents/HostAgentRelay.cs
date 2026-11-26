@@ -244,7 +244,7 @@ internal sealed class HostAgentRelay(
         return status switch
         {
             AssistantMessageStatus.Complete => new ReplyOutcome(status, null),
-            AssistantMessageStatus.Failed => new ReplyOutcome(status, job.FinishError ?? HostMessages.Unreported),
+            AssistantMessageStatus.Failed => new ReplyOutcome(status, job.FinishError ?? HostMessages.Unreported) { ReportedByEngine = true },
             _ => new ReplyOutcome(status, job.CancelMessage ?? job.FinishError),
         };
     }
