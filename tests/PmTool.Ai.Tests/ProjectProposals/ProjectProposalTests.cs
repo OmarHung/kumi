@@ -221,4 +221,120 @@ public sealed class ProjectProposalTests
             Assert.That(apply.Failure?.Code, Is.EqualTo(AiErrorCodes.ProjectProposalClosed));
         }
     }
+
+    [Test]
+    public async Task Apply_WhenTheProjectWasAlreadyCreatedByThisProposal_MarksItAppliedInsteadOfKeyTaken()
+    {
+        // Arrange：專案建好了、存 applied 失敗過，再按時工作引擎回 key_taken。
+        var proposal = await CreatedAsync();
+        _h.Projects.OnCreate = (_, _) => WorkSamples.Failure(FailureKind.Conflict, WorkErrorCodes.ProjectKeyTaken, "專案代號 NEWP 已經有人用了。");
+        _h.Projects.OnGet = (_, key) => WorkSamples.Detail() with
+        {
+            Project = WorkSamples.Detail().Project with { Key = key, CreatedAt = proposal.CreatedAt.AddSeconds(1) },
+            Members = [new ProjectMember(_h.Admin.PersonId, "admin")],
+        };
+
+        // Act
+        var applied = await Proposals.ApplyAsync(_h.Admin, proposal.Id, CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(applied.Succeeded, Is.True, () => applied.Failure?.Message ?? string.Empty);
+            Assert.That(applied.Value.Status, Is.EqualTo(ProjectProposalStatus.Applied));
+            Assert.That(applied.Value.CreatedProjectKey, Is.EqualTo("NEWP"));
+        }
+    }
+
+    [Test]
+    public async Task Apply_KeyTakenByAnOlderOrSomeoneElsesProject_StaysPendingWithKeyTaken()
+    {
+        // Arrange
+        var proposal = await CreatedAsync();
+        _h.Projects.OnCreate = (_, _) => WorkSamples.Failure(FailureKind.Conflict, WorkErrorCodes.ProjectKeyTaken, "專案代號 NEWP 已經有人用了。");
+        _h.Projects.OnGet = (_, key) => WorkSamples.Detail() with
+        {
+            Project = WorkSamples.Detail().Project with { Key = key, CreatedAt = proposal.CreatedAt.AddDays(-1) },
+            Members = [new ProjectMember(_h.Admin.PersonId, "admin")],
+        };
+
+        // Act
+        var older = await Proposals.ApplyAsync(_h.Admin, proposal.Id, CancellationToken.None);
+        _h.Projects.OnGet = (_, key) => WorkSamples.Detail() with
+        {
+            Project = WorkSamples.Detail().Project with { Key = key, CreatedAt = proposal.CreatedAt.AddSeconds(1) },
+            Members = [new ProjectMember(Guid.NewGuid(), "admin")],
+        };
+        var someoneElses = await Proposals.ApplyAsync(_h.Admin, proposal.Id, CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(older.Failure?.Code, Is.EqualTo(WorkErrorCodes.ProjectKeyTaken));
+            Assert.That(someoneElses.Failure?.Code, Is.EqualTo(WorkErrorCodes.ProjectKeyTaken));
+            Assert.That((await Proposals.GetAsync(_h.Admin, proposal.Id, CancellationToken.None)).Value.Status, Is.EqualTo(ProjectProposalStatus.Pending));
+        }
+    }
+
+    [Test]
+    public async Task Apply_TwoAtTheSameTime_CreatesTheProjectOnlyOnce()
+    {
+        // Arrange
+        var proposal = await CreatedAsync();
+        var created = 0;
+        _h.Projects.OnCreate = (_, project) =>
+        {
+            Interlocked.Increment(ref created);
+            return new ProjectSummary(Guid.NewGuid(), project.Key, project.Name, 1, "admin", DateTimeOffset.UnixEpoch);
+        };
+
+        // Act
+        var results = await Task.WhenAll(
+            Proposals.ApplyAsync(_h.Admin, proposal.Id, CancellationToken.None),
+            Proposals.ApplyAsync(_h.Admin, proposal.Id, CancellationToken.None));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(created, Is.EqualTo(1));
+            Assert.That(results.Count(r => r.Succeeded), Is.EqualTo(1));
+            Assert.That(results.Single(r => !r.Succeeded).Failure?.Code, Is.EqualTo(AiErrorCodes.ProjectProposalClosed));
+        }
+    }
+
+    [Test]
+    public async Task Create_SecondProposalInTheSameReply_IsRefusedForEveryPathAndAllowedAfterTheNextMessage()
+    {
+        // Arrange：引擎（本機與主機經 MCP）直接走 creator，帶對話編號。
+        var conversation = await _h.NewOrganizationConversationAsync(_h.Admin);
+        _h.Script.Reply("好");
+        await _h.SendOrganizationAsync(conversation.Id, "開專案", _h.Admin);
+        var first = await Creator.CreateAsync(_h.Admin, Draft("ONE") with { ConversationId = conversation.Id }, CancellationToken.None);
+
+        // Act
+        var second = await Creator.CreateAsync(_h.Admin, Draft("TWO") with { ConversationId = conversation.Id }, CancellationToken.None);
+        _h.Clock.Advance(TimeSpan.FromMinutes(1));
+        _h.Script.Reply("好");
+        await _h.SendOrganizationAsync(conversation.Id, "再開一個", _h.Admin);
+        var afterNextMessage = await Creator.CreateAsync(_h.Admin, Draft("TWO") with { ConversationId = conversation.Id }, CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first.Succeeded, Is.True, () => first.Failure?.Message ?? string.Empty);
+            Assert.That(second.Failure?.Message, Does.Contain("一則回覆最多只能提出 1 份"));
+            Assert.That(afterNextMessage.Succeeded, Is.True, () => afterNextMessage.Failure?.Message ?? string.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Create_WithoutAConversation_IsNotLimitedPerReply()
+    {
+        // Act
+        var first = await Creator.CreateAsync(_h.Admin, Draft("ONE"), CancellationToken.None);
+        var second = await Creator.CreateAsync(_h.Admin, Draft("TWO"), CancellationToken.None);
+
+        // Assert
+        Assert.That(new[] { first.Succeeded, second.Succeeded }, Has.All.True);
+    }
 }

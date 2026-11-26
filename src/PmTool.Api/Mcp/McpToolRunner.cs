@@ -63,12 +63,12 @@ internal sealed class McpToolRunner(
     }
 
     /// <summary>
-    /// 列工具時的範圍：帶專案標頭的是限定專案（呼叫時還會用工作核對）；沒帶的要用工作找到對話，沒有專案才是只限組織。
-    /// 找不到工作是 null。
+    /// 列工具時的範圍：有工作標頭就和呼叫時一樣用工作找到對話核對專案標頭（對不上是 null，什麼都不列）；
+    /// 沒有工作標頭（舊版 kumi）只有專案標頭時，列專案的清單，呼叫時會被要求更新。找不到工作是 null。
     /// </summary>
     private async Task<McpScope?> ResolveListScopeAsync(HttpContext http, CancellationToken cancellationToken)
     {
-        if (McpProjectScope.Read(http.Request) is { } key)
+        if (!McpProjectScope.HasJobHeader(http.Request) && McpProjectScope.Read(http.Request) is { } key)
         {
             return McpScope.ForProject(key);
         }
@@ -117,24 +117,31 @@ internal sealed class McpToolRunner(
             return Render(await RunAsync(tool, ordinary, request.Params?.Arguments, cancellationToken));
         }
 
-        var resolution = await ResolveLocalScopeAsync(http, user.ToActor(), cancellationToken);
+        return Render(await CallAsAgentAsync(tool, user.ToActor(), issuer, http, request.Params?.Arguments, cancellationToken));
+    }
+
+    /// <summary>本機代理的呼叫：先用工作決定範圍，再用那個範圍的清單擋一次，然後才計額度與執行。</summary>
+    private async Task<McpToolResult> CallAsAgentAsync(
+        McpTool tool, Actor actor, string issuer, HttpContext http, IDictionary<string, JsonElement>? arguments, CancellationToken cancellationToken)
+    {
+        var resolution = await ResolveLocalScopeAsync(http, actor, cancellationToken);
         if (resolution.Refusal is { } refusal)
         {
-            return Render(refusal);
+            return refusal;
         }
 
         var scope = resolution.Scope!.Value;
         if (!scope.AllowsTool(tool.Name))
         {
-            return Render(McpToolResult.Error(ToolNotAllowedMessage(tool.Name)));
+            return McpToolResult.Error(ToolNotAllowedMessage(tool.Name));
         }
 
-        var context = new McpToolContext(user.ToActor(), issuer, new McpServices(http.RequestServices))
+        var context = new McpToolContext(actor, issuer, new McpServices(http.RequestServices))
         {
             Scope = scope,
             ConversationId = resolution.ConversationId,
         };
-        return Render(await CallForLocalAgentAsync(tool, context, resolution.JobId, http, request.Params?.Arguments, cancellationToken));
+        return await CallForLocalAgentAsync(tool, context, resolution.JobId, http, arguments, cancellationToken);
     }
 
     private static readonly string RateLimitedMessage = $"工具呼叫太頻繁了：每個人每分鐘最多 {McpLimits.ToolCallsPerMinute} 次，請稍後再試。";

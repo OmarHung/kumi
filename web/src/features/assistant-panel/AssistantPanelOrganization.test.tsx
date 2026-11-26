@@ -1,9 +1,11 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { signedInAs } from '../../test/api';
+import { http } from 'msw';
+import { failure, signedInAs } from '../../test/api';
 import { agyDetail, exampleOwner, smkDetail } from '../../test/fixtures';
 import { currentPath, renderApp } from '../../test/renderApp';
 import { chooseOption } from '../../test/select';
+import { server } from '../../test/server';
 import {
   completeReply,
   makeAiOptions,
@@ -20,6 +22,7 @@ import {
 } from '../../test/assistant';
 import { PANEL_PROJECT_STORAGE_KEY } from './panelMemory';
 
+const DISMISS = '知道了';
 const NEW = makeConversationSummary({ id: 'conv-org' });
 
 function openApp(path = '/projects') {
@@ -80,8 +83,9 @@ describe('面板：不選專案', () => {
     // Arrange
     serveCreateConversation(null, NEW);
     serveProjectProposal(makeProjectProposal());
+
     const tool = { type: 'tool', callId: 'c1', name: 'propose_project', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: 'pp-1' } as const;
-    serveReply(null, 'conv-org', (stream) => {
+    const reply = serveReply(null, 'conv-org', (stream) => {
       stream.event('start', { userMessage: makeMessage({ parts: [{ type: 'text', text: '開一個網站改版專案' }] }), assistantMessageId: 'msg-a1' });
       stream.event('tool', { tool });
       stream.event('done', { message: makeAssistantMessage({ parts: [tool, { type: 'text', text: '我提出了建議。' }] }) });
@@ -97,6 +101,9 @@ describe('面板：不選專案', () => {
     // Assert
     expect(await within(panel).findByRole('region', { name: '新專案建議 WEB' })).toBeInTheDocument();
     expect(within(panel).getByText('提出新專案')).toBeInTheDocument();
+    // 組織對話沒有項目與附件：送出的內容不帶 itemKey、attachmentIds。
+    expect(reply.sent[0]?.body.itemKey ?? null).toBeNull();
+    expect(reply.sent[0]?.body.attachmentIds ?? []).toEqual([]);
   });
 
   it('建好之後「在這個專案開 AI 助理」：面板切到那個專案、輸入框換成專案版', async () => {
@@ -169,5 +176,91 @@ describe('整頁：不選專案', () => {
     // Assert
     expect(await screen.findByText('AI 助理還不能用')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '回到專案清單' })).toHaveAttribute('href', '/projects');
+  });
+
+  it('不收附件：拖進輸入框擋下瀏覽器的預設並說明，貼上檔案也一樣', async () => {
+    // Arrange
+    const { user } = openApp();
+    const panel = await openPanel(user);
+    await chooseNoProject(user, panel);
+    const input = await within(panel).findByRole('textbox', { name: '訊息' });
+    const form = input.closest('form');
+    const file = new File(['x'], 'a.png', { type: 'image/png' });
+
+    // Act
+    const dragNotPrevented = fireEvent.dragOver(form as HTMLFormElement, { dataTransfer: { types: ['Files'], files: [file] } });
+    const dropNotPrevented = fireEvent.drop(form as HTMLFormElement, { dataTransfer: { types: ['Files'], files: [file] } });
+
+    // Assert
+    expect(dragNotPrevented).toBe(false);
+    expect(dropNotPrevented).toBe(false);
+    expect(await within(panel).findByText('不選專案的對話不收附件。')).toBeInTheDocument();
+
+    // Act
+    await user.click(within(panel).getByRole('button', { name: DISMISS }));
+    expect(within(panel).queryByText('不選專案的對話不收附件。')).not.toBeInTheDocument();
+    const pasteNotPrevented = fireEvent.paste(input, { clipboardData: { files: [file], types: ['Files'] } });
+
+    // Assert
+    expect(pasteNotPrevented).toBe(false);
+    expect(await within(panel).findByText('不選專案的對話不收附件。')).toBeInTheDocument();
+  });
+
+  it('回覆中專案選單停用，不能在回覆中換專案', async () => {
+    // Arrange
+    serveCreateConversation(null, NEW);
+    const reply = serveReply(null, 'conv-org', (stream) => {
+      stream.event('start', { userMessage: makeMessage(), assistantMessageId: 'msg-a1' });
+      stream.event('text', { delta: '想一下…' });
+    });
+    const { user } = openApp();
+    const panel = await openPanel(user);
+    await chooseNoProject(user, panel);
+
+    // Act
+    await user.type(await within(panel).findByRole('textbox', { name: '訊息' }), '你好{Enter}');
+
+    // Assert
+    expect(await within(panel).findByText('想一下…')).toBeInTheDocument();
+    expect(within(panel).getByRole('combobox', { name: '專案' })).toBeDisabled();
+    reply.stream()?.close();
+  });
+
+  it('「不選專案」回覆中切到專案頁：頁首的專案名稱不是空的', async () => {
+    // Arrange
+    serveCreateConversation(null, NEW);
+    const reply = serveReply(null, 'conv-org', (stream) => {
+      stream.event('start', { userMessage: makeMessage(), assistantMessageId: 'msg-a1' });
+      stream.event('text', { delta: '想一下…' });
+    });
+    const { user, router } = openApp();
+    const panel = await openPanel(user);
+    await chooseNoProject(user, panel);
+    await user.type(await within(panel).findByRole('textbox', { name: '訊息' }), '你好{Enter}');
+    await within(panel).findByText('想一下…');
+
+    // Act
+    await act(async () => {
+      await router.navigate('/projects/AGY');
+    });
+
+    // Assert
+    expect(await within(panel).findByLabelText('目前的專案')).toHaveTextContent('不選專案');
+    reply.stream()?.close();
+  });
+
+  it('組織對話開不起來（403）：在輸入框上方顯示伺服器的說明，字留著', async () => {
+    // Arrange
+    server.use(http.post('/v1/assistant/conversations', () => failure(403, 'ai.assistant_forbidden', '你不能使用 AI 助理。')));
+    const { user } = openApp();
+    const panel = await openPanel(user);
+    await chooseNoProject(user, panel);
+
+    // Act
+    await user.type(await within(panel).findByRole('textbox', { name: '訊息' }), '你好{Enter}');
+
+    // Assert
+    expect(await within(panel).findByText('你不能使用 AI 助理。')).toBeInTheDocument();
+    expect(within(panel).getByRole('textbox', { name: '訊息' })).toHaveValue('你好');
   });
 });

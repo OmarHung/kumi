@@ -22,9 +22,9 @@ internal sealed partial class AssistantService
 
         // 檢查的順序見第 5.2 節；任何一項不過就什麼都不存。
         var attachmentIds = input.AttachmentIds ?? [];
-        if (projectKey is null && (input.ItemKey is not null || attachmentIds.Count > 0))
+        if (CheckOrganizationInput(projectKey, input, attachmentIds) is { } unsupported)
         {
-            return AssistantFailures.OrganizationChatUnsupported();
+            return unsupported;
         }
 
         var text = CheckText(input.Text, allowEmpty: attachmentIds.Count > 0);
@@ -46,11 +46,9 @@ internal sealed partial class AssistantService
         }
 
         var canonicalKey = scope.Value.ProjectKey;
-        if (projectKey is null
-            && AgentSourceOf(selection.Value) is { } agent
-            && !AgentVersions.IsAtLeast(agent.Version, AiRules.MinAgentVersionForOrganizationChat))
+        if (CheckAgentVersionForOrganization(projectKey, selection.Value) is { } tooOld)
         {
-            return AssistantFailures.AgentUpdateRequired(agent);
+            return tooOld;
         }
 
         // 在預留名額、拿租約之前查：查人失敗時什麼都還沒存，不會留下沒放掉的預留。
@@ -63,35 +61,21 @@ internal sealed partial class AssistantService
         }
 
         // 選的項目要是這個專案、看得到的；不然什麼都不存。
-        WorkItem? item = null;
-        if (input.ItemKey is not null)
+        var item = await FindSelectedItemAsync(actor, canonicalKey, input.ItemKey, cancellationToken);
+        if (item.Failure is { } noItem)
         {
-            var found = await ItemLookup.FindAsync(items, actor, canonicalKey!, input.ItemKey, cancellationToken);
-            if (found.Failure is { } noItem)
-            {
-                return noItem;
-            }
-
-            item = found.Value;
+            return noItem;
         }
 
         var hostSourceId = selection.Value.Endpoint.HostSourceId;
         var isLocal = hostSourceId is null && selection.Value.Endpoint.Kind.IsLocalEngine();
 
-        // 附件：數量、重複、都是自己在這個專案待送的、合計大小、選的來源讀得到（本機與主機的引擎看 kumi 的版本與引擎的種類）。
-        var attachments = await AttachmentSelection.CheckAsync(
-            db, actor, canonicalKey, attachmentIds, AgentSourceOf(selection.Value), time.GetUtcNow(), cancellationToken);
+        // 附件與文字附件的長度：在預留名額與用量之前擋下來，什麼都不存。
+        var attachments = await CheckAttachmentsAsync(
+            db, actor, canonicalKey, attachmentIds, selection.Value, text.Value.Length, cancellationToken);
         if (attachments.Failure is { } badAttachments)
         {
             return badAttachments;
-        }
-
-        // 文字附件放不進去（API 的模型每一輪的重送預算、本機與主機引擎的提示長度）就在這裡擋下來：
-        // 不擋的話超過的部分會被悄悄丟掉，模型沒讀到卻照樣回答。在預留名額與用量之前，什麼都不存。
-        if (await textLimits.CheckAsync(
-            attachments.Value, text.Value.Length, hostSourceId is not null || isLocal, cancellationToken) is { } tooLong)
-        {
-            return tooLong;
         }
 
         if (conversation.MessageCount + 2 > AiRules.MaxMessagesPerConversation)
@@ -105,46 +89,22 @@ internal sealed partial class AssistantService
             return AssistantFailures.McpUrlMissing();
         }
 
-        // 主機來源：在存使用者的訊息之前預留名額（排隊數、每天與每月的配額）；預留失敗什麼都不存。
+        // 在存使用者的訊息之前預留名額與用量；預留失敗什麼都不存。
         var assistantMessageId = Guid.CreateVersion7();
-        Guid? hostJobId = null;
-        if (hostSourceId is { } sourceId)
+        var reservation = await ReserveAsync(actor, selection.Value, canonicalKey, conversationId, assistantMessageId, cancellationToken);
+        if (reservation.Failure is { } notReserved)
         {
-            var reserved = await hostReservations.ReserveAsync(
-                actor, sourceId, canonicalKey, conversationId, assistantMessageId, cancellationToken);
-            if (reserved.Failure is { } notReserved)
-            {
-                return notReserved;
-            }
-
-            hostJobId = reserved.Value;
+            return notReserved;
         }
 
-        // 組織的連線：在存使用者的訊息之前預留用量（每人每天、全組織每月）；到了上限什麼都不存。
-        var countsUsage = hostSourceId is null && !isLocal && !selection.Value.Endpoint.Personal;
-        if (countsUsage
-            && await usageLedger.ReserveAsync(
-                actor, selection.Value.Selection.ConnectionId, canonicalKey, assistantMessageId, cancellationToken) is { } overLimit)
-        {
-            return overLimit;
-        }
+        var (hostJobId, countsUsage) = reservation.Value;
 
-        Result<BegunRun> begun;
-        try
-        {
-            begun = await BeginRunAsync(
-                db, actor, conversation, new UserTurn(text.Value, item?.Key, attachments.Value), canonicalKey,
-                hostSourceId is not null, scope.Value.Project is not null && scope.Value.CanReadAllItems, cancellationToken);
-        }
-        catch
-        {
-            await ReleaseReservationsAsync(hostJobId, countsUsage ? assistantMessageId : null);
-            throw;
-        }
-
+        var begun = await BeginReleasingOnFailureAsync(
+            db, actor, conversation, new UserTurn(text.Value, item.Value?.Key, attachments.Value), canonicalKey,
+            hostSourceId is not null, scope.Value.Project is not null && scope.Value.CanReadAllItems,
+            hostJobId, countsUsage ? assistantMessageId : null, cancellationToken);
         if (begun.Failure is { } notBegun)
         {
-            await ReleaseReservationsAsync(hostJobId, countsUsage ? assistantMessageId : null);
             return notBegun;
         }
 
@@ -163,7 +123,7 @@ internal sealed partial class AssistantService
         {
             McpUrl = mcpUrl,
             Asker = asker,
-            ItemKey = item?.Key,
+            ItemKey = item.Value?.Key,
             HostJobId = hostJobId,
             CountsUsage = countsUsage,
             UserAttachments = AttachmentSelection.ToReferences(attachments.Value),
@@ -172,6 +132,101 @@ internal sealed partial class AssistantService
         return new AssistantRun(
             AssistantMessageMapper.ToMessage(started.User, AttachmentSelection.ToContracts(attachments.Value)), assistantMessageId, session);
     }
+
+    /// <summary>
+    /// 主機來源預留排隊名額（排隊數、每天與每月的配額）；組織的連線預留用量（每人每天、全組織每月）。到了上限回失敗。
+    /// 用量預留失敗時，剛才預留的主機名額要退掉。
+    /// </summary>
+    private async Task<Result<Reservation>> ReserveAsync(
+        Actor actor, ResolvedSelection selection, string? projectKey, Guid conversationId, Guid assistantMessageId, CancellationToken cancellationToken)
+    {
+        var hostSourceId = selection.Endpoint.HostSourceId;
+        Guid? hostJobId = null;
+        if (hostSourceId is { } sourceId)
+        {
+            var reserved = await hostReservations.ReserveAsync(actor, sourceId, projectKey, conversationId, assistantMessageId, cancellationToken);
+            if (reserved.Failure is { } notReserved)
+            {
+                return notReserved;
+            }
+
+            hostJobId = reserved.Value;
+        }
+
+        var countsUsage = hostSourceId is null && !selection.Endpoint.Kind.IsLocalEngine() && !selection.Endpoint.Personal;
+        if (countsUsage
+            && await usageLedger.ReserveAsync(actor, selection.Selection.ConnectionId, projectKey, assistantMessageId, cancellationToken) is { } overLimit)
+        {
+            return overLimit;
+        }
+
+        return new Reservation(hostJobId, countsUsage);
+    }
+
+    private async Task<Result<WorkItem?>> FindSelectedItemAsync(
+        Actor actor, string? projectKey, string? itemKey, CancellationToken cancellationToken)
+    {
+        if (itemKey is null)
+        {
+            return (WorkItem?)null;
+        }
+
+        var found = await ItemLookup.FindAsync(items, actor, projectKey!, itemKey, cancellationToken);
+        return found.Failure is { } failure ? failure : (WorkItem?)found.Value;
+    }
+
+    // 數量、重複、都是自己在這個專案待送的、合計大小、選的來源讀得到；文字附件放不進去（API 模型每一輪的重送預算、
+    // 本機與主機引擎的提示長度）也在這裡擋：不擋的話超過的部分會被悄悄丟掉，模型沒讀到卻照樣回答。
+    private async Task<Result<IReadOnlyList<AiAttachmentRow>>> CheckAttachmentsAsync(
+        AiDbContext db, Actor actor, string? projectKey, IReadOnlyList<Guid> ids, ResolvedSelection selection, int textLength, CancellationToken cancellationToken)
+    {
+        var attachments = await AttachmentSelection.CheckAsync(db, actor, projectKey, ids, AgentSourceOf(selection), time.GetUtcNow(), cancellationToken);
+        if (attachments.Failure is not null)
+        {
+            return attachments;
+        }
+
+        var isEngine = selection.Endpoint.HostSourceId is not null || selection.Endpoint.Kind.IsLocalEngine();
+        return await textLimits.CheckAsync(attachments.Value, textLength, isEngine, cancellationToken) is { } tooLong ? tooLong : attachments;
+    }
+
+    /// <summary>存使用者的訊息並拿租約；失敗或丟例外時把剛預留的名額與用量退掉。</summary>
+    private async Task<Result<BegunRun>> BeginReleasingOnFailureAsync(
+        AiDbContext db, Actor actor, AiConversationRow conversation, UserTurn turn, string? projectKey, bool queued, bool seesAllItems,
+        Guid? hostJobId, Guid? usageId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var begun = await BeginRunAsync(db, actor, conversation, turn, projectKey, queued, seesAllItems, cancellationToken);
+            if (begun.Failure is not null)
+            {
+                await ReleaseReservationsAsync(hostJobId, usageId);
+            }
+
+            return begun;
+        }
+        catch
+        {
+            await ReleaseReservationsAsync(hostJobId, usageId);
+            throw;
+        }
+    }
+
+    private sealed record Reservation(Guid? HostJobId, bool CountsUsage);
+
+    /// <summary>不選專案的對話不收選的項目與附件。</summary>
+    private static Failure? CheckOrganizationInput(string? projectKey, AssistantMessageInput input, IReadOnlyList<Guid> attachmentIds) =>
+        projectKey is null && (input.ItemKey is not null || attachmentIds.Count > 0)
+            ? AssistantFailures.OrganizationChatUnsupported()
+            : null;
+
+    /// <summary>不選專案的對話用本機或主機的引擎時，kumi 要夠新（舊版一定要有專案代號、也不認得新工具）。</summary>
+    private static Failure? CheckAgentVersionForOrganization(string? projectKey, ResolvedSelection selection) =>
+        projectKey is null
+            && AgentSourceOf(selection) is { } agent
+            && !AgentVersions.IsAtLeast(agent.Version, AiRules.MinAgentVersionForOrganizationChat)
+                ? AssistantFailures.AgentUpdateRequired(agent)
+                : null;
 
     /// <summary>發問的人自己的帳號資料（寫給模型的說明用）；查不到（理論上不會）就不寫，不擋這則訊息。</summary>
     private async Task<Asker?> FindAskerAsync(Actor actor, CancellationToken cancellationToken)

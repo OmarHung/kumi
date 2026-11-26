@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import type { AssistantScope } from '../../api/assistant';
 import type { AiOptions } from '../../api/aiTypes';
@@ -89,6 +89,17 @@ function PageActions({ projectKey, itemKey, onChooseItem, isCompact, onOpenList 
   );
 }
 
+/** 頁列：專案的頁有專案名稱的麵包屑（連到專案頁，hook 只在有專案時才掛）；不選專案的頁沒有。 */
+function WorkspaceBar({ detail, actions }: { readonly detail: ProjectDetail | null; readonly actions: ReactNode }) {
+  if (detail === null) return <PageBar title="AI 助理" actions={actions} />;
+  return <ProjectWorkspaceBar detail={detail} actions={actions} />;
+}
+
+function ProjectWorkspaceBar({ detail, actions }: { readonly detail: ProjectDetail; readonly actions: ReactNode }) {
+  const to = useProjectPageLink(detail.project.key);
+  return <PageBar title="AI 助理" crumbs={[{ label: detail.project.name, to }]} actions={actions} />;
+}
+
 /**
  * 頁列、左邊的對話清單與右邊的對話。對話編號在網址裡（沒有是「新的對話」）；
  * 開新對話時網址從沒有換成剛開的編號，同一個路由、這個元件不會重新掛上，進行中的串流不受影響。
@@ -99,8 +110,6 @@ export function AssistantWorkspace({ detail, options }: AssistantWorkspaceProps)
   const { conversationId } = useParams();
   const isCompact = useIsCompact();
   const [isListOpen, setIsListOpen] = useState(false);
-  const projectPageLink = useProjectPageLink(projectKey ?? '');
-  const crumbs = detail === null ? [] : [{ label: detail.project.name, to: projectPageLink }];
 
   const workspaceRef = useRef<HTMLDivElement>(null);
   const listWidth = useListWidth(workspaceRef);
@@ -116,7 +125,7 @@ export function AssistantWorkspace({ detail, options }: AssistantWorkspaceProps)
   const [itemKey, setItemKey] = useAssistantItem(initialItemKey, projectKey, reply.active !== null || reply.isSending);
 
   return (
-    <PageLayout variant="workspace" bar={<PageBar title="AI 助理" crumbs={crumbs} actions={<PageActions projectKey={projectKey} itemKey={itemKey} onChooseItem={setItemKey} isCompact={isCompact} onOpenList={() => { setIsListOpen(true); }} />} />}>
+    <PageLayout variant="workspace" bar={<WorkspaceBar detail={detail} actions={<PageActions projectKey={projectKey} itemKey={itemKey} onChooseItem={setItemKey} isCompact={isCompact} onOpenList={() => { setIsListOpen(true); }} />} />}>
       <div
         ref={workspaceRef}
         className={styles.workspace}

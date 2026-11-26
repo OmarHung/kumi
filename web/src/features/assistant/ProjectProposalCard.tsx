@@ -12,6 +12,8 @@ import styles from './ProposalCard.module.css';
 
 const CLOSED_CODE = 'ai.project_proposal_closed';
 const CLOSED_TEXT = '這份建議已經處理過了。';
+const KEY_TAKEN_CODE = 'project.key_taken';
+const KEY_TAKEN_HINT = '請在對話裡請助理換一個代號。';
 
 function failureText(error: unknown): string {
   if (isApiError(error) && error.code === CLOSED_CODE) return CLOSED_TEXT;
@@ -27,33 +29,41 @@ function Row({ label, children }: { readonly label: string; readonly children: s
   );
 }
 
+function ProposalRows({ proposal }: { readonly proposal: ProjectProposal }) {
+  return (
+    <dl className={styles.rows}>
+      <Row label="代號">{proposal.key}</Row>
+      <Row label="名稱">{proposal.name}</Row>
+      <Row label="模板">{proposal.templateName}</Row>
+      <Row label="範例項目">{proposal.includeExamples ? '附範例項目' : '不附範例'}</Row>
+      {proposal.description !== null && proposal.description.trim() !== '' && (
+        <div className={styles.row}>
+          <dt className={styles.label}>說明</dt>
+          <dd className={styles.value}>
+            <DescriptionBox label="專案說明" heading="說明" text={proposal.description} linkHosts="always" />
+          </dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
 function PendingBody({ proposal }: { readonly proposal: ProjectProposal }) {
   const { apply, dismiss } = useDecideProjectProposal(proposal);
   const isWorking = apply.isPending || dismiss.isPending;
   const failure: unknown = apply.error ?? dismiss.error;
+  // 代號被用掉：重按只會得到同一個錯誤，要請助理換一個代號。
+  const isKeyTaken = isApiError(apply.error) && apply.error.code === KEY_TAKEN_CODE;
   return (
     <>
-      <dl className={styles.rows}>
-        <Row label="代號">{proposal.key}</Row>
-        <Row label="名稱">{proposal.name}</Row>
-        <Row label="模板">{proposal.templateName}</Row>
-        <Row label="範例項目">{proposal.includeExamples ? '附範例項目' : '不附範例'}</Row>
-        {proposal.description !== null && proposal.description.trim() !== '' && (
-          <div className={styles.row}>
-            <dt className={styles.label}>說明</dt>
-            <dd className={styles.value}>
-              <DescriptionBox label="專案說明" heading="說明" text={proposal.description} linkHosts="always" />
-            </dd>
-          </div>
-        )}
-      </dl>
+      <ProposalRows proposal={proposal} />
       <div className={styles.actions}>
         <Button
           variant="primary"
           size="sm"
-          aria-disabled={isWorking || undefined}
+          aria-disabled={isWorking || isKeyTaken || undefined}
           onClick={() => {
-            if (isWorking) return;
+            if (isWorking || isKeyTaken) return;
             dismiss.reset();
             apply.mutate();
           }}
@@ -73,6 +83,7 @@ function PendingBody({ proposal }: { readonly proposal: ProjectProposal }) {
         </Button>
       </div>
       <Notice tone="danger">{failure === null || failure === undefined ? null : failureText(failure)}</Notice>
+      {isKeyTaken && <p className={styles.status}>{KEY_TAKEN_HINT}</p>}
     </>
   );
 }

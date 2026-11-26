@@ -263,4 +263,23 @@ public sealed class OrganizationChatTests
             Assert.That(result, Does.Contain("\"archived\":true").And.Contain("\"archived\":false"));
         }
     }
+
+    [Test]
+    public async Task Guest_CanOpenAndSendInAnOrganizationConversation()
+    {
+        // Arrange：訪客不是任何專案的成員，也不是管理員；組織能用 AI 就能問模板與專案結構。
+        var guest = new Actor(_h.OrganizationId, Guid.CreateVersion7(), IsOrganizationAdmin: false);
+        var conversation = await _h.NewOrganizationConversationAsync(guest);
+        _h.Script.Reply("可以用簡單任務");
+
+        // Act
+        var reply = await _h.SendOrganizationAsync(conversation.Id, "哪個模板適合？", guest);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reply.Final.Status, Is.EqualTo(AssistantMessageStatus.Complete));
+            Assert.That((await _h.OrganizationMessagesAsync(conversation.Id, guest)), Has.Count.EqualTo(2));
+        }
+    }
 }

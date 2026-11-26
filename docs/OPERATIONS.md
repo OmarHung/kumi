@@ -587,6 +587,7 @@ AI 引擎讀的是別人寫在項目、留言裡的內容，可能被提示注�
 | 版本不支援、沒有安裝 | 映像檔裡的 CLI 壞了或被換掉：`bash scripts/ops/deploy-local.sh` 重建。 |
 | 工作都失敗、引擎說連不上供應商 | `docker compose ps` 看 `ai-egress` 有沒有起來；`docker compose logs ai-egress` 看供應商的網域是不是被 `TCP_DENIED` 擋了（要加進 `allowed-domains.txt`，見上面）。 |
 | 成員送出時「排隊滿了」「次數已經用完」 | 等前一則結束；上限在來源的設定裡調。 |
+| 成員在「不選專案」的對話送出時收到 `ai.agent_update_required`（409） | ai-worker 裡的 kumi 太舊：不選專案的對話要 0.12.0 以上，舊版會被擋下、什麼都不存。更新映像檔重建 ai-worker（`bash scripts/ops/deploy-local.sh`）；專案裡的對話不受影響。 |
 
 ## 18. 附件的容量
 

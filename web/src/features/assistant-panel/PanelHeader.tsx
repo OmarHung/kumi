@@ -37,7 +37,7 @@ function ProjectPicker({ projectKey, isFollowingRoute, isBusy, onChoose }: Proje
   if (isFollowingRoute) {
     return (
       <span className={styles.projectName} aria-label="目前的專案">
-        {current?.name ?? projectKey}
+        {current?.name ?? projectKey ?? NO_PROJECT_LABEL}
       </span>
     );
   }

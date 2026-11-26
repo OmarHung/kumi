@@ -127,15 +127,16 @@ public sealed class ProjectProposalFlowTests : RealStackTestBase
     }
 
     [Test]
-    public async Task Proposal_ForANonAdmin_IsRefused_AndAKeyTakenBeforeApplyLeavesItPending()
+    public async Task Proposal_ForANonAdmin_IsRefused_AndAKeyTakenByAnotherAdminLeavesItPending()
     {
-        // Arrange
+        // Arrange：另一位管理員在建議之後先用掉代號。
         using var scope = Factory.Services.CreateScope();
         var creator = scope.ServiceProvider.GetRequiredService<IProjectProposalCreator>();
         var member = _actor with { PersonId = Guid.NewGuid(), IsOrganizationAdmin = false };
         var forbidden = await creator.CreateAsync(member, new ProjectProposalDraft("ORGNA", "成員的", "simple_tasks", false, null), CancellationToken.None);
         var created = await creator.CreateAsync(_actor, new ProjectProposalDraft("ORGRACE", "搶代號", "simple_tasks", false, null), CancellationToken.None);
-        await RealStackSteps.CreateProjectAsync(_owner.Client, "ORGRACE", "simple_tasks");
+        using var otherAdmin = await SignInAsNewAdminAsync();
+        await RealStackSteps.CreateProjectAsync(otherAdmin.Client, "ORGRACE", "simple_tasks");
 
         // Act
         using var apply = await _owner.Client.PostAsync($"/v1/ai/project-proposals/{created.Value.Id}/apply", null);
@@ -148,6 +149,33 @@ public sealed class ProjectProposalFlowTests : RealStackTestBase
             await ApiRequests.AssertErrorEnvelopeAsync(apply, HttpStatusCode.Conflict, WorkErrorCodes.ProjectKeyTaken);
             Assert.That(read["status"]!.GetValue<string>(), Is.EqualTo("pending"));
         }
+    }
+
+    [Test]
+    public async Task Apply_KeyAlreadyTakenBySamePersonAfterTheProposal_IsMarkedApplied()
+    {
+        // Arrange：建好專案、但標記「已建立」那一步失敗時，再按一次要能收尾；判斷不出是不是這份建議建的，
+        // 同一個人在建議之後自己建的同代號專案也一樣當成已建立（卡片連到他自己的專案，沒有壞處）。
+        using var scope = Factory.Services.CreateScope();
+        var creator = scope.ServiceProvider.GetRequiredService<IProjectProposalCreator>();
+        var created = await creator.CreateAsync(_actor, new ProjectProposalDraft("ORGSELF", "自己建的", "simple_tasks", false, null), CancellationToken.None);
+        await RealStackSteps.CreateProjectAsync(_owner.Client, "ORGSELF", "simple_tasks");
+
+        // Act
+        using var apply = await _owner.Client.PostAsync($"/v1/ai/project-proposals/{created.Value.Id}/apply", null);
+        var applied = await ApiRequests.AssertSuccessEnvelopeAsync(apply, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That((applied!["status"]!.GetValue<string>(), applied["createdProjectKey"]!.GetValue<string>()), Is.EqualTo(("applied", "ORGSELF")));
+    }
+
+    private async Task<SignedInClient> SignInAsNewAdminAsync()
+    {
+        var email = RealStackSteps.UniqueEmail("org-admin");
+        using var response = await _owner.Client.PostAsync(
+            "/v1/people", ApiRequests.Json(new { displayName = "Admin Example", email, password = RealStackSteps.MemberPassword, role = "admin" }));
+        await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.Created);
+        return await SignInAsAsync(email, RealStackSteps.MemberPassword);
     }
 
     // ---- 扮演本機代理 ----

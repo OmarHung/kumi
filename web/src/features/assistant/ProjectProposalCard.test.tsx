@@ -4,7 +4,7 @@ import { http } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../app/queryClient';
 import { queryKeys } from '../../api/queryKeys';
-import { failure } from '../../test/api';
+import { failure, ok } from '../../test/api';
 import { makeProjectProposal, serveProjectProposal } from '../../test/assistant';
 import { renderInRouter } from '../../test/renderInRouter';
 import { server } from '../../test/server';
@@ -123,18 +123,58 @@ describe('新專案建議的卡片：建立專案', () => {
 
     // Assert
     expect(await view.findByText(/代號 WEB 已經有人用了。/)).toBeInTheDocument();
+    expect(view.getByText('請在對話裡請助理換一個代號。')).toBeInTheDocument();
+    expect(view.getByRole('button', { name: '建立專案' })).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('已經處理過（409）：照實說，並重讀成伺服器現在的狀態', async () => {
+  it('代號被用掉之後再按「建立專案」不會再送出；其他錯誤（403）照舊可以重試', async () => {
     // Arrange
-    const { user } = renderCard(makeProjectProposal(), () => failure(409, 'ai.project_proposal_closed', '這份建議已經處理過了。'));
+    const taken = renderCard(makeProjectProposal(), () => failure(409, 'project.key_taken', '代號 WEB 已經有人用了。'));
+    const takenView = within(await card());
+    await taken.user.click(takenView.getByRole('button', { name: '建立專案' }));
+    await takenView.findByText('請在對話裡請助理換一個代號。');
+
+    // Act
+    await taken.user.click(takenView.getByRole('button', { name: '建立專案' }));
+
+    // Assert
+    expect(taken.backend.applied()).toBe(1);
+    taken.unmount();
+    const forbidden = renderCard(makeProjectProposal(), () => failure(403, 'forbidden', '只有組織管理員可以建立專案。'));
+    const forbiddenView = within(await card());
+    await forbidden.user.click(forbiddenView.getByRole('button', { name: '建立專案' }));
+    await forbiddenView.findByText('只有組織管理員可以建立專案。');
+    expect(forbiddenView.queryByText('請在對話裡請助理換一個代號。')).not.toBeInTheDocument();
+    expect(forbiddenView.getByRole('button', { name: '建立專案' })).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('已經處理過（409）：照實說，並重讀成伺服器現在的狀態（已建立）', async () => {
+    // Arrange：別的分頁已經建立；GET 在套用失敗之後回 applied
+    let isApplied = false;
+    const pending = makeProjectProposal();
+    const done = makeProjectProposal({ status: 'applied', decidedAt: '2026-11-26T02:05:00Z', createdProjectKey: 'WEB' });
+    server.use(
+      http.get('/v1/ai/project-proposals/pp-1', () => ok(isApplied ? done : pending)),
+      http.post('/v1/ai/project-proposals/pp-1/apply', () => {
+        isApplied = true;
+        return failure(409, 'ai.project_proposal_closed', '這份建議已經處理過了。');
+      }),
+    );
+    const queryClient = createQueryClient({ queries: { retry: false } });
+    const { user } = renderInRouter(
+      <QueryClientProvider client={queryClient}>
+        <ProjectProposalCard proposalId="pp-1" />
+      </QueryClientProvider>,
+    );
     const view = within(await card());
 
     // Act
     await user.click(view.getByRole('button', { name: '建立專案' }));
 
     // Assert
-    expect(await view.findByText('這份建議已經處理過了。')).toBeInTheDocument();
+    expect(await view.findByText(/已建立/)).toBeInTheDocument();
+    expect(view.getByRole('link', { name: '到專案 WEB' })).toBeInTheDocument();
+    expect(view.queryByRole('button', { name: '建立專案' })).not.toBeInTheDocument();
   });
 });
 

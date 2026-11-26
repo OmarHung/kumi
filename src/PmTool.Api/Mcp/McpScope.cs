@@ -1,16 +1,19 @@
 namespace PmTool.Api.Mcp;
 
-/// <summary>一次 MCP 請求碰得到的資料範圍的種類。</summary>
+/// <summary>
+/// 一次 MCP 請求碰得到的資料範圍的種類。順序有意義：<c>default</c>（值 0）是最嚴的「只限組織」，
+/// 沒初始化的 <see cref="McpScope"/> 出錯時封閉，不會變成不限專案。
+/// </summary>
 internal enum McpScopeKind
 {
-    /// <summary>一般的權杖（OAuth、個人存取權杖）：授權的人看得到的全部專案。</summary>
-    Unrestricted,
+    /// <summary>不選專案的組織對話：不碰任何專案或項目的資料（「沒有專案」不等於「全部專案」）。</summary>
+    OrganizationOnly = 0,
 
     /// <summary>本機代理與主機代理替專案的對話做事：只准碰那個專案。</summary>
     Project,
 
-    /// <summary>不選專案的組織對話：不碰任何專案或項目的資料（「沒有專案」不等於「全部專案」）。</summary>
-    OrganizationOnly,
+    /// <summary>一般的權杖（OAuth、個人存取權杖）：授權的人看得到的全部專案。</summary>
+    Unrestricted,
 }
 
 /// <summary>

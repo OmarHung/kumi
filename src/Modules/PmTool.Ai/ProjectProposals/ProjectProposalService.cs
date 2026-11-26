@@ -48,6 +48,12 @@ internal sealed class ProjectProposalService(
             actor, new NewProject(row.Key, row.Name, row.Template, row.IncludeExamples) { Description = row.Description }, cancellationToken);
         if (created.Failure is { } failure)
         {
+            // 專案其實已經由這份建議建好、只是存 applied 失敗過：補標成功，不要讓使用者卡在 key_taken。
+            if (failure.Code == WorkErrorCodes.ProjectKeyTaken && await WasCreatedByThisProposalAsync(actor, row, cancellationToken))
+            {
+                return await DecideAsync(db, transaction, row, ProjectProposalRow.AppliedStatus, row.Key);
+            }
+
             return failure;
         }
 
@@ -69,6 +75,16 @@ internal sealed class ProjectProposalService(
         return row.Status != ProjectProposalRow.PendingStatus
             ? Closed
             : await DecideAsync(db, transaction, row, ProjectProposalRow.DismissedStatus, createdProjectKey: null);
+    }
+
+    // 工作引擎沒有公開建立者：建立專案的人會成為專案的 admin 成員，所以「這個人是專案的 admin 成員、
+    // 而且專案是建議之後才建的」就視為這份建議建的（別人或更早的專案不會符合）。
+    private async Task<bool> WasCreatedByThisProposalAsync(Actor actor, ProjectProposalRow row, CancellationToken cancellationToken)
+    {
+        var project = await projects.GetAsync(actor, row.Key, cancellationToken);
+        return project.Failure is null
+            && project.Value.Project.CreatedAt >= row.CreatedAt
+            && project.Value.Members.Any(m => m.PersonId == actor.PersonId && m.Role == "admin");
     }
 
     private async Task<Result<ProjectProposal>> DecideAsync(

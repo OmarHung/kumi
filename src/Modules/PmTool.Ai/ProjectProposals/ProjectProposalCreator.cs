@@ -55,9 +55,39 @@ internal sealed class ProjectProposalCreator(
             CreatedAt = time.GetUtcNow(),
         };
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (draft.ConversationId is { } conversationId)
+        {
+            // 一則回覆只能提一份：三條路（內建、本機、主機）都經過這裡，在對話的鎖裡檢查再存，同時來的呼叫不會一起通過。
+            await db.Database.ExecuteSqlAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({"ai_project_proposal_reply:" + conversationId}, 0))", cancellationToken);
+            if (await AlreadyProposedInThisReplyAsync(db, actor, conversationId, cancellationToken))
+            {
+                return new Failure(
+                    FailureKind.Conflict, AiErrorCodes.ProjectProposalClosed,
+                    $"這一則回覆已經提出過新專案建議了，一則回覆最多只能提出 {AiRules.MaxProjectProposalsPerReply} 份。請先請使用者看過，再請他在下一則訊息裡要你繼續。");
+            }
+        }
+
         db.ProjectProposals.Add(row);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return ProjectProposalMapper.ToProposal(row);
+    }
+
+    // 「這一則回覆」= 對話裡最後一則使用者訊息之後；那之後已經有這個人在這則對話提的建議就算提過了。
+    private static async Task<bool> AlreadyProposedInThisReplyAsync(
+        AiDbContext db, Actor actor, Guid conversationId, CancellationToken cancellationToken)
+    {
+        var lastUserAt = await db.Messages.AsNoTracking()
+            .Where(m => m.ConversationId == conversationId && m.OrganizationId == actor.OrganizationId && m.Role == "user")
+            .OrderByDescending(m => m.Sequence)
+            .Select(m => (DateTimeOffset?)m.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        return await db.ProjectProposals.AsNoTracking().AnyAsync(
+            p => p.ConversationId == conversationId && p.OrganizationId == actor.OrganizationId && p.PersonId == actor.PersonId
+                && (lastUserAt == null || p.CreatedAt >= lastUserAt),
+            cancellationToken);
     }
 
     private static bool HasControlCharacters(string? text, bool allowLineBreaks) =>
