@@ -84,6 +84,15 @@ services:
     volumes:
       # 和資料庫的資料卷一樣不放在 Docker 的資料卷裡：docker compose down -v 刪不到它。
       - ${ATTACHMENTS_DIR:-./data/attachments}:/data/attachments
+    # 縱深防禦：萬一程式有能執行程式碼的漏洞，進到容器裡也改不了程式、拿不到特權。
+    # api 只寫附件資料夾（上面掛的）與 /tmp（.NET 與上傳的暫存，放在記憶體裡、重啟就清空）；
+    # 工作階段的金鑰在資料庫、記錄寫到標準輸出，所以檔案系統其他地方一律唯讀。和 ai-worker 同一組設定。
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     # ai-worker 只在 ai-worker 這個網路上，連得到 api、連不到 db；api 兩邊都接。
     networks: [default, ai-worker]
     restart: unless-stopped

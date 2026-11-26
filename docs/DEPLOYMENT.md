@@ -8,6 +8,7 @@
 ## 先懂這幾件事
 
 - **架構**：一個無狀態的容器（API 主機，網頁由它一起提供）加一個 PostgreSQL 18。容器裡不存任何東西：資料、工作階段、工作階段 Cookie 的加密金鑰都在資料庫裡，項目的附件檔案在 Cloud Storage 的 bucket 裡（第 1.6 節），容器可以隨時換掉。
+- **容器的加固**：api（與 migrate）的根目錄唯讀、只有 `/tmp` 是記憶體裡的暫存、`cap_drop: ALL`、`no-new-privileges`，以非 root 執行。它只寫附件資料夾（`local` 時）與 `/tmp`，所以這些限制不影響功能；萬一程式有能執行程式碼的漏洞，進到容器也改不了程式、拿不到特權。`compose.yaml` 與 `docs/deployment/vm.md` 的範例都這樣設，自己寫的部署照樣做。
 - **兩種放法**，用同一個映像檔：
   - A. GCP 的 Cloud Run（跑容器）加 Cloud SQL（資料庫）。
   - B. 一台 VM 跑 docker compose，前面放反向代理（Caddy 或 nginx）做 HTTPS，資料庫用代管的。

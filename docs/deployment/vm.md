@@ -70,6 +70,13 @@ x-api: &api
     TZ: Asia/Taipei
   volumes:
     - ./secrets/dataprotection.pfx:/run/secrets/dataprotection.pfx:ro
+  # 縱深防禦：根目錄唯讀、拿掉所有特權、不准再提升權限。api 只寫附件資料夾（用 local 時另外掛進來）與 /tmp。
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
 
 services:
   api:
