@@ -182,6 +182,7 @@ kumi blueprint apply -f web.yaml --summary "加上法務審查"
 
 - `kumi skill install`／`update`／`status`／`uninstall` 管這兩份 skill 自己（裝到 Claude Code 的 `~/.claude/skills`、Codex 的 `~/.codex/skills`，或專案的 `.claude/skills`、`.agents/skills`），不碰 Kumi 的資料；使用者說「這份 skill 過期了」「幫我更新 skill」時請他執行 `kumi skill update`（`kumi update` 換新版 kumi 時也會順便更新）。這份 skill 是不是最新用 `kumi skill status` 看。
 - `kumi agent start` 是給人開著的長駐指令（讓網頁的 AI 助理用使用者電腦上的 Claude Code／Codex），會一直跑到按 Ctrl-C。**代理不要自己執行它**（`kumi agent login`、`kumi agent enable`、`kumi setup` 也一樣，都要使用者在終端機自己操作瀏覽器），也不要替使用者建立它要的 `agent:run` 權杖；使用者問起時，指給 `docs/CLI.md` 的「本機代理（kumi agent）」。網頁訊息附的圖片與 PDF 會交給引擎（kumi 0.10.0 起；Codex 只有圖片）。
+- `kumi uninstall` 會撤銷權杖、移除 MCP 與 skill、刪掉設定與 kumi 自己，每一步都要使用者回答。**代理不要自己執行它**（也不要加 `--yes` 替使用者答）；使用者想移除 kumi 時，請他在終端機自己執行，說明見 `docs/CLI.md` 的「移除」。
 - `kumi host …`（pair、run、login、status、logout）是 Kumi 主機上的 worker 服務與擁有者在主機上用的指令，**代理不要自己跑**；使用者問起時，指給 `docs/CLI.md` 的「主機 worker（kumi host）」。
 - 從 monday 搬資料（`kumi import monday …`）是管理員一次性的作業，dump 與對應檔裡有真實的人名、Email 與留言。照 `docs/CLI.md` 的「從 monday 匯入」一步一步做，產生的檔案不要提交到任何 repo。
 - 在 CI 裡用 `kumi`：權杖放在 CI 的機密變數，用環境變數 `KUMI_SERVER`、`KUMI_TOKEN` 交給它，見 `docs/CLI.md` 的「在 CI 裡用」。

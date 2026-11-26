@@ -17,10 +17,10 @@ internal static class ConfigPermissions
     private const UnixFileMode OwnerOnlyDirectory = OwnerOnlyFile | UnixFileMode.UserExecute;
 
     // kumi 自己在設定資料夾裡建的其他檔案（鎖、電腦編號、用量、主機代理的狀態）：比照設定檔收緊，不另外警告（沒有權杖）。
-    private static readonly string[] SiblingFiles = ["agent.lock", "agent.lock.json", "agent.json", "agent-usage.json", "host-agent.json"];
+    internal static readonly IReadOnlyList<string> SiblingFiles = ["agent.lock", "agent.lock.json", "agent.json", "agent-usage.json", "host-agent.json"];
 
     // 資料夾只有是 kumi 自己的才動：設定檔不該讓我們把使用者指定的共用資料夾（例如 /tmp）改成 700。
-    private static readonly string[] OwnedDirectoryNames = ["kumi", "pm-tool"];
+    internal static readonly IReadOnlyList<string> OwnedDirectoryNames = ["kumi", "pm-tool"];
 
     /// <summary>檢查並收緊；回傳要給使用者看的警告（沒有問題或沒有設定檔是空的）。</summary>
     public static IReadOnlyList<string> Repair(string configPath)

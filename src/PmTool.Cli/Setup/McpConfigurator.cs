@@ -48,9 +48,14 @@ internal sealed partial class McpConfigurator(CliContext context, TextWriter out
     internal static ExistingMcp ParseClaudeGet(string output)
     {
         // claude mcp get 的輸出有「  URL: https://…/mcp」這一行（Claude Code 2.1.330）。
-        var url = output.Split('\n').Select(line => line.Trim())
-            .FirstOrDefault(line => line.StartsWith("URL:", StringComparison.Ordinal))?["URL:".Length..].Trim();
-        return new ExistingMcp(true, string.IsNullOrEmpty(url) ? null : url);
+        var lines = output.Split('\n').Select(line => line.Trim()).ToList();
+        var url = lines.FirstOrDefault(line => line.StartsWith("URL:", StringComparison.Ordinal))?["URL:".Length..].Trim();
+        // 「Scope: User config (…)」；讀不到範圍時當作使用者層（舊版的輸出），移除失敗會自己說原因。
+        var scope = lines.FirstOrDefault(line => line.StartsWith("Scope:", StringComparison.Ordinal))?["Scope:".Length..].Trim();
+        return new ExistingMcp(true, string.IsNullOrEmpty(url) ? null : url)
+        {
+            IsUserScope = scope is null || scope.StartsWith("User", StringComparison.OrdinalIgnoreCase),
+        };
     }
 
     internal static ExistingMcp ParseCodexList(string output)
@@ -140,6 +145,10 @@ internal sealed partial class McpConfigurator(CliContext context, TextWriter out
             ? null
             : $"沒有完成授權。之後可以在 {engine.DisplayName} 裡輸入 /mcp 選 kumi 登入。";
     }
+
+    /// <summary>移除 kumi 這個 MCP 伺服器（kumi uninstall 用）。失敗回原因，成功回 null。</summary>
+    public Task<string?> RemoveAsync(DetectedEngine engine, CancellationToken cancellation) =>
+        RunCapturedAsync(engine, RemoveArguments(engine), cancellation);
 
     private static string[] AddArguments(DetectedEngine engine, string mcpUrl) => engine.Kind == EngineKinds.Codex
         ? ["mcp", "add", ServerName, "--url", mcpUrl]

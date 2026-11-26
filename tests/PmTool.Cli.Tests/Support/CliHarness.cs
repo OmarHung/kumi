@@ -23,6 +23,7 @@ internal sealed class CliHarness : IDisposable
             Path.Combine(_directory, "install", "kumi"), true, PmTool.Cli.Commands.UpdateOs.MacOS,
             System.Runtime.InteropServices.Architecture.Arm64, System.Runtime.InteropServices.Architecture.Arm64,
             (_, _) => Task.FromResult<string?>($"kumi {PmTool.Cli.Commands.HelpText.VersionNumber}"));
+        Autostart = new PmTool.Cli.Agent.Autostart.AutostartEnvironment { TempDirectory = Path.Combine(_directory, "tmp") };
     }
 
     public FakeServer Server { get; } = new();
@@ -52,8 +53,11 @@ internal sealed class CliHarness : IDisposable
     /// <summary>kumi update 的外部環境；預設是 macOS（Apple 晶片）上的單一執行檔，目標放在這個測試自己的資料夾，試跑回報目前的版本。</summary>
     internal PmTool.Cli.Commands.UpdateEnvironment Update { get; set; } = null!;
 
-    /// <summary>開機自動啟動的外部環境；預設是什麼都沒有的假環境，絕不會碰到真的 launchd、登錄或家目錄。</summary>
-    internal PmTool.Cli.Agent.Autostart.AutostartEnvironment Autostart { get; set; } = new();
+    /// <summary>
+    /// 開機自動啟動的外部環境；預設是什麼都沒有的假環境，絕不會碰到真的 launchd、登錄或家目錄。
+    /// 暫存資料夾也指到測試自己的：kumi uninstall 會清掉裡面本機代理留下的工作資料夾，不能清到這台電腦真的暫存區。
+    /// </summary>
+    internal PmTool.Cli.Agent.Autostart.AutostartEnvironment Autostart { get; set; } = null!;
 
     /// <summary>用環境變數登入（和 CI 一樣）。</summary>
     public CliHarness LoggedInByEnvironment()

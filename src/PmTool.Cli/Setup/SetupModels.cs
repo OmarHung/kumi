@@ -21,6 +21,12 @@ internal sealed record ExistingMcp(bool Exists, string? Url)
     /// Claude Code 的 <c>mcp get</c> 沒有穩定的授權欄位，一律是 false（照樣登入，已經登入過的只是再按一次允許）。
     /// </summary>
     public bool IsAuthorized { get; init; }
+
+    /// <summary>
+    /// Claude Code 的 kumi 在使用者層（<c>kumi setup</c> 加的是這一層）。在專案或本機層的是使用者自己加的，
+    /// 用 <c>--scope user</c> 移除不掉。Codex 只有一份設定，一律是 true。
+    /// </summary>
+    public bool IsUserScope { get; init; } = true;
 }
 
 /// <summary>要對引擎的 MCP 設定做什麼。</summary>

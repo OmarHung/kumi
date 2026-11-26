@@ -28,7 +28,7 @@ dotnet tool install --global PmTool.Cli --add-source ./nupkg
 kumi --version
 ```
 
-更新時把 `install` 換成 `update`（`kumi update` 只更新從網頁下載的執行檔）。移除：`dotnet tool uninstall --global PmTool.Cli`。
+更新時把 `install` 換成 `update`（`kumi update` 只更新從網頁下載的執行檔）。移除：先 `kumi uninstall --skip executable`（撤銷權杖、拿掉 MCP 與 skill、刪設定，見下面的「移除」），再 `dotnet tool uninstall --global PmTool.Cli`。
 
 不想裝到全域，可以裝到一個資料夾：`dotnet tool install PmTool.Cli --tool-path ~/tools/kumi --add-source ./nupkg`，執行 `~/tools/kumi/kumi`。
 
@@ -49,6 +49,30 @@ kumi update --check    # 只看有沒有新版
 - `--json`：`{ "current", "latest", "updateAvailable", "updated", "standalone", "skillsUpdated" }`（伺服器沒有提供下載時 `latest` 是 `null`；`skillsUpdated` 是這次有沒有順便更新 skill）。
 
 **從舊版的 `pm` 升級**（2026-11-23 產品定名 Kumi，指令從 `pm` 改成 `kumi`）：套件名稱還是 `PmTool.Cli`，照上面 `update` 一次，`pm` 就換成 `kumi`。不用重新登入：設定檔還在舊的 `~/.config/pm-tool/` 時照樣讀；環境變數的舊名 `PM_SERVER`、`PM_TOKEN`、`PM_ALLOW_INSECURE` 也照樣認得，新舊都有時用 `KUMI_*`。
+
+### 移除（kumi uninstall，0.12.0 起）
+
+```bash
+kumi uninstall                          # 一步一步問，每一步都可以說不要
+kumi uninstall --yes                    # 不問，每一步照預設做
+kumi uninstall --yes --skip mcp --skip executable   # 照預設做，但不動 MCP 與執行檔
+```
+
+照下面的順序一步一步做，**每一步做之前先問**（`[Y/n]` 直接按 Enter 是預設）；這台電腦上沒有的步驟不問，前一步失敗不擋後一步：
+
+1. **背景的本機代理**（`agent`）：有設定開機自動啟動時，停掉它並取消（等於 `kumi agent disable`）。
+2. **伺服器上的權杖**（`tokens`）：用每一把權杖撤銷它自己（命令列的與本機代理的，和 `kumi auth logout --revoke` 一樣），撤銷了的才刪掉本機存的；伺服器回 401（權杖早就過期或被撤銷）算是已經不能用，一樣刪。撤銷失敗（連不上、伺服器出錯）的那一把本機留著，可以再執行一次，或到網頁「設定 → 命令列與整合」的「存取權杖」撤銷。
+3. **Claude Code／Codex 裡的 kumi MCP**（`mcp`）：每個找得到的引擎各問一次（`claude mcp remove kumi --scope user`、`codex mcp remove kumi`）。指到這台電腦登入的伺服器的預設移除；指到別的伺服器的預設不移除（`--yes` 時留著）。Claude Code 裡不在使用者層（專案或本機層，不是 `kumi setup` 加的）的不動，只說明怎麼自己移除。
+4. **skill**（`skills`）：移除使用者層 kumi 裝的 skill（等於 `kumi skill uninstall`）；自己放的、改過的不動。用 `--project` 裝在專案資料夾的要在那裡執行 `kumi skill uninstall --project <資料夾>`。
+5. **設定與記錄**（`files`）：設定資料夾（`~/.config/kumi`，舊的 `~/.config/pm-tool` 也一起；設定檔被指到不叫 `kumi` 的資料夾時，只刪 kumi 自己的那幾個檔案；設定資料夾是連結時只刪連結，並說明它指到的地方沒動）、背景代理的記錄檔（macOS 的 `~/Library/Logs/Kumi`、Windows 的 `%LOCALAPPDATA%\Kumi`）、本機代理留下的暫存工作資料夾（15 分鐘內用過的不刪；權限不是 700 或是連結的不刪，這一步會失敗並說明）。**權杖還沒撤銷時預設改成不刪**：刪掉之後就只能到網頁撤銷。本機代理正在執行（前景的 `kumi agent start`）時這一步失敗，請先結束它。
+6. **執行檔**（`executable`）：macOS 刪掉 kumi 自己（只刪檔名是 `kumi` 開頭的）。Windows 刪不掉正在執行的 `kumi.exe`，會說明要自己刪的路徑與要從 PATH 拿掉的資料夾（`kumi update` 留下的 `kumi.exe.old` 問過之後刪）。用 dotnet tool 裝的不刪，會說明要執行 `dotnet tool uninstall`。
+
+最後列出 kumi 做不到、要自己處理的：Claude Code／Codex 的 MCP 授權（OAuth）要到網頁「設定 → 命令列與整合」撤銷；安裝時加進 shell 的 PATH（例如 `~/.zprofile` 裡的 `~/.local/bin`）；還設定著的 `KUMI_TOKEN`。用 `CLAUDE_CONFIG_DIR` 開了另一份 Claude Code 設定的，那一份的 MCP 與 skill 要在那個環境下再執行一次。
+
+- `--skip` 的值：`agent`、`tokens`、`mcp`、`skills`、`files`、`executable`，可以重複或用逗號隔開；不認得的是用法錯誤（代碼 2）。
+- 沒有終端機或加了 `--json` 時一定要加 `--yes`（不然代碼 2、什麼都不做）。
+- 結束代碼：有一步失敗是 1，其他（包括說不要的、要自己處理的）是 0。
+- `--json`：`{ "steps": [{ "step", "status", "messages", "engine"? }], "reminders": [...] }`。`status` 是 `done`、`declined`（說不要，或 `--yes` 時預設是不要）、`skipped`（`--skip`）、`not_found`（這台電腦上沒有）、`manual`（要自己處理）、`failed`；`mcp` 每個有 kumi MCP 的引擎各一筆，帶 `engine`（`claude_code`、`codex`）。
 
 ### 授權與第三方聲明
 

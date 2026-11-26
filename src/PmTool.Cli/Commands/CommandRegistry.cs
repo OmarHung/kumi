@@ -19,6 +19,7 @@ internal static class CommandRegistry
         .. AgentLoginCommands.Specs,
         .. HostCommands.Specs,
         .. UpdateCommand.Specs,
+        .. UninstallCommand.Specs,
         .. LicensesCommand.Specs,
         .. SetupCommands.Specs,
         .. SkillCommands.Specs,
