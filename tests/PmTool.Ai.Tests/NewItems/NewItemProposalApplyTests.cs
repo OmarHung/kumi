@@ -90,7 +90,7 @@ public sealed class NewItemProposalApplyTests : NewItemProposalTestBase
     }
 
     [Test]
-    public async Task Apply_FirstItemThrows_StaysPendingAndRethrows()
+    public async Task Apply_FirstItemThrows_StaysApplyingAndRethrowsBecauseTheEngineMayHaveWritten()
     {
         // Arrange
         var proposal = await CreatedAsync(Epic());
@@ -99,9 +99,72 @@ public sealed class NewItemProposalApplyTests : NewItemProposalTestBase
         // Act
         Assert.ThrowsAsync<InvalidOperationException>(async () => await Proposals.ApplyAsync(Me, proposal.Id, CancellationToken.None));
         var read = await Proposals.GetAsync(Me, proposal.Id, CancellationToken.None);
+        var again = await Proposals.ApplyAsync(Me, proposal.Id, CancellationToken.None);
 
         // Assert
-        Assert.That(read.Value.Status, Is.EqualTo(NewItemProposalStatus.Pending));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(read.Value.Status, Is.EqualTo(NewItemProposalStatus.Applying));
+            Assert.That(again.Failure?.Code, Is.EqualTo(AiErrorCodes.NewItemProposalClosed));
+        }
+    }
+
+    [Test]
+    public async Task Apply_SavingTheKeysFailsAfterTheFirstItemWasCreated_StaysApplyingAndNeverCreatesAgain()
+    {
+        // Arrange：第一個項目建好之後，讓記編號的更新必定失敗。
+        var proposal = await CreatedAsync(Epic("第一個"), Epic("第二個", "e2"));
+        H.WorkItems.OnCreate = (index, item) =>
+        {
+            if (index == 0)
+            {
+                using var db = H.Host.CreateDbContextAsync().GetAwaiter().GetResult();
+                db.Database.ExecuteSqlRaw("ALTER TABLE ai.new_item_proposals ADD CONSTRAINT keys_cannot_be_saved CHECK (created_keys::text NOT LIKE '%WEB-%')");
+            }
+
+            return ItemSamples.Item($"WEB-{101 + index}", item.Title);
+        };
+
+        // Act
+        Assert.CatchAsync(async () => await Proposals.ApplyAsync(Me, proposal.Id, CancellationToken.None));
+        var read = await Proposals.GetAsync(Me, proposal.Id, CancellationToken.None);
+        var again = await Proposals.ApplyAsync(Me, proposal.Id, CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(read.Value.Status, Is.EqualTo(NewItemProposalStatus.Applying), "已經有項目建立，不能退回待決定");
+            Assert.That(again.Failure?.Code, Is.EqualTo(AiErrorCodes.NewItemProposalClosed));
+            Assert.That(H.WorkItems.Creates, Has.Count.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public async Task Apply_EachSavedKeyRefreshesTheHeartbeat_SoALongApplyIsNotReadAsInterrupted()
+    {
+        // Arrange：三個項目各花 4 分鐘，總共超過 5 分鐘，但每次存編號之後離上一次都不到 5 分鐘。
+        var proposal = await CreatedAsync(Epic("甲", "a"), Epic("乙", "b"), Epic("丙", "c"));
+        NewItemProposal? midway = null;
+        H.WorkItems.OnCreate = (index, item) =>
+        {
+            H.Clock.Advance(TimeSpan.FromMinutes(4));
+            if (index == 2)
+            {
+                midway = Proposals.GetAsync(Me, proposal.Id, CancellationToken.None).GetAwaiter().GetResult().Value;
+            }
+
+            return ItemSamples.Item($"WEB-{101 + index}", item.Title);
+        };
+
+        // Act
+        var applied = await Proposals.ApplyAsync(Me, proposal.Id, CancellationToken.None);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(midway?.Status, Is.EqualTo(NewItemProposalStatus.Applying));
+            Assert.That(applied.Value.Status, Is.EqualTo(NewItemProposalStatus.Applied));
+        }
     }
 
     [Test]

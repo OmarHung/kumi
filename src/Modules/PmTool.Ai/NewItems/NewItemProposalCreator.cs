@@ -30,10 +30,10 @@ internal sealed class NewItemProposalCreator(
 
         var drafts = draft.Items ?? [];
         var parents = await FindParentsAsync(actor, project.Value.Project.Key, drafts, cancellationToken);
-        var membersText = NewItemChecker.HasUnknownAssignee(drafts, project.Value)
-            ? await NewItemMembers.DescribeAsync(people, actor.OrganizationId, project.Value.Members, cancellationToken)
-            : null;
-        var checkedItems = NewItemChecker.Check(drafts, project.Value, parents, membersText);
+        var active = await NewItemMembers.ActiveAsync(people, actor.OrganizationId, project.Value.Members, cancellationToken);
+        var assignable = active.Select(member => member.PersonId).ToHashSet();
+        var membersText = NewItemChecker.HasUnknownAssignee(drafts, assignable) ? NewItemMembers.Describe(active) : null;
+        var checkedItems = NewItemChecker.Check(drafts, project.Value, parents, assignable, membersText);
         if (checkedItems.Failure is { } invalid)
         {
             return invalid;

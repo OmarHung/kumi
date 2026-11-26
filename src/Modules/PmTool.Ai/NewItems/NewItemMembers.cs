@@ -11,16 +11,25 @@ internal static class NewItemMembers
 {
     private const int MaxListed = 30;
 
-    public static async Task<string> DescribeAsync(
+    /// <summary>現在能被指派的成員（專案成員、帳號沒有停用）。檢查負責人與列名單用同一份條件。</summary>
+    public static async Task<IReadOnlyList<(Guid PersonId, string DisplayName)>> ActiveAsync(
         IPeopleDirectory people, Guid organizationId, IReadOnlyList<ProjectMember> members, CancellationToken cancellationToken)
     {
         var found = await people.FindManyAsync(organizationId, [.. members.Select(m => m.PersonId)], cancellationToken);
-        var active = members
-            .Select(m => found.TryGetValue(m.PersonId, out var person) && !person.IsDisabled ? (Person: person, m.PersonId) : default)
-            .Where(entry => entry.Person is not null)
+        return
+        [
+            .. members
+                .Where(m => found.TryGetValue(m.PersonId, out var person) && !person.IsDisabled)
+                .Select(m => (m.PersonId, found[m.PersonId].DisplayName)),
+        ];
+    }
+
+    public static string Describe(IReadOnlyList<(Guid PersonId, string DisplayName)> active)
+    {
+        var listed = active
             .Take(MaxListed)
-            .Select(entry => $"{entry.Person!.DisplayName.Replace('「', '『').Replace('」', '』')}（{entry.PersonId}）")
+            .Select(entry => $"{entry.DisplayName.Replace('「', '『').Replace('」', '』')}（{entry.PersonId}）")
             .ToList();
-        return active.Count == 0 ? "這個專案目前沒有可以指派的成員。" : "專案成員：" + string.Join("、", active) + "。";
+        return listed.Count == 0 ? "這個專案目前沒有可以指派的成員。" : "專案成員：" + string.Join("、", listed) + "。";
     }
 }

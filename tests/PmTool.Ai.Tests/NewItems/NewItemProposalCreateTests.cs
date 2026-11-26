@@ -170,6 +170,19 @@ public sealed class NewItemProposalCreateTests : NewItemProposalTestBase
         Assert.That(IssueAt(created, "items[0].assigneeId"), Does.Contain("沒有可以指派的成員").And.Not.Contain(ItemSamples.MemberId.ToString()));
     }
 
+    [Test]
+    public async Task Create_DisabledMemberAsAssignee_IsRejectedAtOnce()
+    {
+        // Arrange
+        ((FakePeopleDirectory)H.Host.Get<PmTool.Identity.IPeopleDirectory>()).SetDisabled(H.OrganizationId, ItemSamples.MemberId, disabled: true);
+
+        // Act
+        var created = await CreateAsync(new NewItemDraft("bug", "x") { AssigneeId = ItemSamples.MemberId });
+
+        // Assert
+        Assert.That(IssueAt(created, "items[0].assigneeId"), Does.Contain("不是這個專案的成員"));
+    }
+
     [TestCase("Has Space")]
     [TestCase("UPPER")]
     [TestCase("this-reference-is-way-too-long")]

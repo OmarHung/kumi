@@ -147,6 +147,48 @@ public sealed class NewItemToolTests : NewItemProposalTestBase
     }
 
     [Test]
+    public async Task Tool_UnknownProperty_IsAToolErrorThatNamesTheItem()
+    {
+        // Act
+        var result = await RunToolAsync(new { items = new object[] { new { type = "bug", title = "甲" }, new { type = "bug", title = "乙", status = "done" } } });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetProperty("ok").GetBoolean(), Is.False);
+            Assert.That(result.GetProperty("error").GetString(), Does.Contain("items[1]").And.Contain("status"));
+        }
+    }
+
+    [Test]
+    public async Task Tool_AssigneeThatIsNotAString_IsAToolErrorNotUnassigned()
+    {
+        // Act
+        var result = await RunToolAsync(new { items = new[] { new { type = "bug", title = "甲", assignee = 5 } } });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetProperty("ok").GetBoolean(), Is.False);
+            Assert.That(result.GetProperty("error").GetString(), Does.Contain("items[0].assignee 要是字串"));
+        }
+    }
+
+    [Test]
+    public async Task Tool_MoreItemsThanTheLimit_IsRefusedBeforeReadingAnyItem()
+    {
+        // Act：每一項都是壞的，若先逐項讀取，錯誤會是「要是物件」。
+        var result = await RunToolAsync(new { items = Enumerable.Repeat("x", AiRules.MaxNewItemsPerProposal + 1).ToArray() });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.GetProperty("ok").GetBoolean(), Is.False);
+            Assert.That(result.GetProperty("error").GetString(), Does.Contain(AiRules.MaxNewItemsPerProposal.ToString()).And.Not.Contain("要是物件"));
+        }
+    }
+
+    [Test]
     public async Task Tool_ItemsGivenAsAJsonString_AreAccepted()
     {
         // Act

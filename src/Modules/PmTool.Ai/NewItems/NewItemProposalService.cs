@@ -84,49 +84,34 @@ internal sealed class NewItemProposalService(
 
     private async Task<Result<NewItemProposal>> RunAsync(AiDbContext db, Actor actor, NewItemProposalRow row, CancellationToken cancellationToken)
     {
-        Result<NewItemApplyOutcome> outcome;
-        try
-        {
-            outcome = await applier.ApplyAsync(actor, row.Id, row.ProjectKey, NewItemMapper.ReadItems(row.Items));
-        }
-        catch (Exception)
-        {
-            // 什麼都沒建立就丟例外：回到待決定，例外照丟。已經有項目建立的話維持「建立中」，讀出來時過了時限就是已套用加說明。
-            await RevertIfNothingCreatedAsync(db, row.Id, cancellationToken);
-            throw;
-        }
-
+        // 不接例外：applier 只在第一個項目明確回失敗（工作引擎沒有寫入）時回 Failure。丟例外（含逾時的取消、記編號失敗）
+        // 時工作引擎可能已經寫入，不能退回待決定（再按一次會重複建立），維持「建立中」，讀出來時過了時限就是已套用加說明。
+        var outcome = await applier.ApplyAsync(actor, row.Id, row.ProjectKey, NewItemMapper.ReadItems(row.Items));
         if (outcome.Failure is { } failure)
         {
-            await RevertIfNothingCreatedAsync(db, row.Id, cancellationToken);
+            await RevertToPendingAsync(db, row.Id, cancellationToken);
             return failure;
         }
 
         var error = outcome.Value.Error is { } text ? AiText.Cut(text, AiRules.MaxErrorLength) : null;
         var keysJson = NewItemMapper.WriteKeys(outcome.Value.Keys);
+        var decidedAt = time.GetUtcNow();
         await db.NewItemProposals.Where(p => p.Id == row.Id).ExecuteUpdateAsync(
             set => set
                 .SetProperty(p => p.Status, NewItemProposalRow.AppliedStatus)
+                .SetProperty(p => p.DecidedAt, decidedAt)
                 .SetProperty(p => p.CreatedKeys, keysJson)
                 .SetProperty(p => p.Error, error),
             cancellationToken);
-        var finished = row with { Status = NewItemProposalRow.AppliedStatus, CreatedKeys = keysJson, Error = error };
+        var finished = row with { Status = NewItemProposalRow.AppliedStatus, DecidedAt = decidedAt, CreatedKeys = keysJson, Error = error };
         return NewItemMapper.ToProposal(finished, time.GetUtcNow());
     }
 
-    // 回到待決定；只有確定一個都沒建立時才這樣做，不然再按一次會重複建立。
-    private static async Task RevertIfNothingCreatedAsync(AiDbContext db, Guid proposalId, CancellationToken cancellationToken)
-    {
-        var stored = await db.NewItemProposals.AsNoTracking().Where(p => p.Id == proposalId).Select(p => p.CreatedKeys).SingleAsync(cancellationToken);
-        if (NewItemMapper.ReadKeys(stored).Any(key => key is not null))
-        {
-            return;
-        }
-
+    // 回到待決定；只在第一個項目明確失敗（什麼都沒建立）時呼叫。
+    private static async Task RevertToPendingAsync(AiDbContext db, Guid proposalId, CancellationToken cancellationToken) =>
         await db.NewItemProposals.Where(p => p.Id == proposalId).ExecuteUpdateAsync(
             set => set.SetProperty(p => p.Status, NewItemProposalRow.PendingStatus).SetProperty(p => p.DecidedAt, (DateTimeOffset?)null),
             cancellationToken);
-    }
 
     // 專案已經看不到：建議也當作不存在，不再把項目的內容給他看。
     private async Task<bool> IsProjectVisibleAsync(Actor actor, NewItemProposalRow row, CancellationToken cancellationToken) =>

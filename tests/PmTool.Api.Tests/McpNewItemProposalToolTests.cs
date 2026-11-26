@@ -80,6 +80,48 @@ public sealed class McpNewItemProposalToolTests
         }
     }
 
+    [Test]
+    public async Task Call_AssigneeNotFound_ListsTheActiveProjectMembers()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartForAgentAsync("WEB", AgentScopes);
+
+        // Act
+        var (isError, body) = await mcp.CallAsync("propose_new_items", new
+        {
+            projectKey = "WEB", items = new[] { new { type = "task", title = "T", assignee = "nobody@example.com" } },
+        });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.True);
+            Assert.That(body["error"]?.GetValue<string>(), Does.Contain("專案成員").And.Contain(TestUsers.Owner.DisplayName).And.Contain(TestUsers.Owner.PersonId.ToString()));
+            Assert.That(mcp.Modules.NewItemProposals.Creates, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Call_MoreItemsThanTheLimit_IsRefusedBeforeReadingAnyItem()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartForAgentAsync("WEB", AgentScopes);
+
+        // Act：每一項的負責人都找不到；先逐項讀取的話錯誤會是找不到人。
+        var (isError, body) = await mcp.CallAsync("propose_new_items", new
+        {
+            projectKey = "WEB",
+            items = Enumerable.Range(0, AiRules.MaxNewItemsPerProposal + 1).Select(_ => new { type = "task", title = "T", assignee = "nobody@example.com" }).ToArray(),
+        });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.True);
+            Assert.That(body["error"]?.GetValue<string>(), Does.Contain(AiRules.MaxNewItemsPerProposal.ToString()).And.Not.Contain("找不到可以指派的人"));
+        }
+    }
+
     [TestCase("""{"projectKey":"WEB","items":"not json"}""")]
     [TestCase("""{"projectKey":"WEB","items":{"type":"task","title":"x"}}""")]
     [TestCase("""{"projectKey":"WEB","items":[5]}""")]

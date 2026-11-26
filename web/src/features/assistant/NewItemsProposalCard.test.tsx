@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { screen, waitFor, within } from '@testing-library/react';
-import { http } from 'msw';
-import { describe, expect, it, vi } from 'vitest';
+import { delay, http } from 'msw';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../app/queryClient';
 import { queryKeys } from '../../api/queryKeys';
 import { failure, ok } from '../../test/api';
@@ -10,6 +10,7 @@ import { exampleMember, smkDetail } from '../../test/fixtures';
 import { renderInRouter } from '../../test/renderInRouter';
 import { server } from '../../test/server';
 import { NewItemsProposalCard } from './NewItemsProposalCard';
+import { newItemRows } from './newItemRows';
 
 function renderCard(proposal = makeNewItemProposal(), onApply?: () => Response | null, applied?: Parameters<typeof serveNewItemProposal>[2]) {
   const backend = serveNewItemProposal(proposal, onApply, applied);
@@ -99,13 +100,16 @@ describe('新增項目建議的卡片：內容', () => {
     expect(view.queryByRole('heading', { name: '範圍' })).not.toBeInTheDocument();
 
     // Act
-    await user.click(view.getByRole('button', { name: '展開說明' }));
+    const toggle = view.getByRole('button', { name: '說明：盤點 GCP 資源' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
 
     // Assert
     expect(await view.findByRole('heading', { name: '範圍' })).toBeInTheDocument();
-    expect(view.getByRole('button', { name: '收起說明' })).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-controls', expect.stringMatching(/.+/));
     expect(view.getByText(/example\.com/, { selector: 'span, small, a' })).toBeInTheDocument();
-    await user.click(view.getByRole('button', { name: '收起說明' }));
+    await user.click(toggle);
     expect(view.queryByRole('heading', { name: '範圍' })).not.toBeInTheDocument();
   });
 
@@ -187,6 +191,10 @@ describe('新增項目建議的卡片：全部建立', () => {
 });
 
 describe('新增項目建議的卡片：不要與其他狀態', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('按「不要」收成「已略過」', async () => {
     // Arrange
     const { user, backend } = renderCard();
@@ -225,7 +233,6 @@ describe('新增項目建議的卡片：不要與其他狀態', () => {
 
     // Assert
     expect((await view.findByRole('link', { name: 'SMK-13' })).closest('p')).toHaveTextContent(/^已建立 SMK-13、SMK-14/);
-    vi.useRealTimers();
   });
 
   it('已套用但一個都沒建立（過程中斷）：寫「沒有建立任何項目」並顯示說明', async () => {
@@ -252,5 +259,194 @@ describe('新增項目建議的卡片：不要與其他狀態', () => {
 
     // Assert
     expect(await screen.findByText(/讀不到這份新增項目建議/)).toBeInTheDocument();
+  });
+});
+
+describe('新增項目建議的卡片：專案還沒讀到或讀失敗', () => {
+  function renderWithProject(projectHandler: Parameters<typeof http.get>[1], proposal = makeNewItemProposal({ items: [makeNewItemDraft({ assigneeId: exampleMember.personId })] })) {
+    const backend = serveNewItemProposal(proposal);
+    server.use(http.get('/v1/projects/SMK', projectHandler));
+    const queryClient = createQueryClient({ queries: { retry: false } });
+    const view = renderInRouter(
+      <QueryClientProvider client={queryClient}>
+        <NewItemsProposalCard proposalId={proposal.id} />
+      </QueryClientProvider>,
+    );
+    return { ...view, backend, queryClient };
+  }
+
+  it('專案還沒讀到：負責人不下「不是成員」的結論，「建立」不能按、按了也不送出', async () => {
+    // Arrange
+    const { user, backend } = renderWithProject(async () => {
+      await delay('infinite');
+      return ok(smkDetail());
+    });
+    const view = within(await card());
+
+    // Act
+    const button = view.getByRole('button', { name: '建立' });
+    await user.click(button);
+
+    // Assert
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(view.getByText(/負責人：載入中/)).toBeInTheDocument();
+    expect(view.getByText(/正在載入專案/)).toBeInTheDocument();
+    expect(view.queryByText(/不是成員/)).not.toBeInTheDocument();
+    expect(backend.applied()).toBe(0);
+  });
+
+  it('專案讀失敗：負責人寫讀不到成員名單，不寫「不是成員」，仍可建立', async () => {
+    // Arrange
+    renderWithProject(() => failure(500, 'server.error', '壞了'));
+
+    // Act
+    const view = within(await card());
+
+    // Assert
+    expect(await view.findByText(/讀不到成員名單/)).toBeInTheDocument();
+    expect(view.queryByText(/不是成員/)).not.toBeInTheDocument();
+    expect(view.getByRole('button', { name: '建立' })).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('專案讀到之後，真的不在名單裡的人才寫「不是成員的人」', async () => {
+    // Arrange / Act
+    renderWithProject(() => ok(smkDetail()), makeNewItemProposal({ items: [makeNewItemDraft({ assigneeId: 'nobody' })] }));
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText(/負責人：不是成員的人/)).toBeInTheDocument();
+  });
+});
+
+describe('新增項目建議的卡片：失效、重複點擊與狀態報讀', () => {
+  it('掛在既有項目底下時，成功後那個項目與父項目候選、助理選項目的清單一起失效', async () => {
+    // Arrange
+    const proposal = makeNewItemProposal({ items: [makeNewItemDraft({ parentKey: 'SMK-3' }), makeNewItemDraft({ parentKey: 'SMK-3' })] });
+    const { user, queryClient } = renderCard(proposal);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const view = within(await card());
+
+    // Act
+    await user.click(view.getByRole('button', { name: '全部建立' }));
+
+    // Assert
+    await view.findByRole('link', { name: 'SMK-13' });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.item('SMK-3') });
+    expect(invalidate.mock.calls.filter(([filters]) => JSON.stringify(filters?.queryKey) === JSON.stringify(queryKeys.item('SMK-3')))).toHaveLength(1);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.parentCandidates('SMK') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.assistantItemChoiceLists('SMK') });
+  });
+
+  it('套用失敗（伺服器 500）時伺服器可能建立了一部分，一樣讓清單、我的工作、專案清單失效', async () => {
+    // Arrange
+    const { user, queryClient } = renderCard(makeNewItemProposal(), () => failure(500, 'server.error', '伺服器出錯了'));
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const view = within(await card());
+
+    // Act
+    await user.click(view.getByRole('button', { name: '全部建立' }));
+
+    // Assert
+    expect(await view.findByText('伺服器暫時無法處理，請稍後再試。')).toBeInTheDocument();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.items('SMK') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.parentCandidates('SMK') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.assistantItemChoiceLists('SMK') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.myWork });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.projects });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.newItemProposal('nip-1') });
+  });
+
+  it('送出還在進行時再點「全部建立」不會再送一次', async () => {
+    // Arrange
+    let sent = 0;
+    const { user } = renderCard();
+    server.use(
+      http.post('/v1/ai/new-item-proposals/nip-1/apply', async () => {
+        sent += 1;
+        await delay(150);
+        return ok(makeNewItemProposal({ status: 'applied', createdKeys: ['SMK-13', 'SMK-14'], decidedAt: '2026-11-26T02:05:00Z' }));
+      }),
+    );
+    const view = within(await card());
+    const button = view.getByRole('button', { name: '全部建立' });
+
+    // Act
+    await user.click(button);
+    await user.click(button);
+
+    // Assert
+    await view.findByRole('link', { name: 'SMK-13' });
+    expect(sent).toBe(1);
+  });
+
+  it('「建立中…」與完成後的「已建立」都在 role=status 的區域裡', async () => {
+    // Arrange
+    renderCard(makeNewItemProposal({ status: 'applying' }));
+    const view = within(await card());
+
+    // Assert
+    expect(within(view.getByRole('status')).getByText('建立中…')).toBeInTheDocument();
+  });
+
+  it('已經有資料的卡片背景重讀失敗時不整張換成錯誤', async () => {
+    // Arrange
+    const { queryClient } = renderCard();
+    const view = within(await card());
+    server.use(http.get('/v1/ai/new-item-proposals/nip-1', () => failure(500, 'server.error', '壞了')));
+
+    // Act
+    await queryClient.invalidateQueries({ queryKey: queryKeys.newItemProposal('nip-1') });
+
+    // Assert
+    expect(view.getByText('盤點 GCP 資源')).toBeInTheDocument();
+    expect(screen.queryByText(/讀不到這份新增項目建議/)).not.toBeInTheDocument();
+  });
+});
+
+describe('newItemRows：資料不合規格時的退路', () => {
+  it('找不到的類型、欄位、選項退回顯示原本的 key', () => {
+    // Arrange
+    const drafts = [makeNewItemDraft({ type: 'mystery', fields: { nope: 'x', category: 'zzz' } })];
+
+    // Act
+    const [row] = newItemRows(drafts, smkDetail(), 'ready');
+
+    // Assert
+    expect(row?.typeName).toBe('mystery');
+    expect(row?.details).toContain('nope：x');
+    expect(row?.details.join(' ')).toContain('zzz');
+  });
+
+  it('parentRef 指向不存在或後面的項目時當作沒有上層', () => {
+    // Arrange
+    const drafts = [
+      makeNewItemDraft({ title: 'A', parentRef: 'later' }),
+      makeNewItemDraft({ title: 'B', ref: 'later', parentRef: 'ghost' }),
+    ];
+
+    // Act
+    const rows = newItemRows(drafts, smkDetail(), 'ready');
+
+    // Assert
+    expect(rows.map((row) => [row.depth, row.parentTitle])).toEqual([
+      [0, null],
+      [0, null],
+    ]);
+  });
+
+  it('未知的優先度、null、空字串、物件的欄位值都略過，不出現 undefined 或 [object Object]', () => {
+    // Arrange
+    const drafts = [
+      makeNewItemDraft({
+        priority: 'bogus' as never,
+        fields: { a: null, b: '', c: { x: 1 }, d: '  ' },
+      }),
+    ];
+
+    // Act
+    const [row] = newItemRows(drafts, undefined, 'loading');
+
+    // Assert
+    expect(row?.details).toEqual([]);
   });
 });

@@ -393,25 +393,36 @@ export function useNewItemProposal(proposalId: string) {
   });
 }
 
-/** 套用之後：換成伺服器回的新狀態，並讓這個專案的項目清單、父項目候選、助理的選項目、我的工作與專案清單（計數）失效。 */
+/**
+ * 套用之後：換成伺服器回的新狀態，並讓這個專案的項目清單（子項目的清單也在裡面）、掛在底下的既有項目、父項目候選、
+ * 助理的選項目、我的工作與專案清單（計數）失效。套用失敗（5xx、逾時、網路）時伺服器可能已經建立了一部分，也失效同一組。
+ */
 export function useDecideNewItemProposal(proposal: NewItemProposal) {
   const queryClient = useQueryClient();
   const settle = (decided: NewItemProposal) => {
     queryClient.setQueryData(queryKeys.newItemProposal(proposal.id), decided);
   };
+  const invalidateCreated = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.items(proposal.projectKey) });
+    const parentKeys = new Set(proposal.items.flatMap((item) => (item.parentKey === null ? [] : [item.parentKey])));
+    parentKeys.forEach((parentKey) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.item(parentKey) });
+    });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.parentCandidates(proposal.projectKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.assistantItemChoiceLists(proposal.projectKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+  };
   const apply = useMutation({
     mutationFn: () => applyNewItemProposal(proposal.id),
     onSuccess: (decided) => {
       settle(decided);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.items(proposal.projectKey) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.parentCandidates(proposal.projectKey) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.assistantItemChoiceLists(proposal.projectKey) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      invalidateCreated();
     },
     onError: () => {
       // 已經處理過（別的分頁按了）：以伺服器現在的狀態為準；第一個就失敗的維持待處理，重讀也不會變。
       void queryClient.invalidateQueries({ queryKey: queryKeys.newItemProposal(proposal.id) });
+      invalidateCreated();
     },
   });
   const dismiss = useMutation({ mutationFn: () => dismissNewItemProposal(proposal.id), onSuccess: settle });

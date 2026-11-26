@@ -17,12 +17,14 @@ internal static partial class NewItemChecker
 
     /// <summary>
     /// <paramref name="existingParents"/> 是已經查到的既有上層（以 <see cref="NewItemDraft.ParentKey"/> 為鍵，不分大小寫）；
-    /// <paramref name="membersText"/> 是不認得的負責人時附上的成員名單（呼叫的人先用 <see cref="HasUnknownAssignee"/> 判斷要不要查）。
+    /// <paramref name="assignable"/> 是現在能被指派的人（專案成員且帳號沒有停用，<see cref="NewItemMembers.ActiveAsync"/>）；
+    /// <paramref name="membersText"/> 是不認得的負責人時附上的成員名單（呼叫的人先用 <see cref="HasUnknownAssignee"/> 判斷要不要列）。
     /// </summary>
     public static Result<IReadOnlyList<NewItemDraft>> Check(
         IReadOnlyList<NewItemDraft>? items,
         ProjectDetail project,
         IReadOnlyDictionary<string, WorkItem> existingParents,
+        IReadOnlySet<Guid> assignable,
         string? membersText)
     {
         var drafts = items ?? [];
@@ -43,7 +45,7 @@ internal static partial class NewItemChecker
                 continue;
             }
 
-            var found = new ItemCheck(project, existingParents, membersText, refTypes, allRefs, $"items[{i}]", issues);
+            var found = new ItemCheck(project, existingParents, assignable, membersText, refTypes, allRefs, $"items[{i}]", issues);
             cleaned.Add(found.Run(drafts[i]));
         }
 
@@ -52,9 +54,9 @@ internal static partial class NewItemChecker
             : new Failure(FailureKind.Invalid, AiErrorCodes.FieldInvalid, "新增項目的建議不合規定，沒有建立。") { Details = issues };
     }
 
-    /// <summary>有項目的負責人不是專案成員（錯誤訊息要附成員名單）。</summary>
-    public static bool HasUnknownAssignee(IReadOnlyList<NewItemDraft>? items, ProjectDetail project) =>
-        (items ?? []).Any(d => d?.AssigneeId is { } id && project.Members.All(m => m.PersonId != id));
+    /// <summary>有項目的負責人不能被指派（不是專案成員、或帳號已停用；錯誤訊息要附成員名單）。</summary>
+    public static bool HasUnknownAssignee(IReadOnlyList<NewItemDraft>? items, IReadOnlySet<Guid> assignable) =>
+        (items ?? []).Any(d => d?.AssigneeId is { } id && !assignable.Contains(id));
 
     internal static FailureDetail Issue(string path, string message) => new(AiErrorCodes.FieldInvalid, path, message);
 
@@ -65,6 +67,7 @@ internal static partial class NewItemChecker
     private sealed class ItemCheck(
         ProjectDetail project,
         IReadOnlyDictionary<string, WorkItem> existingParents,
+        IReadOnlySet<Guid> assignable,
         string? membersText,
         Dictionary<string, string?> refTypes,
         HashSet<string?> allRefs,
@@ -143,7 +146,7 @@ internal static partial class NewItemChecker
 
         private void CheckAssignee(Guid? assigneeId)
         {
-            if (assigneeId is { } id && project.Members.All(m => m.PersonId != id))
+            if (assigneeId is { } id && !assignable.Contains(id))
             {
                 Problem("assigneeId", "assigneeId 不是這個專案的成員。" + membersText);
             }

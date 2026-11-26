@@ -11,10 +11,14 @@ internal sealed record NewItemApplyOutcome(IReadOnlyList<string?> Keys, string? 
 
 /// <summary>
 /// 照順序把一份建議的項目寫進工作引擎，一律用套用的人的身分。建立不是冪等的，所以每建好一個就立刻把編號記進資料庫
-/// （程序在中途結束時，已經建立的才查得到）。第一個就失敗時什麼都沒建立，回傳它的失敗；之後的失敗不復原已經建立的，
-/// 掛在失敗的項目底下的跳過，說明在 <see cref="NewItemApplyOutcome.Error"/>。
+/// （程序在中途結束時，已經建立的才查得到），同時把 <c>decided_at</c> 刷新成現在當心跳（一份建議最多 20 個項目，
+/// 總時間可能超過「建立中」的過期時限，過期要看最後一次有動靜的時間）。
+/// 只有第一個項目明確回 <see cref="Failure"/>（工作引擎沒有寫入）時才回傳失敗、呼叫的人可以退回待決定；
+/// 其餘任何例外（含逾時的取消）都不保證工作引擎沒寫入，一律照丟、讓建議維持「建立中」。
+/// 之後的失敗不復原已經建立的，掛在失敗項目底下的跳過，說明在 <see cref="NewItemApplyOutcome.Error"/>。
 /// </summary>
-internal sealed class NewItemApplier(IDbContextFactory<AiDbContext> contexts, IWorkItemService items, ILogger<NewItemApplier> logger)
+internal sealed class NewItemApplier(
+    IDbContextFactory<AiDbContext> contexts, IWorkItemService items, TimeProvider time, ILogger<NewItemApplier> logger)
 {
     /// <summary>每個項目建立時的時限。不跟著請求取消：使用者關掉頁面不能讓建立停在一半。</summary>
     internal static readonly TimeSpan CreateTimeout = TimeSpan.FromSeconds(60);
@@ -57,7 +61,8 @@ internal sealed class NewItemApplier(IDbContextFactory<AiDbContext> contexts, IW
     }
 
     // 已經有項目建立之後，後面的項目丟例外不能讓整個請求變成 500、建議維持待決定（再按一次會重複建立）：
-    // 當作那一個失敗，標成已套用並說明。還沒有任何項目建立時照常丟出去，什麼都沒建。
+    // 當作那一個失敗，標成已套用並說明。第一個項目丟例外時照常丟出去：工作引擎可能已經寫入（例如逾時的取消），
+    // 呼叫的人不會退回待決定，讀出來時過了時限就是已套用加說明。
     private async Task<Result<WorkItem>> CreateOneAsync(Actor actor, string projectKey, NewItemDraft draft, string? parentKey, bool somethingDone)
     {
         using var timeout = new CancellationTokenSource(CreateTimeout);
@@ -85,12 +90,27 @@ internal sealed class NewItemApplier(IDbContextFactory<AiDbContext> contexts, IW
         return index >= 0 && keys[index] is { } parentKey ? (false, parentKey) : (true, null);
     }
 
+    // 失敗時重試一次；還是失敗就丟出去：項目已經建立了，呼叫的人不能退回待決定（記憶體裡的 anyCreated 才是依據，不讀資料庫）。
     private async Task SaveKeysAsync(Guid proposalId, IReadOnlyList<string?> keys)
     {
+        try
+        {
+            await WriteKeysAsync(proposalId, keys);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            logger.LogWarning("記下已建立的項目編號失敗，重試一次：{ExceptionType}", exception.GetType().Name);
+            await WriteKeysAsync(proposalId, keys);
+        }
+    }
+
+    private async Task WriteKeysAsync(Guid proposalId, IReadOnlyList<string?> keys)
+    {
         var json = NewItemMapper.WriteKeys(keys);
+        var now = time.GetUtcNow();
         await using var db = await contexts.CreateDbContextAsync(CancellationToken.None);
-        await db.NewItemProposals.Where(p => p.Id == proposalId)
-            .ExecuteUpdateAsync(set => set.SetProperty(p => p.CreatedKeys, json), CancellationToken.None);
+        await db.NewItemProposals.Where(p => p.Id == proposalId).ExecuteUpdateAsync(
+            set => set.SetProperty(p => p.CreatedKeys, json).SetProperty(p => p.DecidedAt, now), CancellationToken.None);
     }
 
     private static NewWorkItem ToNewWorkItem(NewItemDraft draft, string? parentKey) => new()

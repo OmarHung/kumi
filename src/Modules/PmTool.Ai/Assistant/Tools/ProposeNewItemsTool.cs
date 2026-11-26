@@ -29,6 +29,12 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
             return ToolResults.Error("參數 items 要是項目的陣列。");
         }
 
+        // 先擋數量：超過上限的請求不必逐項讀取，也不必為了錯誤訊息去查成員。
+        if (elements.Count > AiRules.MaxNewItemsPerProposal)
+        {
+            return ToolResults.Error($"一份建議最多 {AiRules.MaxNewItemsPerProposal} 個項目，items 有 {elements.Count} 個。");
+        }
+
         var parsed = await ReadItemsAsync(elements, cancellationToken);
         if (parsed.Error is { } error)
         {
@@ -78,6 +84,11 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
             return (null, $"{path} 要是物件。");
         }
 
+        if (element.EnumerateObject().Select(p => p.Name).FirstOrDefault(name => !KnownProperties.Contains(name)) is { } unknown)
+        {
+            return (null, $"{path} 不認得的屬性：{unknown}（狀態一律從流程的第一個狀態開始，不能指定）。");
+        }
+
         if (Text(element, "type") is not { } type || Text(element, "title") is not { } title)
         {
             return (null, $"{path} 要有字串的 type 與 title。");
@@ -110,6 +121,11 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
         return (item, null);
     }
 
+    private static readonly HashSet<string> KnownProperties = new(StringComparer.Ordinal)
+    {
+        "ref", "type", "title", "description", "assignee", "priority", "startDate", "dueDate", "estimate", "parentKey", "parentRef", "fields",
+    };
+
     // 型別不對的選填欄位照實告訴模型，不默默丟掉（默默丟掉會建出少了欄位的項目）。
     private static string? OptionalProblem(JsonElement element, string path)
     {
@@ -133,6 +149,11 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
 
     private async Task<(Guid? Id, string? Error)> ReadAssigneeAsync(JsonElement element, string path, CancellationToken cancellationToken)
     {
+        if (element.TryGetProperty("assignee", out var raw) && raw.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
+        {
+            return (null, $"{path}.assignee 要是字串（me、none 或專案成員的人員 id）。");
+        }
+
         var text = Text(element, "assignee")?.Trim();
         if (string.IsNullOrEmpty(text) || text.Equals("none", StringComparison.OrdinalIgnoreCase))
         {
@@ -152,7 +173,7 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
         // 專案是空的、模型手上沒有成員名單：列出來讓它照著改。
         var project = await Context.Projects.GetAsync(Context.Actor, Context.RequiredProjectKey, cancellationToken);
         var members = project.Failure is null
-            ? await NewItemMembers.DescribeAsync(Context.People, Context.Actor.OrganizationId, project.Value.Members, cancellationToken)
+            ? NewItemMembers.Describe(await NewItemMembers.ActiveAsync(Context.People, Context.Actor.OrganizationId, project.Value.Members, cancellationToken))
             : string.Empty;
         return (null, $"{path}.assignee 要是 me、none 或專案成員的人員 id，不認得「{text}」。{members}");
     }

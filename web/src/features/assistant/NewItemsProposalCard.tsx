@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router';
 import type { NewItemProposal } from '../../api/aiTypes';
 import { useDecideNewItemProposal, useNewItemProposal } from '../../api/assistant';
@@ -8,7 +8,7 @@ import { Button } from '../../components/Button/Button';
 import { Notice } from '../../components/Notice/Notice';
 import { formatInstant } from '../../domain/time';
 import { itemPagePath } from '../work-items/itemLinks';
-import { newItemRows, type NewItemRow } from './newItemRows';
+import { newItemRows, type NewItemRow, type ProjectLoadState } from './newItemRows';
 import { DescriptionBox } from './ProposalCard';
 import { cx } from '../../lib/cx';
 import styles from './ProposalCard.module.css';
@@ -36,6 +36,7 @@ function ParentNote({ row, projectKey }: { readonly row: NewItemRow; readonly pr
 
 function ItemRow({ row, projectKey }: { readonly row: NewItemRow; readonly projectKey: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const descriptionId = useId();
   const hasParent = row.parentKey !== null || row.parentTitle !== null;
   return (
     <li className={cx(styles.draft, DEPTH_CLASSES[row.depth])}>
@@ -55,23 +56,39 @@ function ItemRow({ row, projectKey }: { readonly row: NewItemRow; readonly proje
             variant="ghost"
             size="sm"
             className={styles.draftToggle}
+            aria-label={`說明：${row.title}`}
             aria-expanded={isOpen}
+            aria-controls={isOpen ? descriptionId : undefined}
             onClick={() => {
               setIsOpen((open) => !open);
             }}
           >
             {isOpen ? '收起說明' : '展開說明'}
           </Button>
-          {isOpen && <DescriptionBox label={`說明：${row.title}`} text={row.description} linkHosts="always" />}
+          {isOpen && (
+            <div id={descriptionId}>
+              <DescriptionBox label={`說明內容：${row.title}`} text={row.description} linkHosts="always" />
+            </div>
+          )}
         </>
       )}
     </li>
   );
 }
 
-function PendingBody({ proposal, rows }: { readonly proposal: NewItemProposal; readonly rows: readonly NewItemRow[] }) {
+function PendingBody({
+  proposal,
+  rows,
+  projectState,
+}: {
+  readonly proposal: NewItemProposal;
+  readonly rows: readonly NewItemRow[];
+  readonly projectState: ProjectLoadState;
+}) {
   const { apply, dismiss } = useDecideNewItemProposal(proposal);
   const isWorking = apply.isPending || dismiss.isPending;
+  // 專案（成員、藍圖）還沒讀到時畫面上的負責人、類型都不可靠，不讓人照它按建立。
+  const isBlocked = isWorking || projectState === 'loading';
   const failure: unknown = apply.error ?? dismiss.error;
   return (
     <>
@@ -80,13 +97,14 @@ function PendingBody({ proposal, rows }: { readonly proposal: NewItemProposal; r
           <ItemRow key={index} row={row} projectKey={proposal.projectKey} />
         ))}
       </ol>
+      {projectState === 'loading' && <p className={styles.loading}>正在載入專案的成員與欄位…</p>}
       <div className={styles.actions}>
         <Button
           variant="primary"
           size="sm"
-          aria-disabled={isWorking || undefined}
+          aria-disabled={isBlocked || undefined}
           onClick={() => {
-            if (isWorking) return;
+            if (isBlocked) return;
             dismiss.reset();
             apply.mutate();
           }}
@@ -145,13 +163,16 @@ function ClosedBody({ proposal }: { readonly proposal: NewItemProposal }) {
 
 function LoadedCard({ proposal }: { readonly proposal: NewItemProposal }) {
   const project = useProject(proposal.projectKey);
-  const rows = newItemRows(proposal.items, project.data);
+  const projectState: ProjectLoadState = project.data !== undefined ? 'ready' : project.isError ? 'error' : 'loading';
+  const rows = newItemRows(proposal.items, project.data, projectState);
   return (
     <section className={styles.card} aria-label={`新增項目建議 ${proposal.projectKey}`}>
       <p className={styles.title}>{`建議新增 ${proposal.items.length} 個項目（${proposal.projectKey}）`}</p>
-      {proposal.status === 'pending' && <PendingBody proposal={proposal} rows={rows} />}
-      {proposal.status === 'applying' && <p className={styles.status}>建立中…</p>}
-      {(proposal.status === 'applied' || proposal.status === 'dismissed') && <ClosedBody proposal={proposal} />}
+      {proposal.status === 'pending' && <PendingBody proposal={proposal} rows={rows} projectState={projectState} />}
+      <div role="status">
+        {proposal.status === 'applying' && <p className={styles.status}>建立中…</p>}
+        {(proposal.status === 'applied' || proposal.status === 'dismissed') && <ClosedBody proposal={proposal} />}
+      </div>
     </section>
   );
 }
@@ -161,8 +182,10 @@ function LoadedCard({ proposal }: { readonly proposal: NewItemProposal }) {
  * （internal/HANDOFF-ai-new-items.md 第 6 節）。不能只勾其中幾個；不要的話請助理重提。
  */
 export function NewItemsProposalCard({ proposalId }: { readonly proposalId: string }) {
-  const proposal = useNewItemProposal(proposalId);
-  if (proposal.isPending) return <p className={styles.loading}>正在載入新增項目建議…</p>;
-  if (proposal.isError) return <Notice tone="warning">{`讀不到這份新增項目建議：${errorMessage(proposal.error)}`}</Notice>;
-  return <LoadedCard proposal={proposal.data} />;
+  const query = useNewItemProposal(proposalId);
+  // 背景重讀失敗時 data 還在、status 卻是 error：有資料就照舊顯示，只有完全沒資料才換成讀不到。
+  const data: NewItemProposal | undefined = query.data;
+  if (data !== undefined) return <LoadedCard proposal={data} />;
+  if (query.isError) return <Notice tone="warning">{`讀不到這份新增項目建議：${errorMessage(query.error)}`}</Notice>;
+  return <p className={styles.loading}>正在載入新增項目建議…</p>;
 }
