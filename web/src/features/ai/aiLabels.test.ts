@@ -22,6 +22,7 @@ describe('工具的說法', () => {
     expect(toolLabel('get_item', null)).toBe('讀取項目');
     expect(toolLabel('search_items')).toBe('搜尋項目');
     expect(toolLabel('propose_item_changes')).toBe('建議修改');
+    expect(toolLabel('propose_new_items')).toBe('建議新增項目');
   });
 
   it('不選專案的兩個工具', () => {

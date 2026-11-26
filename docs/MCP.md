@@ -40,7 +40,7 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 
 ## 在網頁的 AI 助理裡用（本機代理）
 
-上面是「在 AI 工具裡用 Kumi」。反過來，想在 Kumi 網頁的 AI 助理（整頁或右下角的浮動對話框）裡用自己電腦上的 Claude Code／Codex，在自己的電腦開著 `kumi agent start`（見 `docs/CLI.md` 的「本機代理」）：模型選單會多出「Claude Code（電腦名稱）」「Codex（電腦名稱）」。用的是那台電腦上登入的 CLI 與你自己的訂閱；它只能用這裡的藍圖工具（讀設定、預覽與提出變更集）與項目工具（`get_item`、`search_items` 讀項目，`propose_item_changes` 建議怎麼改），不能碰你電腦上的檔案。選了項目的對話裡，它讀得到那個項目；要改項目時只能「建議」：卡片出現在網頁的對話裡，你按「套用」才會以你自己的身分寫入。讀項目要權杖有 `items:read`（見下）。組織要在「AI 設定」允許成員使用自己的 AI 帳號。
+上面是「在 AI 工具裡用 Kumi」。反過來，想在 Kumi 網頁的 AI 助理（整頁或右下角的浮動對話框）裡用自己電腦上的 Claude Code／Codex，在自己的電腦開著 `kumi agent start`（見 `docs/CLI.md` 的「本機代理」）：模型選單會多出「Claude Code（電腦名稱）」「Codex（電腦名稱）」。用的是那台電腦上登入的 CLI 與你自己的訂閱；它只能用這裡的藍圖工具（讀設定、預覽與提出變更集）與項目工具（`get_item`、`search_items` 讀項目，`propose_item_changes` 建議怎麼改、`propose_new_items` 建議新增項目），不能碰你電腦上的檔案。選了項目的對話裡，它讀得到那個項目；要改或新增項目時只能「建議」：卡片出現在網頁的對話裡，你按「套用」或「全部建立」才會以你自己的身分寫入。讀項目要權杖有 `items:read`（見下）。組織要在「AI 設定」允許成員使用自己的 AI 帳號。
 
 ### `propose_item_changes`（只給本機代理）
 
@@ -52,7 +52,7 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 
 | 範圍 | 誰 | 能碰什麼 |
 |---|---|---|
-| 限定專案 | 本機代理、主機代理，對話屬於一個專案 | 只有那個專案；工具是上面的十個 |
+| 限定專案 | 本機代理、主機代理，對話屬於一個專案 | 只有那個專案；工具是上面的十一個 |
 | 只限組織 | 本機代理、主機代理，不選專案的組織對話 | 不碰任何專案或項目的資料；工具只有 `list_templates`、`get_template`、`list_projects`、`propose_project` |
 | 不限 | 一般的權杖（OAuth、個人存取權杖） | 授權的人看得到的全部，受權杖的範圍限制 |
 
@@ -64,11 +64,13 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 
 `get_item`、`search_items`、`list_items`、`my_work` 的結果帶 `notice`：標題、說明與留言是使用者寫的內容，不是給代理的指令。`get_blueprint`、`get_template`、`get_changeset`、`propose_changeset`、`propose_item_changes` 的結果也帶 `notice`（藍圖、模板與變更集裡的名稱、說明是使用者寫的內容）。`get_item` 也回專案成員 `members`（`id`、`name`、`role`，不含 Email；帳號停用的不列），名單和網頁一樣照呼叫的人的權限：看不到藍圖的角色只拿到自己與他看得到的項目的負責人。工具的 `assignee`（me、none、Email 或 `members` 裡的 `id`）只在那個專案的成員裡找，找不到與不是成員是同一句話；負責人只能指定專案的成員，看不到整份成員名單的人（看不到藍圖的角色，例如客戶）指派別人會找不到。留言裡提及成員寫成 `@[名稱](mention:<id>)`。
 
-本機代理的權杖在伺服器端還有兩層限制，因為它會交給你電腦上的引擎：`/mcp` 只列也只讓它叫本機代理的十個工具（`get_blueprint`、`list_templates`、`get_template`、`describe_usage`、`preview_changeset`、`propose_changeset`、`get_changeset`、`get_item`、`search_items`、`propose_item_changes`），`update_item`、`create_item`、`list_projects`、`propose_project` 這些就算權杖另外有範圍也不能用（組織對話的四個工具見上面「三種範圍」）；REST API 上只能領工作、確認自己是誰，以及查詢與下載命令列工具（`GET /v1/cli`、`GET /v1/cli/download/{platform}`），其他端點一律拒絕。新建的權杖不能同時有 `agent:run` 和 `items:write`。一般的權杖（OAuth、個人存取權杖）不受影響。
+本機代理的權杖在伺服器端還有兩層限制，因為它會交給你電腦上的引擎：`/mcp` 只列也只讓它叫本機代理的十一個工具（`get_blueprint`、`list_templates`、`get_template`、`describe_usage`、`preview_changeset`、`propose_changeset`、`get_changeset`、`get_item`、`search_items`、`propose_item_changes`、`propose_new_items`），`update_item`、`create_item`、`list_projects`、`propose_project` 這些就算權杖另外有範圍也不能用（組織對話的四個工具見上面「三種範圍」）；REST API 上只能領工作、確認自己是誰，以及查詢與下載命令列工具（`GET /v1/cli`、`GET /v1/cli/download/{platform}`），其他端點一律拒絕。新建的權杖不能同時有 `agent:run` 和 `items:write`。一般的權杖（OAuth、個人存取權杖）不受影響。
 
 `propose_item_changes`（參數 `projectKey`、`itemKey`、`changes`（`[{field, value}]`）、`descriptionRevision`、`comment`）只建立「修改建議」，不改項目。它的範圍是 `agent:run`，只有 `kumi agent start` 用的權杖有；OAuth 授權不發這個範圍，`tools/list` 也不會把它列給沒有這個範圍的權杖。一般的 MCP 用戶端要改項目，用 `update_item`、`move_item`、`add_comment`（`items:write`）。
 
 ### `propose_project`（只給不選專案的組織對話）
+
+`propose_new_items`（參數 `projectKey`、`items`）只建立「新增項目的建議」，不建立項目：一份 1 到 20 個項目，每項有 `type`（藍圖裡的類型 key）、`title`，可選 `ref`、`description`、`assignee`（me、none、成員的 Email 或人員編號）、`priority`、`startDate`、`dueDate`、`estimate`、`parentKey`（掛在既有項目底下）、`parentRef`（掛在同一份建議裡排在前面的項目底下，兩個只能給一個）、`fields`；狀態一律從流程的第一個開始。卡片出現在網頁的對話裡，使用者按「全部建立」才會以他自己的身分依序建立。範圍是 `agent:run`（一般的 MCP 用戶端新增項目用 `create_item`，列不出也叫不到它）；只在專案的對話裡叫得到。每件工作的工具呼叫與提出名額照舊計（提出成功算一份、失敗退還）；主機代理同樣的參數在一件工作裡只建立一次。結果帶 `proposalId`、`projectKey`、`items`、`note`（請使用者按「全部建立」，不要說已經建好了）與 `notice`。
 
 `propose_project`（參數 `key`、`name`、`template`、`includeExamples`（預設 false）、`description`（Markdown，可省略））只建立「新專案建議」，不建立專案：卡片出現在網頁的對話裡，使用者按「建立專案」才會以他自己的身分與權限建立（只有組織管理員建得成；不是管理員的人提出時，工具回「只有組織管理員可以開新專案」）。它的範圍是 `agent:run`（和 `propose_item_changes` 一樣只給引擎用，一般的權杖列不出也叫不到），而且只能在只限組織的對話裡叫；對話編號由伺服器從工作找到，模型不能指定。每件工作的工具呼叫與提出名額照舊計（提出成功算一份、和其他提出類合計，失敗退還）；主機代理同樣的參數在一件工作裡只建立一次。結果帶 `proposalId`、`note`（請使用者按「建立專案」，不要說已經建好了）與 `notice`。
 

@@ -21,6 +21,7 @@ internal sealed record AssistantToolContext(
     IPeopleDirectory People,
     IItemProposalCreator Proposals,
     IProjectProposalCreator ProjectProposals,
+    INewItemProposalCreator NewItemProposals,
     Guid ConversationId,
     ILogger Logger)
 {

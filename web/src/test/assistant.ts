@@ -7,6 +7,8 @@ import type {
   AssistantMessage,
   AssistantMessageInput,
   ItemProposal,
+  NewItemDraft,
+  NewItemProposal,
   ProjectProposal,
 } from '../api/aiTypes';
 import { failure, ok } from './api';
@@ -287,4 +289,74 @@ export function serveProjectProposal(proposal: ProjectProposal, onApply: () => R
     }),
   );
   return { applied: () => applied, dismissed: () => dismissed };
+}
+
+export function makeNewItemDraft(overrides: Partial<NewItemDraft> = {}): NewItemDraft {
+  return {
+    type: 'task',
+    title: '盤點 GCP 資源',
+    ref: null,
+    description: null,
+    assigneeId: null,
+    priority: null,
+    startDate: null,
+    dueDate: null,
+    estimate: null,
+    parentKey: null,
+    parentRef: null,
+    fields: {},
+    ...overrides,
+  };
+}
+
+export function makeNewItemProposal(overrides: Partial<NewItemProposal> = {}): NewItemProposal {
+  const items = overrides.items ?? [makeNewItemDraft(), makeNewItemDraft({ title: '遷移資料庫' })];
+  return {
+    id: 'nip-1',
+    projectKey: 'SMK',
+    items,
+    createdKeys: items.map(() => null),
+    status: 'pending',
+    createdAt: '2026-11-26T02:00:00Z',
+    decidedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+/**
+ * 假的新增項目建議端點：GET 回目前的狀態；apply 成功時依序編 SMK-13 起的編號並換成 applied（可用 applied 蓋掉結果，例如部分失敗帶 error），
+ * 可以用 onApply 回失敗；dismiss 換成 dismissed。回傳各自被呼叫的次數。
+ */
+export function serveNewItemProposal(
+  proposal: NewItemProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<NewItemProposal> = {},
+): ProposalBackend {
+  let current = proposal;
+  let applyCount = 0;
+  let dismissCount = 0;
+  const path = `/v1/ai/new-item-proposals/${proposal.id}`;
+  server.use(
+    http.get(path, () => ok(current)),
+    http.post(`${path}/apply`, () => {
+      applyCount += 1;
+      const failed = onApply();
+      if (failed !== null) return failed;
+      current = {
+        ...current,
+        status: 'applied',
+        decidedAt: '2026-11-26T02:05:00Z',
+        createdKeys: current.items.map((_, index) => `${current.projectKey}-${13 + index}`),
+        ...applied,
+      };
+      return ok(current);
+    }),
+    http.post(`${path}/dismiss`, () => {
+      dismissCount += 1;
+      current = { ...current, status: 'dismissed', decidedAt: '2026-11-26T02:05:00Z' };
+      return ok(current);
+    }),
+  );
+  return { applied: () => applyCount, dismissed: () => dismissCount };
 }

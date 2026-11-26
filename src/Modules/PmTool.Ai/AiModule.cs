@@ -111,6 +111,11 @@ public static class AiModule
         services.TryAddScoped<ItemProposalApplier>();
         services.TryAddScoped<IItemProposalService, ItemProposalService>();
 
+        // 新增項目的建議：同樣只建立建議，使用者按「全部建立」才以自己的身分依序建立。
+        services.TryAddScoped<INewItemProposalCreator, NewItems.NewItemProposalCreator>();
+        services.TryAddScoped<NewItems.NewItemApplier>();
+        services.TryAddScoped<INewItemProposalService, NewItems.NewItemProposalService>();
+
         // 新專案建議（不選專案的組織對話）：同樣只建立建議，使用者按「建立專案」才以自己的身分建立。
         services.TryAddScoped<IProjectProposalCreator, ProjectProposalCreator>();
         services.TryAddScoped<IProjectProposalService, ProjectProposalService>();

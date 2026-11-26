@@ -41,23 +41,40 @@ internal static partial class LocalPromptBuilder
 
     /// <summary>內建助理的系統提示，加上這個專案與權限的一句說明、本機用 MCP 工具的說法。</summary>
     public static string SystemPrompt(
-        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null) =>
+        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null, bool supportsNewItems = true) =>
         string.Join(
             "\n\n",
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            AssistantPrompt.ReadResource("local-agent.md").Trim(),
+            ToolSection("local-agent.md", supportsNewItems, "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
 
     /// <summary>主機代理（組織來源）的版本：工具的說法和本機相同，只是引擎跑在 Kumi 主機上、代替發問的人操作，不提「你的電腦」。</summary>
     public static string HostSystemPrompt(
-        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null) =>
+        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null, bool supportsNewItems = true) =>
         string.Join(
             "\n\n",
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            AssistantPrompt.ReadResource("host-agent.md").Trim(),
+            ToolSection("host-agent.md", supportsNewItems, "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
+
+    /// <summary>
+    /// 工具的說明段落。kumi 太舊（<paramref name="supportsNewItems"/> 是 false）時工作的工具清單沒有 propose_new_items，
+    /// 這裡也拿掉它那一行，並說明前面提到它的地方這一次都不適用，使用者要新增項目時請他更新。
+    /// </summary>
+    private static string ToolSection(string resource, bool supportsNewItems, string updateAdvice)
+    {
+        var text = AssistantPrompt.ReadResource(resource).Trim();
+        if (supportsNewItems)
+        {
+            return text;
+        }
+
+        var lines = text.Split('\n').Where(line => !line.StartsWith($"- {AssistantToolNames.ProposeNewItems}：", StringComparison.Ordinal));
+        return string.Join("\n", lines)
+            + $"\n\n這一次沒有 {AssistantToolNames.ProposeNewItems} 這個工具（前面提到它的地方都不適用）：使用者要新增項目時，告訴他{updateAdvice}。";
+    }
 
     /// <summary>不選專案的組織對話（本機的引擎）：組織版的系統提示，加上這則對話的說明與只有四個工具的說法。</summary>
     public static string OrganizationSystemPrompt(bool canCreateProjects, Asker? asker = null) =>

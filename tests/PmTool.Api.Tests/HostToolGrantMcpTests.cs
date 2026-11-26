@@ -99,6 +99,28 @@ public sealed class HostToolGrantMcpTests
     }
 
     [Test]
+    public async Task ProposeNewItems_SameArgumentsTwice_CreatesOnceAndReplaysTheResult()
+    {
+        // Arrange
+        using var factory = NewFactory();
+        factory.Modules.HostGrants.Grant = GrantWith("propose_new_items");
+        await using var client = await ConnectAsync(factory);
+        var arguments = new { projectKey = "WEB", items = new[] { new { type = "task", title = "搬遷" } } };
+
+        // Act
+        var (firstError, firstBody) = await McpTesting.CallAsync(client, "propose_new_items", arguments);
+        var (secondError, secondBody) = await McpTesting.CallAsync(client, "propose_new_items", arguments);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((firstError, secondError), Is.EqualTo((false, false)));
+            Assert.That(factory.Modules.NewItemProposals.Creates, Has.Count.EqualTo(1), "同樣的提案只建立一次");
+            Assert.That(secondBody.ToJsonString(), Is.EqualTo(firstBody.ToJsonString()));
+        }
+    }
+
+    [Test]
     public async Task ProposeItemChanges_SameArgumentsInADifferentKeyOrder_CreatesOnceAndReplaysTheResult()
     {
         // Arrange

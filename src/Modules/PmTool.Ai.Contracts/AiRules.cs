@@ -38,6 +38,12 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForOrganizationChat = "0.12.0";
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放 propose_new_items：舊版的 kumi 看到不認得的工具會整件工作不跑。
+    /// 舊版照樣能用，只是少了這個工具，提示裡請模型叫使用者 <c>kumi update</c>。
+    /// </summary>
+    public const string MinAgentVersionForNewItemProposals = "0.14.0";
+
     public const int MaxMachineNameLength = 60;
 
     /// <summary>一個引擎最多列幾個模型。</summary>
@@ -96,6 +102,12 @@ public static class AiRules
 
     /// <summary>一份修改建議最多改幾個欄位。</summary>
     public const int MaxItemProposalChanges = 20;
+
+    /// <summary>一份新增項目的建議最多幾個項目（把一份需求拆成幾個任務夠用；再多請分幾次）。</summary>
+    public const int MaxNewItemsPerProposal = 20;
+
+    /// <summary>新增項目的建議停在「建立中」超過這麼久，當作建立的過程中斷了（程序在中途結束），讀出來是已套用加說明。</summary>
+    public static readonly TimeSpan NewItemProposalApplyStale = TimeSpan.FromMinutes(5);
 
     /// <summary>助理的 search_items 一次最多回幾個項目。</summary>
     public const int MaxItemSearchResults = 20;
@@ -180,7 +192,7 @@ public static class AiRules
     /// <summary>本機代理與主機代理的一件工作最多呼叫幾次工具（伺服器端計，和引擎拿到的上限無關）。</summary>
     public const int MaxAgentToolCallsPerJob = 13;
 
-    /// <summary>本機代理與主機代理的一件工作最多成功提出幾份（變更集與修改建議合計）。</summary>
+    /// <summary>本機代理與主機代理的一件工作最多成功提出幾份（變更集、修改建議、新增項目的建議、新專案建議合計）。</summary>
     public const int MaxAgentProposalsPerJob = 2;
 
     /// <summary>對話多久沒有更新就刪掉（整則，含訊息）。</summary>

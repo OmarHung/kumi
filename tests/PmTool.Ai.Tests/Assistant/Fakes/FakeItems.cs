@@ -30,6 +30,7 @@ internal sealed class FakeWorkItemService : IWorkItemService
 {
     private readonly List<(Actor Actor, string Key, WorkItemPatch Patch)> _updates = [];
     private readonly List<(Actor Actor, string Key, string State)> _transitions = [];
+    private readonly List<(Actor Actor, string ProjectKey, NewWorkItem Item)> _creates = [];
 
     public Dictionary<string, WorkItem> Items { get; } = new(StringComparer.OrdinalIgnoreCase) { ["WEB-12"] = ItemSamples.Item() };
 
@@ -38,6 +39,11 @@ internal sealed class FakeWorkItemService : IWorkItemService
     public Func<string, string, Result<WorkItem>>? OnTransition { get; set; }
 
     public IReadOnlyList<(Actor Actor, string Key, WorkItemPatch Patch)> Updates => _updates;
+
+    /// <summary>設了就用它決定每一次建立的結果（參數是第幾次、從 0 起算，與要建立的內容）；沒設時依序回 WEB-101、WEB-102…。</summary>
+    public Func<int, NewWorkItem, Result<WorkItem>>? OnCreate { get; set; }
+
+    public IReadOnlyList<(Actor Actor, string ProjectKey, NewWorkItem Item)> Creates => _creates;
 
     public IReadOnlyList<(Actor Actor, string Key, string State)> Transitions => _transitions;
 
@@ -68,8 +74,17 @@ internal sealed class FakeWorkItemService : IWorkItemService
         return Task.FromResult<Result<WorkItemPage>>(new WorkItemPage(found, null));
     }
 
-    public Task<Result<WorkItem>> CreateAsync(Actor actor, string projectKey, NewWorkItem item, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+    public Task<Result<WorkItem>> CreateAsync(Actor actor, string projectKey, NewWorkItem item, CancellationToken cancellationToken)
+    {
+        int index;
+        lock (_creates)
+        {
+            index = _creates.Count;
+            _creates.Add((actor, projectKey, item));
+        }
+
+        return Task.FromResult(OnCreate?.Invoke(index, item) ?? ItemSamples.Item($"{projectKey}-{101 + index}", item.Title, projectKey));
+    }
 
     public Task<Result<DeletedWorkItem>> DeleteAsync(Actor actor, string itemKey, CancellationToken cancellationToken) =>
         throw new NotSupportedException();

@@ -439,7 +439,7 @@ public sealed class AssistantReplyTests
     }
 
     [Test]
-    public async Task Reply_ModelCall_GetsTheNineToolsAndTheOutputLimit()
+    public async Task Reply_ModelCall_GetsTheTenToolsAndTheOutputLimit()
     {
         // Arrange
         var conversation = await _h.NewConversationAsync();
@@ -455,7 +455,7 @@ public sealed class AssistantReplyTests
             Assert.That(options.Tools!.Select(t => t.Name), Is.EquivalentTo(new[]
             {
                 "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset",
-                "get_item", "search_items", "propose_item_changes",
+                "get_item", "search_items", "propose_item_changes", "propose_new_items",
             }));
             Assert.That(options.MaxOutputTokens, Is.EqualTo(AiRules.MaxOutputTokens));
             Assert.That(_h.Gateway.ChatEndpoints.Single().Kind, Is.EqualTo(AiProviderKind.Anthropic));

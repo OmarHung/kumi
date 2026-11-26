@@ -125,6 +125,7 @@ internal sealed class AssistantReplyRunner(
             provider.GetRequiredService<IPeopleDirectory>(),
             provider.GetRequiredService<IItemProposalCreator>(),
             provider.GetRequiredService<IProjectProposalCreator>(),
+            provider.GetRequiredService<INewItemProposalCreator>(),
             request.ConversationId,
             logger);
         var selection = request.Selection.Selection;

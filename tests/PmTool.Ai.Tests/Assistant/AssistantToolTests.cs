@@ -359,7 +359,7 @@ public sealed class AssistantToolTests
 
     private AIFunction NewProposeTool() => new PmTool.Ai.Assistant.Tools.ProposeChangeSetTool(new PmTool.Ai.Assistant.Tools.AssistantToolContext(
         _h.Actor, "WEB", _h.Projects, _h.Changes, _h.Usage, new FakeTemplateLibrary(),
-        _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), Guid.NewGuid(),
+        _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), _h.Host.Get<INewItemProposalCreator>(), Guid.NewGuid(),
         Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance));
 
     [Test]
@@ -482,7 +482,7 @@ public sealed class AssistantToolTests
         var allowed = new HashSet<string> { "type", "properties", "required", "additionalProperties", "description", "items", "enum", "const", "$ref" };
         var context = new PmTool.Ai.Assistant.Tools.AssistantToolContext(
             _h.Actor, "WEB", _h.Projects, _h.Changes, _h.Usage, new FakeTemplateLibrary(),
-            _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), Guid.NewGuid(),
+            _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), _h.Host.Get<INewItemProposalCreator>(), Guid.NewGuid(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
 
         // Act
@@ -491,7 +491,7 @@ public sealed class AssistantToolTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(tools, Has.Count.EqualTo(9));
+            Assert.That(tools, Has.Count.EqualTo(10));
             foreach (var tool in tools)
             {
                 Assert.That(KeywordsOf(tool.JsonSchema).Except(allowed), Is.Empty, tool.Name);

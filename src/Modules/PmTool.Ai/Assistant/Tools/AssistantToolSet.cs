@@ -28,5 +28,6 @@ internal static class AssistantToolSet
         new GetItemTool(context),
         new SearchItemsTool(context),
         new ProposeItemChangesTool(context),
+        new ProposeNewItemsTool(context),
     ];
 }

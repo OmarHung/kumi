@@ -46,6 +46,7 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   get_item: '讀取項目',
   search_items: '搜尋項目',
   propose_item_changes: '建議修改',
+  propose_new_items: '建議新增項目',
   list_projects: '查看你的專案清單',
   propose_project: '提出新專案',
 };

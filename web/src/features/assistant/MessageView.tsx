@@ -9,6 +9,7 @@ import { effortLabel, toolLabel } from '../ai/aiLabels';
 import { changeSetPagePath, itemPagePath } from '../work-items/itemLinks';
 import { CopyMessageButton } from './CopyMessageButton';
 import { MessageAttachments } from './MessageAttachments';
+import { NewItemsProposalCard } from './NewItemsProposalCard';
 import { ProjectProposalCard } from './ProjectProposalCard';
 import { ProposalCard } from './ProposalCard';
 import { replyPhaseText, type ReplyPhase } from './replyPhase';
@@ -21,6 +22,7 @@ const NO_MENTIONS: ReadonlyMap<string, string> = new Map();
 const PROPOSE_TOOL = 'propose_changeset';
 const PROPOSE_ITEM_TOOL = 'propose_item_changes';
 const PROPOSE_PROJECT_TOOL = 'propose_project';
+const PROPOSE_NEW_ITEMS_TOOL = 'propose_new_items';
 const DEFAULT_FAILURE = '回覆失敗了，請再試一次。';
 
 function ToolRow({ tool }: { readonly tool: AssistantToolPart }) {
@@ -71,6 +73,9 @@ function PartView({ part, projectKey }: { readonly part: AssistantMessage['parts
       )}
       {part.name === PROPOSE_PROJECT_TOOL && part.status === 'done' && part.projectProposalId !== null && (
         <ProjectProposalCard proposalId={part.projectProposalId} />
+      )}
+      {part.name === PROPOSE_NEW_ITEMS_TOOL && part.status === 'done' && part.newItemProposalId !== null && (
+        <NewItemsProposalCard proposalId={part.newItemProposalId} />
       )}
     </>
   );

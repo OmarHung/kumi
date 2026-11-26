@@ -117,7 +117,7 @@ internal sealed record TextEvent(string Delta) : AgentEvent
     public override JsonObject ToJson() => new() { ["type"] = "text", ["delta"] = Delta };
 }
 
-internal sealed record ToolEvent(string CallId, string Name, string Status, long? ChangeSetNumber = null, string? Error = null, string? ItemProposalId = null, string? ProjectProposalId = null) : AgentEvent
+internal sealed record ToolEvent(string CallId, string Name, string Status, long? ChangeSetNumber = null, string? Error = null, string? ItemProposalId = null, string? ProjectProposalId = null, string? NewItemProposalId = null) : AgentEvent
 {
     public override JsonObject ToJson() => new()
     {
@@ -129,6 +129,7 @@ internal sealed record ToolEvent(string CallId, string Name, string Status, long
         ["error"] = Error,
         ["itemProposalId"] = ItemProposalId,
         ["projectProposalId"] = ProjectProposalId,
+        ["newItemProposalId"] = NewItemProposalId,
     };
 }
 

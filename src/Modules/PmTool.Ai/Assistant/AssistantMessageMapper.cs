@@ -62,7 +62,7 @@ internal static class AssistantMessageMapper
     private static PartDto ToDto(AssistantPart part) => part switch
     {
         AssistantTextPart text => new TextPartDto(text.Text),
-        AssistantToolPart tool => new ToolPartDto(tool.CallId, tool.Name, tool.Status, tool.ChangeSetNumber, tool.Error, tool.ItemProposalId, tool.ProjectProposalId),
+        AssistantToolPart tool => new ToolPartDto(tool.CallId, tool.Name, tool.Status, tool.ChangeSetNumber, tool.Error, tool.ItemProposalId, tool.ProjectProposalId, tool.NewItemProposalId),
         _ => throw new ArgumentOutOfRangeException(nameof(part), part, "不認得的訊息段落。"),
     };
 
@@ -73,6 +73,7 @@ internal static class AssistantMessageMapper
         {
             ItemProposalId = tool.ItemProposalId,
             ProjectProposalId = tool.ProjectProposalId,
+            NewItemProposalId = tool.NewItemProposalId,
         },
         _ => throw new FormatException("不認得的訊息段落。"),
     };
@@ -85,5 +86,5 @@ internal static class AssistantMessageMapper
     private sealed record TextPartDto(string Text) : PartDto;
 
     private sealed record ToolPartDto(
-        string CallId, string Name, AssistantToolStatus Status, long? ChangeSetNumber, string? Error, Guid? ItemProposalId = null, Guid? ProjectProposalId = null) : PartDto;
+        string CallId, string Name, AssistantToolStatus Status, long? ChangeSetNumber, string? Error, Guid? ItemProposalId = null, Guid? ProjectProposalId = null, Guid? NewItemProposalId = null) : PartDto;
 }

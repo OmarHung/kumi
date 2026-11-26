@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using PmTool.Abstractions;
 using PmTool.Blueprint.Model;
@@ -12,10 +11,6 @@ namespace PmTool.Ai.Items;
 /// </summary>
 internal static class ItemChangeChecker
 {
-    private const string DateFormat = "yyyy-MM-dd";
-
-    private static readonly string[] PriorityNames = ["none", "low", "medium", "high", "urgent"];
-
     public static Result<IReadOnlyList<ItemFieldChange>> Check(
         IReadOnlyList<ItemFieldChange> changes, string? comment, string? descriptionRevision, WorkItem item, ProjectDetail project)
     {
@@ -78,7 +73,7 @@ internal static class ItemChangeChecker
     private static string? CheckValue(ItemFieldChange change, WorkItem item, ProjectDetail project)
     {
         var (field, value) = (change.Field, change.Value);
-        if (!IsPlainText(value, allowLineBreaks: field != ItemFieldNames.Title))
+        if (!ItemValueRules.IsPlainText(value, allowLineBreaks: field != ItemFieldNames.Title))
         {
             return "文字不能含有 NUL 或其他控制字元。";
         }
@@ -97,22 +92,13 @@ internal static class ItemChangeChecker
         };
     }
 
-    private static string? CheckTitle(JsonElement value)
-    {
-        if (value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
-        {
-            return "title 要是不空白的字串。";
-        }
-
-        return value.GetString()!.Trim().Length > WorkRules.MaxTitleLength ? $"title 最長 {WorkRules.MaxTitleLength} 個字元。" : null;
-    }
+    private static string? CheckTitle(JsonElement value) =>
+        value.ValueKind == JsonValueKind.String ? ItemValueRules.CheckTitle(value.GetString()) : ItemValueRules.CheckTitle(null);
 
     private static string? CheckDescription(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Null => null,
-        JsonValueKind.String when value.GetString()!.Length > WorkRules.MaxDescriptionLength =>
-            $"description 最長 {WorkRules.MaxDescriptionLength} 個字元。",
-        JsonValueKind.String => null,
+        JsonValueKind.String => ItemValueRules.CheckDescriptionLength(value.GetString()!),
         _ => "description 要是字串（Markdown），null 是清掉。",
     };
 
@@ -165,22 +151,20 @@ internal static class ItemChangeChecker
     }
 
     private static string? CheckPriority(JsonElement value) =>
-        value.ValueKind == JsonValueKind.String && PriorityNames.Contains(value.GetString())
-            ? null
-            : $"priority 要是 {string.Join("、", PriorityNames)} 其中之一。";
+        value.ValueKind == JsonValueKind.String ? ItemValueRules.CheckPriority(value.GetString()) : ItemValueRules.CheckPriority(null);
 
     private static string? CheckDate(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Null => null,
-        JsonValueKind.String when IsDate(value.GetString()) => null,
-        _ => "日期要寫成 yyyy-MM-dd，null 是清掉。",
+        JsonValueKind.String when ItemValueRules.IsDate(value.GetString()) => null,
+        _ => ItemValueRules.DateMessage,
     };
 
     private static string? CheckEstimate(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Null => null,
-        JsonValueKind.Number when value.TryGetDecimal(out var number) && number >= 0 && number <= WorkRules.MaxNumberMagnitude => null,
-        _ => "estimate 要是不小於 0 的數字，null 是清掉。",
+        JsonValueKind.Number when value.TryGetDecimal(out var number) => ItemValueRules.CheckEstimate(number),
+        _ => ItemValueRules.EstimateMessage,
     };
 
     private static string? CheckCustom(string field, JsonElement value, WorkItem item, ProjectDetail project)
@@ -200,34 +184,8 @@ internal static class ItemChangeChecker
             return null;
         }
 
-        if (!KindFits(definition.Type, value))
-        {
-            return $"欄位「{key}」是{definition.Type}，值的 JSON 種類不對。";
-        }
-
-        return OverLimit(value) is { } over ? $"欄位「{key}」的值太大：{over}" : null;
+        return ItemValueRules.CheckCustomValue(key, definition, value);
     }
-
-    private static string? OverLimit(JsonElement value) => value.ValueKind switch
-    {
-        JsonValueKind.String when value.GetString()!.Length > ItemProposalLimits.MaxCustomStringLength =>
-            $"文字最長 {ItemProposalLimits.MaxCustomStringLength} 個字元。",
-        JsonValueKind.Array when value.GetArrayLength() > ItemProposalLimits.MaxCustomArrayItems =>
-            $"最多 {ItemProposalLimits.MaxCustomArrayItems} 項。",
-        JsonValueKind.Array => value.EnumerateArray().Select(OverLimit).FirstOrDefault(problem => problem is not null),
-        _ => null,
-    };
-
-    private static bool KindFits(FieldType type, JsonElement value) => type switch
-    {
-        FieldType.Text or FieldType.LongText or FieldType.Url or FieldType.SingleSelect or FieldType.Person =>
-            value.ValueKind == JsonValueKind.String,
-        FieldType.Date => value.ValueKind == JsonValueKind.String && IsDate(value.GetString()),
-        FieldType.Number or FieldType.Currency => value.ValueKind == JsonValueKind.Number,
-        FieldType.Checkbox => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
-        FieldType.MultiSelect => value.ValueKind == JsonValueKind.Array && value.EnumerateArray().All(e => e.ValueKind == JsonValueKind.String),
-        _ => false,
-    };
 
     private static string? CheckComment(string? comment)
     {
@@ -241,23 +199,8 @@ internal static class ItemChangeChecker
             return $"留言最長 {WorkRules.MaxCommentLength} 個字元。";
         }
 
-        return IsPlainText(comment, allowLineBreaks: true) ? null : "留言不能含有 NUL 或其他控制字元。";
+        return ItemValueRules.IsPlainText(comment, allowLineBreaks: true) ? null : "留言不能含有 NUL 或其他控制字元。";
     }
-
-    private static bool IsDate(string? text) =>
-        DateOnly.TryParseExact(text, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
-
-    private static bool IsPlainText(string text, bool allowLineBreaks) =>
-        !text.Any(c => char.IsControl(c) && !(allowLineBreaks && c is '\n' or '\r' or '\t'));
-
-    // 值裡任何一層的字串都要乾淨：自訂欄位的值可以是陣列。
-    private static bool IsPlainText(JsonElement value, bool allowLineBreaks) => value.ValueKind switch
-    {
-        JsonValueKind.String => IsPlainText(value.GetString()!, allowLineBreaks),
-        JsonValueKind.Array => value.EnumerateArray().All(e => IsPlainText(e, allowLineBreaks)),
-        JsonValueKind.Object => value.EnumerateObject().All(p => IsPlainText(p.Name, allowLineBreaks: false) && IsPlainText(p.Value, allowLineBreaks)),
-        _ => true,
-    };
 
     private static FailureDetail Issue(string path, string message) => new(AiErrorCodes.FieldInvalid, path, message);
 }

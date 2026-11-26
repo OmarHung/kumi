@@ -13,6 +13,8 @@ internal static class ItemProposalTools
 {
     private const string CreatedNote = "已經建立修改建議，使用者在網頁上按「套用」才會改。不要說已經改好了。";
 
+    private const string NewItemsCreatedNote = "已經建立新增項目的建議，使用者在網頁上按「全部建立」才會建立。不要說已經建好了。";
+
     public static IEnumerable<McpTool> All { get; } =
     [
         new("propose_item_changes",
@@ -33,7 +35,53 @@ internal static class ItemProposalTools
                 ("descriptionRevision", McpSchemas.Text("改說明時必填：get_item 回的 descriptionRevision。")),
                 ("comment", McpSchemas.Text("要加的留言（Markdown）。"))),
             AccessTokenScope.AgentRun, ReadOnly: false, ProposeAsync),
+        new("propose_new_items",
+            $"建議新增項目（不會真的建立）：使用者在 Kumi 網頁上看到後按「全部建立」才會以他自己的身分建立。一份建議 1 到 {AiRules.MaxNewItemsPerProposal} 個項目，依順序建立；" +
+            "把一份需求拆成幾個任務時放在同一份。每個項目要有 type（藍圖裡的類型 key，先 get_blueprint）與 title；狀態一律從流程的第一個開始，不能指定。" +
+            "要掛在新建的項目底下：前面的項目給 ref（小寫英文、數字、-、_，最多 20 字），後面的用 parentRef 指它；要掛在既有的項目底下用 parentKey，兩個只能給一個，而且藍圖要允許這個類型掛在那個類型底下。" +
+            "assignee 寫 me、none、專案成員的 Email 或人員編號（get_item 回的 members；空的專案沒有項目可讀時，錯誤訊息會列出成員）。資訊不足時先問使用者，或把不確定的寫進說明的「待確認」，不要捏造。提出之後告訴使用者「請按全部建立」，不要說已經建好了。",
+            McpSchemas.Object(
+                required: ["projectKey", "items"],
+                ("projectKey", McpSchemas.Text("這一則對話的專案代號。")),
+                ("items", McpSchemas.ArrayOf(
+                    "要新增的項目，依建立的順序。",
+                    McpSchemas.ObjectOf(
+                        required: ["type", "title"],
+                        ("ref", McpSchemas.Text("這個項目的代稱，讓後面的項目用 parentRef 掛在它底下。")),
+                        ("type", McpSchemas.Text("項目類型的 key。")),
+                        ("title", McpSchemas.Text("標題。")),
+                        ("description", McpSchemas.Text("說明（Markdown）。")),
+                        ("assignee", McpSchemas.Text("負責人：me、none、成員的 Email 或人員編號。")),
+                        ("priority", McpSchemas.Text("none、low、medium、high、urgent。")),
+                        ("startDate", McpSchemas.Text("開始日，yyyy-MM-dd。")),
+                        ("dueDate", McpSchemas.Text("到期日，yyyy-MM-dd。")),
+                        ("estimate", McpSchemas.Number("估計，數字。")),
+                        ("parentKey", McpSchemas.Text("既有項目的編號，例如 WEB-12。")),
+                        ("parentRef", McpSchemas.Text("同一份建議裡排在前面的項目的 ref。")),
+                        ("fields", McpSchemas.FreeObject("自訂欄位 {key: 值}。")))))),
+            AccessTokenScope.AgentRun, ReadOnly: false, ProposeNewItemsAsync),
     ];
+
+    private static async Task<McpToolResult> ProposeNewItemsAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
+    {
+        var projectKey = context.Project(arguments.RequiredPlain("projectKey"));
+        var draft = new NewItemProposalDraft(projectKey, await NewItemArguments.ReadAsync(context, projectKey, arguments, cancellationToken));
+        var created = await context.Services.NewItemProposals.CreateAsync(context.Actor, draft, cancellationToken);
+        if (created.Failure is { } failure)
+        {
+            return McpToolResult.FromFailure(failure);
+        }
+
+        var proposal = created.Value;
+        return McpToolResult.Ok(new
+        {
+            proposalId = proposal.Id,
+            projectKey = proposal.ProjectKey,
+            items = proposal.Items.Select(item => new { @ref = item.Ref, type = item.Type, title = item.Title, parentKey = item.ParentKey, parentRef = item.ParentRef }),
+            note = NewItemsCreatedNote,
+            notice = ItemReadTools.UserContentNotice,
+        });
+    }
 
     private static async Task<McpToolResult> ProposeAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {

@@ -219,8 +219,8 @@ public sealed class EngineSpecTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(JobValidation.KnownTools, Is.SupersetOf(new[] { "get_item", "search_items", "propose_item_changes" }));
-            Assert.That(JobValidation.Check(TestJobs.Make() with { AllowedTools = ["get_item", "search_items", "propose_item_changes"] }, Server), Is.Null);
+            Assert.That(JobValidation.KnownTools, Is.SupersetOf(new[] { "get_item", "search_items", "propose_item_changes", "propose_new_items" }));
+            Assert.That(JobValidation.Check(TestJobs.Make() with { AllowedTools = ["get_item", "search_items", "propose_item_changes", "propose_new_items"] }, Server), Is.Null);
             Assert.That(JobValidation.Check(TestJobs.Make() with { AllowedTools = ["get_item", "update_item"] }, Server), Is.EqualTo("允許的工具不正確"));
         }
     }

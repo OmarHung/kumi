@@ -142,3 +142,58 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
 }
+
+/* 新增項目建議：一個項目一列，掛在前面項目底下的往內縮；不加色條，靠縮排與小字分層。 */
+.drafts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.draft {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.draftTitle {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.draftType {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.draftMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.draftToggle {
+  align-self: flex-start;
+}
+
+.draft > div {
+  align-self: stretch;
+}
+
+.depth1 {
+  margin-inline-start: var(--space-4);
+}
+
+.depth2 {
+  margin-inline-start: var(--space-8);
+}
+
+.depth3 {
+  margin-inline-start: var(--space-12);
+}

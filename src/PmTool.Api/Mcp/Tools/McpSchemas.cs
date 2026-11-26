@@ -31,6 +31,8 @@ internal static class McpSchemas
 
     public static JsonObject Integer(string description) => new() { ["type"] = "integer", ["description"] = description };
 
+    public static JsonObject Number(string description) => new() { ["type"] = "number", ["description"] = description };
+
     public static JsonObject Boolean(string description) => new() { ["type"] = "boolean", ["description"] = description };
 
     public static JsonObject ArrayOf(string description, JsonObject items) =>

@@ -128,8 +128,9 @@ internal sealed class LocalAgentHarness : IAsyncDisposable
     public static LocalAgentText Text(string delta) => new(delta);
 
     public static LocalAgentTool Tool(
-        string callId, string name, AssistantToolStatus status, long? changeSetNumber = null, string? error = null, Guid? itemProposalId = null) =>
-        new(new AssistantToolPart(callId, name, status, changeSetNumber, error) { ItemProposalId = itemProposalId });
+        string callId, string name, AssistantToolStatus status, long? changeSetNumber = null, string? error = null, Guid? itemProposalId = null,
+        Guid? newItemProposalId = null) =>
+        new(new AssistantToolPart(callId, name, status, changeSetNumber, error) { ItemProposalId = itemProposalId, NewItemProposalId = newItemProposalId });
 
     public async Task<LocalJobRow> JobRowAsync(Guid jobId)
     {

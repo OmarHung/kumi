@@ -6,6 +6,7 @@ import type {
   AssistantMessageInput,
   AssistantStreamEvent,
   ItemProposal,
+  NewItemProposal,
   ProjectProposal,
 } from './aiTypes';
 import { createSseParser, toStreamEvent } from './assistantStream';
@@ -361,5 +362,58 @@ export function useDecideProjectProposal(proposal: ProjectProposal) {
     },
   });
   const dismiss = useMutation({ mutationFn: () => dismissProjectProposal(proposal.id), onSuccess: settle });
+  return { apply, dismiss };
+}
+
+const newItemProposalPath = (proposalId: string) => `/v1/ai/new-item-proposals/${encodeURIComponent(proposalId)}`;
+
+/** 404 ai.new_item_proposal_not_found：別人的、不存在的。 */
+export function getNewItemProposal(proposalId: string, signal?: AbortSignal): Promise<NewItemProposal> {
+  return apiRequest<NewItemProposal>(newItemProposalPath(proposalId), { signal });
+}
+
+/** 409 ai.new_item_proposal_closed；第一個項目就建立失敗時工作引擎的失敗原樣回來（建議維持待處理）。 */
+export function applyNewItemProposal(proposalId: string): Promise<NewItemProposal> {
+  return apiRequest<NewItemProposal>(`${newItemProposalPath(proposalId)}/apply`, { method: 'POST', body: {} });
+}
+
+/** 409 ai.new_item_proposal_closed。 */
+export function dismissNewItemProposal(proposalId: string): Promise<NewItemProposal> {
+  return apiRequest<NewItemProposal>(`${newItemProposalPath(proposalId)}/dismiss`, { method: 'POST', body: {} });
+}
+
+const APPLYING_POLL_MS = 2000;
+
+/** applying（別的分頁按了、正在建立）時每 2 秒重讀，直到不是 applying。 */
+export function useNewItemProposal(proposalId: string) {
+  return useQuery({
+    queryKey: queryKeys.newItemProposal(proposalId),
+    queryFn: ({ signal }) => getNewItemProposal(proposalId, signal),
+    refetchInterval: (query) => (query.state.data?.status === 'applying' ? APPLYING_POLL_MS : false),
+  });
+}
+
+/** 套用之後：換成伺服器回的新狀態，並讓這個專案的項目清單、父項目候選、助理的選項目、我的工作與專案清單（計數）失效。 */
+export function useDecideNewItemProposal(proposal: NewItemProposal) {
+  const queryClient = useQueryClient();
+  const settle = (decided: NewItemProposal) => {
+    queryClient.setQueryData(queryKeys.newItemProposal(proposal.id), decided);
+  };
+  const apply = useMutation({
+    mutationFn: () => applyNewItemProposal(proposal.id),
+    onSuccess: (decided) => {
+      settle(decided);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.items(proposal.projectKey) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.parentCandidates(proposal.projectKey) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assistantItemChoiceLists(proposal.projectKey) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+    onError: () => {
+      // 已經處理過（別的分頁按了）：以伺服器現在的狀態為準；第一個就失敗的維持待處理，重讀也不會變。
+      void queryClient.invalidateQueries({ queryKey: queryKeys.newItemProposal(proposal.id) });
+    },
+  });
+  const dismiss = useMutation({ mutationFn: () => dismissNewItemProposal(proposal.id), onSuccess: settle });
   return { apply, dismiss };
 }

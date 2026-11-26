@@ -75,6 +75,8 @@ export const queryKeys = {
   itemProposal: (proposalId: string) => ['ai', 'item-proposals', proposalId],
   // 助理提出的新專案建議。
   projectProposal: (proposalId: string) => ['ai', 'project-proposals', proposalId],
+  // 助理提出的新增項目建議。
+  newItemProposal: (proposalId: string) => ['ai', 'new-item-proposals', proposalId],
   // 變更集放在專案底下：套用之後讓整個專案失效時，清單與每一份的內容也一起重抓。
   changeSets: (projectKey: string) => ['project', projectKey, 'changesets'],
   changeSet: (projectKey: string, number: number) => ['project', projectKey, 'changesets', number],

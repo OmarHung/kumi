@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"t1"}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"get_item","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"get_item","status":"completed","result":{"content":[{"type":"text","text":"{\"key\":\"DEMO-1\"}"}]}}}
+{"type":"item.started","item":{"id":"item_2","type":"mcp_tool_call","server":"kumi","tool":"propose_new_items","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"mcp_tool_call","server":"kumi","tool":"propose_new_items","status":"completed","result":{"content":[{"type":"text","text":"{\"proposalId\":\"not-a-guid\"}"}]}}}
+{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}

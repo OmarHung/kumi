@@ -201,6 +201,8 @@ export interface AssistantToolPart {
   readonly itemProposalId: string | null;
   /** propose_project 成功時，建立的新專案建議（畫成有「建立專案」「不要」的卡片）。 */
   readonly projectProposalId: string | null;
+  /** propose_new_items 成功時，建立的新增項目建議（畫成有「全部建立」「不要」的卡片）。 */
+  readonly newItemProposalId: string | null;
 }
 
 export type AssistantPart = AssistantTextPart | AssistantToolPart;
@@ -318,6 +320,47 @@ export interface ItemProposal {
 export interface ItemFieldChange {
   readonly field: string;
   readonly value: unknown;
+}
+
+/**
+ * AI 助理提出的新增項目建議（internal/HANDOFF-ai-new-items.md）：按「全部建立」才以自己的身分依序建立。
+ * status 是 applying 時正在建立（另一個分頁按的）；建立的過程中斷了會讀成 applied 加 error。
+ */
+export interface NewItemProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly items: readonly NewItemDraft[];
+  /** 和 items 一一對應：已經建立的項目編號，沒建立是 null。 */
+  readonly createdKeys: readonly (string | null)[];
+  readonly status: 'pending' | 'applying' | 'applied' | 'dismissed';
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  /** 有項目沒建立成功、或建立的過程中斷：哪些沒建立。 */
+  readonly error: string | null;
+}
+
+/** 建議新增的一個項目；狀態一律從流程的第一個狀態開始。 */
+export interface NewItemDraft {
+  /** 項目類型的 key。 */
+  readonly type: string;
+  readonly title: string;
+  /** 同一份建議裡的代稱，讓後面的項目掛在它底下。 */
+  readonly ref: string | null;
+  /** Markdown。 */
+  readonly description: string | null;
+  /** 人員編號。 */
+  readonly assigneeId: string | null;
+  readonly priority: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null;
+  /** yyyy-MM-dd。 */
+  readonly startDate: string | null;
+  readonly dueDate: string | null;
+  readonly estimate: number | null;
+  /** 掛在既有的項目底下（編號）。 */
+  readonly parentKey: string | null;
+  /** 掛在同一份建議裡前面的項目底下（它的 ref）。 */
+  readonly parentRef: string | null;
+  /** 自訂欄位 {key: 值}。 */
+  readonly fields: Readonly<Record<string, unknown>>;
 }
 
 /** AI 助理（不選專案的對話）提出的新專案建議（internal/HANDOFF-org-assistant.md 第 4 節）：按「建立專案」才以自己的身分建立。 */

@@ -8,12 +8,14 @@ import {
   makeAssistantMessage,
   makeConversationSummary,
   makeItemProposal,
+  makeNewItemProposal,
   makeMessage,
   serveAiOptions,
   serveConversation,
   serveConversations,
   serveCreateConversation,
   serveItemProposal,
+  serveNewItemProposal,
   serveReply,
 } from '../../test/assistant';
 import { exampleOwner, smkDetail, smkItem } from '../../test/fixtures';
@@ -71,9 +73,9 @@ describe('整頁的 AI 助理：選項目', () => {
         makeAssistantMessage({
           id: 'a1',
           parts: [
-            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null, projectProposalId: null },
-            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null, projectProposalId: null },
-            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id, projectProposalId: null },
+            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null, projectProposalId: null, newItemProposalId: null },
+            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null, projectProposalId: null, newItemProposalId: null },
+            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id, projectProposalId: null, newItemProposalId: null },
           ],
         }),
       ],
@@ -89,6 +91,29 @@ describe('整頁的 AI 助理：選項目', () => {
     expect(screen.getByRole('link', { name: '關於 SMK-12' })).toBeInTheDocument();
     const card = await screen.findByRole('region', { name: '修改建議 SMK-12' });
     expect(within(card).getByRole('button', { name: '套用' })).toBeInTheDocument();
+  });
+
+  it('對話裡的 propose_new_items 畫成新增項目建議的卡片', async () => {
+    // Arrange
+    const proposal = makeNewItemProposal();
+    serveNewItemProposal(proposal);
+    server.use(http.get('/v1/projects/SMK', () => ok(smkDetail())));
+    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null } as const;
+    serveConversation('SMK', {
+      conversation: makeConversationSummary({ id: 'conv-1', messageCount: 2 }),
+      messages: [
+        makeMessage({ id: 'u1', parts: [{ type: 'text', text: '拆成兩個任務' }] }),
+        makeAssistantMessage({ id: 'a1', parts: [{ ...tool, callId: 'c1', name: 'propose_new_items', newItemProposalId: proposal.id }] }),
+      ],
+    });
+
+    // Act
+    openPage('/projects/SMK/assistant/conv-1');
+
+    // Assert
+    expect(await screen.findByText('建議新增項目')).toBeInTheDocument();
+    const card = await screen.findByRole('region', { name: '新增項目建議 SMK' });
+    expect(within(card).getByRole('button', { name: '全部建立' })).toBeInTheDocument();
   });
 
   it('網址的 ?item= 是進來時的項目；開新對話換了網址也不會掉', async () => {

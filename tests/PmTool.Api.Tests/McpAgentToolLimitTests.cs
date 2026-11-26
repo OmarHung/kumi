@@ -13,7 +13,7 @@ public sealed class McpAgentToolLimitTests
     private static readonly string[] AgentTools =
     [
         "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset", "get_changeset",
-        "get_item", "search_items", "propose_item_changes",
+        "get_item", "search_items", "propose_item_changes", "propose_new_items",
     ];
 
     private static readonly AccessTokenScope[] AgentScopes =
@@ -47,7 +47,7 @@ public sealed class McpAgentToolLimitTests
         // Assert
         Assert.That(
             tools.Select(tool => tool.Name),
-            Is.EquivalentTo(new[] { "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "get_changeset", "propose_item_changes" }));
+            Is.EquivalentTo(new[] { "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "get_changeset", "propose_item_changes", "propose_new_items" }));
     }
 
     [Test]

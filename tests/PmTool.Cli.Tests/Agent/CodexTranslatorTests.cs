@@ -73,6 +73,37 @@ public sealed class CodexTranslatorTests
     }
 
     [Test]
+    public void NewItemsProposal_Codex_CarriesTheProposalIdOnTheFinishedTool()
+    {
+        // Act
+        var tools = Play("codex-new-items-proposal.jsonl").Tools;
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(tools.Last().Name, Is.EqualTo("propose_new_items"));
+            Assert.That(tools.Last().Status, Is.EqualTo("done"));
+            Assert.That(tools.Last().NewItemProposalId, Is.EqualTo("3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e11"));
+            Assert.That(tools.Last().ItemProposalId, Is.Null);
+            Assert.That(tools.Take(tools.Count - 1).All(tool => tool.NewItemProposalId is null), Is.True, "開始時與別的工具都不帶");
+        }
+    }
+
+    [Test]
+    public void NewItemsProposal_Codex_WithoutAGuidProposalId_OmitsIt()
+    {
+        // Act
+        var done = Play("codex-new-items-proposal-bad.jsonl").Tools.Last();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(done.Status, Is.EqualTo("done"));
+            Assert.That(done.NewItemProposalId, Is.Null);
+        }
+    }
+
+    [Test]
     public void FailedToolCall_CarriesTheSanitizedMessage()
     {
         // Act
