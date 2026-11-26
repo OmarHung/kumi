@@ -9,7 +9,14 @@ export const STEP_TITLES = {
   status: '完成的項目',
 } as const;
 
-export const WIZARD_NOTE = `一次設定好三件事：命令列工具、在 Claude Code／Codex 裡用 ${PRODUCT_NAME}，以及讓網頁的 AI 助理用你電腦上的 Claude Code／Codex（本機代理）。`;
+export const WIZARD_INTRO = '一次設定好三件事：';
+
+/** 精靈設定的三件事，名稱和第三步「完成的項目」的標籤同一套，後面一句說它是什麼（兩項都有 Claude Code／Codex、方向相反）。 */
+export const WIZARD_ITEMS: readonly string[] = [
+  '命令列工具',
+  `在 AI 工具裡用 ${PRODUCT_NAME}：在你的 Claude Code／Codex 裡叫 ${PRODUCT_NAME} 的工具`,
+  '本機代理：讓網頁的 AI 助理用你電腦上的 Claude Code／Codex',
+];
 
 export const COMMAND_NOTE = '會問你要設定哪些，再開瀏覽器請你按「允許」（Claude Code、Codex 各會再開一次授權頁）。';
 

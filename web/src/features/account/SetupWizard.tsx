@@ -9,7 +9,7 @@ import { CommandStep, DownloadStep, StatusStep } from './SetupSteps';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { cliLine } from './setupStatus';
 import { SetupStepFrame, type StepState } from './SetupStepFrame';
-import { STEP_TITLES, WIZARD_NOTE } from './setupText';
+import { STEP_TITLES, WIZARD_INTRO, WIZARD_ITEMS } from './setupText';
 import styles from './SetupWizard.module.css';
 
 type StepId = 1 | 2 | 3;
@@ -136,6 +136,20 @@ function Step({ step, title, progress, current, onToggle, children }: StepProps)
   );
 }
 
+/** 左欄的說明：三件事條列，一眼分得出兩種 Claude Code／Codex。 */
+function WizardNote() {
+  return (
+    <>
+      <p>{WIZARD_INTRO}</p>
+      <ul className={styles.noteList}>
+        {WIZARD_ITEMS.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 /**
  * 命令列與整合最上方的設定精靈（internal/HANDOFF-setup-wizard.md 5.2）：三步由上往下，前一步完成才展開下一步。
  * 這個畫面只負責「把那一行指令交給使用者」，登入與設定都在終端機裡做；第三步用即時的清單看結果。
@@ -144,7 +158,7 @@ export function SetupWizard({ choice }: { readonly choice: DownloadChoice }) {
   const { progress, isSettled, current, complete, toggle } = useProgress();
   const shared = { progress, current, onToggle: toggle };
   return (
-    <SettingsSection id="setup" title="設定精靈" description={WIZARD_NOTE} isContentStart>
+    <SettingsSection id="setup" title="設定精靈" description={<WizardNote />} isContentStart>
       {!isSettled && <Skeleton label="正在確認設定的進度…" rows={3} />}
       {isSettled && (
         <ol className={styles.steps} aria-label="設定的步驟">
