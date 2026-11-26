@@ -174,9 +174,9 @@ describe('助理：附加檔案', () => {
     // Act
     await user.click(screen.getByRole('button', { name: '移除附件 筆記.md' }));
 
-    // Assert
+    // Assert（前一個測試離開時的清理刪除可能晚到，所以只看有沒有這一個）
     await waitFor(() => {
-      expect(deleted).toEqual(['att-筆記.md']);
+      expect(deleted).toContain('att-筆記.md');
     });
     expect(screen.queryByText('筆記.md')).not.toBeInTheDocument();
   });
@@ -193,7 +193,7 @@ describe('助理：附加檔案', () => {
 
     // Assert
     expect(uploads[0]?.isAborted).toBe(true);
-    expect(deleted).toEqual([]);
+    expect(deleted).not.toContain('att-筆記.md');
     expect(screen.queryByText('筆記.md')).not.toBeInTheDocument();
   });
 
@@ -292,28 +292,68 @@ describe('助理：附加檔案', () => {
   });
 });
 
-describe('助理：本機引擎讀不到圖片與 PDF', () => {
-  it('圖片的小卡標「這個來源讀不到圖片與 PDF」、送出停用、上方說明；文字檔照常', async () => {
+describe('助理：本機與主機的引擎讀得到哪些附件', () => {
+  async function addAndFinish(user: ReturnType<typeof openAssistant>['user'], name: string, size: number, type: string, index = 0) {
+    await pick(user, [aFile(name, size, type)]);
+    await finishUpload(index, name);
+  }
+
+  it('Claude Code：圖片與 PDF 都可以送出，沒有說明', async () => {
     // Arrange
-    const { user } = openAssistant('/projects/SMK/assistant', localEngineOptions());
-    await pick(user, [aFile('截圖.png', 1000, 'image/png')]);
-    await finishUpload(0, '截圖.png');
-
-    // Assert
-    expect(await screen.findByText(/請移除這些附件，或改選 API 的模型/)).toBeInTheDocument();
-    expect(screen.getByText('這個來源讀不到圖片與 PDF')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '送出' })).toBeDisabled();
-
-    // Act
-    await user.click(screen.getByRole('button', { name: '移除附件 截圖.png' }));
-    await pick(user, [aFile('筆記.md', 100, 'text/markdown')]);
-    await finishUpload(1, '筆記.md');
+    const { user } = openAssistant('/projects/SMK/assistant', localEngineOptions('claude_code'));
+    await addAndFinish(user, '截圖.png', 1000, 'image/png');
+    await addAndFinish(user, '規格.pdf', 1000, 'application/pdf', 1);
 
     // Assert
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '送出' })).toBeEnabled();
     });
-    expect(screen.queryByText(/讀不到圖片與 PDF/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/讀不到/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['本機', false, 'Example-PC'],
+    ['主機', true, '主機上的來源'],
+  ])('Codex（%s）：PDF 的小卡標「Codex 讀不到 PDF」、送出停用、說明寫出來源與做法；圖片與文字檔照常', async (_label, hosted, sourceName) => {
+    // Arrange
+    const { user } = openAssistant('/projects/SMK/assistant', localEngineOptions('codex', hosted));
+    await addAndFinish(user, '規格.pdf', 1000, 'application/pdf');
+
+    // Assert
+    expect(await screen.findByText(`你選的 Codex（${sourceName}）讀不到 PDF：移除它，或改選 Claude Code。`)).toBeInTheDocument();
+    expect(screen.getByText('Codex 讀不到 PDF')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '送出' })).toBeDisabled();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '移除附件 規格.pdf' }));
+    await addAndFinish(user, '截圖.png', 1000, 'image/png', 1);
+
+    // Assert
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '送出' })).toBeEnabled();
+    });
+    expect(screen.queryByText(/讀不到/)).not.toBeInTheDocument();
+  });
+
+  it('伺服器的 422（kumi 太舊）顯示在輸入框上方，字與小卡留著', async () => {
+    // Arrange
+    const message = '你電腦上的 kumi 是 0.9.0，要 0.10.0 以上才能交圖片與 PDF 給引擎，請執行 kumi update。';
+    serveCreateConversation('SMK', NEW);
+    rejectReply('SMK', 'conv-new', 422, 'ai.attachment_unsupported', message);
+    const { user } = openAssistant('/projects/SMK/assistant', localEngineOptions('claude_code'));
+    await typeMessage(user, '看一下');
+    await addAndFinish(user, '截圖.png', 1000, 'image/png');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '送出' })).toBeEnabled();
+    });
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '送出' }));
+
+    // Assert
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: '訊息' })).toHaveValue('看一下');
+    expect(screen.getByRole('list', { name: '附件' })).toBeInTheDocument();
   });
 });
 

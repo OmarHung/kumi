@@ -142,6 +142,9 @@ internal sealed class FakeHostAgentWorkerService : IHostAgentWorkerService
 
     public Func<HostAgentIdentity, Guid, int, LocalAgentFinish, Result<Unit>> OnFinish { get; set; } = (_, _, _, _) => Unit.Value;
 
+    public Func<HostAgentIdentity, Guid, int, Guid, Result<AssistantAttachmentContent>> OnOpenAttachment { get; set; } =
+        (_, _, _, _) => new Failure(FailureKind.NotFound, AiErrorCodes.AttachmentNotFound, "找不到這個附件。");
+
     public Func<HostAgentIdentity, string, Result<HostLoginClaim>> OnClaim { get; set; } = (_, _) =>
         new HostLoginClaim(FakeHostAgentAdminService.LoginId, AiProviderKind.ClaudeCode, FakeHostAgentAdminService.Now.AddMinutes(15));
 
@@ -199,6 +202,13 @@ internal sealed class FakeHostAgentWorkerService : IHostAgentWorkerService
     {
         _calls.Enqueue((nameof(FinishAsync), agent, (jobId, lease, finish)));
         return Task.FromResult(OnFinish(agent, jobId, lease, finish));
+    }
+
+    public Task<Result<AssistantAttachmentContent>> OpenJobAttachmentAsync(
+        HostAgentIdentity agent, Guid jobId, int lease, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        _calls.Enqueue((nameof(OpenJobAttachmentAsync), agent, (jobId, lease, attachmentId)));
+        return Task.FromResult(OnOpenAttachment(agent, jobId, lease, attachmentId));
     }
 
     public Task<Result<HostLoginClaim>> ClaimLoginAsync(HostAgentIdentity agent, string code, CancellationToken cancellationToken)

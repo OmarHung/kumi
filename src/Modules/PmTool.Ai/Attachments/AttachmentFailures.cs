@@ -60,9 +60,22 @@ internal static class AttachmentFailures
         new(FailureKind.Invalid, AiErrorCodes.TooManyAttachments,
             $"一則訊息最多 {AssistantAttachmentRules.MaxPerMessage} 個附件。");
 
-    public static Failure Unsupported(IEnumerable<AssistantAttachmentKind> kinds) =>
+    /// <summary>kumi 太舊：本機的請使用者更新自己的電腦，主機的請組織擁有者更新 ai-worker（成員不必也沒辦法動主機）。</summary>
+    public static Failure AgentTooOld(AgentSource source)
+    {
+        var version = string.IsNullOrWhiteSpace(source.Version) ? "不明" : source.Version;
+        var minimum = AiRules.MinAgentVersionForAttachments;
+        var message = source.Hosted
+            ? $"「{source.Name}」的 ai-worker（kumi {version}）要 {minimum} 以上才能交圖片與 PDF 給引擎，請組織擁有者更新主機的 ai-worker；" +
+                "在那之前請移除圖片與 PDF，或換成 API 的模型。"
+            : $"「{source.Name}」那台電腦上的 kumi 是 {version}，要 {minimum} 以上才能交圖片與 PDF 給引擎，請執行 kumi update；" +
+                "在那之前請移除圖片與 PDF，或換成 API 的模型。";
+        return new(FailureKind.Invalid, AiErrorCodes.AttachmentUnsupported, message);
+    }
+
+    public static Failure CodexNoPdf(AgentSource source) =>
         new(FailureKind.Invalid, AiErrorCodes.AttachmentUnsupported,
-            $"這個來源讀不到{string.Join("與", kinds.Distinct().Select(AttachmentKinds.LabelOf))}，只讀得到文字檔；請換成 API 的模型，或移除那些附件。");
+            $"Codex 讀不到 PDF（圖片可以）：「{source.Name}」是 Codex，請移除 PDF，或改選 Claude Code 或 API 的模型。");
 
     /// <summary>超過的是組織的總量還是這個人的每日量，代碼不同、說的話也不同。</summary>
     public static Failure Quota(StorageQuotaCheck check) =>

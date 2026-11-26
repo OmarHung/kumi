@@ -125,6 +125,13 @@ public interface IHostAgentWorkerService
         HostAgentIdentity agent, Guid jobId, int lease, LocalAgentFinish finish, CancellationToken cancellationToken);
 
     /// <summary>
+    /// worker 下載這件工作的一個附件（<see cref="HostJob.Attachments"/> 列出的）。工作要是派給這台、租約對、還在執行中，
+    /// 附件要在這件工作的清單裡；租約不對或工作已結束：<see cref="AiErrorCodes.HostJobLeaseLost"/>；其他一律 <see cref="AiErrorCodes.AttachmentNotFound"/>。
+    /// </summary>
+    Task<Result<AssistantAttachmentContent>> OpenJobAttachmentAsync(
+        HostAgentIdentity agent, Guid jobId, int lease, Guid attachmentId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// 主機上的 <c>kumi host login</c> 用擁有者在網頁拿到的登入碼認領這次登入：要是派給這台、還沒過期、還沒被認領，
     /// 而且開始登入的人現在還是擁有者；不然 <see cref="AiErrorCodes.HostLoginRejected"/>（什麼都不改）。成功後同一個碼不能再用。
     /// </summary>
@@ -510,6 +517,9 @@ public sealed record HostJob(
     string ToolToken,
     DateTimeOffset ToolTokenExpiresAt)
 {
+    /// <summary>要交給引擎的圖片與 PDF，規則同 <see cref="LocalAgentJob.Attachments"/>；用 <see cref="IHostAgentWorkerService.OpenJobAttachmentAsync"/> 下載。</summary>
+    public IReadOnlyList<LocalAgentJobAttachment> Attachments { get; init; } = [];
+
     public override string ToString() => $"HostJob {{ JobId = {JobId}, Engine = {Engine}, Model = {Model}, ProjectKey = {ProjectKey}, ToolToken = *** }}";
 }
 

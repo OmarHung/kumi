@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.LocalAgents;
 using PmTool.Ai.Persistence;
 
@@ -17,7 +18,8 @@ internal sealed partial class HostAgentWorkerService(
     HostTimings timings,
     AssistantTimings assistantTimings,
     HostAgentSignals signals,
-    TimeProvider time) : IHostAgentWorkerService
+    TimeProvider time,
+    AgentAttachmentReader attachmentReader) : IHostAgentWorkerService
 {
     public async Task<HostAgentIdentity?> AuthenticateAsync(string credential, string? machineKey, CancellationToken cancellationToken)
     {

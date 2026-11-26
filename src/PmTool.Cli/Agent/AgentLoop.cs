@@ -164,7 +164,7 @@ internal sealed class AgentLoop(
         JobOutcome outcome;
         try
         {
-            outcome = await engine.RunAsync(job, reporter, cancellation);
+            outcome = await engine.RunAsync(job, reporter, cancellation, new AgentAttachmentSource(api));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

@@ -27,6 +27,12 @@ public interface ILocalAgentService
 
     /// <summary>工作結束了（完成、中斷或失敗）。重送同一件的結束不算錯（回成功、什麼都不改）。</summary>
     Task<Result<Unit>> FinishAsync(Actor actor, Guid jobId, LocalAgentFinish finish, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 本機代理下載這件工作的一個附件（<see cref="LocalAgentJob.Attachments"/> 列出的），交給引擎。
+    /// 工作要是這個人領走、還沒結束的，附件要在這件工作的清單裡；不然一律 <see cref="AiErrorCodes.AttachmentNotFound"/>。呼叫端負責 Dispose。
+    /// </summary>
+    Task<Result<AssistantAttachmentContent>> OpenJobAttachmentAsync(Actor actor, Guid jobId, Guid attachmentId, CancellationToken cancellationToken);
 }
 
 /// <summary>網頁這一頭：「我的帳號」列出自己登記過的電腦、移除不用的。只能用 Cookie。</summary>
@@ -78,7 +84,22 @@ public sealed record LocalAgentJob(
     string Prompt,
     IReadOnlyList<string> AllowedTools,
     string McpUrl,
-    int MaxTurns);
+    int MaxTurns)
+{
+    /// <summary>
+    /// 要交給引擎的圖片與 PDF（依序；internal/HANDOFF-ai-attachments.md 第 8 節）。<see cref="Prompt"/> 裡在原本的位置寫
+    /// 「〔附件 N：檔名（附在這則訊息的最後）〕」，N 是這份清單的順序（1 起算）。本機代理領到之後用
+    /// <see cref="ILocalAgentService.OpenJobAttachmentAsync"/> 下載、核對大小與 SHA-256，Claude Code 用串流 JSON 的圖片與文件區塊、
+    /// Codex 用 <c>-i</c>（只有圖片）交給引擎。文字檔不在這裡，照舊接在 <see cref="Prompt"/> 裡。沒有附件是空的（舊版的 kumi 不認得這個欄位）。
+    /// </summary>
+    public IReadOnlyList<LocalAgentJobAttachment> Attachments { get; init; } = [];
+}
+
+/// <param name="Id">附件的編號，下載時用。</param>
+/// <param name="Kind">只會是 <see cref="AssistantAttachmentKind.Image"/> 或 <see cref="AssistantAttachmentKind.Pdf"/>（Codex 只有圖片）。</param>
+/// <param name="Sha256">內容的 SHA-256（小寫十六進位），下載後核對。</param>
+public sealed record LocalAgentJobAttachment(
+    Guid Id, string FileName, string ContentType, AssistantAttachmentKind Kind, long SizeBytes, string Sha256);
 
 /// <summary>
 /// 本機代理（成員電腦上的 Claude Code、Codex）與主機代理能用的 MCP 工具（工具名稱，不含前綴），只有一份：

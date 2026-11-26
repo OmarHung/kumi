@@ -37,7 +37,7 @@ internal sealed class ProcessEngine(
 
     public string? Detail => detail;
 
-    public async Task<JobOutcome> RunAsync(AgentJob job, IEventSink sink, CancellationToken cancellation)
+    public async Task<JobOutcome> RunAsync(AgentJob job, IEventSink sink, CancellationToken cancellation, IAttachmentSource? attachments = null)
     {
         if (JobValidation.Check(job, server) is { } problem)
         {
@@ -51,7 +51,8 @@ internal sealed class ProcessEngine(
         var workDirectory = Directory.CreateTempSubdirectory("kumi-agent-");
         try
         {
-            var plan = spec.Plan(job, workDirectory.FullName);
+            var staged = await AttachmentStaging.StageAsync(job, workDirectory.FullName, attachments, cancellation);
+            var plan = spec.Plan(job, workDirectory.FullName, staged);
             foreach (var (file, content) in plan.Files)
             {
                 await File.WriteAllTextAsync(Path.Combine(workDirectory.FullName, file), content, cancellation);
@@ -62,6 +63,10 @@ internal sealed class ProcessEngine(
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             return JobOutcome.Stopped();
+        }
+        catch (AttachmentStagingException exception)
+        {
+            return JobOutcome.Failed(ErrorText.Sanitize(exception.Message, mcpToken));
         }
         catch (IOException)
         {

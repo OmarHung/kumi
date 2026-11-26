@@ -18,8 +18,7 @@ export const FILE_ACCEPT = [
   ...[...TEXT_EXTENSIONS].map((extension) => `.${extension}`),
 ].join(',');
 
-/** 本機與主機上的引擎（Claude Code、Codex）只讀得到文字檔。 */
-export const UNSUPPORTED_SOURCE_NOTE = '這個來源讀不到圖片與 PDF';
+const ENGINE_LABELS = { claude_code: 'Claude Code', codex: 'Codex' } as const;
 
 /** 沒有檔名的貼上（截圖）用的名稱。 */
 export const PASTED_IMAGE_NAME = '貼上的圖片.png';
@@ -64,14 +63,32 @@ export function shortenFileName(name: string): string {
   return `${chars.slice(0, NAME_HEAD).join('')}…${chars.slice(-NAME_TAIL).join('')}`;
 }
 
-/** 選的來源是本機或主機上的引擎（Claude Code、Codex）。 */
-export function isLocalEngine(options: AiOptions, selection: AiSelection | null): boolean {
-  if (selection === null) return false;
-  const kind = options.connections.find((connection) => connection.id === selection.connectionId)?.kind;
-  return kind === 'claude_code' || kind === 'codex';
+/** 選的來源是本機或主機上的引擎（Claude Code、Codex）；API 的模型是 null（圖片、PDF 都收）。 */
+export interface EngineSource {
+  readonly engine: 'claude_code' | 'codex';
+  /** 連線的名稱（本機是電腦名稱、主機是來源名稱），照伺服器給的顯示。 */
+  readonly name: string;
 }
 
-/** 這種附件本機與主機的引擎讀不到。 */
-export function isBinaryKind(kind: AssistantAttachmentKind | null): boolean {
-  return kind === 'image' || kind === 'pdf';
+export function engineSourceOf(options: AiOptions, selection: AiSelection | null): EngineSource | null {
+  if (selection === null) return null;
+  const connection = options.connections.find((candidate) => candidate.id === selection.connectionId);
+  if (connection === undefined) return null;
+  if (connection.kind !== 'claude_code' && connection.kind !== 'codex') return null;
+  return { engine: connection.kind, name: connection.name };
+}
+
+/** 這個來源讀不到這種附件：Codex 讀不到 PDF，其他（Claude Code、API 的模型）都收。 */
+export function isUnreadable(source: EngineSource | null, kind: AssistantAttachmentKind | null): boolean {
+  return source?.engine === 'codex' && kind === 'pdf';
+}
+
+/** 小卡上的短字與報讀用。 */
+export function unreadableShortNote(source: EngineSource): string {
+  return `${ENGINE_LABELS[source.engine]} 讀不到 PDF`;
+}
+
+/** 輸入框上方的說明：是哪一個來源、能怎麼做。 */
+export function unreadableNote(source: EngineSource): string {
+  return `你選的 ${ENGINE_LABELS[source.engine]}（${source.name}）讀不到 PDF：移除它，或改選 Claude Code。`;
 }

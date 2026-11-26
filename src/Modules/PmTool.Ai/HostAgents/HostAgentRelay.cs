@@ -86,13 +86,18 @@ internal sealed class HostAgentRelay(
             LocalPromptBuilder.HostSystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey),
             LocalPromptBuilder.Prompt(request.History, request.UserText),
             LocalAgentTools.Allowed,
-            AiRules.MaxToolCallsPerReply + 1));
+            AiRules.MaxToolCallsPerReply + 1)
+        {
+            Attachments = request.JobAttachments,
+        });
+        var attachmentIds = request.JobAttachments.Select(a => a.Id).ToArray();
         var now = time.GetUtcNow();
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var agentId = await db.HostJobs.AsNoTracking().Where(j => j.Id == jobId).Select(j => (Guid?)j.AgentId).SingleOrDefaultAsync(cancellationToken);
         var updated = await db.HostJobs.Where(j => j.Id == jobId && j.State == HostJobStates.Reserved).ExecuteUpdateAsync(
             set => set
                 .SetProperty(j => j.Payload, payload)
+                .SetProperty(j => j.AttachmentIds, attachmentIds)
                 .SetProperty(j => j.State, HostJobStates.Queued)
                 .SetProperty(j => j.QueuedAt, now),
             cancellationToken);

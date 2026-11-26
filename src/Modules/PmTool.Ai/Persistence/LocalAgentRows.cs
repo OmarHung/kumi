@@ -75,6 +75,12 @@ internal sealed record LocalJobRow
 
     public required string State { get; init; }
 
+    /// <summary>
+    /// 這件工作要交給引擎下載的圖片與 PDF 的附件編號（<c>LocalAgentJob.Attachments</c>）。內容領走就清掉，下載時靠這一欄核對：
+    /// 不在清單裡的附件、不是領走這件的人、已結束的工作都下載不到。
+    /// </summary>
+    public Guid[] AttachmentIds { get; init; } = [];
+
     /// <summary>使用者按了「停止」、回覆逾時，或伺服器放棄等這件工作：下一次回報時告訴本機代理停下來。</summary>
     public bool CancelRequested { get; init; }
 

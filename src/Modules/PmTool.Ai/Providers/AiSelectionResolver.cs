@@ -103,7 +103,7 @@ internal sealed class AiSelectionResolver(
         var kind = AiEnumNames.ParseKind(local.Engine.Kind);
         return new ResolvedSelection(
             selection,
-            new AiEndpoint(kind, null, null, Personal: true),
+            new AiEndpoint(kind, null, null, Personal: true) { AgentVersion = local.Agent.AgentVersion },
             LocalEngineLookup.NameOf(kind, local.Agent.Name),
             new AiModel(model.Id, model.DisplayName, model.Efforts, Enabled: true, Custom: false));
     }

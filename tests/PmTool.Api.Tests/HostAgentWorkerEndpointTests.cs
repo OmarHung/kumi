@@ -20,6 +20,9 @@ public sealed class HostAgentWorkerEndpointTests
 
     private static string EventsRoute => $"/v1/host-agent/jobs/{FakeHostAgentWorkerService.JobId}/events";
 
+    private static string AttachmentRoute(Guid attachmentId, string query) =>
+        $"/v1/host-agent/jobs/{FakeHostAgentWorkerService.JobId}/attachments/{attachmentId}{query}";
+
     private static string FinishRoute => $"/v1/host-agent/jobs/{FakeHostAgentWorkerService.JobId}/finish";
 
     private static object CheckInBody(int capacity = 1) => new
@@ -120,10 +123,112 @@ public sealed class HostAgentWorkerEndpointTests
         const string expected = """
             {"job":{"jobId":"77777777-7777-7777-7777-777777777771","lease":3,"engine":"claude_code","model":"default","effort":"high",
             "projectKey":"WEB","systemPrompt":"系統提示","prompt":"使用者：嗨","allowedTools":["get_blueprint","propose_item_changes"],
-            "mcpUrl":"http://api:8080/mcp","maxTurns":13,"toolToken":"kjt_secret-tool-token","toolTokenExpiresAt":"2026-11-24T03:06:00Z"},
+            "mcpUrl":"http://api:8080/mcp","maxTurns":13,"toolToken":"kjt_secret-tool-token","toolTokenExpiresAt":"2026-11-24T03:06:00Z","attachments":[]},
             "logout":["codex"],"disabled":false,"rotatedCredential":null}
             """;
         Assert.That(JsonNode.DeepEquals(data, JsonNode.Parse(expected)), Is.True, data?.ToJsonString());
+    }
+
+    [Test]
+    public async Task CheckIn_JobWithAttachments_ReturnsThemWithTheAgreedFieldNames()
+    {
+        // Arrange
+        var image = new LocalAgentJobAttachment(
+            Guid.Parse("66666666-6666-6666-6666-666666666661"), "截圖.png", "image/png", AssistantAttachmentKind.Image, 1234, new string('b', 64));
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.HostWorker.OnCheckIn = (_, _, _) =>
+            new HostCheckInResult(FakeHostAgentWorkerService.Job() with { Attachments = [image] }, [], false);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(Worker(CheckInRoute, CheckInBody()));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        var expected = JsonNode.Parse($$"""
+            [{"id":"66666666-6666-6666-6666-666666666661","fileName":"截圖.png","contentType":"image/png","kind":"image","sizeBytes":1234,"sha256":"{{new string('b', 64)}}"}]
+            """);
+        Assert.That(JsonNode.DeepEquals(data?["job"]?["attachments"], expected), Is.True, data?.ToJsonString());
+    }
+
+    [Test]
+    public async Task DownloadAttachment_ValidLease_StreamsTheBytesAndPassesTheLeaseToTheModule()
+    {
+        // Arrange
+        var attachmentId = Guid.Parse("66666666-6666-6666-6666-666666666661");
+        var bytes = new byte[] { 1, 2, 3, 4 };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.HostWorker.OnOpenAttachment = (_, _, _, _) => new AssistantAttachmentContent(
+            new AssistantAttachment(attachmentId, "截圖.png", "image/png", bytes.Length, AssistantAttachmentKind.Image, DateTimeOffset.UnixEpoch),
+            "abc123",
+            new MemoryStream(bytes));
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(
+            WorkerBearer(HttpMethod.Get, AttachmentRoute(attachmentId, "?lease=3"), FakeHostAgentWorkerService.Credential));
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(response.Content.Headers.ContentType?.MediaType, Is.EqualTo("application/octet-stream"));
+            Assert.That(response.Headers.GetValues("X-Attachment-Sha256").Single(), Is.EqualTo("abc123"));
+            Assert.That(body, Is.EqualTo(bytes));
+            var call = factory.Modules.HostWorker.Calls.Single(c => c.Method == "OpenJobAttachmentAsync");
+            Assert.That(call.Argument, Is.EqualTo((FakeHostAgentWorkerService.JobId, 3, attachmentId)));
+        }
+    }
+
+    [Test]
+    public async Task DownloadAttachment_WithoutALease_Returns422WithoutReachingTheModule()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(
+            WorkerBearer(HttpMethod.Get, AttachmentRoute(Guid.NewGuid(), string.Empty), FakeHostAgentWorkerService.Credential));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.UnprocessableEntity));
+            Assert.That(factory.Modules.HostWorker.Calls.Any(c => c.Method == "OpenJobAttachmentAsync"), Is.False);
+        }
+    }
+
+    [Test]
+    public async Task DownloadAttachment_LeaseLost_Returns409WithTheCode()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.HostWorker.OnOpenAttachment = (_, _, _, _) =>
+            new Failure(FailureKind.Conflict, AiErrorCodes.HostJobLeaseLost, "租約不對");
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(
+            WorkerBearer(HttpMethod.Get, AttachmentRoute(Guid.NewGuid(), "?lease=9"), FakeHostAgentWorkerService.Credential));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Conflict, AiErrorCodes.HostJobLeaseLost);
+    }
+
+    [Test]
+    public async Task DownloadAttachment_WithoutTheCredential_Returns401()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.GetAsync(AttachmentRoute(Guid.NewGuid(), "?lease=3"));
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 
     [Test]

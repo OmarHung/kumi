@@ -4,7 +4,7 @@ import { Button } from '../../components/Button/Button';
 import { Icon } from '../../components/Icon/Icon';
 import { IconButton } from '../../components/IconButton/IconButton';
 import { attachmentIcon, formatAttachmentSize, isInlineImage } from '../../domain/attachments';
-import { isBinaryKind, shortenFileName, UNSUPPORTED_SOURCE_NOTE } from './attachmentRules';
+import { isUnreadable, shortenFileName, unreadableShortNote, type EngineSource } from './attachmentRules';
 import type { AttachmentEntry } from './useComposerAttachments';
 import styles from './Assistant.module.css';
 
@@ -42,7 +42,7 @@ function Thumbnail({ entry, projectKey }: { readonly entry: AttachmentEntry; rea
 }
 
 /** 小卡第二行：大小，或上傳中、失敗的簡短狀態（完整的原因在小卡列下面一行一行列出，觸控與鍵盤也看得到）。 */
-function ChipStatus({ entry, isUnsupported }: { readonly entry: AttachmentEntry; readonly isUnsupported: boolean }) {
+function ChipStatus({ entry, unreadableNote }: { readonly entry: AttachmentEntry; readonly unreadableNote: string | null }) {
   if (entry.status === 'uploading') {
     return (
       <span className={styles.chipMeta}>
@@ -58,10 +58,10 @@ function ChipStatus({ entry, isUnsupported }: { readonly entry: AttachmentEntry;
       </span>
     );
   }
-  if (isUnsupported) {
+  if (unreadableNote !== null) {
     return (
-      <span className={styles.chipMeta} data-tone="danger" title={UNSUPPORTED_SOURCE_NOTE}>
-        {UNSUPPORTED_SOURCE_NOTE}
+      <span className={styles.chipMeta} data-tone="danger" title={unreadableNote}>
+        {unreadableNote}
       </span>
     );
   }
@@ -71,16 +71,17 @@ function ChipStatus({ entry, isUnsupported }: { readonly entry: AttachmentEntry;
 interface ChipProps {
   readonly entry: AttachmentEntry;
   readonly projectKey: string;
-  /** 選的來源讀不到圖片與 PDF。 */
-  readonly isLocalSource: boolean;
+  /** 選的來源是本機或主機的引擎時是它（Codex 讀不到 PDF）；API 的模型是 null。 */
+  readonly source: EngineSource | null;
   /** 送出中：訊息的請求正帶著這些附件，不能移除也不能重試。 */
   readonly isLocked: boolean;
   readonly onRemove: (event: React.MouseEvent<HTMLElement>, id: string) => void;
   readonly onRetry: (event: React.MouseEvent<HTMLElement>, id: string) => void;
 }
 
-function Chip({ entry, projectKey, isLocalSource, isLocked, onRemove, onRetry }: ChipProps) {
-  const isUnsupported = isLocalSource && entry.status === 'ready' && isBinaryKind(entry.kind);
+function Chip({ entry, projectKey, source, isLocked, onRemove, onRetry }: ChipProps) {
+  const unreadableNote = source !== null && entry.status === 'ready' && isUnreadable(source, entry.kind) ? unreadableShortNote(source) : null;
+  const isUnsupported = unreadableNote !== null;
   const name = nameOf(entry);
   const remove = { [REMOVE_ATTRIBUTE]: '' };
   return (
@@ -90,7 +91,7 @@ function Chip({ entry, projectKey, isLocalSource, isLocked, onRemove, onRetry }:
         <span className={styles.chipName} title={name}>
           {shortenFileName(name)}
         </span>
-        <ChipStatus entry={entry} isUnsupported={isUnsupported} />
+        <ChipStatus entry={entry} unreadableNote={unreadableNote} />
       </span>
       {entry.status === 'failed' && entry.canRetry && (
         <Button
@@ -143,7 +144,7 @@ function removeButtonsAround(event: React.MouseEvent<HTMLElement>) {
 interface AttachmentChipsProps {
   readonly projectKey: string;
   readonly entries: readonly AttachmentEntry[];
-  readonly isLocalSource: boolean;
+  readonly source: EngineSource | null;
   readonly isLocked: boolean;
   readonly inputRef: RefObject<HTMLTextAreaElement | null>;
   readonly onRemove: (id: string) => void;
@@ -154,7 +155,7 @@ interface AttachmentChipsProps {
  * 文字框上方的一列附件小卡（高度固定，出現與消失只推文字框上方的這一區）與失敗的完整原因。
  * 焦點：移除之後到下一張小卡的 ×，沒有就前一張，再沒有就文字框；重試之後留在那張小卡的 ×（原本的「重試」會消失）。
  */
-export function AttachmentChips({ projectKey, entries, isLocalSource, isLocked, inputRef, onRemove, onRetry }: AttachmentChipsProps) {
+export function AttachmentChips({ projectKey, entries, source, isLocked, inputRef, onRemove, onRetry }: AttachmentChipsProps) {
   if (entries.length === 0) return null;
   const handleRemove = (event: React.MouseEvent<HTMLElement>, id: string) => {
     const { buttons, index } = removeButtonsAround(event);
@@ -171,7 +172,7 @@ export function AttachmentChips({ projectKey, entries, isLocalSource, isLocked, 
     <>
       <ul className={styles.chips} aria-label="附件">
         {entries.map((entry) => (
-          <Chip key={entry.id} entry={entry} projectKey={projectKey} isLocalSource={isLocalSource} isLocked={isLocked} onRemove={handleRemove} onRetry={handleRetry} />
+          <Chip key={entry.id} entry={entry} projectKey={projectKey} source={source} isLocked={isLocked} onRemove={handleRemove} onRetry={handleRetry} />
         ))}
       </ul>
       <Problems entries={entries} />

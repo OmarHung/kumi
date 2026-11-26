@@ -648,6 +648,11 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("agent_id");
 
+                    b.PrimitiveCollection<Guid[]>("AttachmentIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("attachment_ids");
+
                     b.Property<string>("CancelMessage")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -1262,6 +1267,11 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.PrimitiveCollection<Guid[]>("AttachmentIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("attachment_ids");
 
                     b.Property<bool>("CancelRequested")
                         .HasColumnType("boolean")

@@ -22,6 +22,7 @@ public sealed class AgentTokenEndpointListTests
 
     private static readonly string[] Expected =
     [
+        "GET /v1/agent/jobs/{jobId:guid}/attachments/{attachmentId:guid}",
         "GET /v1/cli",
         "GET /v1/cli/download/{platform}",
         "GET /v1/session",

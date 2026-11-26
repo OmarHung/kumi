@@ -24,6 +24,9 @@ internal sealed class LocalAgentHarness : IAsyncDisposable
 
     public AssistantHarness Assistant { get; }
 
+    /// <summary>每次登記報的 kumi 版本；0.10.0 以上才收圖片與 PDF。測試要改就在登記之前設定。</summary>
+    public string AgentVersion { get; set; } = "0.9.0";
+
     public AiTestHost Host => Assistant.Host;
 
     public Actor Me => Assistant.Actor;
@@ -76,7 +79,7 @@ internal sealed class LocalAgentHarness : IAsyncDisposable
         int capacity = 0,
         CancellationToken cancellationToken = default) =>
         Agents.CheckInAsync(
-            actor ?? Me, new LocalAgentCheckIn(machineKey, name, "0.9.0", engines ?? [ClaudeCode()]), capacity, cancellationToken);
+            actor ?? Me, new LocalAgentCheckIn(machineKey, name, AgentVersion, engines ?? [ClaudeCode()]), capacity, cancellationToken);
 
     /// <summary>登記一台電腦與它的 Claude Code，回傳能選清單裡的引擎（連線編號就是引擎的編號）。</summary>
     public async Task<AiConnectionOption> RegisterAsync(

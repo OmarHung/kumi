@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.Maintenance;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Settings;
@@ -17,7 +18,8 @@ internal sealed partial class LocalAgentService(
     LocalAgentTimings timings,
     AssistantTimings assistantTimings,
     LocalAgentSignals signals,
-    LocalAgentMachineNotice machineNotice) : ILocalAgentService
+    LocalAgentMachineNotice machineNotice,
+    AgentAttachmentReader attachmentReader) : ILocalAgentService
 {
     public async Task<Result<LocalAgentJob?>> CheckInAsync(
         Actor actor, LocalAgentCheckIn checkIn, int capacity, CancellationToken cancellationToken)

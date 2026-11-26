@@ -83,7 +83,8 @@ internal sealed record HostJobData(
     string McpUrl,
     int MaxTurns,
     string ToolToken,
-    DateTimeOffset ToolTokenExpiresAt)
+    DateTimeOffset ToolTokenExpiresAt,
+    IReadOnlyList<JobAttachmentData> Attachments)
 {
     public static HostJobData From(HostJob job) => new(
         job.JobId,
@@ -98,7 +99,8 @@ internal sealed record HostJobData(
         job.McpUrl,
         job.MaxTurns,
         job.ToolToken,
-        job.ToolTokenExpiresAt);
+        job.ToolTokenExpiresAt,
+        [.. job.Attachments.Select(JobAttachmentData.From)]);
 
     public override string ToString() => $"HostJobData {{ JobId = {JobId}, Engine = {Engine}, ProjectKey = {ProjectKey}, ToolToken = *** }}";
 }

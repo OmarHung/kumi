@@ -26,6 +26,12 @@ public static class AiRules
     /// <summary>一個人最多登記幾台電腦，超過時最久沒在線的那台被換掉。</summary>
     public const int MaxLocalAgentMachines = 10;
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，才收得到圖片與 PDF（<see cref="LocalAgentJob.Attachments"/>）。
+    /// 舊版的這一則帶了圖片或 PDF：<see cref="AiErrorCodes.AttachmentUnsupported"/>（請 kumi update）；歷史裡的換成說明。
+    /// </summary>
+    public const string MinAgentVersionForAttachments = "0.10.0";
+
     public const int MaxMachineNameLength = 60;
 
     /// <summary>一個引擎最多列幾個模型。</summary>

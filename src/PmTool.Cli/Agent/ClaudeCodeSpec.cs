@@ -8,6 +8,9 @@ namespace PmTool.Cli.Agent;
 /// </summary>
 internal sealed class ClaudeCodeSpec : IEngineSpec
 {
+    // 中文照原樣寫，不轉成 \u：標準輸入小一點，記錄看得懂；控制字元照舊會跳脫，一行還是一行。
+    private static readonly JsonSerializerOptions LineOptions = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
     public const string TokenVariable = "KUMI_MCP_TOKEN";
 
     /// <summary>固定的模型清單：Claude Code 沒有列模型的指令，別名（opus、sonnet、haiku）由它自己對到最新的版本。</summary>
@@ -23,7 +26,7 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
 
     public IEngineTranslator CreateTranslator() => new ClaudeCodeTranslator();
 
-    public LaunchPlan Plan(AgentJob job, string workDirectory)
+    public LaunchPlan Plan(AgentJob job, string workDirectory, IReadOnlyList<StagedAttachment>? attachments = null)
     {
         var arguments = new List<string>
         {
@@ -38,6 +41,13 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
             "--append-system-prompt-file", Path.Combine(workDirectory, "system.md"),
             "--max-turns", job.MaxTurns.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
+        var hasAttachments = attachments is { Count: > 0 };
+        if (hasAttachments)
+        {
+            // 純文字的標準輸入放不了圖片與 PDF；改成一行串流 JSON 的使用者訊息（2026-11-26 在 Claude Code 2.1.332 上驗過）。
+            arguments.AddRange(["--input-format", "stream-json"]);
+        }
+
         if (job.Model != EngineModel.DefaultId)
         {
             arguments.AddRange(["--model", job.Model]);
@@ -48,11 +58,29 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
             arguments.AddRange(["--effort", job.Effort]);
         }
 
-        return new LaunchPlan(arguments, job.Prompt, new Dictionary<string, string>
+        return new LaunchPlan(arguments, hasAttachments ? StreamInput(job.Prompt, attachments!) : job.Prompt, new Dictionary<string, string>
         {
             ["mcp.json"] = McpConfig(job.McpUrl, job.ProjectKey, job.JobId),
             ["system.md"] = job.SystemPrompt,
         });
+    }
+
+    /// <summary>串流輸入的一行使用者訊息：先是原本的提示，之後依序是每個附件的 base64 區塊（圖片用 image、PDF 用 document）。</summary>
+    internal static string StreamInput(string prompt, IReadOnlyList<StagedAttachment> attachments)
+    {
+        var content = new List<object> { new { type = "text", text = prompt } };
+        foreach (var attachment in attachments)
+        {
+            var source = new
+            {
+                type = "base64",
+                media_type = attachment.ContentType,
+                data = Convert.ToBase64String(File.ReadAllBytes(attachment.Path)),
+            };
+            content.Add(new { type = attachment.Kind == AttachmentKinds.Pdf ? "document" : "image", source });
+        }
+
+        return JsonSerializer.Serialize(new { type = "user", message = new { role = "user", content } }, LineOptions) + "\n";
     }
 
     /// <summary>

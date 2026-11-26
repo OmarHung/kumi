@@ -36,6 +36,7 @@ internal static class HostAgentWorkerEndpoints
         authenticated.MapPost("/check-in", CheckInAsync).WithName("HostAgentCheckIn");
         authenticated.MapPost("/jobs/{jobId:guid}/events", ReportAsync).WithName("HostAgentReport");
         authenticated.MapPost("/jobs/{jobId:guid}/finish", FinishAsync).WithName("HostAgentFinish");
+        authenticated.MapGet("/jobs/{jobId:guid}/attachments/{attachmentId:guid}", DownloadAttachmentAsync).WithName("HostAgentDownloadAttachment");
         authenticated.MapPost("/logins/claim", ClaimLoginAsync).WithName("HostAgentClaimLogin");
         authenticated.MapPost("/logins/{loginId:guid}/complete", CompleteLoginAsync).WithName("HostAgentCompleteLogin");
         return app;
@@ -147,6 +148,27 @@ internal static class HostAgentWorkerEndpoints
 
         var result = await workers.FinishAsync(AgentOf(http), jobId, request.Lease, request.ToFinish(), cancellationToken);
         return result.Failure is { } failure ? EndpointResults.Fail(failure) : Results.NoContent();
+    }
+
+    /// <summary>租約放在查詢字串（<c>?lease=</c>）：GET 沒有內文，其他端點的租約在 JSON 裡。</summary>
+    private static async Task<IResult> DownloadAttachmentAsync(
+        Guid jobId,
+        Guid attachmentId,
+        [FromQuery] int? lease,
+        HttpContext http,
+        [FromServices] IHostAgentWorkerService workers,
+        CancellationToken cancellationToken)
+    {
+        if (lease is not { } jobLease)
+        {
+            return EndpointResults.Fail(new Failure(FailureKind.Invalid, AiErrorCodes.HostAgentInvalid, "要帶 lease（領工作時給的租約）。")
+            {
+                Details = [new FailureDetail(AiErrorCodes.FieldInvalid, "lease", "必填。")],
+            });
+        }
+
+        var result = await workers.OpenJobAttachmentAsync(AgentOf(http), jobId, jobLease, attachmentId, cancellationToken);
+        return result.Failure is { } failure ? EndpointResults.Fail(failure) : AttachmentDownload.StreamForAgent(http.Response, result.Value);
     }
 
     private static async Task<IResult> ClaimLoginAsync(

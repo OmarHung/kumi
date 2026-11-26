@@ -24,7 +24,10 @@ internal sealed class HostWorker(HostAgentIdentity identity, string credential, 
     /// <summary>配對時報的機器編號；之後每次登記都要帶同一個。</summary>
     public string MachineKey { get; init; } = HostHarness.DefaultMachineKey;
 
-    public HostAgentCheckIn CheckIn() => new("0.9.0", HostHarness.ServerUrl, Reports) { MachineKey = MachineKey, MachineName = "主機" };
+    /// <summary>每次登記報的 worker 版本；0.10.0 以上才收圖片與 PDF。改了要再登記一次才算數。</summary>
+    public string AgentVersion { get; set; } = "0.9.0";
+
+    public HostAgentCheckIn CheckIn() => new(AgentVersion, HostHarness.ServerUrl, Reports) { MachineKey = MachineKey, MachineName = "主機" };
 
     public IReadOnlyList<HostEngineReport> Reports { get; set; } = [];
 }

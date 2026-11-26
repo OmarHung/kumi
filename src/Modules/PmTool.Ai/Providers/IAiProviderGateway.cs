@@ -25,6 +25,9 @@ internal sealed record AiEndpoint(AiProviderKind Kind, string? BaseUrl, string? 
     /// <summary>組織擁有者開的主機來源的編號（<see cref="AiConnectionOption.Hosted"/>）；不是主機來源是 null。主機來源不經過供應商的 gateway。</summary>
     public Guid? HostSourceId { get; init; }
 
+    /// <summary>本機或主機的引擎：那台電腦登記的、worker 回報的 kumi 版本（決定收不收圖片與 PDF）；其他是 null。</summary>
+    public string? AgentVersion { get; init; }
+
     public override string ToString() =>
         $"AiEndpoint {{ Kind = {Kind}, BaseUrl = {BaseUrl}, ApiKey = {(ApiKey is null ? "null" : "***")}, Personal = {Personal}, HostSourceId = {HostSourceId} }}";
 }

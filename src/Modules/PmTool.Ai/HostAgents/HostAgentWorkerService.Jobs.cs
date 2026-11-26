@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.LocalAgents;
 using PmTool.Ai.Persistence;
 
@@ -133,6 +134,27 @@ internal sealed partial class HostAgentWorkerService
         // 讓出的名額給下一件排隊的。
         signals.Signal(agent.AgentId);
         return Unit.Value;
+    }
+
+    public async Task<Result<AssistantAttachmentContent>> OpenJobAttachmentAsync(
+        HostAgentIdentity agent, Guid jobId, int lease, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(agent);
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var job = await db.HostJobs.AsNoTracking().SingleOrDefaultAsync(j => j.Id == jobId, cancellationToken);
+
+        // 不是派給這台的、還沒被領走的：和不存在一樣。領走了才看租約；租約不對、已結束、正在被停止的，worker 該停下來，不是再試。
+        if (!IsOurs(job, agent) || job!.State is HostJobStates.Reserved or HostJobStates.Queued)
+        {
+            return AttachmentFailures.NotFound();
+        }
+
+        if (job.Lease != lease || job.State == HostJobStates.Finished || job.CancelRequested)
+        {
+            return HostFailures.LeaseLost();
+        }
+
+        return await attachmentReader.OpenAsync(job.OrganizationId, job.AttachmentIds, attachmentId, cancellationToken);
     }
 
     private static bool IsOurs(HostJobRow? job, HostAgentIdentity agent) =>

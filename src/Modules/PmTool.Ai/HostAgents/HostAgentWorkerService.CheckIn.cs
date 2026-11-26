@@ -280,6 +280,9 @@ internal sealed partial class HostAgentWorkerService
             view.Agent.ServerUrl!.TrimEnd('/') + "/mcp",
             payload.MaxTurns,
             token,
-            expires);
+            expires)
+        {
+            Attachments = payload.Attachments,
+        };
     }
 }

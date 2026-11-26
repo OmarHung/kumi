@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon/Icon';
 import { IconButton } from '../../components/IconButton/IconButton';
 import { Notice } from '../../components/Notice/Notice';
 import { AttachmentChips } from './AttachmentChips';
-import { FILE_ACCEPT, isBinaryKind, isLocalEngine, PASTED_IMAGE_NAME } from './attachmentRules';
+import { engineSourceOf, FILE_ACCEPT, isUnreadable, PASTED_IMAGE_NAME, unreadableNote, type EngineSource } from './attachmentRules';
 import { ModelPicker } from './ModelPicker';
 import { SendKeyPicker } from './SendKeyPicker';
 import { isSendKeystroke, sendKeyHint, useSendKey, type SendKey } from './sendKey';
@@ -187,13 +187,13 @@ function pasteFiles(event: ClipboardEvent<HTMLTextAreaElement>, add: (files: rea
 }
 
 /** 能不能送出的檢查與送出時要帶的附件。 */
-function attachmentState(entries: readonly AttachmentEntry[], isLocalSource: boolean) {
+function attachmentState(entries: readonly AttachmentEntry[], source: EngineSource | null) {
   const ready = entries.filter((entry) => entry.status === 'ready' && entry.attachment !== null);
   return {
     ready,
     // 還在傳、失敗、被擋下的：要先等、重試或移除。
     isBlocked: entries.some((entry) => entry.status !== 'ready'),
-    hasUnsupported: isLocalSource && ready.some((entry) => isBinaryKind(entry.kind)),
+    hasUnsupported: ready.some((entry) => isUnreadable(source, entry.kind)),
   };
 }
 
@@ -238,22 +238,22 @@ function useFileDrop(onFiles: (files: readonly File[]) => void) {
 interface AttachmentAreaProps {
   readonly projectKey: string;
   readonly attachments: ComposerAttachments;
-  readonly isLocalSource: boolean;
+  readonly source: EngineSource | null;
   readonly hasUnsupported: boolean;
   readonly isLocked: boolean;
   readonly inputRef: RefObject<HTMLTextAreaElement | null>;
 }
 
-/** 文字框上方：來源讀不到圖片與 PDF 的說明、附件小卡與失敗的原因，加上一個共用的報讀區（上傳完成、失敗都由它唸）。 */
-function AttachmentArea({ projectKey, attachments, isLocalSource, hasUnsupported, isLocked, inputRef }: AttachmentAreaProps) {
-  const announcement = useAttachmentAnnouncement(attachments.entries, hasUnsupported);
+/** 文字框上方：來源讀不到某種附件的說明、附件小卡與失敗的原因，加上一個共用的報讀區（上傳完成、失敗都由它唸）。 */
+function AttachmentArea({ projectKey, attachments, source, hasUnsupported, isLocked, inputRef }: AttachmentAreaProps) {
+  const announcement = useAttachmentAnnouncement(attachments.entries, hasUnsupported ? source : null);
   return (
     <>
       <span className="visually-hidden" role="status">
         {announcement}
       </span>
-      {hasUnsupported && <p className={styles.attachNote}>這個來源讀不到圖片與 PDF，請移除這些附件，或改選 API 的模型。</p>}
-      <AttachmentChips projectKey={projectKey} entries={attachments.entries} isLocalSource={isLocalSource} isLocked={isLocked} inputRef={inputRef} onRemove={attachments.remove} onRetry={attachments.retry} />
+      {hasUnsupported && source !== null && <p className={styles.attachNote}>{unreadableNote(source)}</p>}
+      <AttachmentChips projectKey={projectKey} entries={attachments.entries} source={source} isLocked={isLocked} inputRef={inputRef} onRemove={attachments.remove} onRetry={attachments.retry} />
     </>
   );
 }
@@ -270,8 +270,8 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
   const { isDragging, dropProps } = useFileDrop(attachments.add);
   const sendKey = useSendKey();
   useRestoreFocus(isStreaming, formRef, inputRef);
-  const isLocalSource = isLocalEngine(options, selection);
-  const { ready, isBlocked, hasUnsupported } = attachmentState(attachments.entries, isLocalSource);
+  const source = engineSourceOf(options, selection);
+  const { ready, isBlocked, hasUnsupported } = attachmentState(attachments.entries, source);
   const canSend = selection !== null && (text.trim() !== '' || ready.length > 0) && !isBlocked && !hasUnsupported && !isStreaming && !isSending && !isLoading;
   const submit = () => {
     if (!canSend) return;
@@ -296,7 +296,7 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
           {error}
         </Notice>
       )}
-      <AttachmentArea projectKey={projectKey} attachments={attachments} isLocalSource={isLocalSource} hasUnsupported={hasUnsupported} isLocked={isSending} inputRef={inputRef} />
+      <AttachmentArea projectKey={projectKey} attachments={attachments} source={source} hasUnsupported={hasUnsupported} isLocked={isSending} inputRef={inputRef} />
       <ComposerInput
         text={text}
         onChange={setText}

@@ -38,6 +38,8 @@ if (args[0] === 'features' && args[1] === 'list') {
     process.exit(1);
   }
   const prompt = readStdin();
+  // 圖片用 -i <路徑> 交給引擎；Codex 沒有 PDF。
+  const received = { images: args.filter((arg, index) => args[index - 1] === '-i' && require('fs').existsSync(arg)).length, pdfs: 0 };
   const config = (key) => {
     const entry = args.find((arg, index) => args[index - 1] === '-c' && arg.startsWith(`${key}=`));
     return entry ? entry.slice(key.length + 1) : null;
@@ -55,7 +57,7 @@ if (args[0] === 'features' && args[1] === 'list') {
   out({ type: 'thread.started', thread_id: 'fake' });
   out({ type: 'turn.started' });
   await runScenario({
-    prompt, url, token, project,
+    prompt, url, token, project, received,
     sink: {
       init: () => {},
       text: (delta) => {

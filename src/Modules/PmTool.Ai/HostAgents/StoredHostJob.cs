@@ -8,4 +8,8 @@ internal sealed record StoredHostJob(
     string SystemPrompt,
     string Prompt,
     IReadOnlyList<string> AllowedTools,
-    int MaxTurns);
+    int MaxTurns)
+{
+    /// <summary>要交給引擎下載的圖片與 PDF（<see cref="HostJob.Attachments"/>）；舊的工作列沒有這個欄位，讀出來是空的。</summary>
+    public IReadOnlyList<LocalAgentJobAttachment> Attachments { get; init; } = [];
+}

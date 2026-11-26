@@ -213,6 +213,9 @@ internal sealed record HostJobRow
     /// <summary>預留時還沒有；轉送把內容填上、狀態改成 queued 的同一步寫進來。</summary>
     public string? Payload { get; init; }
 
+    /// <summary>同 <see cref="LocalJobRow.AttachmentIds"/>：worker 下載附件時核對。</summary>
+    public Guid[] AttachmentIds { get; init; } = [];
+
     public required string State { get; init; }
 
     /// <summary>資料庫給的流水號：預留的先後就是排隊的先後（時鐘相同、UUID 同一毫秒內也不保證有序）。</summary>

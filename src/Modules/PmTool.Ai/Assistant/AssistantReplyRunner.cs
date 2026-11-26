@@ -242,8 +242,9 @@ internal sealed class AssistantReplyRunner(
     }
 
     /// <summary>
-    /// 本機與主機上的引擎只收文字：把這一則與歷史裡的附件換成文字檔的內容或一行說明，結果放回 <c>History</c> 與 <c>UserText</c>，
-    /// 後面的 <c>LocalPromptBuilder</c> 照舊排成文字。
+    /// 本機與主機上的引擎：這一則與歷史裡的文字檔換成內容、圖片與 PDF 換成「〔附件 N：…〕」的位置（引擎的種類與 kumi 的版本不收、
+    /// 超過預算的換成一行說明），結果放回 <c>History</c> 與 <c>UserText</c>，後面的 <c>LocalPromptBuilder</c> 照舊排成文字；
+    /// 要交給引擎下載的清單放在 <c>JobAttachments</c>。
     /// </summary>
     private async Task<ReplyRequest> ResolveAttachmentsAsync(ReplyRequest request, CancellationToken cancellationToken)
     {
@@ -253,9 +254,44 @@ internal sealed class AssistantReplyRunner(
         }
 
         var all = new List<ChatMessage>(request.History) { UserMessage(request) };
-        var resolved = await attachmentReplay.ResolveAsync(all, AttachmentTarget.TextOnly, cancellationToken);
+        var options = new ReplayOptions
+        {
+            SkippedIds = request.SkippedAttachmentIds,
+            Agent = AssistantService.AgentSourceOf(request.Selection),
+        };
+        var replayed = await attachmentReplay.ResolveAsync(all, AttachmentTarget.Agent, options, cancellationToken);
+        var resolved = replayed.Messages;
         var userText = string.Join("\n\n", resolved[^1].Contents.OfType<TextContent>().Select(t => t.Text));
-        return request with { History = [.. resolved.Take(resolved.Count - 1)], UserText = userText };
+        return request with
+        {
+            History = [.. resolved.Take(resolved.Count - 1)],
+            UserText = userText,
+            JobAttachments = await LoadJobAttachmentsAsync(request, replayed.AgentAttachments, cancellationToken),
+        };
+    }
+
+    // 雜湊與大小以資料列為準（參照裡的是送出時的快照）；列不見了（對話剛好被刪）的略過，提示裡的編號會對不上，所以整件失敗比較對。
+    private async Task<IReadOnlyList<LocalAgentJobAttachment>> LoadJobAttachmentsAsync(
+        ReplyRequest request, IReadOnlyList<AttachmentReference> chosen, CancellationToken cancellationToken)
+    {
+        if (chosen.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = chosen.Select(r => r.Id).ToList();
+        var organizationId = request.Actor.OrganizationId;
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var rows = await db.Attachments.AsNoTracking()
+            .Where(a => ids.Contains(a.Id) && a.OrganizationId == organizationId)
+            .ToDictionaryAsync(a => a.Id, cancellationToken);
+        if (ids.Any(id => !rows.ContainsKey(id)))
+        {
+            throw new InvalidOperationException("對話裡的附件已經不存在。");
+        }
+
+        return [.. ids.Select(id => rows[id]).Select(row => new LocalAgentJobAttachment(
+            row.Id, row.FileName, row.ContentType, AttachmentKinds.Parse(row.Kind), row.SizeBytes, row.Sha256))];
     }
 
     /// <summary>

@@ -329,7 +329,7 @@ internal sealed class HostService(
             var reporter = new HostJobReporter(api, job.Job.JobId, job.Lease, options, () => TryCancel(cancel));
             using var pumpStop = new CancellationTokenSource();
             var pump = reporter.PumpAsync(pumpStop.Token);
-            var outcome = await RunEngineAsync(job, state, reporter, cancel.Token);
+            var outcome = await RunEngineAsync(job, api, state, reporter, cancel.Token);
             await pumpStop.CancelAsync();
             await pump;
             // 結果一定要送：SIGTERM 之後也一樣，所以不用服務的取消，只給一個短的時限。
@@ -343,7 +343,7 @@ internal sealed class HostService(
         }
     }
 
-    private async Task<JobOutcome> RunEngineAsync(HostJob job, HostState state, HostJobReporter reporter, CancellationToken cancellation)
+    private async Task<JobOutcome> RunEngineAsync(HostJob job, ApiClient api, HostState state, HostJobReporter reporter, CancellationToken cancellation)
     {
         var engine = _probes.FirstOrDefault(candidate => candidate.Kind == job.Job.Engine);
         if (engine is not { IsRunnable: true })
@@ -362,7 +362,7 @@ internal sealed class HostService(
         JobOutcome outcome;
         try
         {
-            outcome = await runner.RunAsync(job.Job, reporter, cancellation);
+            outcome = await runner.RunAsync(job.Job, reporter, cancellation, new HostAttachmentSource(api, job.Lease));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

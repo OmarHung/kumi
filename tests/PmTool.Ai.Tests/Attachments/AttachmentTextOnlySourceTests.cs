@@ -7,7 +7,7 @@ using static PmTool.Ai.Tests.Attachments.AttachmentKit;
 
 namespace PmTool.Ai.Tests.Attachments;
 
-/// <summary>本機與主機上的 Claude Code／Codex 只讀得到文字檔：圖片與 PDF 送出時回 422，歷史裡的換成一行說明。</summary>
+/// <summary>舊版的 kumi（0.10.0 之前）的本機與主機引擎只讀得到文字檔：圖片與 PDF 送出時回 422，歷史裡的換成一行說明。</summary>
 [TestFixture]
 public sealed class AttachmentTextOnlySourceTests
 {
@@ -101,8 +101,8 @@ public sealed class AttachmentTextOnlySourceTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(job.Prompt, Does.Contain("〔附件：圖.png（這個來源讀不到圖片與 PDF）〕"));
-            Assert.That(job.Prompt, Does.Contain("〔附件：規格.pdf（這個來源讀不到圖片與 PDF）〕"));
+            Assert.That(job.Prompt, Does.Contain("〔附件：圖.png（之前附的，這個來源這次讀不到）〕"));
+            Assert.That(job.Prompt, Does.Contain("〔附件：規格.pdf（之前附的，這個來源這次讀不到）〕"));
             Assert.That(job.Prompt, Does.Contain("先用 API 模型看"));
         }
     }

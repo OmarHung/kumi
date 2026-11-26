@@ -77,7 +77,10 @@ internal sealed class LocalAgentRelay(
             LocalPromptBuilder.Prompt(request.History, request.UserText),
             LocalAgentTools.Allowed,
             request.McpUrl ?? string.Empty,
-            AiRules.MaxToolCallsPerReply + 1);
+            AiRules.MaxToolCallsPerReply + 1)
+        {
+            Attachments = request.JobAttachments,
+        };
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         db.LocalJobs.Add(new LocalJobRow
         {
@@ -88,6 +91,7 @@ internal sealed class LocalAgentRelay(
             ConversationId = request.ConversationId,
             MessageId = request.AssistantMessageId,
             Payload = AssistantJson.Serialize(job),
+            AttachmentIds = [.. request.JobAttachments.Select(a => a.Id)],
             State = LocalJobStates.Waiting,
             CreatedAt = time.GetUtcNow(),
         });

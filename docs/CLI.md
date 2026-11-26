@@ -347,6 +347,7 @@ kumi agent start [--name 名稱] [--engine claude-code|codex]… [--json]
 - `--name`：這台電腦在網頁上的名稱，預設是主機名稱。`--engine`：只提供某一個引擎，可以重複；預設兩個都試。
 - 組織要先開「AI 設定 → 允許成員使用自己的 AI 帳號」，不然登記時回 403（說明會寫出來）。權杖缺範圍時，指令一開始就說缺哪一個，並叫你執行 `kumi agent login`（結束代碼 1）。本機代理優先用 `kumi agent login` 存的專用權杖，沒有才用命令列登入的那一把（`KUMI_TOKEN` 最優先）。`items:read` 不在這個檢查裡：2026-11-23 以前建立的權杖少了它，代理照常啟動，只是助理讀不到項目（`get_item`、`search_items` 會回沒有權限），要讀項目請重建權杖。
 - 模型選單的「預設」會顯示實際的思考深度，例如「預設（中）」：登記時每個模型帶 `defaultEffort`。Claude Code 依探到的模型代號照官方文件的預設（Fable 5.2、Opus 5.5、Sonnet 5.5、Haiku 5.5 是 medium，Opus 4.7 是 xhigh，其他 high；探不到是空），Codex 讀 `models_cache.json` 的 `default_reasoning_level`；不在該模型選項裡的一律不帶。
+- 圖片與 PDF（kumi 0.10.0 起）：網頁訊息附的圖片與 PDF 交給引擎，Claude Code 圖片與 PDF 都收，Codex 只有圖片（PDF 在網頁就會被擋下）。`kumi` 領到工作後用同一把權杖從 `GET /v1/agent/jobs/{工作}/attachments/{附件}` 下載到這件工作的暫存資料夾（檔名一律是 `attachment-N.副檔名`，不用伺服器給的檔名），核對大小與 SHA-256，Claude Code 改用 `--input-format stream-json` 把它們放進標準輸入的那一行訊息、Codex 每張圖片一個 `-i <路徑>`；工作結束連資料夾一起刪。下載失敗或核對不符，這件工作以失敗結束（「下載附件失敗」），不啟動引擎。0.9.x 以前的 kumi 收不到附件，網頁會請你 `kumi update`。主機的 `kumi host run` 一樣，下載走 `GET /v1/host-agent/jobs/{工作}/attachments/{附件}?lease=<租約>`（機器憑證與 `X-Kumi-Machine`）。
 - 這台電腦同時只能有一個本機代理（前景或背景）：設定檔的資料夾裡的 `agent.lock` 是單一執行的鎖，第二個會結束（代碼 1）並說誰拿著（PID）。旁邊的 `agent.lock.json` 記著拿鎖的 PID 與是不是背景（只在鎖被拿著時才可信）。
 - 電腦編號存在設定檔的資料夾（`agent.json`，Unix 上權限 600），之後都用同一個，伺服器才認得是同一台電腦。
 

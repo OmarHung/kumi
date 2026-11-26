@@ -43,6 +43,7 @@ public sealed class EndpointInventoryTests
 
     private static readonly string[] MachineCredential =
     [
+        "GET /v1/host-agent/jobs/{jobId:guid}/attachments/{attachmentId:guid}",
         "POST /v1/host-agent/check-in",
         "POST /v1/host-agent/jobs/{jobId:guid}/events",
         "POST /v1/host-agent/jobs/{jobId:guid}/finish",

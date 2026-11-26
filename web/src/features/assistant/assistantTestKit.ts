@@ -39,17 +39,17 @@ export function uploadedAs(name: string, overrides: Partial<AssistantAttachment>
   };
 }
 
-/** 選到本機的 Claude Code（只讀得到文字檔）。 */
-export function localEngineOptions(): AiOptions {
+/** 選到本機（或主機）的引擎：預設是本機的 Claude Code；Codex 讀不到 PDF。 */
+export function localEngineOptions(engine: 'claude_code' | 'codex' = 'claude_code', hosted = false): AiOptions {
   return makeAiOptions({
     default: { connectionId: 'src-1', model: 'opus', effort: null },
     connections: [
       {
         id: 'src-1',
-        name: '我的電腦上的 Claude Code',
-        kind: 'claude_code',
+        name: hosted ? '主機上的來源' : 'Example-PC',
+        kind: engine,
         personal: false,
-        hosted: false,
+        hosted,
         notice: null,
         models: [{ id: 'opus', displayName: 'Opus', efforts: [], defaultEffort: null }],
       },

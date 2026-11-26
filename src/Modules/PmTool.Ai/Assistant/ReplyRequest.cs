@@ -42,4 +42,10 @@ internal sealed record ReplyRequest(
     /// 重送歷史時直接用一行說明，不再讀檔、也不再送給供應商。
     /// </summary>
     public IReadOnlySet<Guid> SkippedAttachmentIds { get; init; } = new HashSet<Guid>();
+
+    /// <summary>
+    /// 本機與主機的引擎：這件工作要交給引擎下載的圖片與 PDF（<c>ResolveAttachmentsAsync</c> 決定的，依提示裡「〔附件 N：…〕」的編號順序）；
+    /// 沒有是空的。
+    /// </summary>
+    public IReadOnlyList<LocalAgentJobAttachment> JobAttachments { get; init; } = [];
 }

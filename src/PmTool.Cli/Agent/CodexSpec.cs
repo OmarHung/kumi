@@ -38,7 +38,7 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
 
     public IEngineTranslator CreateTranslator() => new CodexTranslator();
 
-    public LaunchPlan Plan(AgentJob job, string workDirectory)
+    public LaunchPlan Plan(AgentJob job, string workDirectory, IReadOnlyList<StagedAttachment>? attachments = null)
     {
         var arguments = new List<string>
         {
@@ -75,6 +75,12 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
         if (!overflow)
         {
             arguments.AddRange(["-c", $"developer_instructions={Toml(job.SystemPrompt)}"]);
+        }
+
+        // Codex 只收圖片（PDF 在 JobValidation 就擋了）；-i 一定要在最後的 - 之前。
+        foreach (var image in (attachments ?? []).Where(attachment => attachment.Kind == AttachmentKinds.Image))
+        {
+            arguments.AddRange(["-i", image.Path]);
         }
 
         arguments.Add("-");

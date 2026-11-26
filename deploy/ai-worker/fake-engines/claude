@@ -35,7 +35,16 @@ if (args[0] === 'auth') {
     console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: 'Not logged in · Please run /login' }));
     process.exit(1);
   }
-  const prompt = readStdin();
+  // 有附件時 kumi 加 --input-format stream-json，標準輸入是一行使用者訊息：文字區塊是提示，image／document 區塊是附件。
+  const stdin = readStdin();
+  const received = { images: 0, pdfs: 0 };
+  let prompt = stdin;
+  if (args.includes('--input-format')) {
+    const blocks = stdin.split('\n').filter((line) => line.trim()).flatMap((line) => JSON.parse(line).message.content);
+    prompt = blocks.filter((block) => block.type === 'text').map((block) => block.text).join('\n');
+    received.images = blocks.filter((block) => block.type === 'image').length;
+    received.pdfs = blocks.filter((block) => block.type === 'document').length;
+  }
   const configPath = args[args.indexOf('--mcp-config') + 1];
   const server = JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers.kumi;
   const token = process.env.KUMI_MCP_TOKEN;
@@ -49,7 +58,7 @@ if (args[0] === 'auth') {
   let inputTokens = 0;
   let outputTokens = 0;
   await runScenario({
-    prompt, url: server.url, token, project,
+    prompt, url: server.url, token, project, received,
     sink: {
       init: (names) => out({
         type: 'system', subtype: 'init', cwd: process.cwd(), session_id: 'fake', model: 'claude-fake',

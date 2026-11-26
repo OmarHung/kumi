@@ -1,15 +1,19 @@
 using System.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using PmTool.Ai.LocalAgents;
 using PmTool.Storage;
 
 namespace PmTool.Ai.Attachments;
 
-/// <summary>附件要送給哪一種來源：API 的模型讀得到圖片與 PDF，本機與主機上的引擎只讀得到文字。</summary>
+/// <summary>
+/// 附件要送給哪一種來源：API 的模型直接收圖片與 PDF；本機與主機上的引擎收文字檔（接在提示裡），圖片與 PDF 由 kumi 另外下載、
+/// 提示裡只留「〔附件 N：…〕」的位置（<see cref="ReplayOptions.Agent"/> 說明這個來源讀得到哪些）。
+/// </summary>
 internal enum AttachmentTarget
 {
     ApiModel,
-    TextOnly,
+    Agent,
 }
 
 /// <summary>重送的選項：哪些附件之前被供應商拒絕過（直接用說明）、這一次要不要把歷史的圖片與 PDF 全部拿掉（重試用）。</summary>
@@ -21,10 +25,20 @@ internal sealed record ReplayOptions
     public IReadOnlySet<Guid> SkippedIds { get; init; } = new HashSet<Guid>();
 
     public bool OmitHistoryBinary { get; init; }
+
+    /// <summary><see cref="AttachmentTarget.Agent"/> 時必填：引擎的種類與 kumi 的版本。</summary>
+    public AgentSource? Agent { get; init; }
 }
 
 /// <param name="HistoryBinaryIds">這次真的以圖片或 PDF 送出的歷史附件（不含這一則）；請求被拒、重試成功時，這些就是要記下不再重送的。</param>
-internal sealed record ReplayResult(IReadOnlyList<ChatMessage> Messages, IReadOnlyList<Guid> HistoryBinaryIds);
+internal sealed record ReplayResult(IReadOnlyList<ChatMessage> Messages, IReadOnlyList<Guid> HistoryBinaryIds)
+{
+    /// <summary>
+    /// <see cref="AttachmentTarget.Agent"/>：這件工作要交給引擎的圖片與 PDF，依在整段對話裡出現的順序；
+    /// 提示裡的「〔附件 N：…〕」的 N 就是這份清單的位置加一。
+    /// </summary>
+    public IReadOnlyList<AttachmentReference> AgentAttachments { get; init; } = [];
+}
 
 /// <summary>
 /// 交易之後、呼叫模型之前，把訊息裡的附件參照（<see cref="AttachmentReference"/>）換成真正的內容
@@ -57,7 +71,17 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
             return new ReplayResult(messages, []);
         }
 
+        if (target == AttachmentTarget.Agent && options.Agent is null)
+        {
+            throw new ArgumentException("本機與主機的引擎要說明是哪一個來源。", nameof(options));
+        }
+
         var run = new Run(target, options);
+        if (target == AttachmentTarget.Agent)
+        {
+            DecideAgentBinaries(messages, run);
+        }
+
         var resolved = new ChatMessage[messages.Count];
         for (var index = messages.Count - 1; index >= 0; index--)
         {
@@ -66,7 +90,54 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
                 : messages[index];
         }
 
-        return new ReplayResult(resolved, run.HistoryBinaryIds);
+        return new ReplayResult(resolved, run.HistoryBinaryIds) { AgentAttachments = run.AgentAttachments };
+    }
+
+    /// <summary>
+    /// 本機與主機的引擎：先決定哪些圖片與 PDF 交給引擎（新的優先，預算同 API 模型，另加一件工作的個數上限），再依對話的順序編號。
+    /// 編號要等全部決定完才能給：預算是從新的往舊的花，編號卻是從舊的往新的數。
+    /// </summary>
+    private static void DecideAgentBinaries(IReadOnlyList<ChatMessage> messages, Run run)
+    {
+        var source = run.Options.Agent!;
+        var budget = run.Budget;
+        var chosen = new HashSet<Guid>();
+        for (var index = messages.Count - 1; index >= 0; index--)
+        {
+            var isCurrent = index == messages.Count - 1;
+            foreach (var reference in messages[index].Contents.OfType<AttachmentReference>().Reverse())
+            {
+                if (reference.Kind == AssistantAttachmentKind.Text)
+                {
+                    continue;
+                }
+
+                if (!source.Accepts(reference.Kind))
+                {
+                    run.Excluded[reference.Id] = isCurrent ? "這個來源讀不到" : "之前附的，這個來源這次讀不到";
+                }
+                else if (!isCurrent && (run.Options.OmitHistoryBinary || run.Options.SkippedIds.Contains(reference.Id)))
+                {
+                    run.Excluded[reference.Id] = "之前附的，模型讀不了，這次沒有再送";
+                }
+                else if (budget.BinaryExhausted || reference.SizeBytes > budget.BinaryBytes || chosen.Count >= LocalAgentLimits.MaxJobAttachments)
+                {
+                    budget.BinaryExhausted = true;
+                    run.Excluded[reference.Id] = OmittedReason(isCurrent);
+                }
+                else
+                {
+                    budget.BinaryBytes -= reference.SizeBytes;
+                    chosen.Add(reference.Id);
+                }
+            }
+        }
+
+        foreach (var reference in messages.SelectMany(m => m.Contents).OfType<AttachmentReference>().Where(r => chosen.Contains(r.Id)))
+        {
+            run.AgentAttachments.Add(reference);
+            run.Numbers[reference.Id] = run.AgentAttachments.Count;
+        }
     }
 
     /// <summary>附件的文字檔接在訊息後面的格式：標題一行，內容用四個以上的反引號圍起來（內容裡有更長的連續反引號就再多一個）。</summary>
@@ -96,13 +167,18 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
     {
         if (reference.Kind != AssistantAttachmentKind.Text)
         {
-            return run.Target == AttachmentTarget.TextOnly
-                ? Note(reference, "這個來源讀不到圖片與 PDF")
+            return run.Target == AttachmentTarget.Agent
+                ? ResolveForAgent(reference, run)
                 : await ResolveBinaryAsync(reference, run, isCurrent, cancellationToken);
         }
 
         return await ResolveTextAsync(reference, run.Budget, isCurrent, cancellationToken);
     }
+
+    private static TextContent ResolveForAgent(AttachmentReference reference, Run run) =>
+        run.Numbers.TryGetValue(reference.Id, out var number)
+            ? new TextContent($"〔附件 {number}：{reference.FileName}（附在這則訊息的最後）〕")
+            : Note(reference, run.Excluded[reference.Id]);
 
     private async Task<AIContent> ResolveBinaryAsync(
         AttachmentReference reference, Run run, bool isCurrent, CancellationToken cancellationToken)
@@ -206,6 +282,14 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
         public Budget Budget { get; } = new(target);
 
         public List<Guid> HistoryBinaryIds { get; } = [];
+
+        /// <summary>引擎要的圖片與 PDF 的編號（1 起算）。</summary>
+        public Dictionary<Guid, int> Numbers { get; } = [];
+
+        /// <summary>引擎這次不收的圖片與 PDF 和原因。</summary>
+        public Dictionary<Guid, string> Excluded { get; } = [];
+
+        public List<AttachmentReference> AgentAttachments { get; } = [];
     }
 
     private sealed class Budget(AttachmentTarget target)
@@ -213,7 +297,7 @@ internal sealed partial class AttachmentReplay(IFileStore store, ILogger<Attachm
         public long BinaryBytes { get; set; } = AssistantAttachmentRules.MaxReplayBinaryBytes;
 
         // 本機與主機的提示整個只有 MaxLocalPromptLength 個字元，更舊的文字檔讀出來也會被丟掉，預算跟著縮小。
-        public int TextCharacters { get; set; } = target == AttachmentTarget.TextOnly
+        public int TextCharacters { get; set; } = target == AttachmentTarget.Agent
             ? AiRules.MaxLocalPromptLength
             : AssistantAttachmentRules.MaxReplayTextCharacters;
 

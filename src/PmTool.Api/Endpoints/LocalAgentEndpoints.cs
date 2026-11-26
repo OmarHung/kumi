@@ -33,6 +33,7 @@ internal static class LocalAgentEndpoints
         agent.MapPost("/check-in", CheckInAsync).WithName("LocalAgentCheckIn");
         agent.MapPost("/jobs/{jobId:guid}/events", ReportAsync).WithName("LocalAgentReport");
         agent.MapPost("/jobs/{jobId:guid}/finish", FinishAsync).WithName("LocalAgentFinish");
+        agent.MapGet("/jobs/{jobId:guid}/attachments/{attachmentId:guid}", DownloadAttachmentAsync).WithName("LocalAgentDownloadAttachment");
 
         v1.MapGet("/account/local-agents", ListAsync).WithName("ListLocalAgents");
         v1.MapDelete("/account/local-agents/{machineId:guid}", RemoveAsync).WithName("RemoveLocalAgent");
@@ -120,6 +121,18 @@ internal static class LocalAgentEndpoints
 
         var result = await agents.FinishAsync(SessionPrincipal.Read(principal).ToActor(), jobId, request.ToFinish(), cancellationToken);
         return result.Failure is { } failure ? EndpointResults.Fail(failure) : Results.NoContent();
+    }
+
+    private static async Task<IResult> DownloadAttachmentAsync(
+        Guid jobId,
+        Guid attachmentId,
+        HttpContext http,
+        ClaimsPrincipal principal,
+        [FromServices] ILocalAgentService agents,
+        CancellationToken cancellationToken)
+    {
+        var result = await agents.OpenJobAttachmentAsync(SessionPrincipal.Read(principal).ToActor(), jobId, attachmentId, cancellationToken);
+        return result.Failure is { } failure ? EndpointResults.Fail(failure) : AttachmentDownload.StreamForAgent(http.Response, result.Value);
     }
 
     private static async Task<IResult> ListAsync(

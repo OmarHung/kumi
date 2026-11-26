@@ -452,8 +452,8 @@ public sealed class ProcessEngineTests
     {
         public string Kind => EngineKinds.ClaudeCode;
 
-        public LaunchPlan Plan(AgentJob job, string workDirectory) =>
-            new ClaudeCodeSpec().Plan(job, workDirectory);
+        public LaunchPlan Plan(AgentJob job, string workDirectory, IReadOnlyList<StagedAttachment>? attachments = null) =>
+            new ClaudeCodeSpec().Plan(job, workDirectory, attachments);
 
         public IEngineTranslator CreateTranslator() => new Throwing();
 

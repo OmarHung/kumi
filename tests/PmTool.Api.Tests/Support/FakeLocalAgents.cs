@@ -12,6 +12,7 @@ internal sealed class FakeLocalAgentService : ILocalAgentService
     private readonly ConcurrentQueue<(Actor Actor, LocalAgentCheckIn CheckIn, int Capacity)> _checkInCalls = new();
     private readonly ConcurrentQueue<(Actor Actor, Guid JobId, IReadOnlyList<LocalAgentEvent> Events)> _reportCalls = new();
     private readonly ConcurrentQueue<(Actor Actor, Guid JobId, LocalAgentFinish Finish)> _finishCalls = new();
+    private readonly ConcurrentQueue<(Actor Actor, Guid JobId, Guid AttachmentId)> _openAttachmentCalls = new();
 
     public Func<Actor, LocalAgentCheckIn, int, CancellationToken, Task<Result<LocalAgentJob?>>> OnCheckIn { get; set; } =
         (_, _, _, _) => Task.FromResult<Result<LocalAgentJob?>>((LocalAgentJob?)null);
@@ -20,6 +21,11 @@ internal sealed class FakeLocalAgentService : ILocalAgentService
         (_, _, _) => new LocalAgentReportAck(false);
 
     public Func<Actor, Guid, LocalAgentFinish, Result<Unit>> OnFinish { get; set; } = (_, _, _) => Unit.Value;
+
+    public Func<Actor, Guid, Guid, Result<AssistantAttachmentContent>> OnOpenAttachment { get; set; } =
+        (_, _, _) => new Failure(FailureKind.NotFound, AiErrorCodes.AttachmentNotFound, "找不到這個附件。");
+
+    public IReadOnlyList<(Actor Actor, Guid JobId, Guid AttachmentId)> OpenAttachmentCalls => _openAttachmentCalls.ToArray();
 
     public IReadOnlyList<(Actor Actor, LocalAgentCheckIn CheckIn, int Capacity)> CheckInCalls => _checkInCalls.ToArray();
 
@@ -57,6 +63,13 @@ internal sealed class FakeLocalAgentService : ILocalAgentService
     {
         _finishCalls.Enqueue((actor, jobId, finish));
         return Task.FromResult(OnFinish(actor, jobId, finish));
+    }
+
+    public Task<Result<AssistantAttachmentContent>> OpenJobAttachmentAsync(
+        Actor actor, Guid jobId, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        _openAttachmentCalls.Enqueue((actor, jobId, attachmentId));
+        return Task.FromResult(OnOpenAttachment(actor, jobId, attachmentId));
     }
 }
 

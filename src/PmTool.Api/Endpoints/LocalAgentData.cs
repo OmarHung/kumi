@@ -53,10 +53,31 @@ internal sealed record LocalAgentJobData(
     string Prompt,
     IReadOnlyList<string> AllowedTools,
     string McpUrl,
-    int MaxTurns)
+    int MaxTurns,
+    IReadOnlyList<JobAttachmentData> Attachments)
 {
     public static LocalAgentJobData From(LocalAgentJob job) => new(
-        job.JobId, job.Engine, job.Model, job.Effort, job.ProjectKey, job.SystemPrompt, job.Prompt, job.AllowedTools, job.McpUrl, job.MaxTurns);
+        job.JobId,
+        job.Engine,
+        job.Model,
+        job.Effort,
+        job.ProjectKey,
+        job.SystemPrompt,
+        job.Prompt,
+        job.AllowedTools,
+        job.McpUrl,
+        job.MaxTurns,
+        [.. job.Attachments.Select(JobAttachmentData.From)]);
+}
+
+/// <summary>
+/// 要交給引擎的圖片與 PDF（沒有時是 <c>[]</c>，不省略）。<c>kind</c> 是 <c>image</c> 或 <c>pdf</c>；
+/// 用 <c>GET …/jobs/{jobId}/attachments/{id}</c> 下載，核對 <c>sizeBytes</c> 與 <c>sha256</c>。檔名只用來顯示。
+/// </summary>
+internal sealed record JobAttachmentData(Guid Id, string FileName, string ContentType, AssistantAttachmentKind Kind, long SizeBytes, string Sha256)
+{
+    public static JobAttachmentData From(LocalAgentJobAttachment attachment) => new(
+        attachment.Id, attachment.FileName, attachment.ContentType, attachment.Kind, attachment.SizeBytes, attachment.Sha256);
 }
 
 /// <summary>

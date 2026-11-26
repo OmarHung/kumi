@@ -13,14 +13,14 @@ namespace PmTool.Ai.Attachments;
 internal static class AttachmentSelection
 {
     /// <summary>
-    /// 數量、重複、每個都是自己在這個專案待送的（沒過期）、合計大小、選的來源讀得到。回傳依 <paramref name="ids"/> 的順序。
+    /// 數量、重複、每個都是自己在這個專案待送的（沒過期）、合計大小、選的來源讀得到（<paramref name="agent"/> 是本機或主機的引擎時看它的版本與種類，API 的模型都讀得到）。回傳依 <paramref name="ids"/> 的順序。
     /// </summary>
     public static async Task<Result<IReadOnlyList<AiAttachmentRow>>> CheckAsync(
         AiDbContext db,
         Actor actor,
         string projectKey,
         IReadOnlyList<Guid> ids,
-        bool textOnlySource,
+        AgentSource? agent,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -59,8 +59,12 @@ internal static class AttachmentSelection
             return AttachmentFailures.TooLargeInTotal();
         }
 
-        var unreadable = rows.Select(row => AttachmentKinds.Parse(row.Kind)).Where(kind => kind != AssistantAttachmentKind.Text).ToList();
-        return textOnlySource && unreadable.Count > 0 ? AttachmentFailures.Unsupported(unreadable) : rows;
+        if (agent?.Check([.. rows.Select(row => AttachmentKinds.Parse(row.Kind))]) is { } unreadable)
+        {
+            return unreadable;
+        }
+
+        return rows;
     }
 
     /// <summary>

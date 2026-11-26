@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UNSUPPORTED_SOURCE_NOTE } from './attachmentRules';
+import { unreadableShortNote, type EngineSource } from './attachmentRules';
 import type { AttachmentEntry } from './useComposerAttachments';
 
 function nameOf(entry: AttachmentEntry): string {
@@ -24,14 +24,15 @@ interface Seen {
 }
 
 /**
- * 附件狀態變化的報讀文字（給一個共用的 role="status"）：上傳完成、失敗，以及「這個來源讀不到圖片與 PDF」剛出現時。
+ * 附件狀態變化的報讀文字（給一個共用的 role="status"）：上傳完成、失敗，以及「Codex 讀不到 PDF」這類說明剛出現時。
  * 在渲染時比較上一輪（不必 effect 再跑一輪）；同時有好幾張就一起唸。
  */
-export function useAttachmentAnnouncement(entries: readonly AttachmentEntry[], hasUnsupported: boolean): string {
+export function useAttachmentAnnouncement(entries: readonly AttachmentEntry[], unreadableSource: EngineSource | null): string {
+  const hasUnsupported = unreadableSource !== null;
   const [seen, setSeen] = useState<Seen>({ statuses: new Map(), wasUnsupported: false, message: '' });
   const isSame = entries.length === seen.statuses.size && entries.every((entry) => seen.statuses.get(entry.id) === entry.status);
   if (!isSame || hasUnsupported !== seen.wasUnsupported) {
-    const lines = [...changes(entries, seen.statuses), ...(hasUnsupported && !seen.wasUnsupported ? [UNSUPPORTED_SOURCE_NOTE] : [])];
+    const lines = [...changes(entries, seen.statuses), ...(unreadableSource !== null && !seen.wasUnsupported ? [unreadableShortNote(unreadableSource)] : [])];
     setSeen({
       statuses: new Map(entries.map((entry) => [entry.id, entry.status])),
       wasUnsupported: hasUnsupported,

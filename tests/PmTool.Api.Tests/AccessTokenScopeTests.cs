@@ -84,6 +84,7 @@ public sealed class AccessTokenScopeTests
         yield return Case("POST", "/v1/agent/check-in", AgentRun);
         yield return Case("POST", "/v1/agent/jobs/00000000-0000-0000-0000-000000000001/events", AgentRun);
         yield return Case("POST", "/v1/agent/jobs/00000000-0000-0000-0000-000000000001/finish", AgentRun);
+        yield return Case("GET", "/v1/agent/jobs/00000000-0000-0000-0000-000000000001/attachments/00000000-0000-0000-0000-000000000002", AgentRun);
         yield return Case("GET", "/v1/session", ItemsRead, ItemsWrite, BlueprintRead, BlueprintWrite, AgentRun);
         yield return Case("GET", "/v1/cli", ItemsRead, ItemsWrite, BlueprintRead, BlueprintWrite, AgentRun);
         yield return Case("GET", "/v1/cli/download/macos-arm64", ItemsRead, ItemsWrite, BlueprintRead, BlueprintWrite, AgentRun);

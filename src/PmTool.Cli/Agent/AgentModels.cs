@@ -68,6 +68,9 @@ internal sealed record AgentJob(
     string McpUrl,
     int MaxTurns)
 {
+    /// <summary>要交給引擎的圖片與 PDF（依序）；舊的伺服器沒有這個欄位，當成空的。</summary>
+    public IReadOnlyList<AgentAttachment> Attachments { get; init; } = [];
+
     /// <summary>缺了必要的欄位就回 null：這樣的工作沒辦法跑，也沒辦法回報，只能略過。</summary>
     public static AgentJob? Parse(JsonElement job)
     {
@@ -87,7 +90,10 @@ internal sealed record AgentJob(
             .ToArray();
         return new AgentJob(
             id, engine, job.Text("model") ?? EngineModel.DefaultId, job.Text("effort"), project, system, prompt, tools, mcpUrl,
-            (int)Math.Clamp(job.Number("maxTurns") ?? 0, 0, int.MaxValue));
+            (int)Math.Clamp(job.Number("maxTurns") ?? 0, 0, int.MaxValue))
+        {
+            Attachments = [.. job.List("attachments").Select(AgentAttachment.Parse)],
+        };
     }
 }
 
@@ -152,7 +158,7 @@ internal interface IAgentEngine
     string? Detail => null;
 
     /// <summary>
-    /// 跑完一件工作。<paramref name="cancellation"/> 取消時中斷引擎並回「中斷」；引擎的失敗都轉成結果回傳，不丟例外。
+    /// 跑完一件工作；工作帶附件時從 <paramref name="attachments"/> 下載。<paramref name="cancellation"/> 取消時中斷引擎並回「中斷」；引擎的失敗都轉成結果回傳，不丟例外。
     /// </summary>
-    Task<JobOutcome> RunAsync(AgentJob job, IEventSink sink, CancellationToken cancellation);
+    Task<JobOutcome> RunAsync(AgentJob job, IEventSink sink, CancellationToken cancellation, IAttachmentSource? attachments = null);
 }

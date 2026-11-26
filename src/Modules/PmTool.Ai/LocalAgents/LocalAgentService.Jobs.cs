@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.Maintenance;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Settings;
@@ -131,6 +132,29 @@ internal sealed partial class LocalAgentService
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Unit.Value;
+    }
+
+    public async Task<Result<AssistantAttachmentContent>> OpenJobAttachmentAsync(
+        Actor actor, Guid jobId, Guid attachmentId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (!await AiPersonalPolicy.IsAllowedAsync(contexts, actor.OrganizationId, cancellationToken))
+        {
+            return LocalAgentFailures.Disabled();
+        }
+
+        // 只有領走這件工作的人、工作還在執行（沒結束、沒被要求停止）時下載得到；清單以建立工作時存的編號為準。
+        var org = actor.OrganizationId;
+        var person = actor.PersonId;
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var listed = await db.LocalJobs.AsNoTracking()
+            .Where(j => j.Id == jobId && j.OrganizationId == org && j.PersonId == person
+                && j.State == LocalJobStates.Claimed && !j.CancelRequested)
+            .Select(j => j.AttachmentIds)
+            .SingleOrDefaultAsync(cancellationToken);
+        return listed is null
+            ? AttachmentFailures.NotFound()
+            : await attachmentReader.OpenAsync(org, listed, attachmentId, cancellationToken);
     }
 
     /// <summary>

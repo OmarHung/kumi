@@ -265,7 +265,7 @@ describe('助理的附件：離開輸入框', () => {
     await findInput();
 
     // Assert
-    expect(deleted).toEqual([]);
+    expect(deleted).not.toContain('att-筆記.md');
 
     // Act：離開助理頁
     await act(async () => {
@@ -274,7 +274,7 @@ describe('助理的附件：離開輸入框', () => {
 
     // Assert
     await waitFor(() => {
-      expect(deleted).toEqual(['att-筆記.md']);
+      expect(deleted).toContain('att-筆記.md');
     });
   });
 
@@ -291,8 +291,8 @@ describe('助理的附件：離開輸入框', () => {
       window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
     });
 
-    // Assert
-    expect(deleted).toEqual([]);
+    // Assert（只看這個測試自己的檔案：前一個測試卸載時送出的刪除可能晚一點才到）
+    expect(deleted).not.toContain('att-筆記.md');
 
     // Act：真的離開
     act(() => {
@@ -301,7 +301,7 @@ describe('助理的附件：離開輸入框', () => {
 
     // Assert
     await waitFor(() => {
-      expect(deleted).toEqual(['att-筆記.md']);
+      expect(deleted).toContain('att-筆記.md');
     });
   });
 
@@ -321,7 +321,7 @@ describe('助理的附件：離開輸入框', () => {
 
     // Assert
     await waitFor(() => {
-      expect(deleted).toEqual(['att-筆記.md']);
+      expect(deleted).toContain('att-筆記.md');
     });
   });
 });
@@ -354,18 +354,18 @@ describe('助理的附件：報讀', () => {
     });
   });
 
-  it('「這個來源讀不到圖片與 PDF」也報讀', async () => {
+  it('「Codex 讀不到 PDF」也報讀', async () => {
     // Arrange
-    const { user } = openAssistant('/projects/SMK/assistant', localEngineOptions());
-    await pick(user, [aFile('截圖.png', 1000, 'image/png')]);
+    const { user } = openAssistant('/projects/SMK/assistant', localEngineOptions('codex'));
+    await pick(user, [aFile('規格.pdf', 1000, 'application/pdf')]);
 
     // Act
-    await finishUpload(0, '截圖.png');
+    await finishUpload(0, '規格.pdf');
 
     // Assert
     await waitFor(() => {
       const live = screen.getAllByRole('status').find((node) => node.classList.contains('visually-hidden'));
-      expect(live).toHaveTextContent('這個來源讀不到圖片與 PDF');
+      expect(live).toHaveTextContent('Codex 讀不到 PDF');
     });
   });
 });

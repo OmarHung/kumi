@@ -47,7 +47,7 @@ internal sealed class HostSourceResolver(IDbContextFactory<AiDbContext> contexts
         var kind = AiEnumNames.ParseKind(view.Source.Engine);
         return new ResolvedSelection(
             selection,
-            new AiEndpoint(kind, null, null) { HostSourceId = view.Source.Id },
+            new AiEndpoint(kind, null, null) { HostSourceId = view.Source.Id, AgentVersion = view.Agent.AgentVersion },
             view.Source.Name,
             new AiModel(model.Id, model.DisplayName, model.Efforts, Enabled: true, Custom: false));
     }

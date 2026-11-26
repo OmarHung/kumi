@@ -6,6 +6,7 @@ using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
 using PmTool.Ai.Items;
 using PmTool.Ai.Persistence;
+using PmTool.Ai.Providers;
 using PmTool.Work;
 
 namespace PmTool.Ai.Assistant;
@@ -61,9 +62,9 @@ internal sealed partial class AssistantService
         var hostSourceId = selection.Value.Endpoint.HostSourceId;
         var isLocal = hostSourceId is null && selection.Value.Endpoint.Kind.IsLocalEngine();
 
-        // 附件：數量、重複、都是自己在這個專案待送的、合計大小、選的來源讀得到（本機與主機的引擎只讀得到文字檔）。
+        // 附件：數量、重複、都是自己在這個專案待送的、合計大小、選的來源讀得到（本機與主機的引擎看 kumi 的版本與引擎的種類）。
         var attachments = await AttachmentSelection.CheckAsync(
-            db, actor, project.Value.Project.Key, attachmentIds, hostSourceId is not null || isLocal, time.GetUtcNow(), cancellationToken);
+            db, actor, project.Value.Project.Key, attachmentIds, AgentSourceOf(selection.Value), time.GetUtcNow(), cancellationToken);
         if (attachments.Failure is { } badAttachments)
         {
             return badAttachments;
@@ -154,6 +155,12 @@ internal sealed partial class AssistantService
         return new AssistantRun(
             AssistantMessageMapper.ToMessage(started.User, AttachmentSelection.ToContracts(attachments.Value)), assistantMessageId, session);
     }
+
+    /// <summary>選的是本機或主機的引擎時，那個來源的能力；API 的模型是 null（都讀得到）。</summary>
+    internal static AgentSource? AgentSourceOf(ResolvedSelection selection) =>
+        selection.Endpoint.HostSourceId is not null || selection.Endpoint.Kind.IsLocalEngine()
+            ? new AgentSource(selection.Endpoint.Kind, selection.Endpoint.AgentVersion, selection.Endpoint.HostSourceId is not null, selection.ConnectionName)
+            : null;
 
     private async Task ReleaseReservationsAsync(Guid? hostJobId, Guid? usageId)
     {

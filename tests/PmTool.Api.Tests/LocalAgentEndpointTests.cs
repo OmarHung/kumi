@@ -19,6 +19,8 @@ public sealed class LocalAgentEndpointTests
 
     private static string EventsRoute => $"/v1/agent/jobs/{FakeLocalAgentService.JobId}/events";
 
+    private static string AttachmentRoute(Guid attachmentId) => $"/v1/agent/jobs/{FakeLocalAgentService.JobId}/attachments/{attachmentId}";
+
     private static string FinishRoute => $"/v1/agent/jobs/{FakeLocalAgentService.JobId}/finish";
 
     private static object CheckInBody(int capacity = 1, string machineKey = "machine-0001") => new
@@ -101,9 +103,97 @@ public sealed class LocalAgentEndpointTests
         const string expected = """
             {"job":{"jobId":"44444444-4444-4444-4444-444444444441","engine":"claude_code","model":"sonnet","effort":"high",
             "projectKey":"WEB","systemPrompt":"系統提示","prompt":"使用者：嗨","allowedTools":["get_blueprint","propose_changeset"],
-            "mcpUrl":"https://kumi.example.com/mcp","maxTurns":13}}
+            "mcpUrl":"https://kumi.example.com/mcp","maxTurns":13,"attachments":[]}}
             """;
         Assert.That(JsonNode.DeepEquals(data, JsonNode.Parse(expected)), Is.True, data?.ToJsonString());
+    }
+
+    [Test]
+    public async Task CheckIn_JobWithAttachments_ReturnsThemWithTheAgreedFieldNames()
+    {
+        // Arrange
+        var image = new LocalAgentJobAttachment(
+            Guid.Parse("66666666-6666-6666-6666-666666666661"), "截圖.png", "image/png", AssistantAttachmentKind.Image, 1234, new string('a', 64));
+        var pdf = image with { Id = Guid.Parse("66666666-6666-6666-6666-666666666662"), FileName = "規格.pdf", ContentType = "application/pdf", Kind = AssistantAttachmentKind.Pdf };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.LocalAgents.OnCheckIn = (_, _, _, _) =>
+            Task.FromResult<Result<LocalAgentJob?>>(FakeLocalAgentService.Job() with { Attachments = [image, pdf] });
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(Post(CheckInRoute, AgentToken(factory), CheckInBody()));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        var expected = JsonNode.Parse($$"""
+            [{"id":"66666666-6666-6666-6666-666666666661","fileName":"截圖.png","contentType":"image/png","kind":"image","sizeBytes":1234,"sha256":"{{new string('a', 64)}}"},
+             {"id":"66666666-6666-6666-6666-666666666662","fileName":"規格.pdf","contentType":"application/pdf","kind":"pdf","sizeBytes":1234,"sha256":"{{new string('a', 64)}}"}]
+            """);
+        Assert.That(JsonNode.DeepEquals(data?["job"]?["attachments"], expected), Is.True, data?.ToJsonString());
+    }
+
+    [Test]
+    public async Task DownloadAttachment_Granted_StreamsTheBytesAsAnOctetStreamWithTheHash()
+    {
+        // Arrange
+        var attachmentId = Guid.Parse("66666666-6666-6666-6666-666666666661");
+        var bytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 };
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.LocalAgents.OnOpenAttachment = (_, _, _) => new AssistantAttachmentContent(
+            new AssistantAttachment(attachmentId, "截圖.png", "image/png", bytes.Length, AssistantAttachmentKind.Image, DateTimeOffset.UnixEpoch),
+            "abc123",
+            new MemoryStream(bytes));
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(AccessTokenAuthenticationTests.Bearer(HttpMethod.Get, AttachmentRoute(attachmentId), AgentToken(factory)));
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(response.Content.Headers.ContentType?.MediaType, Is.EqualTo("application/octet-stream"));
+            Assert.That(response.Content.Headers.ContentDisposition?.DispositionType, Is.EqualTo("attachment"));
+            Assert.That(response.Headers.GetValues("X-Attachment-Sha256").Single(), Is.EqualTo("abc123"));
+            Assert.That(response.Headers.GetValues("X-Content-Type-Options").Single(), Is.EqualTo("nosniff"));
+            Assert.That(body, Is.EqualTo(bytes));
+            Assert.That(factory.Modules.LocalAgents.OpenAttachmentCalls.Single(), Is.EqualTo((TestUsers.Member.ToActor(), FakeLocalAgentService.JobId, attachmentId)));
+        }
+    }
+
+    [Test]
+    public async Task DownloadAttachment_ModuleSaysNotFound_Returns404WithTheCode()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.SendAsync(
+            AccessTokenAuthenticationTests.Bearer(HttpMethod.Get, AttachmentRoute(Guid.NewGuid()), AgentToken(factory)));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That((await response.Content.ReadAsStringAsync()), Does.Contain("ai.attachment_not_found"));
+        }
+    }
+
+    [Test]
+    public async Task DownloadAttachment_WithTheWebSessionCookie_Returns403AndNeverReachesTheModule()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.GetAsync(AttachmentRoute(Guid.NewGuid()));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.Forbidden, ApiErrorCodes.InsufficientScope);
+        Assert.That(factory.Modules.LocalAgents.OpenAttachmentCalls, Is.Empty);
     }
 
     [Test]

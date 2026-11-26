@@ -36,7 +36,7 @@ internal sealed class FakeEngine(Func<AgentJob, IEventSink, CancellationToken, T
 
     public IReadOnlyList<EngineModel> Models { get; } = [new(EngineModel.DefaultId, "預設", []), new("sonnet", "Sonnet", ["low", "high"])];
 
-    public Task<JobOutcome> RunAsync(AgentJob job, IEventSink sink, CancellationToken cancellation) => run(job, sink, cancellation);
+    public Task<JobOutcome> RunAsync(AgentJob job, IEventSink sink, CancellationToken cancellation, IAttachmentSource? attachments = null) => run(job, sink, cancellation);
 }
 
 internal sealed class ListSink : IEventSink

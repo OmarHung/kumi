@@ -25,6 +25,9 @@ internal static class LocalAgentLimits
     /// <summary>一則回覆裡不同的工具呼叫最多幾個（模型自己的上限是 <see cref="AiRules.MaxToolCallsPerReply"/>，本機代理是外部送來的，給兩倍）。</summary>
     public const int MaxToolCallsPerReply = AiRules.MaxToolCallsPerReply * 2;
 
+    /// <summary>一件工作最多交給引擎幾個圖片與 PDF（整段對話合計；超過的換成說明）。kumi 收到更多的會拒絕這件工作。</summary>
+    public const int MaxJobAttachments = 50;
+
     /// <summary>一件工作最多存幾則進度。</summary>
     public const int MaxEventsPerJob = 5000;
 

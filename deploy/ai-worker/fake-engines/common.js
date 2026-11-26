@@ -101,7 +101,7 @@ function plan(prompt, project) {
   return steps;
 }
 
-async function runScenario({ prompt, url, token, project, sink }) {
+async function runScenario({ prompt, url, token, project, sink, received }) {
   const session = await mcpSession(url, token, project);
   const tools = await session.listTools();
   const names = tools.map((tool) => tool.name);
@@ -124,6 +124,7 @@ async function runScenario({ prompt, url, token, project, sink }) {
     try { result = await session.callTool(step.tool, step.input); } catch (error) { result = { text: String(error.message), isError: true }; }
     sink.toolEnd(step.tool, result.text, result.isError);
   }
+  if (received && received.images + received.pdfs > 0) sink.text(`收到 ${received.images} 張圖片、${received.pdfs} 個 PDF。`);
   sink.text(`工具清單：${names.join('、')}。`);
   sink.done();
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using PmTool.Ai;
 using PmTool.Work;
 
 namespace PmTool.Api.Endpoints;
@@ -33,9 +34,23 @@ internal static class AttachmentDownload
         Apply(response, attachment.FileName, attachment.ContentType, attachment.SizeBytes, attachment.Sha256);
 
     /// <summary>項目與頁面的附件共用：呈現的規則只有這一份。</summary>
-    public static void Apply(HttpResponse response, string fileName, string contentType, long sizeBytes, string sha256)
+    public static void Apply(HttpResponse response, string fileName, string contentType, long sizeBytes, string sha256) =>
+        Write(response, fileName, contentType, sizeBytes, sha256, IsInline(contentType));
+
+    /// <summary>
+    /// 本機代理與主機的 worker 下載要交給引擎的附件：呼叫的是程式不是瀏覽器，一律當二進位檔（<c>application/octet-stream</c>、attachment），
+    /// 圖片也不 inline。標頭的其他部分（nosniff、沙箱 CSP、雜湊）和 <see cref="Apply(HttpResponse, string, string, long, string)"/> 相同。
+    /// 標頭寫好之後回傳串流：<c>Results.Stream</c> 讀完或中斷時會關掉它，儲存空間的檔案控制代碼不會漏。
+    /// </summary>
+    public static IResult StreamForAgent(HttpResponse response, AssistantAttachmentContent content)
     {
-        var inline = IsInline(contentType);
+        var attachment = content.Attachment;
+        Write(response, attachment.FileName, attachment.ContentType, attachment.SizeBytes, content.Sha256, inline: false);
+        return Results.Stream(content.Content, contentType: OctetStream, enableRangeProcessing: false);
+    }
+
+    private static void Write(HttpResponse response, string fileName, string contentType, long sizeBytes, string sha256, bool inline)
+    {
         var headers = response.Headers;
         headers.XContentTypeOptions = "nosniff";
         headers.ContentSecurityPolicy = ContentSecurityPolicy;

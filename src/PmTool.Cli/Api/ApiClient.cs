@@ -119,6 +119,11 @@ internal sealed class ApiClient(HttpClient http, string server, string token)
         var request = new HttpRequestMessage(HttpMethod.Get, BuildUri(path, null));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.UserAgent.ParseAdd("kumi-cli");
+        foreach (var (name, value) in ExtraHeaders ?? EmptyHeaders)
+        {
+            request.Headers.TryAddWithoutValidation(name, value);
+        }
+
         HttpResponseMessage? response = null;
         // 時限只管到收齊回應標頭；內容可以很大，邊收邊寫，不設整體時限。
         using var headerTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
