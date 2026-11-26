@@ -27,8 +27,9 @@ describe('AI 的四種接法', () => {
     const map = await openAiAccounts();
 
     // Assert
-    expect(within(map).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['誰能用', 'API 金鑰', 'Claude Code／Codex']);
-    expect(within(map).getAllByRole('rowheader').map((header) => header.textContent)).toEqual(['只有自己']);
+    expect(within(map).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['API 金鑰', 'Claude Code／Codex']);
+    expect(within(map).queryAllByRole('rowheader')).toHaveLength(0);
+    expect(within(map).getByText('差別在用什麼登入。費用一律算在登入的那個帳號。')).toBeInTheDocument();
     expect(within(map).getByRole('link', { name: '我的 API 金鑰' })).toHaveAttribute('href', '/account/ai#ai-keys');
     expect(within(map).getByRole('link', { name: '我的 API 金鑰' })).toHaveAttribute('aria-current', 'page');
     expect(within(map).getByRole('link', { name: '本機代理' })).toHaveAttribute('aria-current', 'page');
@@ -72,7 +73,7 @@ describe('AI 的四種接法', () => {
     const map = await openAiAccounts();
 
     // Assert
-    expect(within(map).getAllByRole('rowheader').map((header) => header.textContent)).toEqual(['只有自己']);
+    expect(within(map).queryByText('只有自己')).not.toBeInTheDocument();
     expect(within(map).queryByText('組織的 API 金鑰')).not.toBeInTheDocument();
     expect(within(map).queryByText('主機 AI 代理')).not.toBeInTheDocument();
     expect(within(map).queryByText(/由組織/)).not.toBeInTheDocument();
@@ -88,6 +89,8 @@ describe('AI 的四種接法', () => {
 
     // Assert
     expect(within(map).getByRole('link', { name: '組織的 API 金鑰' })).toHaveAttribute('href', '/ai-settings');
+    expect(within(map).getAllByRole('rowheader').map((header) => header.textContent)).toEqual(['全組織共用', '只有自己']);
+    expect(within(map).getByText('看兩件事：誰能用，和用什麼登入。費用一律算在登入的那個帳號。')).toBeInTheDocument();
     expect(within(map).queryByRole('link', { name: '主機 AI 代理' })).not.toBeInTheDocument();
     expect(within(map).getByText('由組織擁有者設定')).toBeInTheDocument();
   });

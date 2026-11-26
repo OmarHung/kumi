@@ -7,6 +7,8 @@ import styles from './AiSetupMap.module.css';
 /** 標題照列出的格數寫：一般成員只看得到自己的兩種（全組織那一列不列）。 */
 const titleOf = (cellCount: number): string => `AI 的${cellCount === 4 ? '四' : '兩'}種接法`;
 const DESCRIPTION = '看兩件事：誰能用，和用什麼登入。費用一律算在登入的那個帳號。';
+/** 只剩一列（一般成員只看得到自己的兩種）時沒有「誰能用」可比，只講登入方式。 */
+const SINGLE_ROW_DESCRIPTION = '差別在用什麼登入。費用一律算在登入的那個帳號。';
 const ADVICE =
   '建議：全組織共用先開組織的 API 金鑰（快、不排隊、不用維護主機）；想讓大家用 Claude Code／Codex 又不想各自安裝，再加主機 AI 代理。已經有 Claude、ChatGPT 訂閱的人，用本機代理最省。';
 
@@ -48,10 +50,10 @@ function CellBody({ cell, page, isDetailed }: CellProps) {
 }
 
 /** 說明：怎麼看這張表；完整版再加一句選擇的建議（四格各自的好處與代價寫在格子裡）。 */
-function MapNote({ isDetailed }: { readonly isDetailed: boolean }) {
+function MapNote({ isDetailed, isSingleRow }: { readonly isDetailed: boolean; readonly isSingleRow: boolean }) {
   return (
     <>
-      <p>{DESCRIPTION}</p>
+      <p>{isSingleRow ? SINGLE_ROW_DESCRIPTION : DESCRIPTION}</p>
       {isDetailed && <p>{ADVICE}</p>}
     </>
   );
@@ -65,15 +67,19 @@ function MapNote({ isDetailed }: { readonly isDetailed: boolean }) {
  */
 export function AiSetupMap({ page, isDetailed = false }: { readonly page: AiSetupPage; readonly isDetailed?: boolean }) {
   const rows = visibleAiSetupRows(useCurrentUser());
+  // 只有一列時不畫列標題那一欄：「誰能用」只有一個答案，不必比。
+  const isSingleRow = rows.length === 1;
   return (
-    <SettingsSection title={titleOf(rows.length * 2)} description={<MapNote isDetailed={isDetailed} />} isContentStart isFullWidth>
+    <SettingsSection title={titleOf(rows.length * 2)} description={<MapNote isDetailed={isDetailed} isSingleRow={isSingleRow} />} isContentStart isFullWidth>
       <table className={styles.table}>
         <thead>
           <tr>
             {/* 角落是列標題那一欄的欄標題：報讀軟體不會唸出一個沒有名稱的格子。 */}
-            <th scope="col" className={styles.corner}>
-              <span className="visually-hidden">誰能用</span>
-            </th>
+            {!isSingleRow && (
+              <th scope="col" className={styles.corner}>
+                <span className="visually-hidden">誰能用</span>
+              </th>
+            )}
             {AI_SETUP_COLUMNS.map((column) => (
               <th key={column} scope="col" className={styles.columnHeader}>
                 {column}
@@ -84,9 +90,11 @@ export function AiSetupMap({ page, isDetailed = false }: { readonly page: AiSetu
         <tbody>
           {rows.map((row) => (
             <tr key={row.label}>
-              <th scope="row" className={styles.rowHeader}>
-                {row.label}
-              </th>
+              {!isSingleRow && (
+                <th scope="row" className={styles.rowHeader}>
+                  {row.label}
+                </th>
+              )}
               {row.cells.map((cell) => (
                 <CellBody key={cell.kind} cell={cell} page={page} isDetailed={isDetailed} />
               ))}
