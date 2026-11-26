@@ -37,7 +37,8 @@ internal static class AssistantFailures
 
     /// <summary>
     /// 不選專案的對話要用本機或主機的引擎、而那邊的 kumi 太舊：舊版一定要有專案代號，也不認得新的工具，送過去整件工作會失敗。
-    /// 本機的請使用者更新自己的電腦，主機的請組織擁有者更新 ai-worker。
+    /// 本機的請使用者更新自己的電腦，主機的請組織擁有者更新 ai-worker。版本是在跑的程序登記的：0.12.0 以前的 kumi update
+    /// 只換檔案、不重開背景的本機代理，所以提示更新後還要 kumi agent restart。
     /// </summary>
     public static Failure AgentUpdateRequired(Attachments.AgentSource source)
     {
@@ -45,7 +46,7 @@ internal static class AssistantFailures
         var minimum = AiRules.MinAgentVersionForOrganizationChat;
         var message = source.Hosted
             ? $"「{source.Name}」的 ai-worker（kumi {version}）要 {minimum} 以上才能用在不選專案的對話，請組織擁有者更新主機的 ai-worker；在那之前請選一個專案，或換成 API 的模型。"
-            : $"「{source.Name}」那台電腦上的 kumi 是 {version}，要 {minimum} 以上才能用在不選專案的對話，請執行 kumi update；在那之前請選一個專案，或換成 API 的模型。";
+            : $"「{source.Name}」那台電腦上的 kumi 是 {version}，要 {minimum} 以上才能用在不選專案的對話，請執行 kumi update（更新後還是看到這則訊息的話，再執行 kumi agent restart 重新啟動背景的本機代理）；在那之前請選一個專案，或換成 API 的模型。";
         return new(FailureKind.Conflict, AiErrorCodes.AgentUpdateRequired, message);
     }
 

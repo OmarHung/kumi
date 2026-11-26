@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using PmTool.Cli.Agent.Autostart;
 using PmTool.Cli.Api;
 using PmTool.Cli.Output;
 using PmTool.Cli.Settings;
@@ -58,7 +59,11 @@ internal static class UpdateCommand
         using var registration = call.Context.RegisterInterrupt(() => stop.Cancel());
         var installed = await UpdateInstaller.InstallAsync(call, environment, platform, package, latest, stop.Token);
         var skillsUpdated = await RefreshSkillsAsync(call, environment, installed, stop.Token);
-        return await ReportAsync(call, current, latest, available: true, updated: true, $"已更新到 kumi {latest}（原本是 {current}）。", skillsUpdated);
+        // 在跑的本機代理記憶體裡還是舊版、向伺服器登記的也是舊版：換好檔案之後重開它（沒在跑的不替使用者開）。
+        var restart = await AgentRestart.RunAsync(call.Context, onlyIfRunning: true, stop.Token);
+        var exit = await ReportAsync(call, current, latest, available: true, updated: true, $"已更新到 kumi {latest}（原本是 {current}）。", skillsUpdated, restart);
+        AgentRestart.Report(call, restart);
+        return exit;
     }
 
     private static string Truncate(string text) => text.Length <= 300 ? text : text[..300] + "…";
@@ -135,7 +140,8 @@ internal static class UpdateCommand
         throw new CliException(ExitCodes.Error, "這個伺服器沒有提供適合這台電腦的 kumi。");
     }
 
-    private static async Task<int> ReportAsync(CommandCall call, string current, string latest, bool available, bool updated, string message, bool skillsUpdated = false)
+    private static async Task<int> ReportAsync(
+        CommandCall call, string current, string latest, bool available, bool updated, string message, bool skillsUpdated = false, AgentRestartResult? restart = null)
     {
         if (call.Json)
         {
@@ -147,6 +153,7 @@ internal static class UpdateCommand
                 ["updated"] = updated,
                 ["standalone"] = call.Context.Update.IsStandalone,
                 ["skillsUpdated"] = skillsUpdated,
+                ["agentRestart"] = restart?.JsonValue,
             });
         }
         else

@@ -76,6 +76,12 @@ internal interface IAutostartBackend
 
     /// <summary>系統自己的啟動管理員看到的背景程序 PID（沒有或查不到是 null）。</summary>
     Task<int?> QueryPidAsync(CancellationToken cancellation);
+
+    /// <summary>能不能請啟動管理員照啟動項目重新開一次（換了執行檔之後用）。</summary>
+    bool SupportsRestart { get; }
+
+    /// <summary>結束正在跑的背景程序，照啟動項目再開一個；回傳系統指令的結果（不保證新的已經起來，呼叫端會看鎖）。</summary>
+    Task<CommandOutcome> RestartAsync(CancellationToken cancellation);
 }
 
 internal static class AutostartBackends

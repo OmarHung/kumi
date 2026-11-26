@@ -61,6 +61,24 @@ internal sealed class AutostartManager(AutostartEnvironment environment, IAutost
         WaitUntilAsync(() => State() is { Running: true, Background: true }, environment.StartTimeout, cancellation);
 
     /// <summary>
+    /// 重新啟動之後等新的背景程序拿到鎖：編號或啟動時間要和 <paramref name="previous"/> 不同，才不會把還沒結束的舊程序當成新的。
+    /// 舊的要先結束、新的再起來，所以最多等停止加啟動的時間；等到回新的狀態，沒等到回 null。
+    /// </summary>
+    public async Task<AgentRunState?> WaitForReplacementAsync(AgentHolder? previous, CancellationToken cancellation)
+    {
+        AgentRunState? replaced = null;
+        await WaitUntilAsync(() =>
+        {
+            var state = State();
+            var isNew = state is { Running: true, Background: true, Pid: not null }
+                && (previous is null || state.Pid != previous.Pid || !string.Equals(state.StartedAt, previous.StartedAt, StringComparison.Ordinal));
+            replaced = isNew ? state : null;
+            return isNew;
+        }, environment.StopTimeout + environment.StartTimeout, cancellation);
+        return replaced;
+    }
+
+    /// <summary>
     /// 鎖檔記著背景程序的啟動時間，現在這個編號的程序啟動時間對不上就是編號被別人重用了，不能結束它。
     /// 鎖檔沒記（舊版寫的）或現在查不出來就無從比對：和清子孫程序一樣不動手，不退回只看名稱（名稱 kumi 的別的程序也會被誤殺）。
     /// </summary>

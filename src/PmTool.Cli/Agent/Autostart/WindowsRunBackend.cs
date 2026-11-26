@@ -26,6 +26,13 @@ internal sealed class WindowsRunBackend(AutostartEnvironment environment) : IAut
 
     public Task<int?> QueryPidAsync(CancellationToken cancellation) => Task.FromResult<int?>(null);
 
+    // 重新啟動要結束舊的再照登錄的整行命令開新的；Windows 的開機自動啟動還沒在真的 Windows 上驗證過，
+    // 先不做會結束程序的自動重啟，請使用者登出再登入（啟動項目照舊會用新的執行檔）。
+    public bool SupportsRestart => false;
+
+    public Task<CommandOutcome> RestartAsync(CancellationToken cancellation) =>
+        Task.FromResult(new CommandOutcome(1, "Windows 還不支援自動重新啟動。"));
+
     /// <summary>登錄裡的整行命令：執行檔與每個參數照 Windows 的規則加引號。</summary>
     public static string CommandLine(AutostartSpec spec) =>
         string.Join(' ', new[] { spec.KumiPath }.Concat(spec.Arguments).Select(Quote));

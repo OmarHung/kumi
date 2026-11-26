@@ -46,7 +46,8 @@ kumi update --check    # 只看有沒有新版
 - 用 dotnet tool 裝的不能用 `kumi update` 更新（結束代碼 1，說明會寫怎麼更新）；`--check` 照樣能看有沒有新版。
 - kumi 放在自己沒有寫入權限的資料夾時（例如 `/usr/local/bin`）會失敗並說明；請放在 `~/.local/bin` 這類自己的資料夾。
 - 換好之後，如果這台電腦的**使用者層**（`~/.claude`、`~/.codex`）裝過 skill（`kumi skill install`，有標記的），會用**新的**執行檔跑一次 `kumi skill update`（舊的程序內嵌的是舊版 skill），把印出的結果接在後面；用 `--project` 裝在專案資料夾裡的不會動，要自己執行 `kumi skill update --project <資料夾>`。改過的資料夾照樣跳過並警告；失敗只警告（附上新執行檔印的錯誤，建議執行 `kumi skill update`），不讓更新失敗。
-- `--json`：`{ "current", "latest", "updateAvailable", "updated", "standalone", "skillsUpdated" }`（伺服器沒有提供下載時 `latest` 是 `null`；`skillsUpdated` 是這次有沒有順便更新 skill）。
+- 換好之後（0.13.0 起），本機代理正在跑的話：開機自動啟動的背景程序（macOS）用 `launchctl kickstart -k` 照啟動項目重開一次，等到新的程序拿到鎖才算數（印「背景的本機代理已經用新版重新啟動。」）；在跑的程序記憶體裡還是舊版，向伺服器登記的版本也是舊的，不重開的話網頁會一直說要更新。在終端機視窗裡的 `kumi agent start` 只提醒你到那個視窗按 Ctrl-C 再開；Windows 的背景程序還不會自動重開，提醒你登出再登入；沒在跑的不替你開。重開失敗只警告（建議 `kumi agent status`、`kumi agent restart`），不讓更新失敗。0.12.0 以前的 `kumi update` 不會重開，更新完請自己執行一次 `kumi agent restart`。
+- `--json`：`{ "current", "latest", "updateAvailable", "updated", "standalone", "skillsUpdated", "agentRestart" }`（伺服器沒有提供下載時 `latest` 是 `null`；`skillsUpdated` 是這次有沒有順便更新 skill；`agentRestart` 是本機代理怎麼了：`restarted`、`not_running`、`foreground`、`unsupported`、`failed`，沒有換檔案時是 `null`）。
 
 **從舊版的 `pm` 升級**（2026-11-23 產品定名 Kumi，指令從 `pm` 改成 `kumi`）：套件名稱還是 `PmTool.Cli`，照上面 `update` 一次，`pm` 就換成 `kumi`。不用重新登入：設定檔還在舊的 `~/.config/pm-tool/` 時照樣讀；環境變數的舊名 `PM_SERVER`、`PM_TOKEN`、`PM_ALLOW_INSECURE` 也照樣認得，新舊都有時用 `KUMI_*`。
 
@@ -383,6 +384,7 @@ kumi agent start [--name 名稱] [--engine claude-code|codex]… [--max-jobs-per
 kumi agent enable [--server 網址] [--name 名稱] [--engine claude-code|codex]… [--max-jobs-per-hour 件數] [--max-jobs-per-day 件數] [--allow-untested-engine] [--json]   # 設定並立刻在背景啟動
 kumi agent status [--json]                                                              # 設定了沒、有沒有在跑、連不連得上、這一小時與今天領了幾件、記錄檔最後 10 行
 kumi agent disable [--json]                                                             # 停掉背景程序並取消
+kumi agent restart [--json]                                                             # 背景程序照啟動項目重開一次（換了新版之後用）
 ```
 
 - `enable` 的檢查（任何一項不過就結束代碼 1，什麼都不改）：作業系統要是 macOS 或 Windows；權杖要存在設定檔（背景程序讀不到你的環境變數，用 `KUMI_TOKEN` 時請先 `kumi agent login`）且有 `agent:run` 等範圍；PATH 上要找得到 `claude` 或 `codex`；kumi 的執行檔不能在下載資料夾、暫存資料夾或別的使用者也寫得進去的資料夾（先解析符號連結再判斷；macOS 的路徑比對不分大小寫；資料夾往上任何一層、或執行檔本身，其他使用者或群組寫得進去也算；Windows 只擋下載與暫存資料夾，不查權限，因為 Windows 的開機自動啟動還是實驗性的；開機自動啟動每次登入都會執行它，放在那種地方別的程式換掉它就會被執行；會說怎麼搬，例如搬到 `~/.local/bin`，Windows 是 `%LOCALAPPDATA%\Programs\Kumi`，再執行一次）；沒有前景的 `kumi agent start` 在跑（在跑的話說 PID，請先關掉那個視窗）。通過後先停掉舊的背景程序、寫入啟動項目、立刻在背景啟動，最多等 10 秒看到它拿到鎖；沒等到時啟動項目照樣留著，結束代碼 1，並印出記錄檔最後幾行。`--json` 印 `{"enabled":true,"running":…,"logPath":"…"}`。
@@ -392,7 +394,8 @@ kumi agent disable [--json]                                                     
 - 背景程序跑的是 `kumi agent start --service`：和 `start` 一樣，差別在連不上伺服器（登入電腦時網路常還沒好）、5xx、429 時**不結束**，依退避（1、2、4…最多 60 秒）一直重試；401、403（權杖失效或被撤銷、組織不開放）、權杖缺範圍與沒有能用的引擎才結束（代碼 1，原因寫在記錄檔）。輸出每行前面加時間，訊息裡的換行與控制字元換成空白（伺服器回的字不能偽造出另一行記錄）。連線狀態寫在設定檔資料夾的 `agent.lock.json`（拿著鎖時才可信，結束時刪掉），`kumi agent status` 讀它。
 - **macOS**：`~/Library/LaunchAgents/kumi.local-agent.plist`（`RunAtLoad`，沒設 `KeepAlive`，401、403 時不會被一直重開），用 `launchctl bootstrap／bootout gui/<uid>/kumi.local-agent`；記錄檔 `~/Library/Logs/Kumi/agent.log`（資料夾 700；超過 5 MB 時 `enable` 與每次背景程序啟動都先清掉；Windows 也是啟動時清）。背景程序啟動時記錄檔不存在，代表 launchd 開不了它（資料夾被刪掉了），標準輸出沒有人接：kumi 自己建資料夾、自己寫進記錄檔（建不了就照舊只寫標準輸出，不影響執行）。plist 帶執行 `enable` 當下的 `PATH`，有設才帶 `XDG_CONFIG_HOME`、`KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH`；**不帶任何權杖**，權杖由背景程序從設定檔讀。
 - **Windows**：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `KumiLocalAgent`（整行命令，含空白與引號的參數照 Windows 規則加引號）；背景程序藏起主控台視窗，輸出寫到 `%LOCALAPPDATA%\Kumi\agent.log`；停止是結束程序（不能請它收尾，正在跑的工作由伺服器當逾時）。**Windows 的開機自動啟動是實驗性的**：沒有在真的 Windows 上完整驗證過，`kumi agent enable` 的輸出也會這樣說明；有問題請看 `agent.log` 或用 `kumi agent disable` 取消，並回報。
-- kumi 搬了位置、或用 `kumi update` 換了新檔之後，執行一次 `kumi agent enable` 讓啟動項目指到新的路徑。
+- `restart`（0.13.0 起）：macOS 用 `launchctl kickstart -k gui/<uid>/kumi.local-agent`，結束正在跑的、照已經載入的啟動項目再開一個（伺服器、名稱、上限照舊，不重寫 plist），最多等 18 秒看到新的程序（編號或啟動時間和原本的不同）拿到鎖；設了自動啟動而程序已經不在時也會開起來。正在跑的工作會中斷（伺服器當成失敗）。在跑的是終端機視窗裡的 `kumi agent start`、沒有設定自動啟動、launchd 沒有載入啟動項目（請執行 `kumi agent enable`）、新的程序沒起來（印記錄檔最後幾行）、Windows（還不支援，請登出再登入）時結束代碼 1。不用登入。`--json` 印 `{"restarted":true,"pid":…}`。
+- `kumi update` 換了新檔之後會自己重開背景程序（見上面的「更新」）。kumi 搬了位置時，執行一次 `kumi agent enable` 讓啟動項目指到新的路徑。
 
 **它做什麼**
 

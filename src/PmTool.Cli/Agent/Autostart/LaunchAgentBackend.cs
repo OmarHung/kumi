@@ -46,6 +46,15 @@ internal sealed partial class LaunchAgentBackend(AutostartEnvironment environmen
     public async Task StopAsync(CancellationToken cancellation) =>
         await environment.RunCommand("launchctl", ["bootout", Target(await environment.GetUid(cancellation))], cancellation);
 
+    public bool SupportsRestart => true;
+
+    /// <summary>
+    /// kickstart -k：launchd 結束正在跑的、照已經載入的 plist 再開一個。不用 bootout 再 bootstrap：
+    /// 那樣會重讀 plist，而這裡只想換掉記憶體裡的舊版，啟動項目的內容（server、名稱、上限）照舊。
+    /// </summary>
+    public async Task<CommandOutcome> RestartAsync(CancellationToken cancellation) =>
+        await environment.RunCommand("launchctl", ["kickstart", "-k", Target(await environment.GetUid(cancellation))], cancellation);
+
     public Task<bool> RemoveAsync(CancellationToken cancellation)
     {
         if (!File.Exists(PlistPath))

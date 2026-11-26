@@ -12,10 +12,16 @@ internal sealed class FakeAutostart : IDisposable
     public const int BackgroundPid = 4242;
     public const string BackgroundStart = "Thu Nov 26 10:00:00 2026";
 
+    /// <summary>launchctl kickstart -k 之後新的背景程序（編號與啟動時間都和第一個不同）。</summary>
+    public const int RestartedPid = 4343;
+    public const string RestartedStart = "Thu Nov 26 11:00:00 2026";
+
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"kumi-autostart-{Guid.NewGuid():N}");
     private readonly Dictionary<int, string> _processes = [];
     private readonly Dictionary<int, string> _starts = [];
     private AgentLock? _background;
+    private int _backgroundPid = BackgroundPid;
+    private bool _loaded;
     private string? _configPath;
 
     public FakeAutostart(AutostartOs os = AutostartOs.MacOS)
@@ -56,6 +62,16 @@ internal sealed class FakeAutostart : IDisposable
     public void SetProcessStart(int pid, string start) => _starts[pid] = start;
 
     public bool BackgroundRunning => _background is not null;
+
+    /// <summary>現在拿著鎖的背景程序的編號；沒在跑是 null。</summary>
+    public int? RunningPid => _background is null ? null : _backgroundPid;
+
+    /// <summary>假裝之前 kumi agent enable 過：launchd 載入了啟動項目，背景程序正在跑。</summary>
+    public void StartInBackground()
+    {
+        _loaded = true;
+        Launch(BackgroundPid, BackgroundStart);
+    }
 
     public AutostartEnvironment Build(string configPath)
     {
@@ -126,6 +142,7 @@ internal sealed class FakeAutostart : IDisposable
         {
             "bootout" => Bootout(),
             "bootstrap" => LaunchOutcome(),
+            "kickstart" => Kickstart(),
             "print" => _background is null
                 ? new CommandOutcome(113, "Could not find service")
                 : new CommandOutcome(0, $"kumi.local-agent = {{\n\tstate = running\n\tpid = {BackgroundPid}\n}}"),
@@ -136,7 +153,21 @@ internal sealed class FakeAutostart : IDisposable
     private CommandOutcome LaunchOutcome()
     {
         // launchctl bootstrap 本身成功；程序有沒有真的起來是另一回事（LaunchSucceeds）。
-        Launch();
+        _loaded = true;
+        Launch(BackgroundPid, BackgroundStart);
+        return new CommandOutcome(0, string.Empty);
+    }
+
+    /// <summary>kickstart -k：結束正在跑的，照啟動項目再開一個新的；沒有載入時和真的一樣回 113。</summary>
+    private CommandOutcome Kickstart()
+    {
+        if (!_loaded)
+        {
+            return new CommandOutcome(113, "Could not find service \"kumi.local-agent\" in domain for user gui: 501");
+        }
+
+        StopBackground();
+        Launch(RestartedPid, RestartedStart);
         return new CommandOutcome(0, string.Empty);
     }
 
@@ -150,6 +181,7 @@ internal sealed class FakeAutostart : IDisposable
         if (!Stubborn)
         {
             StopBackground();
+            _loaded = false;
         }
 
         return new CommandOutcome(0, string.Empty);
@@ -158,20 +190,21 @@ internal sealed class FakeAutostart : IDisposable
     private Task StartBackgroundAsync(string file, IReadOnlyList<string> arguments, CancellationToken cancellation)
     {
         Calls.Add($"start {file} {string.Join(' ', arguments)}");
-        Launch();
+        Launch(BackgroundPid, BackgroundStart);
         return Task.CompletedTask;
     }
 
-    private bool Launch()
+    private bool Launch(int pid, string start)
     {
         if (!LaunchSucceeds)
         {
             return false;
         }
 
-        _processes[BackgroundPid] = "kumi";
-        _starts[BackgroundPid] = BackgroundStart;
-        _background = AgentLock.TryAcquire(_configPath!, BackgroundPid, background: true, BackgroundStart).Lock;
+        _backgroundPid = pid;
+        _processes[pid] = "kumi";
+        _starts[pid] = start;
+        _background = AgentLock.TryAcquire(_configPath!, pid, background: true, start).Lock;
         return _background is not null;
     }
 
@@ -179,6 +212,6 @@ internal sealed class FakeAutostart : IDisposable
     {
         _background?.Dispose();
         _background = null;
-        _processes.Remove(BackgroundPid);
+        _processes.Remove(_backgroundPid);
     }
 }

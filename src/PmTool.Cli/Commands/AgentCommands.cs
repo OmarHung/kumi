@@ -50,6 +50,8 @@ internal static class AgentCommands
             "kumi agent disable [--json]", [], 0, 0, AutostartCommands.DisableAsync),
         new("agent", "status", "看開機自動啟動有沒有設定、本機代理有沒有在執行、記錄檔最後幾行",
             "kumi agent status [--json]", [], 0, 0, AutostartCommands.StatusAsync),
+        new("agent", "restart", "讓背景的本機代理照啟動項目重新開一次（kumi update 換了新版之後用；macOS）",
+            "kumi agent restart [--json]", [], 0, 0, AgentRestart.CommandAsync),
     ];
 
     /// <summary>本機代理用的憑證與連線：先找 agent 專用的權杖，沒有才用命令列的那一把。</summary>

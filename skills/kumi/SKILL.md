@@ -15,7 +15,7 @@ description: 用命令列工具 kumi 操作 Kumi 這套專案管理系統（改�
 
 ## 開始之前
 
-1. `kumi --version`。找不到指令時，請使用者安裝（網頁的「設定 → 命令列與整合」的「命令列工具」，或 `docs/CLI.md` 的「安裝」），不要自己下載或改他的全域環境。舊版要更新時，請使用者自己執行 `kumi update`：它會換掉 kumi 本身。
+1. `kumi --version`。找不到指令時，請使用者安裝（網頁的「設定 → 命令列與整合」的「命令列工具」，或 `docs/CLI.md` 的「安裝」），不要自己下載或改他的全域環境。舊版要更新時，請使用者自己執行 `kumi update`：它會換掉 kumi 本身，並重開在背景跑的本機代理（0.12.0 以前的 kumi 更新完還要使用者自己執行 `kumi agent restart`）。
 2. `kumi auth status --json`。成功時 `user` 是登入的人（`personId`、`displayName`、`email`），`scopes` 是權杖的範圍。
 3. 沒登入時，請使用者**自己在終端機**執行 `kumi auth login --server <網址>`：它會開瀏覽器，使用者在 Kumi 的頁面輸入終端機上印出的六碼確認碼再按「允許」就登入了（確認碼只看自己的終端機，別人告訴他的確認碼一律不要輸入；頁面上不是他剛在自己電腦執行的登入，要按「拒絕」；登入成功後瀏覽器會停在不帶登入碼的頁面；0.8.0 以前的 kumi 沒有確認碼，要先 `kumi update`，權杖已經失效時到網頁「設定 → 命令列與整合」下載新版），**你沒辦法替他按**，也不要替他輸入確認碼，不要自己執行它（沒有終端機時也不會跑）。想一次設定好 Claude Code／Codex 與本機代理，請他執行 `kumi setup`。透過 SSH 等開不了瀏覽器的環境，或瀏覽器與終端機走不同的網路出口（例如其中一邊開了 VPN 或代理）導致瀏覽器登入失敗時，請他用 `kumi auth login --paste`，貼上在網頁「設定 → 命令列與整合」的「存取權杖」建立的權杖；腳本與 CI 用 `--with-token` 從標準輸入讀。不要請使用者把權杖貼到對話裡，也不要把權杖寫進指令、檔案或記錄：對話紀錄與 shell 的歷史都會留下明文。
 
@@ -181,7 +181,7 @@ kumi blueprint apply -f web.yaml --summary "加上法務審查"
 ## 不在這份 skill 裡的
 
 - `kumi skill install`／`update`／`status`／`uninstall` 管這兩份 skill 自己（裝到 Claude Code 的 `~/.claude/skills`、Codex 的 `~/.codex/skills`，或專案的 `.claude/skills`、`.agents/skills`），不碰 Kumi 的資料；使用者說「這份 skill 過期了」「幫我更新 skill」時請他執行 `kumi skill update`（`kumi update` 換新版 kumi 時也會順便更新）。這份 skill 是不是最新用 `kumi skill status` 看。
-- `kumi agent start` 是給人開著的長駐指令（讓網頁的 AI 助理用使用者電腦上的 Claude Code／Codex），會一直跑到按 Ctrl-C。**代理不要自己執行它**（`kumi agent login`、`kumi agent enable`、`kumi setup` 也一樣，都要使用者在終端機自己操作瀏覽器），也不要替使用者建立它要的 `agent:run` 權杖；使用者問起時，指給 `docs/CLI.md` 的「本機代理（kumi agent）」。網頁訊息附的圖片與 PDF 會交給引擎（kumi 0.10.0 起；Codex 只有圖片）。
+- `kumi agent start` 是給人開著的長駐指令（讓網頁的 AI 助理用使用者電腦上的 Claude Code／Codex），會一直跑到按 Ctrl-C。**代理不要自己執行它**（`kumi agent login`、`kumi agent enable`、`kumi agent restart`、`kumi setup` 也一樣，都要使用者在終端機自己操作瀏覽器），也不要替使用者建立它要的 `agent:run` 權杖；使用者問起時，指給 `docs/CLI.md` 的「本機代理（kumi agent）」。網頁訊息附的圖片與 PDF 會交給引擎（kumi 0.10.0 起；Codex 只有圖片）。
 - `kumi uninstall` 會撤銷權杖、移除 MCP 與 skill、刪掉設定與 kumi 自己，每一步都要使用者回答。**代理不要自己執行它**（也不要加 `--yes` 替使用者答）；使用者想移除 kumi 時，請他在終端機自己執行，說明見 `docs/CLI.md` 的「移除」。
 - `kumi host …`（pair、run、login、status、logout）是 Kumi 主機上的 worker 服務與擁有者在主機上用的指令，**代理不要自己跑**；使用者問起時，指給 `docs/CLI.md` 的「主機 worker（kumi host）」。
 - 從 monday 搬資料（`kumi import monday …`）是管理員一次性的作業，dump 與對應檔裡有真實的人名、Email 與留言。照 `docs/CLI.md` 的「從 monday 匯入」一步一步做，產生的檔案不要提交到任何 repo。
