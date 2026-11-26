@@ -69,7 +69,9 @@ internal sealed class FakeProjectService : IProjectService
 
     public IReadOnlyList<(Actor Actor, string Key)> Gets => _gets;
 
-    public IReadOnlyList<TemplateSummary> ListTemplates() => [];
+    public IReadOnlyList<TemplateSummary> Templates { get; set; } = [];
+
+    public IReadOnlyList<TemplateSummary> ListTemplates() => Templates;
 
     public Task<Result<ProjectDetail>> GetAsync(Actor actor, string projectKey, CancellationToken cancellationToken)
     {
@@ -77,7 +79,9 @@ internal sealed class FakeProjectService : IProjectService
         return Task.FromResult(OnGet(actor, projectKey));
     }
 
-    public Task<IReadOnlyList<ProjectSummary>> ListAsync(Actor actor, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Func<Actor, IReadOnlyList<ProjectSummary>> OnList { get; set; } = _ => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<ProjectSummary>> ListAsync(Actor actor, CancellationToken cancellationToken) => Task.FromResult(OnList(actor));
 
     public Func<Actor, NewProject, Result<ProjectSummary>> OnCreate { get; set; } = (_, _) => throw new NotSupportedException();
 

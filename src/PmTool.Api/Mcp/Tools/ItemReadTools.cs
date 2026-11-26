@@ -62,8 +62,8 @@ internal static class ItemReadTools
         var projects = await context.Services.Projects.ListAsync(context.Actor, cancellationToken);
         return McpToolResult.Ok(new
         {
-            projects = projects
-                .Where(project => context.ScopedProject is null || string.Equals(project.Key, context.ScopedProject, StringComparison.OrdinalIgnoreCase))
+            // 只限組織（不選專案的組織對話）回發問的人看得到的全部專案：用來避開重複的代號、回答「我有哪些專案」。
+            projects = projects.Where(project => context.Scope.AllowsProject(project.Key) || context.Scope.Kind == McpScopeKind.OrganizationOnly)
                 .Select(ProjectData.From),
         });
     }
@@ -72,7 +72,12 @@ internal static class ItemReadTools
     {
         var text = arguments.RequiredPlain("query");
         var limit = arguments.OptionalInt("limit", 1, McpLimits.MaxSearchLimit) ?? McpLimits.DefaultSearchLimit;
-        if (context.ScopedProject is { } scoped)
+        if (context.Scope.Kind == McpScopeKind.OrganizationOnly)
+        {
+            throw new McpArgumentException("這則對話不屬於任何專案，不能搜尋項目。");
+        }
+
+        if (context.Scope.ProjectKey is { } scoped)
         {
             // 本機代理只搜對話的專案：在專案裡搜，不是先搜全部再濾掉（會被別的專案的結果擠掉）。
             var inProject = await context.Services.Items.ListAsync(
@@ -116,7 +121,7 @@ internal static class ItemReadTools
 
     private static async Task<McpToolResult> MyWorkAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {
-        if (context.ScopedProject is not null)
+        if (context.Scope.IsRestricted)
         {
             throw new McpArgumentException("my_work 跨所有專案，本機代理只能碰這則對話的專案，請改用 list_items。");
         }

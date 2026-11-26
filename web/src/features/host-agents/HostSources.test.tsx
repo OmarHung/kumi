@@ -211,7 +211,9 @@ describe('主機來源：編輯、用量、刪除', () => {
     const people = await within(dialog).findByRole('list', { name: '依成員的用量' });
     expect(within(people).getByText('小明')).toBeInTheDocument();
     expect(within(people).getByText('8 則（完成 7、失敗 1、中斷 0）')).toBeInTheDocument();
-    expect(within(dialog).getByRole('list', { name: '依專案的用量' })).toHaveTextContent('WEB');
+    const projects = within(dialog).getByRole('list', { name: '依專案的用量' });
+    expect(projects).toHaveTextContent('WEB');
+    expect(projects).toHaveTextContent('不選專案');
     expect(within(dialog).getByText('Kumi 記錄的用量，不是供應商的帳單或剩餘額度。')).toBeInTheDocument();
     expect(backend.usageRequests).toEqual(['src-1']);
   });

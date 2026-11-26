@@ -3,19 +3,26 @@ import { PANEL_SIZE_STORAGE_KEY } from './panelSize';
 /** 面板上一次對著的專案：記在瀏覽器，不在專案頁時用。 */
 export const PANEL_PROJECT_STORAGE_KEY = 'assistant.panelProject';
 
-export function readStoredProject(): string | null {
+/** 面板對著什麼：專案代號，null 是「不選專案」（組織的對話），undefined 是還沒選。 */
+export type PanelScope = string | null | undefined;
+
+/** 記在瀏覽器裡代表「不選專案」的值：專案代號只有英數字，不會撞到。 */
+export const NO_PROJECT_STORED = '@organization';
+
+export function readStoredProject(): PanelScope {
   try {
     const value = localStorage.getItem(PANEL_PROJECT_STORAGE_KEY);
-    return value === null || value === '' ? null : value;
+    if (value === null || value === '') return undefined;
+    return value === NO_PROJECT_STORED ? null : value;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
 /** 寫不進去時這次照樣用，下次載入回到沒有選：只是個人偏好。 */
-export function storeProject(projectKey: string): void {
+export function storeProject(projectKey: string | null): void {
   try {
-    localStorage.setItem(PANEL_PROJECT_STORAGE_KEY, projectKey);
+    localStorage.setItem(PANEL_PROJECT_STORAGE_KEY, projectKey ?? NO_PROJECT_STORED);
   } catch {
     // 見上面的說明：寫不進去不算錯誤。
   }

@@ -1,5 +1,6 @@
 import { useRef, useState, type CSSProperties } from 'react';
 import { useParams, useSearchParams } from 'react-router';
+import type { AssistantScope } from '../../api/assistant';
 import type { AiOptions } from '../../api/aiTypes';
 import type { ProjectDetail } from '../../api/types';
 import { Button } from '../../components/Button/Button';
@@ -31,7 +32,8 @@ const LEAVE_LABELS = {
 } as const;
 
 interface AssistantWorkspaceProps {
-  readonly detail: ProjectDetail;
+  /** 專案；null 是不選專案的頁（/assistant）：沒有麵包屑與項目選擇。 */
+  readonly detail: ProjectDetail | null;
   readonly options: AiOptions;
 }
 
@@ -41,7 +43,7 @@ function ConversationDialog({
   currentId,
   onClose,
 }: {
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   readonly currentId: string | undefined;
   readonly onClose: () => void;
 }) {
@@ -53,7 +55,7 @@ function ConversationDialog({
 }
 
 /** 寬螢幕左邊的對話清單，加上和對話之間可以拖的分隔線（調列表的寬度）。 */
-function ListColumn({ projectKey, currentId, width }: { readonly projectKey: string; readonly currentId: string | undefined; readonly width: ListWidth }) {
+function ListColumn({ projectKey, currentId, width }: { readonly projectKey: AssistantScope; readonly currentId: string | undefined; readonly width: ListWidth }) {
   return (
     <>
       <aside id={LIST_ID} className={styles.sidebar} aria-label="對話清單">
@@ -65,7 +67,7 @@ function ListColumn({ projectKey, currentId, width }: { readonly projectKey: str
 }
 
 interface PageActionsProps {
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   readonly itemKey: string | null;
   readonly onChooseItem: (itemKey: string | null) => void;
   readonly isCompact: boolean;
@@ -76,7 +78,7 @@ interface PageActionsProps {
 function PageActions({ projectKey, itemKey, onChooseItem, isCompact, onOpenList }: PageActionsProps) {
   return (
     <>
-      <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} size="compact" />
+      {projectKey !== null && <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} size="compact" />}
       {isCompact && (
         <Button onClick={onOpenList}>
           <Icon name="menu" />
@@ -93,11 +95,12 @@ function PageActions({ projectKey, itemKey, onChooseItem, isCompact, onOpenList 
  * 窄螢幕（48rem 以下）清單收成頁列上的一顆「對話」，打開一個對話框列出。
  */
 export function AssistantWorkspace({ detail, options }: AssistantWorkspaceProps) {
-  const projectKey = detail.project.key;
+  const projectKey = detail?.project.key ?? null;
   const { conversationId } = useParams();
   const isCompact = useIsCompact();
   const [isListOpen, setIsListOpen] = useState(false);
-  const crumbs = [{ label: detail.project.name, to: useProjectPageLink(projectKey) }];
+  const projectPageLink = useProjectPageLink(projectKey ?? '');
+  const crumbs = detail === null ? [] : [{ label: detail.project.name, to: projectPageLink }];
 
   const workspaceRef = useRef<HTMLDivElement>(null);
   const listWidth = useListWidth(workspaceRef);

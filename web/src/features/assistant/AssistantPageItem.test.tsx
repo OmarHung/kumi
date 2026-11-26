@@ -71,9 +71,9 @@ describe('整頁的 AI 助理：選項目', () => {
         makeAssistantMessage({
           id: 'a1',
           parts: [
-            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null },
-            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null },
-            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id },
+            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null, projectProposalId: null },
+            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null, projectProposalId: null },
+            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id, projectProposalId: null },
           ],
         }),
       ],

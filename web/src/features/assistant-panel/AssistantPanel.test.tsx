@@ -546,7 +546,7 @@ describe('專案', () => {
     // Arrange
     const first = openApp('/projects');
     const panel = await openPanel(first.user);
-    expect(await within(panel).findByText('先在上面選一個專案，助理會幫你調整它的設定。')).toBeInTheDocument();
+    expect(await within(panel).findByText(/先在上面選一個專案，助理會幫你調整它的設定/)).toBeInTheDocument();
 
     // Act
     await chooseOption(first.user, within(panel).getByRole('combobox', { name: '專案' }), '接案測試（AGY）');

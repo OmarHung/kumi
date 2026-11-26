@@ -124,6 +124,7 @@ internal sealed class AssistantReplyRunner(
             provider.GetRequiredService<IItemActivityService>(),
             provider.GetRequiredService<IPeopleDirectory>(),
             provider.GetRequiredService<IItemProposalCreator>(),
+            provider.GetRequiredService<IProjectProposalCreator>(),
             request.ConversationId,
             logger);
         var selection = request.Selection.Selection;
@@ -355,8 +356,12 @@ internal sealed class AssistantReplyRunner(
     {
         var messages = new List<ChatMessage>
         {
-            new(ChatRole.System, AssistantPrompt.SystemPrompt),
-            new(ChatRole.System, AssistantPrompt.ProjectNote(request.ProjectKey, request.Permissions, request.Asker)),
+            request.ProjectKey is null
+                ? new(ChatRole.System, AssistantPrompt.OrganizationSystemPrompt)
+                : new(ChatRole.System, AssistantPrompt.SystemPrompt),
+            request.ProjectKey is null
+                ? new(ChatRole.System, AssistantPrompt.OrganizationNote(request.Actor.IsOrganizationAdmin, request.Asker))
+                : new(ChatRole.System, AssistantPrompt.ProjectNote(request.ProjectKey, request.Permissions, request.Asker)),
         };
         if (request.ItemKey is not null)
         {

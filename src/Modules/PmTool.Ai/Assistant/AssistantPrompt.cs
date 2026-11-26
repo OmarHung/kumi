@@ -16,9 +16,17 @@ internal static class AssistantPrompt
     private static readonly string[] References =
         ["project-blueprint.schema.json", "changeset.schema.json", "planning-structure.md"];
 
+    // 不選專案的對話只讀「專案的結構怎麼決定」的建議；藍圖與變更集的格式用不到。
+    private static readonly string[] OrganizationReferences = ["planning-structure.md"];
+
     private static readonly Lazy<string> Composed = new(Compose, LazyThreadSafetyMode.ExecutionAndPublication);
 
+    private static readonly Lazy<string> ComposedForOrganization = new(ComposeForOrganization, LazyThreadSafetyMode.ExecutionAndPublication);
+
     public static string SystemPrompt => Composed.Value;
+
+    /// <summary>不選專案的組織對話的系統提示：同一份「規則」，加上模板與新專案建議的做法。</summary>
+    public static string OrganizationSystemPrompt => ComposedForOrganization.Value;
 
     /// <summary>
     /// 這則對話的專案與使用者權限的一句說明，放在系統提示之後。只放代號：專案名稱是專案管理者寫的內容，
@@ -33,6 +41,14 @@ internal static class AssistantPrompt
         $"這則對話在專案代號 {projectKey} 的專案。使用者在這個專案：能讀設定；"
         + $"{(permissions.Contains(WorkPermissions.BlueprintPropose) ? "能" : "不能")}提出變更集；"
         + $"{(permissions.Contains(WorkPermissions.BlueprintApply) ? "能" : "不能")}核准。"
+        + (asker is null ? string.Empty : AskerSentence(asker));
+
+    /// <summary>
+    /// 不選專案的組織對話的一句說明，放在系統提示之後。使用者能不能開新專案（只有組織管理員能）寫在這裡，助理才知道要不要提出；
+    /// 發問的人（<paramref name="asker"/>）的寫法和 <see cref="ProjectNote"/> 一樣。
+    /// </summary>
+    public static string OrganizationNote(bool canCreateProjects, Asker? asker = null) =>
+        $"這則對話不屬於任何專案。使用者{(canCreateProjects ? "能" : "不能")}開新專案（只有組織管理員能）。"
         + (asker is null ? string.Empty : AskerSentence(asker));
 
     private static string AskerSentence(Asker asker) =>
@@ -73,10 +89,26 @@ internal static class AssistantPrompt
     /// </summary>
     public static string ItemNote(string itemKey) => $"使用者正在看項目 {itemKey}，用 get_item 讀它。";
 
-    private static string Compose()
+    private static string Compose() => WithReferences(
+        string.Join(
+            "\n\n",
+            ReadResource("system.md").Trim(),
+            ReadResource("rules.md").Trim() + "\n" + ReadResource("rules-project.md").Trim(),
+            ReadResource("system-closing.md").Trim()),
+        References);
+
+    private static string ComposeForOrganization() => WithReferences(
+        string.Join(
+            "\n\n",
+            ReadResource("organization.md").Trim(),
+            ReadResource("rules.md").Trim(),
+            ReadResource("organization-closing.md").Trim()),
+        OrganizationReferences);
+
+    private static string WithReferences(string text, string[] references)
     {
-        var builder = new StringBuilder(ReadResource("system.md").TrimEnd());
-        foreach (var name in References)
+        var builder = new StringBuilder(text);
+        foreach (var name in references)
         {
             builder.Append("\n\n<reference name=\"").Append(name).Append("\">\n")
                 .Append(ReadResource(name).Trim())

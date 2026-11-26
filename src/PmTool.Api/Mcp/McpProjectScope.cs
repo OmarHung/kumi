@@ -4,8 +4,9 @@ using PmTool.Identity;
 namespace PmTool.Api.Mcp;
 
 /// <summary>
-/// 本機代理（權杖有 <c>agent:run</c>）一次只替一則對話做事，那則對話屬於一個專案：每個請求都要用 <c>X-Kumi-Project</c> 標頭說明是哪個，
-/// 所有工具只准碰那個專案。標頭是傳輸層的設定（本機代理啟動引擎時寫進 MCP 設定），模型改不了，
+/// 本機代理（權杖有 <c>agent:run</c>）一次只替一則對話做事。對話屬於一個專案時，每個請求都要用 <c>X-Kumi-Project</c> 標頭說明是哪個，
+/// 所有工具只准碰那個專案；不選專案的組織對話不帶專案標頭，範圍是「只限組織」（見 <see cref="McpScope"/>）。
+/// 範圍由伺服器用 <c>X-Kumi-Job</c> 的工作找到對話決定，標頭只用來核對。標頭是傳輸層的設定（本機代理啟動引擎時寫進 MCP 設定），模型改不了，
 /// 所以項目內容裡夾帶的提示注入也無法讓它讀或改別的專案。一般的權杖（OAuth、個人存取權杖）不受影響。
 /// </summary>
 internal static partial class McpProjectScope
@@ -19,7 +20,18 @@ internal static partial class McpProjectScope
 
     public const string UnknownJobMessage = "找不到這件工作：它可能已經結束、不是你的，或專案和 X-Kumi-Project 不同。";
 
-    public const string MissingMessage = "本機代理要帶專案：請求要有 X-Kumi-Project 標頭（這則對話的專案代號）。";
+    public const string MissingMessage =
+        "本機代理要說明這是哪一則對話：專案的對話要有 X-Kumi-Project 標頭（專案代號），不選專案的組織對話要有 X-Kumi-Job 標頭（工作編號）。";
+
+    /// <summary>工作屬於不選專案的組織對話，請求卻帶了專案：不讓代理（或被注入的提示）把組織對話指到某個專案。</summary>
+    public const string OrganizationJobWithProjectMessage =
+        "這件工作屬於不選專案的組織對話，請求不能帶 X-Kumi-Project：請更新 kumi（kumi update）後再試。";
+
+    /// <summary>有帶專案標頭（不管內容對不對）。</summary>
+    public static bool HasHeader(HttpRequest request) => request.Headers.ContainsKey(Header);
+
+    /// <summary>有帶工作標頭（不管內容對不對）。</summary>
+    public static bool HasJobHeader(HttpRequest request) => request.Headers.ContainsKey(JobHeader);
 
     /// <summary>這把權杖是不是本機代理的（要受專案限制）。</summary>
     public static bool Applies((Guid TokenId, IReadOnlyList<AccessTokenScope> Scopes)? token) =>

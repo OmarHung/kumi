@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from 'react';
 import type { AiOptions, AiSelection } from '../../api/aiTypes';
+import type { AssistantScope } from '../../api/assistant';
 import { Button } from '../../components/Button/Button';
 import { Icon } from '../../components/Icon/Icon';
 import { IconButton } from '../../components/IconButton/IconButton';
@@ -16,9 +17,16 @@ import styles from './Assistant.module.css';
 
 const SETTINGS_PLACEHOLDER = '描述你想怎麼改這個專案的設定…';
 const ITEM_PLACEHOLDER = '問這個項目的事，或請助理建議怎麼改…';
+const ORGANIZATION_PLACEHOLDER = '問模板、規劃，或請助理幫你開新專案…';
+
+function placeholderOf(isOrganization: boolean, hasItem: boolean): string {
+  if (isOrganization) return ORGANIZATION_PLACEHOLDER;
+  return hasItem ? ITEM_PLACEHOLDER : SETTINGS_PLACEHOLDER;
+}
 
 interface ComposerProps {
-  readonly projectKey: string;
+  /** null 是不選專案（組織的對話）：沒有附件，附加檔案、拖進來、貼上都不開放。 */
+  readonly projectKey: AssistantScope;
   readonly options: AiOptions;
   /** 現在用哪一個；null 是組織沒有開放任何模型（不能送）。 */
   readonly selection: AiSelection | null;
@@ -52,7 +60,8 @@ interface ComposerBarProps extends Pick<ComposerProps, 'options' | 'selection' |
   readonly sendHint: string;
   readonly sendKey: SendKey;
   readonly isCompact: boolean;
-  readonly onPickFiles: (files: readonly File[]) => void;
+  /** null：這個對話不收附件，不畫迴紋針。 */
+  readonly onPickFiles: ((files: readonly File[]) => void) | null;
 }
 
 /** 沒有可選的模型：有主機來源現在不能用時，逐一說明原因（來源名稱加伺服器給的一句話）；都沒有才叫人去開放。 */
@@ -94,7 +103,7 @@ function AttachButton({ onPick }: { readonly onPick: (files: readonly File[]) =>
 function ComposerBar({ options, selection, onSelectionChange, isStreaming, canSend, sendHint, sendKey, isCompact, onStop, onPickFiles }: ComposerBarProps) {
   return (
     <div className={styles.composerBar}>
-      <AttachButton onPick={onPickFiles} />
+      {onPickFiles !== null && <AttachButton onPick={onPickFiles} />}
       <div className={styles.pickers}>
         {selection === null ? (
           // 只剩現在不能用的主機來源：說伺服器給的原因，不叫人去「AI 助理設定」開放（模型其實開著）。
@@ -201,7 +210,7 @@ function attachmentState(entries: readonly AttachmentEntry[], source: EngineSour
  * 檔案拖進輸入框：外框換成虛線，放開就附加；沒有檔案的拖曳（選取的文字）照舊。
  * 用 dragenter／dragleave 計數（進到裡面的子元素會先 enter 再 leave）：Safari 的 dragleave 常沒有 relatedTarget，不能靠它判斷離開。
  */
-function useFileDrop(onFiles: (files: readonly File[]) => void) {
+function useFileDrop(onFiles: ((files: readonly File[]) => void) | null) {
   const [isDragging, setIsDragging] = useState(false);
   const depth = useRef(0);
   const reset = () => {
@@ -229,10 +238,11 @@ function useFileDrop(onFiles: (files: readonly File[]) => void) {
       if (!hasFiles(event)) return;
       event.preventDefault();
       reset();
-      onFiles(Array.from(event.dataTransfer.files));
+      onFiles?.(Array.from(event.dataTransfer.files));
     },
   };
-  return { isDragging, dropProps };
+  // 不收附件的對話（不選專案）：不接管拖放，也不顯示「放開以附加」的狀態。
+  return onFiles === null ? { isDragging: false, dropProps: {} } : { isDragging, dropProps };
 }
 
 interface AttachmentAreaProps {
@@ -265,9 +275,10 @@ function AttachmentArea({ projectKey, attachments, source, hasUnsupported, isLoc
  */
 export function Composer({ projectKey, options, selection, onSelectionChange, isStreaming, isSending, createdConversationId, isLoading, conversationId, error, onDismissError, onSend, onStop, fill, inputRef, hasItem, isCompact = false }: ComposerProps) {
   const { text, setText, clearSent, key } = useDrafts(conversationId, fill, createdConversationId);
-  const attachments = useComposerAttachments(projectKey, conversationId, createdConversationId, isSending);
+  const attachments = useComposerAttachments(projectKey ?? '', conversationId, createdConversationId, isSending);
+  const addFiles = projectKey === null ? null : attachments.add;
   const formRef = useRef<HTMLFormElement>(null);
-  const { isDragging, dropProps } = useFileDrop(attachments.add);
+  const { isDragging, dropProps } = useFileDrop(addFiles);
   const sendKey = useSendKey();
   useRestoreFocus(isStreaming, formRef, inputRef);
   const source = engineSourceOf(options, selection);
@@ -296,20 +307,20 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
           {error}
         </Notice>
       )}
-      <AttachmentArea projectKey={projectKey} attachments={attachments} source={source} hasUnsupported={hasUnsupported} isLocked={isSending} inputRef={inputRef} />
+      {projectKey !== null && <AttachmentArea projectKey={projectKey} attachments={attachments} source={source} hasUnsupported={hasUnsupported} isLocked={isSending} inputRef={inputRef} />}
       <ComposerInput
         text={text}
         onChange={setText}
         onSubmit={submit}
         inputRef={inputRef}
-        placeholder={hasItem ? ITEM_PLACEHOLDER : SETTINGS_PLACEHOLDER}
+        placeholder={placeholderOf(projectKey === null, hasItem)}
         isDragging={isDragging}
         sendKey={sendKey}
         onPaste={(event) => {
-          pasteFiles(event, attachments.add);
+          if (addFiles !== null) pasteFiles(event, addFiles);
         }}
       />
-      <ComposerBar options={options} selection={selection} onSelectionChange={onSelectionChange} isStreaming={isStreaming} canSend={canSend} sendHint={sendKeyHint(sendKey)} sendKey={sendKey} isCompact={isCompact} onStop={onStop} onPickFiles={attachments.add} />
+      <ComposerBar options={options} selection={selection} onSelectionChange={onSelectionChange} isStreaming={isStreaming} canSend={canSend} sendHint={sendKeyHint(sendKey)} sendKey={sendKey} isCompact={isCompact} onStop={onStop} onPickFiles={addFiles} />
     </form>
   );
 }

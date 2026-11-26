@@ -101,6 +101,37 @@ internal sealed class AssistantHarness : IAsyncDisposable
         return created.Value;
     }
 
+    /// <summary>不選專案的組織對話。</summary>
+    public async Task<AssistantConversationSummary> NewOrganizationConversationAsync(Actor? actor = null)
+    {
+        var created = await Service.CreateAsync(actor ?? Actor, null, CancellationToken.None);
+        Assert.That(created.Succeeded, Is.True, () => created.Failure?.Message ?? string.Empty);
+        return created.Value;
+    }
+
+    public async Task<AssistantRun> StartOrganizationAsync(
+        Guid conversationId, string text = "幫我開一個新專案", Actor? actor = null, AiSelection? selection = null)
+    {
+        var started = await Service.StartAsync(
+            actor ?? Actor, null, conversationId, new AssistantMessageInput(text, selection ?? Selection), CancellationToken.None);
+        Assert.That(started.Succeeded, Is.True, () => started.Failure?.Message ?? string.Empty);
+        return started.Value;
+    }
+
+    public async Task<ReplyResult> SendOrganizationAsync(
+        Guid conversationId, string text = "幫我開一個新專案", Actor? actor = null, AiSelection? selection = null)
+    {
+        var run = await StartOrganizationAsync(conversationId, text, actor, selection);
+        return new ReplyResult(run, await ReadAllAsync(run));
+    }
+
+    public async Task<IReadOnlyList<AssistantMessage>> OrganizationMessagesAsync(Guid conversationId, Actor? actor = null)
+    {
+        var conversation = await Service.GetAsync(actor ?? Actor, null, conversationId, CancellationToken.None);
+        Assert.That(conversation.Succeeded, Is.True, () => conversation.Failure?.Message ?? string.Empty);
+        return conversation.Value.Messages;
+    }
+
     public async Task<AssistantRun> StartAsync(
         Guid conversationId, string text = "請把待辦改名", Actor? actor = null, AiSelection? selection = null, string? itemKey = null)
     {

@@ -26,6 +26,16 @@ export function projectAssistantPath(projectKey: string, conversationId?: string
   return itemKey === undefined || itemKey === null ? path : `${path}${searchWithPanelItem('', itemKey)}`;
 }
 
+/** 不選專案的 AI 助理整頁（組織層級的對話）。 */
+export function organizationAssistantPath(conversationId?: string): string {
+  return conversationId === undefined ? '/assistant' : `/assistant/${encodeURIComponent(conversationId)}`;
+}
+
+/** AI 助理整頁：專案代號是 null 就是不選專案的那一頁。itemKey 只有專案的對話有。 */
+export function assistantPagePath(projectKey: string | null, conversationId?: string, itemKey?: string | null): string {
+  return projectKey === null ? organizationAssistantPath(conversationId) : projectAssistantPath(projectKey, conversationId, itemKey);
+}
+
 /** 已刪除的項目頁：刪除的項目列在這裡，可以一筆一筆復原。 */
 export function projectDeletedPath(projectKey: string): string {
   return `${projectPagePath(projectKey)}/deleted`;

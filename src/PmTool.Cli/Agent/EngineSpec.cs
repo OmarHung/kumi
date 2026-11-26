@@ -31,6 +31,7 @@ internal static partial class JobValidation
     [
         "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset", "get_changeset",
         "get_item", "search_items", "propose_item_changes",
+        "list_projects", "propose_project",
     ];
 
     private const string McpPath = "/mcp";
@@ -57,8 +58,8 @@ internal static partial class JobValidation
             return "思考深度不正確";
         }
 
-        // 專案代號會原樣進 MCP 的標頭與引擎的設定：只認伺服器專案代號的格式，換行、引號都進不來。
-        if (!IsSafeProjectKey(job.ProjectKey))
+        // 專案代號會原樣進 MCP 的標頭與引擎的設定：只認伺服器專案代號的格式，換行、引號都進不來。組織對話沒有專案，不檢查。
+        if (!IsSafeOptionalProjectKey(job.ProjectKey))
         {
             return "專案代號不正確";
         }
@@ -132,13 +133,16 @@ internal static partial class JobValidation
 
     public static bool IsSafeProjectKey(string key) => ProjectKeyPattern().IsMatch(key);
 
+    /// <summary>null（組織對話）算合格；有值就要符合專案代號的格式。</summary>
+    private static bool IsSafeOptionalProjectKey(string? key) => key is null || IsSafeProjectKey(key);
+
     /// <summary>
     /// 專案代號與工作編號就要變成環境變數、再變成 HTTP 標頭了：組出啟動計畫的地方再檢查一次，不靠前面的 <see cref="Check"/> 一定有跑過。
     /// 工作編號是 GUID（不是 Guid.Empty）；不合格丟例外，這件工作就不會跑。
     /// </summary>
     public static void RequireSafeHeaderValues(AgentJob job)
     {
-        if (!IsSafeProjectKey(job.ProjectKey) || job.JobId == Guid.Empty)
+        if (!IsSafeOptionalProjectKey(job.ProjectKey) || job.JobId == Guid.Empty)
         {
             throw new ArgumentException("專案代號或工作編號的格式不正確，不啟動這件工作。");
         }

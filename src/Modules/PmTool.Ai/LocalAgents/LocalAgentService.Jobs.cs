@@ -158,28 +158,42 @@ internal sealed partial class LocalAgentService
     }
 
     /// <summary>
-    /// 回報的 itemProposalId 要是這個人、這個組織的建議才記：不然本機代理（外部送來的）能讓網頁畫出別人的建議卡片。
+    /// 回報的 itemProposalId、projectProposalId 要是這個人、這個組織的建議才記：不然本機代理（外部送來的）能讓網頁畫出別人的建議卡片。
     /// 不是的當作沒有。
     /// </summary>
     internal static async Task<IReadOnlyList<LocalAgentEvent>> KeepOwnProposalsAsync(
         AiDbContext db, Actor actor, IReadOnlyList<LocalAgentEvent> events, CancellationToken cancellationToken)
     {
-        var claimed = events.OfType<LocalAgentTool>().Select(e => e.Tool.ItemProposalId).OfType<Guid>().Distinct().ToList();
-        if (claimed.Count == 0)
+        var tools = events.OfType<LocalAgentTool>().Select(e => e.Tool).ToList();
+        var claimedItems = tools.Select(t => t.ItemProposalId).OfType<Guid>().Distinct().ToList();
+        var claimedProjects = tools.Select(t => t.ProjectProposalId).OfType<Guid>().Distinct().ToList();
+        if (claimedItems.Count == 0 && claimedProjects.Count == 0)
         {
             return events;
         }
 
         var org = actor.OrganizationId;
         var person = actor.PersonId;
-        var own = (await db.ItemProposals.AsNoTracking()
-            .Where(p => claimed.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person)
-            .Select(p => p.Id)
-            .ToListAsync(cancellationToken)).ToHashSet();
-        return [.. events.Select(e => e is LocalAgentTool { Tool.ItemProposalId: { } id } tool && !own.Contains(id)
-            ? new LocalAgentTool(tool.Tool with { ItemProposalId = null })
-            : e)];
+        var ownItems = claimedItems.Count == 0
+            ? []
+            : (await db.ItemProposals.AsNoTracking()
+                .Where(p => claimedItems.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken)).ToHashSet();
+        var ownProjects = claimedProjects.Count == 0
+            ? []
+            : (await db.ProjectProposals.AsNoTracking()
+                .Where(p => claimedProjects.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken)).ToHashSet();
+        return [.. events.Select(e => e is LocalAgentTool tool ? new LocalAgentTool(KeepOwn(tool.Tool, ownItems, ownProjects)) : e)];
     }
+
+    private static AssistantToolPart KeepOwn(AssistantToolPart tool, HashSet<Guid> ownItems, HashSet<Guid> ownProjects) => tool with
+    {
+        ItemProposalId = tool.ItemProposalId is { } item && ownItems.Contains(item) ? item : null,
+        ProjectProposalId = tool.ProjectProposalId is { } project && ownProjects.Contains(project) ? project : null,
+    };
 
     private static Result<IReadOnlyList<LocalAgentEvent>> CleanEvents(IReadOnlyList<LocalAgentEvent> events)
     {

@@ -179,7 +179,9 @@ export type AssistantToolName =
   | 'get_template'
   | 'describe_usage'
   | 'preview_changeset'
-  | 'propose_changeset';
+  | 'propose_changeset'
+  | 'list_projects'
+  | 'propose_project';
 
 export interface AssistantTextPart {
   readonly type: 'text';
@@ -197,6 +199,8 @@ export interface AssistantToolPart {
   readonly error: string | null;
   /** propose_item_changes 成功時，建立的修改建議（畫成有「套用」「不要」的卡片）。 */
   readonly itemProposalId: string | null;
+  /** propose_project 成功時，建立的新專案建議（畫成有「建立專案」「不要」的卡片）。 */
+  readonly projectProposalId: string | null;
 }
 
 export type AssistantPart = AssistantTextPart | AssistantToolPart;
@@ -314,4 +318,22 @@ export interface ItemProposal {
 export interface ItemFieldChange {
   readonly field: string;
   readonly value: unknown;
+}
+
+/** AI 助理（不選專案的對話）提出的新專案建議（internal/HANDOFF-org-assistant.md 第 4 節）：按「建立專案」才以自己的身分建立。 */
+export interface ProjectProposal {
+  readonly id: string;
+  readonly key: string;
+  readonly name: string;
+  /** 內建模板的代號。 */
+  readonly template: string;
+  readonly templateName: string;
+  readonly includeExamples: boolean;
+  /** 專案說明（Markdown）；沒有是 null。 */
+  readonly description: string | null;
+  readonly status: 'pending' | 'applied' | 'dismissed';
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  /** 套用成功後建出來的專案代號。 */
+  readonly createdProjectKey: string | null;
 }

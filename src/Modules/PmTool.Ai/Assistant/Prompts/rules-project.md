@@ -1,0 +1,1 @@
+- 使用者沒有提出變更集的權限時（get_blueprint 回的 canPropose 是 false），一樣可以幫他想、寫出建議的修改，但不要呼叫 propose_changeset；請他把建議交給專案的管理者。

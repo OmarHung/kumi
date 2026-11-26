@@ -413,6 +413,33 @@ public sealed class HostServiceTests
     }
 
     [Test]
+    public async Task Job_ForAnOrganizationConversation_RunsWithoutAProjectHeaderAndShowsNoProject()
+    {
+        // Arrange
+        _kit.InstallFakeClaude();
+        _kit.Pair(loginId: LoginId);
+        var jobId = Guid.NewGuid();
+        var wire = HostTestKit.HostJobWire(jobId);
+        wire["projectKey"] = null;
+        wire["allowedTools"] = new JsonArray("list_projects", "propose_project");
+        OnCheckIn(wire);
+        OnEventsAckEverything();
+        OnFinishThenInterrupt();
+
+        // Act
+        var result = await _cli.RunAsync("host", "run");
+
+        // Assert
+        var finish = _cli.Server.To("POST", FinishPath(jobId)).Single();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(finish.Json!["status"]!.GetValue<string>(), Is.EqualTo("complete"), result.Error);
+            Assert.That(_kit.Scripts.Read("mcp.json"), Does.Not.Contain("X-Kumi-Project").And.Contain("X-Kumi-Job"));
+            Assert.That(result.Out, Does.Contain("不選專案"));
+        }
+    }
+
+    [Test]
     public async Task Job_WhenTheEventsAreRejectedForALostLease_StopsTheEngineAndFinishesAsStopped()
     {
         // Arrange

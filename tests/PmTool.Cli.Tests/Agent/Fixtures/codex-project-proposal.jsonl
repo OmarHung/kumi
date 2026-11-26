@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"t1"}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"propose_project","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"propose_project","status":"completed","result":{"content":[{"type":"text","text":"{\"proposalId\":\"7c1e5a90-2b3d-4f68-9a01-5d8e6f7a8b92\"}"}]}}}
+{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}

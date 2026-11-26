@@ -14,7 +14,7 @@ internal sealed class HostReservations(
     IDbContextFactory<AiDbContext> contexts, HostUsageReader usage, TimeProvider time)
 {
     public async Task<Result<Guid>> ReserveAsync(
-        Actor actor, Guid sourceId, string projectKey, Guid conversationId, Guid messageId, CancellationToken cancellationToken)
+        Actor actor, Guid sourceId, string? projectKey, Guid conversationId, Guid messageId, CancellationToken cancellationToken)
     {
         var month = (await usage.MonthAsync(actor.OrganizationId, null, cancellationToken))!;
         var day = await usage.DayAsync(actor.OrganizationId, cancellationToken);

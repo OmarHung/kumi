@@ -73,9 +73,11 @@ internal sealed class LocalAgentRelay(
             selection.Model,
             selection.Effort,
             request.ProjectKey,
-            LocalPromptBuilder.SystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey, request.Asker),
+            request.ProjectKey is null
+                ? LocalPromptBuilder.OrganizationSystemPrompt(request.Actor.IsOrganizationAdmin, request.Asker)
+                : LocalPromptBuilder.SystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey, request.Asker),
             LocalPromptBuilder.Prompt(request.History, request.UserText, request.Asker),
-            LocalAgentTools.Allowed,
+            request.ProjectKey is null ? LocalAgentTools.AllowedForOrganization : LocalAgentTools.Allowed,
             request.McpUrl ?? string.Empty,
             AiRules.MaxToolCallsPerReply + 1)
         {

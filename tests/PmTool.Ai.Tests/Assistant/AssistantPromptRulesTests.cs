@@ -10,11 +10,24 @@ namespace PmTool.Ai.Tests.Assistant;
 [TestFixture]
 public sealed class AssistantPromptRulesTests
 {
-    private static IEnumerable<TestCaseData> Prompts()
+    private static IEnumerable<TestCaseData> ProjectPrompts()
     {
         yield return new TestCaseData(AssistantPrompt.SystemPrompt).SetName("內建助理");
         yield return new TestCaseData(LocalPromptBuilder.SystemPrompt("WEB", [])).SetName("本機代理");
         yield return new TestCaseData(LocalPromptBuilder.HostSystemPrompt("WEB", [])).SetName("主機代理");
+    }
+
+    // 不選專案的組織對話：三條路的組織版也要拿到同一份「規則」。
+    private static IEnumerable<TestCaseData> Prompts()
+    {
+        foreach (var project in ProjectPrompts())
+        {
+            yield return project;
+        }
+
+        yield return new TestCaseData(AssistantPrompt.OrganizationSystemPrompt).SetName("內建助理（組織）");
+        yield return new TestCaseData(LocalPromptBuilder.OrganizationSystemPrompt(canCreateProjects: true)).SetName("本機代理（組織）");
+        yield return new TestCaseData(LocalPromptBuilder.HostOrganizationSystemPrompt(canCreateProjects: true)).SetName("主機代理（組織）");
     }
 
     [TestCaseSource(nameof(Prompts))]
@@ -39,6 +52,8 @@ public sealed class AssistantPromptRulesTests
     {
         yield return new TestCaseData(LocalPromptBuilder.SystemPrompt("WEB", [])).SetName("本機代理的對話格式");
         yield return new TestCaseData(LocalPromptBuilder.HostSystemPrompt("WEB", [])).SetName("主機代理的對話格式");
+        yield return new TestCaseData(LocalPromptBuilder.OrganizationSystemPrompt(true)).SetName("本機代理的對話格式（組織）");
+        yield return new TestCaseData(LocalPromptBuilder.HostOrganizationSystemPrompt(true)).SetName("主機代理的對話格式（組織）");
     }
 
     [TestCaseSource(nameof(EnginePrompts))]
@@ -64,7 +79,7 @@ public sealed class AssistantPromptRulesTests
         }
     }
 
-    [TestCaseSource(nameof(Prompts))]
+    [TestCaseSource(nameof(ProjectPrompts))]
     public void SystemPrompt_TellsTheModelHowToMentionMembersOnly(string prompt)
     {
         // Act & Assert：寫成「@小明」只是文字，不會通知任何人；格式要和 PmTool.Work 的 Mentions 一致，編號只能用成員名單裡的。
@@ -90,6 +105,77 @@ public sealed class AssistantPromptRulesTests
         {
             Assert.That(prompt, Does.Contain("單獨一行的 `[REPLY]`"));
             Assert.That(prompt, Does.Contain("這一行之前不要寫任何東西"));
+        }
+    }
+
+    [Test]
+    public void ProjectSystemPrompt_KeepsItsSectionsInTheOriginalOrder()
+    {
+        // Arrange
+        var prompt = AssistantPrompt.SystemPrompt;
+
+        // Act
+        var order = new[] { "## 你能做的與不能做的", "## 項目", "## 變更集的寫法", "## 規則", "使用者沒有提出變更集的權限時", "以下是格式與", "<reference name=\"project-blueprint.schema.json\">", "<reference name=\"planning-structure.md\">" }
+            .Select(marker => prompt.IndexOf(marker, StringComparison.Ordinal)).ToList();
+
+        // Assert：抽出共用的規則之後，專案版的段落順序與內容不變。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(order, Has.None.EqualTo(-1));
+            Assert.That(order, Is.Ordered);
+        }
+    }
+
+    [Test]
+    public void OrganizationSystemPrompt_TeachesTheFourToolsAndLeavesOutProjectOnlyThings()
+    {
+        // Act
+        var prompt = AssistantPrompt.OrganizationSystemPrompt;
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompt, Does.Contain("list_templates").And.Contain("get_template").And.Contain("list_projects").And.Contain("propose_project"));
+            Assert.That(prompt, Does.Contain("請按『建立專案』"));
+            Assert.That(prompt, Does.Contain("<reference name=\"planning-structure.md\">"));
+            Assert.That(prompt, Does.Not.Contain("propose_changeset").And.Not.Contain("get_blueprint").And.Not.Contain("get_item"));
+            Assert.That(prompt, Does.Not.Contain("changeset.schema.json"));
+        }
+    }
+
+    [Test]
+    public void OrganizationNote_SaysWhetherTheAskerMayOpenProjectsAndWhoTheyAre()
+    {
+        // Arrange
+        var asker = new Asker(Guid.Parse("11111111-1111-1111-1111-111111111111"), "王小明", "ming@example.com", PmTool.Identity.OrganizationRole.Admin);
+
+        // Act
+        var can = AssistantPrompt.OrganizationNote(true, asker);
+        var cannot = AssistantPrompt.OrganizationNote(false);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(can, Does.StartWith("這則對話不屬於任何專案。使用者能開新專案（只有組織管理員能）。"));
+            Assert.That(can, Does.Contain("發問的人是「王小明」").And.Contain("ming@example.com").And.Contain("11111111-1111-1111-1111-111111111111"));
+            Assert.That(cannot, Is.EqualTo("這則對話不屬於任何專案。使用者不能開新專案（只有組織管理員能）。"));
+        }
+    }
+
+    [Test]
+    public void OrganizationEnginePrompts_ListOnlyTheOrganizationTools()
+    {
+        // Act
+        var local = LocalPromptBuilder.OrganizationSystemPrompt(false);
+        var host = LocalPromptBuilder.HostOrganizationSystemPrompt(false);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(local, Does.Contain("你只能用這四個").And.Contain("所有工具都不用帶 projectKey").And.Contain("使用者不能開新專案"));
+            Assert.That(host, Does.Contain("你執行在 Kumi 的主機上").And.Contain("你只能用這四個"));
+            Assert.That(local, Does.Not.Contain("preview_changeset"));
+            Assert.That(host, Does.Not.Contain("你的電腦"));
         }
     }
 }

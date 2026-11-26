@@ -98,7 +98,7 @@ public sealed class AssistantEndpointTests
                "status":null,"error":null,"selection":null,"connectionName":null,"usage":null,"itemKey":null,"attachments":[]},
               {"id":"33333333-3333-3333-3333-333333333332","role":"assistant","createdAt":"2026-11-23T03:01:00Z",
                "parts":[{"type":"text","text":"好，我先讀目前的設定。"},
-                        {"type":"tool","callId":"c1","name":"propose_changeset","status":"done","changeSetNumber":12,"error":null,"itemProposalId":null}],
+                        {"type":"tool","callId":"c1","name":"propose_changeset","status":"done","changeSetNumber":12,"error":null,"itemProposalId":null,"projectProposalId":null}],
                "status":"complete","error":null,
                "selection":{"connectionId":"11111111-1111-1111-1111-111111111111","model":"claude-opus-5-5","effort":"high"},
                "connectionName":"Anthropic","usage":{"inputTokens":1200,"outputTokens":300},"itemKey":null,"attachments":[]}]}

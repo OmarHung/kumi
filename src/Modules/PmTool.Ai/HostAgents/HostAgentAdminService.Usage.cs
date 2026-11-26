@@ -29,11 +29,11 @@ internal sealed partial class HostAgentAdminService
         var rows = HostUsageReader.Counted(db, actor.OrganizationId, window).Where(u => u.SourceId == sourceId);
         var total = await HostUsageReader.TotalsAsync(rows, cancellationToken);
         var byPerson = await HostUsageReader.TotalsByAsync(rows, u => u.PersonId, cancellationToken);
-        var byProject = await HostUsageReader.TotalsByAsync(rows, u => u.ProjectKey, cancellationToken);
+        var byProject = await HostUsageReader.TotalsByAsync(rows, u => u.ProjectKey ?? string.Empty, cancellationToken);
         return new HostSourceUsage(
             window.Label,
             total,
             [.. byPerson.OrderByDescending(p => p.Value.Requests).ThenBy(p => p.Key).Select(p => new HostPersonUsage(p.Key, p.Value))],
-            [.. byProject.OrderByDescending(p => p.Value.Requests).ThenBy(p => p.Key, StringComparer.Ordinal).Select(p => new HostProjectUsage(p.Key, p.Value))]);
+            [.. byProject.OrderByDescending(p => p.Value.Requests).ThenBy(p => p.Key, StringComparer.Ordinal).Select(p => new HostProjectUsage(p.Key.Length == 0 ? null : p.Key, p.Value))]);
     }
 }

@@ -51,6 +51,19 @@ internal sealed class McpArguments(IDictionary<string, JsonElement>? values)
             : text;
     }
 
+    /// <summary>沒給或給 null 是 null；不是 true／false 就擋下（不收 "true" 這種字串，模型寫錯時才知道）。</summary>
+    public bool? OptionalBool(string name)
+    {
+        if (!_values.TryGetValue(name, out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        return value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
+            : throw new McpArgumentException($"參數 {name} 要是 true 或 false。");
+    }
+
     public int? OptionalInt(string name, int min, int max)
     {
         if (!_values.TryGetValue(name, out var value) || value.ValueKind == JsonValueKind.Null)

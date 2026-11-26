@@ -97,7 +97,11 @@ export function exampleSourceUsage(overrides: Partial<HostSourceUsage> = {}): Ho
       { person: { personId: 'p-1', displayName: '小明' }, totals: { requests: 8, completed: 7, failed: 1, stopped: 0, inputTokens: 90000, outputTokens: 6000 } },
       { person: { personId: 'p-2', displayName: '小華' }, totals: { requests: 4, completed: 3, failed: 0, stopped: 1, inputTokens: 30000, outputTokens: 2000 } },
     ],
-    projects: [{ projectKey: 'WEB', totals: { requests: 12, completed: 10, failed: 1, stopped: 1, inputTokens: 120000, outputTokens: 8000 } }],
+    projects: [
+      { projectKey: 'WEB', totals: { requests: 10, completed: 8, failed: 1, stopped: 1, inputTokens: 100000, outputTokens: 7000 } },
+      // 不選專案的組織對話：projectKey 是 null。
+      { projectKey: null, totals: { requests: 2, completed: 2, failed: 0, stopped: 0, inputTokens: 20000, outputTokens: 1000 } },
+    ],
     ...overrides,
   };
 }

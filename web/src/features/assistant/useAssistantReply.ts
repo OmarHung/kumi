@@ -2,10 +2,10 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router';
 import type { AiSelection, AssistantConversation, AssistantStreamEvent } from '../../api/aiTypes';
-import { getConversation, streamAssistantReply, useCreateConversation, type StreamOutcome } from '../../api/assistant';
+import { getConversation, streamAssistantReply, useCreateConversation, type AssistantScope, type StreamOutcome } from '../../api/assistant';
 import { errorMessage } from '../../api/http';
 import { queryKeys } from '../../api/queryKeys';
-import { projectAssistantPath } from '../work-items/itemLinks';
+import { assistantPagePath } from '../work-items/itemLinks';
 import type { ReplyPhase } from './replyPhase';
 import { applyStreamEvent, mergeStored } from './streamCache';
 
@@ -50,7 +50,7 @@ interface ScopedError {
 
 interface StreamContext {
   readonly queryClient: QueryClient;
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   readonly setActive: (next: ActiveReply | null) => void;
   readonly onStarted: (messageId: string) => void;
   /** 之後又開始了這個對話的下一輪：這一輪留下的重讀不能整份取代快取。 */
@@ -173,7 +173,7 @@ interface RunMark {
 
 /** 開始收一則回覆：串流開始之前的失敗（什麼都沒送出）記成這個對話的說明，字留在輸入框。 */
 function useRunReply(
-  projectKey: string,
+  projectKey: AssistantScope,
   controllerRef: RefObject<AbortController | null>,
   activeRef: RefObject<ActiveReply | null>,
   setActive: (next: ActiveReply | null) => void,
@@ -225,7 +225,7 @@ interface SendState {
  * 防重送一進來就先佔住（ref），整個流程結束才放掉。
  */
 function useSend(
-  projectKey: string,
+  projectKey: AssistantScope,
   conversationId: string | undefined,
   run: (id: string, request: SendRequest) => Promise<void>,
   setScopedError: (error: ScopedError | null) => void,
@@ -254,7 +254,7 @@ function useSend(
           // 先換過去再送：換了之後這一頁的對話編號才是這一則，回覆長出來的地方才看得到。
           // 整頁換網址；浮動的面板不動網址（頁面是使用者正在看的別的東西），由呼叫端記下新的對話編號。
           setCreatedId(id);
-          if (onCreated === undefined) void navigate(projectAssistantPath(projectKey, id), { replace: true });
+          if (onCreated === undefined) void navigate(assistantPagePath(projectKey, id), { replace: true });
           else onCreated(id);
         }
         await run(id, request);
@@ -273,7 +273,7 @@ function useSend(
  * 使用者按停止、換到別的對話或離開頁面就中斷。沒收到 done（中途斷線）或被停止時重抓這則對話：伺服器存下來的才算數。
  */
 export function useAssistantReply(
-  projectKey: string,
+  projectKey: AssistantScope,
   conversationId: string | undefined,
   /** 開了新的對話之後（網址以外的地方記對話編號時給，例如浮動的面板）；沒給就換整頁的網址。 */
   onCreated?: (id: string) => void,

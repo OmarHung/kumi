@@ -6,6 +6,18 @@ namespace PmTool.Ai.Assistant.Tools;
 internal static class AssistantToolSet
 {
     public static IList<AITool> Create(AssistantToolContext context) =>
+        context.ProjectKey is null ? CreateForOrganization(context) : CreateForProject(context);
+
+    /// <summary>不選專案的組織對話：只有模板、看得到的專案清單與提出新專案；讀不到任何專案的設定或項目。</summary>
+    private static IList<AITool> CreateForOrganization(AssistantToolContext context) =>
+    [
+        new ListTemplatesTool(context),
+        new GetTemplateTool(context),
+        new ListProjectsTool(context),
+        new ProposeProjectTool(context),
+    ];
+
+    private static IList<AITool> CreateForProject(AssistantToolContext context) =>
     [
         new GetBlueprintTool(context),
         new ListTemplatesTool(context),

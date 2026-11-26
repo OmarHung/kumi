@@ -16,7 +16,7 @@ internal sealed class ConnectionUsageLedger(IDbContextFactory<AiDbContext> conte
 {
     /// <summary>預留一則。<paramref name="usageId"/> 用助理那則訊息的編號，結束時才找得到同一筆。</summary>
     public async Task<Failure?> ReserveAsync(
-        Actor actor, Guid connectionId, string projectKey, Guid usageId, CancellationToken cancellationToken)
+        Actor actor, Guid connectionId, string? projectKey, Guid usageId, CancellationToken cancellationToken)
     {
         var month = (await windows.MonthAsync(actor.OrganizationId, null, cancellationToken))!;
         var day = await windows.DayAsync(actor.OrganizationId, cancellationToken);
@@ -60,7 +60,7 @@ internal sealed class ConnectionUsageLedger(IDbContextFactory<AiDbContext> conte
     /// 則數才照實際呼叫的次數算。不檢查上限：這一則已經預留過了，不能在重試的半途才拒絕。
     /// </summary>
     public static async Task RecordRejectedCallAsync(
-        AiDbContext db, Guid organizationId, Guid connectionId, Guid personId, string projectKey, DateTimeOffset now)
+        AiDbContext db, Guid organizationId, Guid connectionId, Guid personId, string? projectKey, DateTimeOffset now)
     {
         db.ConnectionUsage.Add(new AiConnectionUsageRow
         {

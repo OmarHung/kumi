@@ -9,6 +9,7 @@ using PmTool.Ai.Items;
 using PmTool.Ai.LocalAgents;
 using PmTool.Ai.Login;
 using PmTool.Ai.Persistence;
+using PmTool.Ai.ProjectProposals;
 using PmTool.Ai.Providers;
 using PmTool.Ai.Settings;
 using PmTool.Storage;
@@ -109,6 +110,10 @@ public static class AiModule
         services.TryAddScoped<IItemProposalCreator, ItemProposalCreator>();
         services.TryAddScoped<ItemProposalApplier>();
         services.TryAddScoped<IItemProposalService, ItemProposalService>();
+
+        // 新專案建議（不選專案的組織對話）：同樣只建立建議，使用者按「建立專案」才以自己的身分建立。
+        services.TryAddScoped<IProjectProposalCreator, ProjectProposalCreator>();
+        services.TryAddScoped<IProjectProposalService, ProjectProposalService>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IModuleInitializer, AiMigrator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IReadinessProbe, AiReadinessProbe>());

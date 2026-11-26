@@ -12,7 +12,7 @@ namespace PmTool.Ai.Assistant;
 /// <param name="AssistantSequence">這則回覆存下來時在對話裡的序號。</param>
 internal sealed record ReplyRequest(
     Actor Actor,
-    string ProjectKey,
+    string? ProjectKey,
     IReadOnlyList<string> Permissions,
     Guid ConversationId,
     Guid AssistantMessageId,

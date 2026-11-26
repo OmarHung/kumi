@@ -64,7 +64,9 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
 
         arguments.AddRange(["-c", $"mcp_servers.kumi.url={Toml(job.McpUrl)}"]);
         // 專案代號與工作編號經環境變數交給 Codex（env_http_headers：標頭名稱 → 變數名稱），不寫在命令列上：ps 看得到命令列。
-        arguments.AddRange(["-c", $"mcp_servers.kumi.env_http_headers={{ \"X-Kumi-Project\" = {Toml(ProjectVariable)}, \"X-Kumi-Job\" = {Toml(JobVariable)} }}"]);
+        // 組織對話沒有專案，不送專案標頭（也不設那個環境變數）。
+        var projectHeader = job.ProjectKey is null ? string.Empty : $"\"X-Kumi-Project\" = {Toml(ProjectVariable)}, ";
+        arguments.AddRange(["-c", $"mcp_servers.kumi.env_http_headers={{ {projectHeader}\"X-Kumi-Job\" = {Toml(JobVariable)} }}"]);
         arguments.AddRange(["-c", $"mcp_servers.kumi.enabled_tools=[{string.Join(',', job.AllowedTools.Select(Toml))}]"]);
         if (job.Model != EngineModel.DefaultId)
         {
@@ -101,11 +103,13 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
         var standardInput = overflow
             ? $"{SystemPromptHeader}\n\n{job.SystemPrompt}\n\n{ConversationHeader}\n\n{job.Prompt}"
             : job.Prompt;
-        var variables = new Dictionary<string, string>
+        var variables = new Dictionary<string, string>();
+        if (job.ProjectKey is not null)
         {
-            [ProjectVariable] = job.ProjectKey,
-            [JobVariable] = job.JobId.ToString(),
-        };
+            variables[ProjectVariable] = job.ProjectKey;
+        }
+
+        variables[JobVariable] = job.JobId.ToString();
         return new LaunchPlan(arguments, standardInput, new Dictionary<string, string>(), variables);
     }
 

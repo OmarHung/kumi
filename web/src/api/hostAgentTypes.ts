@@ -158,7 +158,8 @@ export interface HostPersonUsage {
 }
 
 export interface HostProjectUsage {
-  readonly projectKey: string;
+  /** null：不選專案的組織對話（畫面寫「不選專案」）。 */
+  readonly projectKey: string | null;
   readonly totals: HostUsageTotals;
 }
 

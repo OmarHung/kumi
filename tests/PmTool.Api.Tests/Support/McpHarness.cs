@@ -48,7 +48,14 @@ internal sealed class McpHarness : IAsyncDisposable
     public static Task<McpHarness> StartAsync(AuthenticatedUser user, string? project, params AccessTokenScope[] scopes) =>
         StartAsync(user, project, scopes, sendJob: true);
 
-    private static async Task<McpHarness> StartAsync(AuthenticatedUser user, string? project, AccessTokenScope[] scopes, bool sendJob)
+    /// <summary>
+    /// 不選專案的組織對話的本機代理連線：只帶 <c>X-Kumi-Job</c>、不帶專案標頭，假的額度把這件工作當成沒有專案的對話。
+    /// </summary>
+    public static Task<McpHarness> StartForOrganizationJobAsync(params AccessTokenScope[] scopes) =>
+        StartAsync(TestUsers.Member, project: null, scopes, sendJob: true, organizationJob: true);
+
+    private static async Task<McpHarness> StartAsync(
+        AuthenticatedUser user, string? project, AccessTokenScope[] scopes, bool sendJob, bool organizationJob = false)
     {
         var usage = new FakeBlueprintUsageService();
         var factory = new ApiFactory(
@@ -71,8 +78,20 @@ internal sealed class McpHarness : IAsyncDisposable
             TestData.Blueprint(),
             [new ProjectMember(TestUsers.Owner.PersonId, "editor"), new ProjectMember(TestUsers.Member.PersonId, "editor")],
             [WorkPermissions.ItemRead, WorkPermissions.ProjectManage]);
+        if (organizationJob)
+        {
+            factory.Modules.AgentBudget.OnFindJobScope = (_, _) => FakeAgentToolBudget.OrganizationJob;
+        }
+        else if (project is not null)
+        {
+            // 伺服器用工作找到對話的專案：假的額度回連線帶的那個專案（和標頭相同，既有的測試照樣過）。
+            var jobScope = FakeAgentToolBudget.ProjectJob(project.ToUpperInvariant());
+            factory.Modules.AgentBudget.OnFindJobScope = (_, _) => jobScope;
+        }
+
         var secret = McpTesting.GrantToken(factory, user, scopes.Length == 0 ? McpTesting.AllScopes : scopes);
-        return new McpHarness(factory, usage, await McpTesting.ConnectAsync(factory, secret, project, sendJob: sendJob), user);
+        return new McpHarness(
+            factory, usage, await McpTesting.ConnectAsync(factory, secret, project, sendJob: sendJob, organizationJob: organizationJob), user);
     }
 
     public Task<(bool IsError, JsonNode Body)> CallAsync(string tool, object? arguments = null) =>

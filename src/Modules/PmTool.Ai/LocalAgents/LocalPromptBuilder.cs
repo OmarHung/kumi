@@ -59,6 +59,22 @@ internal static partial class LocalPromptBuilder
             AssistantPrompt.ReadResource("host-agent.md").Trim(),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
 
+    /// <summary>不選專案的組織對話（本機的引擎）：組織版的系統提示，加上這則對話的說明與只有四個工具的說法。</summary>
+    public static string OrganizationSystemPrompt(bool canCreateProjects, Asker? asker = null) =>
+        string.Join(
+            "\n\n",
+            AssistantPrompt.OrganizationSystemPrompt,
+            AssistantPrompt.OrganizationNote(canCreateProjects, asker),
+            AssistantPrompt.ReadResource("local-agent-organization.md").Trim());
+
+    /// <summary>不選專案的組織對話（主機代理）。</summary>
+    public static string HostOrganizationSystemPrompt(bool canCreateProjects, Asker? asker = null) =>
+        string.Join(
+            "\n\n",
+            AssistantPrompt.OrganizationSystemPrompt,
+            AssistantPrompt.OrganizationNote(canCreateProjects, asker),
+            AssistantPrompt.ReadResource("host-agent-organization.md").Trim());
+
     /// <summary>
     /// 對話排成文字：<c>&lt;&lt;&lt;使用者&gt;&gt;&gt;</c>、<c>&lt;&lt;&lt;助理&gt;&gt;&gt;</c> 開頭、<c>&lt;&lt;&lt;結束&gt;&gt;&gt;</c> 結尾，一則一段，工具只寫「（用了 get_blueprint）」，最後一則是這次的訊息。
     /// 超過 <see cref="AiRules.MaxLocalPromptLength"/> 時從最舊的截掉並註明。

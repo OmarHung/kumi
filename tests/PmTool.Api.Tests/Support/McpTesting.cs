@@ -24,16 +24,18 @@ internal static class McpTesting
         factory.Modules.AccessTokens.IssueForGrant(user, Guid.NewGuid(), scopes);
 
     /// <summary>用 SDK 的用戶端連到 /mcp，帶 Bearer 權杖。用完要 DisposeAsync。</summary>
-    public static async Task<McpClient> ConnectAsync(ApiFactory factory, string secret, string? project = null, Guid? job = null, bool sendJob = true)
+    public static async Task<McpClient> ConnectAsync(ApiFactory factory, string secret, string? project = null, Guid? job = null, bool sendJob = true, bool organizationJob = false)
     {
         var headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {secret}" };
         if (project is not null)
         {
             headers["X-Kumi-Project"] = project;
-            if (sendJob)
-            {
-                headers["X-Kumi-Job"] = (job ?? JobId).ToString();
-            }
+        }
+
+        // 組織對話的本機代理只帶工作標頭、不帶專案標頭。
+        if ((project is not null || organizationJob) && sendJob)
+        {
+            headers["X-Kumi-Job"] = (job ?? JobId).ToString();
         }
 
         var http = factory.CreateClient();
@@ -60,7 +62,13 @@ internal static class McpTesting
 
     /// <summary>不經過 SDK 用戶端，直接送一個 JSON-RPC 的 POST：測入口的檢查（登入、Origin）用。</summary>
     public static async Task<HttpResponseMessage> PostRawAsync(
-        HttpClient http, string? secret = null, string? origin = null, string method = "tools/list", int padding = 0, string? project = null)
+        HttpClient http,
+        string? secret = null,
+        string? origin = null,
+        string method = "tools/list",
+        int padding = 0,
+        string? project = null,
+        string? job = null)
     {
         // padding：在 JSON 後面補空白，把內文撐到需要的大小（測內文上限用）。
         using var request = new HttpRequestMessage(HttpMethod.Post, Route)
@@ -85,6 +93,11 @@ internal static class McpTesting
         if (project is not null)
         {
             request.Headers.Add("X-Kumi-Project", project);
+        }
+
+        if (job is not null)
+        {
+            request.Headers.Add("X-Kumi-Job", job);
         }
 
         return await http.SendAsync(request);

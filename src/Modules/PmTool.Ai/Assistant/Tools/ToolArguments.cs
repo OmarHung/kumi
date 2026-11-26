@@ -53,6 +53,17 @@ internal static class ToolArguments
         }
     }
 
+    public static bool? Bool(AIFunctionArguments arguments, string name) =>
+        arguments.TryGetValue(name, out var value)
+            ? value switch
+            {
+                bool flag => flag,
+                JsonElement { ValueKind: JsonValueKind.True } => true,
+                JsonElement { ValueKind: JsonValueKind.False } => false,
+                _ => null,
+            }
+            : null;
+
     public static int? Int(AIFunctionArguments arguments, string name) =>
         arguments.TryGetValue(name, out var value)
             ? value switch

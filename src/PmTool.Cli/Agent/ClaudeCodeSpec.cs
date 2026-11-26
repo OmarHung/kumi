@@ -87,7 +87,7 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
 
     /// <summary>
     /// 專案標頭讓伺服器把這把權杖限在對話的專案（代理的權杖一定要帶）；工作標頭讓伺服器計這件工作的工具額度。都是字面值（專案代號已經驗過格式、工作編號是 GUID）。權杖不寫進檔案：Claude Code 讀檔時把 ${KUMI_MCP_TOKEN} 換成環境變數的值。</summary>
-    private static string McpConfig(string url, string projectKey, Guid jobId) => JsonSerializer.Serialize(new
+    private static string McpConfig(string url, string? projectKey, Guid jobId) => JsonSerializer.Serialize(new
     {
         mcpServers = new
         {
@@ -95,8 +95,21 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
             {
                 type = "http",
                 url,
-                headers = new Dictionary<string, string> { ["Authorization"] = "Bearer ${" + TokenVariable + "}", ["X-Kumi-Project"] = projectKey, ["X-Kumi-Job"] = jobId.ToString() },
+                headers = McpHeaders(projectKey, jobId),
             },
         },
     });
+
+    /// <summary>組織對話（沒有專案）不送專案標頭：伺服器看到標頭才把權杖限在那個專案；工作標頭照舊一定送。</summary>
+    private static Dictionary<string, string> McpHeaders(string? projectKey, Guid jobId)
+    {
+        var headers = new Dictionary<string, string> { ["Authorization"] = "Bearer ${" + TokenVariable + "}" };
+        if (projectKey is not null)
+        {
+            headers["X-Kumi-Project"] = projectKey;
+        }
+
+        headers["X-Kumi-Job"] = jobId.ToString();
+        return headers;
+    }
 }

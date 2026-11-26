@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import type { AiOptions, AssistantMessage, AssistantToolPart } from '../../api/aiTypes';
+import type { AssistantScope } from '../../api/assistant';
 import { buttonClassName } from '../../components/Button/Button';
 import { Icon } from '../../components/Icon/Icon';
 import { Markdown } from '../../components/Markdown/Markdown';
@@ -8,6 +9,7 @@ import { effortLabel, toolLabel } from '../ai/aiLabels';
 import { changeSetPagePath, itemPagePath } from '../work-items/itemLinks';
 import { CopyMessageButton } from './CopyMessageButton';
 import { MessageAttachments } from './MessageAttachments';
+import { ProjectProposalCard } from './ProjectProposalCard';
 import { ProposalCard } from './ProposalCard';
 import { replyPhaseText, type ReplyPhase } from './replyPhase';
 import { findModel } from './selection';
@@ -18,6 +20,7 @@ const NO_MENTIONS: ReadonlyMap<string, string> = new Map();
 
 const PROPOSE_TOOL = 'propose_changeset';
 const PROPOSE_ITEM_TOOL = 'propose_item_changes';
+const PROPOSE_PROJECT_TOOL = 'propose_project';
 const DEFAULT_FAILURE = '回覆失敗了，請再試一次。';
 
 function ToolRow({ tool }: { readonly tool: AssistantToolPart }) {
@@ -53,18 +56,21 @@ function ChangeSetCard({ projectKey, number }: { readonly projectKey: string; re
   );
 }
 
-function PartView({ part, projectKey }: { readonly part: AssistantMessage['parts'][number]; readonly projectKey: string }) {
+function PartView({ part, projectKey }: { readonly part: AssistantMessage['parts'][number]; readonly projectKey: AssistantScope }) {
   if (part.type === 'text') {
     return part.text === '' ? null : <Markdown text={part.text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />;
   }
   return (
     <>
       <ToolRow tool={part} />
-      {part.name === PROPOSE_TOOL && part.status === 'done' && part.changeSetNumber !== null && (
+      {projectKey !== null && part.name === PROPOSE_TOOL && part.status === 'done' && part.changeSetNumber !== null && (
         <ChangeSetCard projectKey={projectKey} number={part.changeSetNumber} />
       )}
       {part.name === PROPOSE_ITEM_TOOL && part.status === 'done' && part.itemProposalId !== null && (
         <ProposalCard proposalId={part.itemProposalId} />
+      )}
+      {part.name === PROPOSE_PROJECT_TOOL && part.status === 'done' && part.projectProposalId !== null && (
+        <ProjectProposalCard proposalId={part.projectProposalId} />
       )}
     </>
   );
@@ -85,7 +91,8 @@ function footerText(message: AssistantMessage, options: AiOptions): string | nul
 
 interface MessageViewProps {
   readonly message: AssistantMessage;
-  readonly projectKey: string;
+  /** null 是不選專案的對話（沒有附件、不選項目、沒有變更集）。 */
+  readonly projectKey: AssistantScope;
   readonly options: AiOptions;
   /** 這一則正在長出來。 */
   readonly isStreaming: boolean;
@@ -99,14 +106,14 @@ function copyTextOf(message: AssistantMessage): string {
   return message.role === 'user' ? texts.join('') : texts.join('\n\n');
 }
 
-function UserMessage({ message, projectKey }: { readonly message: AssistantMessage; readonly projectKey: string }) {
+function UserMessage({ message, projectKey }: { readonly message: AssistantMessage; readonly projectKey: AssistantScope }) {
   const text = copyTextOf(message);
   return (
     <div className={styles.userBlock}>
-      <MessageAttachments attachments={message.attachments} projectKey={projectKey} />
+      {projectKey !== null && <MessageAttachments attachments={message.attachments} projectKey={projectKey} />}
       {(text !== '' || message.itemKey !== null) && (
         <div className={styles.userMessage}>
-          {message.itemKey !== null && (
+          {projectKey !== null && message.itemKey !== null && (
             <Link to={itemPagePath(projectKey, message.itemKey)} className={styles.aboutItem}>
               {`關於 ${message.itemKey}`}
             </Link>

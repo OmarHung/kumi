@@ -71,6 +71,8 @@ internal sealed class FakeModules
 
     public FakeItemProposals ItemProposals { get; } = new();
 
+    public FakeProjectProposals ProjectProposals { get; } = new();
+
     public FakeAiSettingsService AiSettings { get; } = new();
 
     public FakeAiOptionsService AiOptions { get; } = new();

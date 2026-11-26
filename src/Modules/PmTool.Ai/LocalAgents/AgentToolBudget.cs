@@ -12,24 +12,66 @@ namespace PmTool.Ai.LocalAgents;
 /// </summary>
 internal sealed class AgentToolBudget(IDbContextFactory<AiDbContext> contexts, IProjectService projects) : IAgentToolBudget
 {
-    // TODO(org-assistant)：工作包 A 實作。
-    public Task<AgentJobScope?> FindJobScopeAsync(AgentJobKind kind, Actor? actor, Guid jobId, CancellationToken cancellationToken) =>
-        throw new NotImplementedException();
+    public async Task<AgentJobScope?> FindJobScopeAsync(AgentJobKind kind, Actor? actor, Guid jobId, CancellationToken cancellationToken)
+    {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        if (kind == AgentJobKind.Host)
+        {
+            // 主機的工作列在預留時就記了專案代號（組織對話是 null），授權本身不帶 actor，所以不再查專案的可見度。
+            var host = await db.HostJobs.AsNoTracking()
+                .Where(j => j.Id == jobId && j.State == HostJobStates.Running && !j.CancelRequested)
+                .Select(j => new { j.ConversationId, j.ProjectKey })
+                .SingleOrDefaultAsync(cancellationToken);
+            return host is null ? null : new AgentJobScope(host.ConversationId, host.ProjectKey);
+        }
+
+        if (actor is null)
+        {
+            return null;
+        }
+
+        var org = actor.OrganizationId;
+        var person = actor.PersonId;
+        var local = await (
+            from j in db.LocalJobs.AsNoTracking()
+            join c in db.Conversations.AsNoTracking() on j.ConversationId equals c.Id
+            where j.Id == jobId && j.OrganizationId == org && j.PersonId == person
+                && j.State == LocalJobStates.Claimed && !j.CancelRequested && c.OrganizationId == org
+            select new { j.ConversationId, c.ProjectId }).SingleOrDefaultAsync(cancellationToken);
+        if (local is null)
+        {
+            return null;
+        }
+
+        if (local.ProjectId is not { } projectId)
+        {
+            return new AgentJobScope(local.ConversationId, null);
+        }
+
+        // 工作列的內容在領走時就清了，專案代號要從對話的專案編號找回來；專案要是呼叫的人看得到的，看不到就當作找不到工作。
+        var visible = await projects.ListAsync(actor, cancellationToken);
+        return visible.FirstOrDefault(p => p.Id == projectId) is { } project ? new AgentJobScope(local.ConversationId, project.Key) : null;
+    }
 
     public async Task<AgentToolBudgetOutcome> UseLocalAsync(
         Actor actor, Guid jobId, string? projectKey, bool isProposal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：工作包 A 接上不選專案的組織對話。
 
         // 工作列的內容在領走時就清了，專案代號不在裡面：用對話的專案編號比對，專案要是呼叫的人看得到的。
-        var project = await projects.GetAsync(actor, projectKey, cancellationToken);
-        if (project.Failure is not null)
+        // 沒有專案代號是不選專案的組織對話：工作的對話也要沒有專案，不能拿它去用某個專案的工具。
+        Guid? projectId = null;
+        if (projectKey is not null)
         {
-            return AgentToolBudgetOutcome.JobNotFound;
+            var project = await projects.GetAsync(actor, projectKey, cancellationToken);
+            if (project.Failure is not null)
+            {
+                return AgentToolBudgetOutcome.JobNotFound;
+            }
+
+            projectId = project.Value.Project.Id;
         }
 
-        var projectId = project.Value.Project.Id;
         var org = actor.OrganizationId;
         var person = actor.PersonId;
         var proposalStep = isProposal ? 1 : 0;

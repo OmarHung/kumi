@@ -31,6 +31,7 @@ internal static class TranslatorSupport
 {
     public const string ProposeChangeSet = "propose_changeset";
     public const string ProposeItemChanges = "propose_item_changes";
+    public const string ProposeProject = "propose_project";
 
     public static JsonDocument? TryParse(string line)
     {
@@ -80,7 +81,12 @@ internal static class TranslatorSupport
     }
 
     /// <summary>propose_item_changes 成功時，結果的 JSON 帶 proposalId；不是 GUID 就不採用，免得把引擎亂寫的字串送給伺服器。</summary>
-    public static string? ItemProposalId(string text)
+    public static string? ItemProposalId(string text) => ProposalIdOf(text);
+
+    /// <summary>propose_project 成功時同樣帶 proposalId，同樣只認 GUID。</summary>
+    public static string? ProjectProposalId(string text) => ProposalIdOf(text);
+
+    private static string? ProposalIdOf(string text)
     {
         using var document = TryParse(text);
         if (document is null || document.RootElement.ValueKind != JsonValueKind.Object)

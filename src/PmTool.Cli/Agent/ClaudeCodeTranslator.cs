@@ -163,7 +163,8 @@ internal sealed class ClaudeCodeTranslator : IEngineTranslator
             events.Add(block.Flag("is_error")
                 ? new ToolEvent(id, name, ToolStatus.Failed, Error: TranslatorSupport.ToolError(text))
                 : new ToolEvent(id, name, ToolStatus.Done, name == TranslatorSupport.ProposeChangeSet ? TranslatorSupport.ChangeSetNumber(text) : null,
-                    ItemProposalId: name == TranslatorSupport.ProposeItemChanges ? TranslatorSupport.ItemProposalId(text) : null));
+                    ItemProposalId: name == TranslatorSupport.ProposeItemChanges ? TranslatorSupport.ItemProposalId(text) : null,
+                    ProjectProposalId: name == TranslatorSupport.ProposeProject ? TranslatorSupport.ProjectProposalId(text) : null));
         }
 
         return TranslatorStep.Emit([.. events]);

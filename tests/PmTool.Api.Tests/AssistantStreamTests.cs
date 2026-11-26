@@ -70,8 +70,8 @@ public sealed class AssistantStreamTests
                  "assistantMessageId":"{{assistantId}}"}
                 """);
             AssertJson(frames[1].Data, """{"delta":"好，我先讀目前的設定。"}""");
-            AssertJson(frames[2].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"running","changeSetNumber":null,"error":null,"itemProposalId":null}""");
-            AssertJson(frames[3].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"done","changeSetNumber":12,"error":null,"itemProposalId":null}""");
+            AssertJson(frames[2].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"running","changeSetNumber":null,"error":null,"itemProposalId":null,"projectProposalId":null}""");
+            AssertJson(frames[3].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"done","changeSetNumber":12,"error":null,"itemProposalId":null,"projectProposalId":null}""");
             var done = JsonNode.Parse(frames[4].Data!);
             Assert.That(done?["message"]?["id"]?.GetValue<string>(), Is.EqualTo(assistantId));
             Assert.That(done?["message"]?["status"]?.GetValue<string>(), Is.EqualTo("complete"));

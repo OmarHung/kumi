@@ -34,7 +34,7 @@ internal sealed class GetItemTool(AssistantToolContext context) : AssistantTool(
             return ToolResults.Error("缺少參數 itemKey。");
         }
 
-        var found = await ItemLookup.FindAsync(Context.Items, Context.Actor, Context.ProjectKey, key, cancellationToken);
+        var found = await ItemLookup.FindAsync(Context.Items, Context.Actor, Context.RequiredProjectKey, key, cancellationToken);
         if (found.Failure is { } notFound)
         {
             return ToolResults.FromFailure(notFound);
@@ -119,7 +119,7 @@ internal sealed class SearchItemsTool(AssistantToolContext context) : AssistantT
 
         var limit = Math.Clamp(ToolArguments.Int(arguments, "limit") ?? AiRules.MaxItemSearchResults, 1, AiRules.MaxItemSearchResults);
         var result = await Context.Items.ListAsync(
-            Context.Actor, Context.ProjectKey, new WorkItemQuery { Search = text, Limit = limit }, cancellationToken);
+            Context.Actor, Context.RequiredProjectKey, new WorkItemQuery { Search = text, Limit = limit }, cancellationToken);
         if (result.Failure is { } failure)
         {
             return ToolResults.FromFailure(failure);

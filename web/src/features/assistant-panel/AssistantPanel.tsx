@@ -10,6 +10,7 @@ import { PanelContent } from './PanelContent';
 import { PanelHeader } from './PanelHeader';
 import { PanelWindow } from './PanelWindow';
 import { useAssistantHost } from './useAssistantHost';
+import { OPEN_ASSISTANT_PANEL_EVENT, type OpenAssistantPanelDetail } from './panelRequests';
 import { usePanelSession, type PanelSession } from './usePanelSession';
 import styles from './AssistantPanel.module.css';
 
@@ -89,7 +90,7 @@ interface WindowProps {
 
 /** 浮動的面板：外框、頁首與內容。 */
 function AssistantWindow({ session, options, isFollowingRoute, isShown, isCompact, onClose, panelRef, host }: WindowProps) {
-  useFocusOnOpen(isShown, panelRef, `${String(options.available)}|${session.projectKey ?? ''}`);
+  useFocusOnOpen(isShown, panelRef, `${String(options.available)}|${String(session.projectKey)}`);
   return (
     <PanelWindow isOpen={isShown} isCompact={isCompact} onClose={onClose} panelRef={panelRef} host={host}>
       <PanelHeader
@@ -119,15 +120,40 @@ function useRouteItemKey(): string | null {
 }
 
 /**
+ * 對話裡的新專案建議卡請面板切到剛建好的專案並打開（panelRequests.ts）。
+ * 回覆還在進行時不換專案（進行中的對話屬於原本的），只把面板打開。
+ */
+function useOpenRequests(session: PanelSession, open: () => void): void {
+  const latest = useRef({ session, open });
+  useEffect(() => {
+    latest.current = { session, open };
+  });
+  useEffect(() => {
+    const listen = (event: Event) => {
+      const { projectKey } = (event as CustomEvent<OpenAssistantPanelDetail>).detail;
+      const { session: current, open: show } = latest.current;
+      if (!current.isBusy) current.chooseProject(projectKey);
+      show();
+    };
+    window.addEventListener(OPEN_ASSISTANT_PANEL_EVENT, listen);
+    return () => {
+      window.removeEventListener(OPEN_ASSISTANT_PANEL_EVENT, listen);
+    };
+  }, []);
+}
+
+/**
  * 每一頁右下角的 AI 助理（internal/HANDOFF-ai-floating.md 5.1）：一顆按鈕，展開成浮動面板。
  * 掛在 AppShell 層：換頁不卸下，所以進行中的回覆不會被中斷；關掉面板也只是藏起來。
- * 組織有開放的模型、或允許自己接 AI 帳號時才有；整頁的 AI 助理（/projects/:key/assistant）裡不顯示。
+ * 組織有開放的模型、或允許自己接 AI 帳號時才有；整頁的 AI 助理（/projects/:key/assistant、/assistant）裡不顯示。
  * 同意頁與登入頁在 AppShell 外面，本來就沒有。
  */
 export function AssistantPanel() {
   const options = useAiOptions();
   const routeProjectKey = useMatch({ path: '/projects/:projectKey', end: false })?.params.projectKey;
-  const isFullPage = useMatch({ path: '/projects/:projectKey/assistant', end: false }) !== null;
+  const isProjectFullPage = useMatch({ path: '/projects/:projectKey/assistant', end: false }) !== null;
+  const isOrganizationFullPage = useMatch({ path: '/assistant', end: false }) !== null;
+  const isFullPage = isProjectFullPage || isOrganizationFullPage;
   const isCompact = useIsCompact();
   const routeItemKey = useRouteItemKey();
   const session = usePanelSession(routeProjectKey, routeItemKey);
@@ -137,6 +163,7 @@ export function AssistantPanel() {
   const panel = usePanelOpen(hasEntry, isFullPage, buttonRef);
   const host = useAssistantHost();
   useBeforeUnloadWarning(session.isBusy);
+  useOpenRequests(session, panel.open);
 
   if (options.data === undefined || !hasEntry) return null;
   return (

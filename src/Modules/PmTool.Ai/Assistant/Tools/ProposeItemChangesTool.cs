@@ -34,7 +34,7 @@ internal sealed class ProposeItemChangesTool(AssistantToolContext context) : Ass
             return ToolResults.Error(error);
         }
 
-        var draft = new ItemProposalDraft(Context.ProjectKey, itemKey, changes.Value!, ToolArguments.String(arguments, "comment"))
+        var draft = new ItemProposalDraft(Context.RequiredProjectKey, itemKey, changes.Value!, ToolArguments.String(arguments, "comment"))
         {
             ConversationId = Context.ConversationId,
             DescriptionRevision = ToolArguments.String(arguments, "descriptionRevision"),

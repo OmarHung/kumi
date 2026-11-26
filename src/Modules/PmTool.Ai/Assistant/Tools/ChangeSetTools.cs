@@ -40,7 +40,7 @@ internal sealed class PreviewChangeSetTool(AssistantToolContext context) : Chang
         }
 
         var result = await Context.Changes.PreviewAsync(
-            Context.Actor, Context.ProjectKey, document, DocumentFormat.Json, cancellationToken);
+            Context.Actor, Context.RequiredProjectKey, document, DocumentFormat.Json, cancellationToken);
         if (result.Failure is { } failure)
         {
             return FailureResult(failure);
@@ -120,7 +120,7 @@ internal sealed class ProposeChangeSetTool(AssistantToolContext context) : Chang
         }
 
         var result = await Context.Changes.ProposeAsync(
-            Context.Actor, Context.ProjectKey, document, DocumentFormat.Json, ChangeSetOrigin.Assistant, cancellationToken);
+            Context.Actor, Context.RequiredProjectKey, document, DocumentFormat.Json, ChangeSetOrigin.Assistant, cancellationToken);
         if (result.Failure is { } failure)
         {
             var text = failure.Kind == FailureKind.Forbidden && !await CanProposeAsync(cancellationToken)
@@ -135,7 +135,7 @@ internal sealed class ProposeChangeSetTool(AssistantToolContext context) : Chang
             changeSet = new
             {
                 number = detail.ChangeSet.Number,
-                url = $"/projects/{Context.ProjectKey}/changesets/{detail.ChangeSet.Number}",
+                url = $"/projects/{Context.RequiredProjectKey}/changesets/{detail.ChangeSet.Number}",
                 canApply = detail.CanApply,
                 impacts = detail.Impacts.Select(ChangeSetShape.Impact),
             },
@@ -145,7 +145,7 @@ internal sealed class ProposeChangeSetTool(AssistantToolContext context) : Chang
     // 失敗是 Forbidden 時才多查一次：區分「沒有提出的權限」與其他被擋的原因（例如要看得到全部項目）。
     private async Task<bool> CanProposeAsync(CancellationToken cancellationToken)
     {
-        var project = await Context.Projects.GetAsync(Context.Actor, Context.ProjectKey, cancellationToken);
+        var project = await Context.Projects.GetAsync(Context.Actor, Context.RequiredProjectKey, cancellationToken);
         return project.Failure is null && project.Value.MyPermissions.Contains(WorkPermissions.BlueprintPropose);
     }
 }

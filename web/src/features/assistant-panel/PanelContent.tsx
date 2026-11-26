@@ -9,6 +9,8 @@ import { storeProject } from './panelMemory';
 import type { PanelSession } from './usePanelSession';
 import styles from './AssistantPanel.module.css';
 
+export const CHOOSE_PROJECT_TEXT = '先在上面選一個專案，助理會幫你調整它的設定；或選「不選專案」，問模板、規劃，請助理幫你開新專案。';
+
 interface PanelContentProps {
   readonly session: PanelSession;
   readonly options: AiOptions;
@@ -21,6 +23,26 @@ function AddPersonalHint() {
       <p>組織還沒設定 AI。你可以在「我的 AI 助理」接自己的 AI 帳號。</p>
       <Link to="/account/ai">前往「我的 AI 助理」</Link>
     </div>
+  );
+}
+
+/** 不選專案（組織的對話）：問模板、規劃、請助理開新專案；不看任何專案的權限（後端只看是不是組織的成員）。 */
+function OrganizationConversation({ session, options }: PanelContentProps) {
+  const [selection, handleSelection] = useSelection(options);
+  useEffect(() => {
+    storeProject(null);
+  }, []);
+  return (
+    <ConversationView
+      variant="panel"
+      projectKey={null}
+      conversationId={session.conversationId}
+      options={options}
+      selection={selection}
+      onSelectionChange={handleSelection}
+      reply={session.reply}
+      itemKey={null}
+    />
   );
 }
 
@@ -61,9 +83,10 @@ function ProjectConversation({ projectKey, session, options }: PanelContentProps
   );
 }
 
-/** 面板的主體：沒有能用的模型、還沒選專案、專案讀不到或沒有權限時說明原因，否則就是和整頁版同一套的對話。 */
+/** 面板的主體：沒有能用的模型、還沒選專案、專案讀不到或沒有權限時說明原因，否則就是和整頁版同一套的對話（不選專案時是組織的對話）。 */
 export function PanelContent({ session, options }: PanelContentProps) {
   if (!options.available) return <AddPersonalHint />;
-  if (session.projectKey === null) return <p className={styles.message}>先在上面選一個專案，助理會幫你調整它的設定。</p>;
+  if (session.projectKey === undefined) return <p className={styles.message}>{CHOOSE_PROJECT_TEXT}</p>;
+  if (session.projectKey === null) return <OrganizationConversation session={session} options={options} />;
   return <ProjectConversation projectKey={session.projectKey} session={session} options={options} />;
 }

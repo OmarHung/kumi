@@ -204,7 +204,7 @@ internal sealed record HostJobRow
 
     public required Guid PersonId { get; init; }
 
-    public required string ProjectKey { get; init; }
+    public string? ProjectKey { get; init; }
 
     public required Guid ConversationId { get; init; }
 
@@ -301,7 +301,7 @@ internal sealed record HostUsageRow
 
     public required Guid PersonId { get; init; }
 
-    public required string ProjectKey { get; init; }
+    public string? ProjectKey { get; init; }
 
     public required string State { get; init; }
 

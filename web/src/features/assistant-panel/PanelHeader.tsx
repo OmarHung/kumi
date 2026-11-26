@@ -5,8 +5,10 @@ import { Icon } from '../../components/Icon/Icon';
 import { IconButton, IconLink } from '../../components/IconButton/IconButton';
 import { Menu, type MenuItem } from '../../components/Menu/Menu';
 import { Select, type SelectOption } from '../../components/Select/Select';
+import { NO_PROJECT_LABEL } from '../ai/aiLabels';
 import { ItemPicker } from '../assistant/ItemPicker';
-import { projectAssistantPath } from '../work-items/itemLinks';
+import { assistantPagePath } from '../work-items/itemLinks';
+import type { PanelScope } from './panelMemory';
 import styles from './AssistantPanel.module.css';
 
 const NEW_CONVERSATION = '新的對話';
@@ -15,12 +17,16 @@ const UNTITLED_CONVERSATION = '（還沒有標題）';
 const MAX_LISTED_CONVERSATIONS = 30;
 const BUSY_REASON = '回覆還在進行，等它結束或先按「停止」。';
 
+/** 選單裡「不選專案」那一項的值：專案代號只有英數字，不會撞到。 */
+const NO_PROJECT_VALUE = '@none';
+
 interface ProjectPickerProps {
-  readonly projectKey: string | null;
+  /** null 是「不選專案」；undefined 是還沒選。 */
+  readonly projectKey: PanelScope;
   /** 在專案頁：面板跟著路由，不能自己選。 */
   readonly isFollowingRoute: boolean;
   readonly isBusy: boolean;
-  readonly onChoose: (projectKey: string) => void;
+  readonly onChoose: (projectKey: string | null) => void;
 }
 
 /** 在專案頁是專案的名稱；不在專案頁是自己畫的選單，列出看得到、沒有封存的專案。 */
@@ -35,27 +41,34 @@ function ProjectPicker({ projectKey, isFollowingRoute, isBusy, onChoose }: Proje
       </span>
     );
   }
-  const options: readonly SelectOption[] = listed.map((project) => ({
-    value: project.key,
-    label: `${project.name}（${project.key}）`,
-    keywords: [project.key],
-  }));
+  // 第一項「不選專案」：問模板、規劃，請助理開新專案（組織的對話）。
+  const options: readonly SelectOption[] = [
+    { value: NO_PROJECT_VALUE, label: NO_PROJECT_LABEL },
+    ...listed.map((project, index) => ({
+      value: project.key,
+      label: `${project.name}（${project.key}）`,
+      keywords: [project.key],
+      ...(index === 0 ? { startsGroup: true } : {}),
+    })),
+  ];
   return (
     <Select
       aria-label="專案"
       size="sm"
       width="content"
-      value={projectKey ?? ''}
+      value={projectKey === null ? NO_PROJECT_VALUE : (projectKey ?? '')}
       options={options}
       placeholder="選一個專案"
       disabled={isBusy}
-      onChange={onChoose}
+      onChange={(value) => {
+        onChoose(value === NO_PROJECT_VALUE ? null : value);
+      }}
     />
   );
 }
 
 interface ConversationMenuProps {
-  readonly projectKey: string;
+  readonly projectKey: string | null;
   readonly conversationId: string | undefined;
   readonly isBusy: boolean;
   readonly onSelect: (id: string | undefined) => void;
@@ -101,8 +114,8 @@ const OPEN_PAGE_REASON_ID = 'assistant-panel-open-page-reason';
  * 「開成整頁」：回覆中不能開——整頁版掛上時會重抓這則對話，伺服器那份還沒有正在長的訊息，會蓋掉面板串流寫進快取的內容，
  * 整頁版的「停止」也停不了面板這一條。回覆中標 aria-disabled 並說明原因（和對話選單同一套）。
  */
-function OpenPageLink({ projectKey, conversationId, itemKey, isBusy }: { readonly projectKey: string; readonly conversationId: string | undefined; readonly itemKey: string | null; readonly isBusy: boolean }) {
-  if (!isBusy) return <IconLink to={projectAssistantPath(projectKey, conversationId, itemKey)} icon="expand" label="開成整頁" />;
+function OpenPageLink({ projectKey, conversationId, itemKey, isBusy }: { readonly projectKey: string | null; readonly conversationId: string | undefined; readonly itemKey: string | null; readonly isBusy: boolean }) {
+  if (!isBusy) return <IconLink to={assistantPagePath(projectKey, conversationId, itemKey)} icon="expand" label="開成整頁" />;
   return (
     <>
       <IconButton icon="expand" label="開成整頁" description={BUSY_REASON} aria-disabled aria-describedby={OPEN_PAGE_REASON_ID} onClick={() => undefined} />
@@ -130,17 +143,17 @@ export function PanelHeader({ projectKey, isFollowingRoute, isBusy, onChoose, co
           <Icon name="sparkles" />
           AI 助理
         </h2>
-        {projectKey !== null && (
+        {projectKey !== undefined && (
           <OpenPageLink projectKey={projectKey} conversationId={conversationId} itemKey={itemKey} isBusy={isBusy} />
         )}
         <IconButton icon="close" label="關閉" onClick={onClose} />
       </div>
       <div className={styles.contextRow}>
         <ProjectPicker projectKey={projectKey} isFollowingRoute={isFollowingRoute} isBusy={isBusy} onChoose={onChoose} />
-        {projectKey !== null && (
+        {projectKey !== undefined && (
           <ConversationMenu projectKey={projectKey} conversationId={conversationId} isBusy={isBusy} onSelect={onSelectConversation} />
         )}
-        {projectKey !== null && <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} />}
+        {typeof projectKey === 'string' && <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} />}
       </div>
     </header>
   );

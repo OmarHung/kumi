@@ -34,6 +34,9 @@ const DescriptionTemplateEditPage = lazy(() =>
 );
 
 // 專案的 AI 助理（對話、串流、輸入框）只有要用的人打開，也延後下載。
+const OrganizationAssistantPage = lazy(() =>
+  import('../features/assistant/OrganizationAssistantPage').then((module) => ({ default: module.OrganizationAssistantPage })),
+);
 const AssistantPage = lazy(() =>
   import('../features/assistant/AssistantPage').then((module) => ({ default: module.AssistantPage })),
 );
@@ -114,6 +117,14 @@ export function LazyPlanningPage() {
   return (
     <Suspense fallback={<StatusPage title="規劃"><LoadingState label="正在載入規劃…" /></StatusPage>}>
       <PlanningPage />
+    </Suspense>
+  );
+}
+
+export function LazyOrganizationAssistantPage() {
+  return (
+    <Suspense fallback={<StatusPage title="AI 助理"><LoadingState label="正在載入 AI 助理…" /></StatusPage>}>
+      <OrganizationAssistantPage />
     </Suspense>
   );
 }

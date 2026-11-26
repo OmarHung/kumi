@@ -55,13 +55,16 @@ internal sealed record EngineModel(string Id, string DisplayName, IReadOnlyList<
     };
 }
 
-/// <summary>伺服器派來的一件工作（<c>check-in</c> 回的 <c>job</c>），欄位意思見 <c>LocalAgentJob</c>。</summary>
+/// <summary>
+/// 伺服器派來的一件工作（<c>check-in</c> 回的 <c>job</c>），欄位意思見 <c>LocalAgentJob</c>。
+/// <see cref="ProjectKey"/> 是 null 就是不選專案的組織對話。
+/// </summary>
 internal sealed record AgentJob(
     Guid JobId,
     string Engine,
     string Model,
     string? Effort,
-    string ProjectKey,
+    string? ProjectKey,
     string SystemPrompt,
     string Prompt,
     IReadOnlyList<string> AllowedTools,
@@ -76,10 +79,16 @@ internal sealed record AgentJob(
     {
         if (!Guid.TryParse(job.Text("jobId"), out var id)
             || job.Text("engine") is not { } engine
-            || job.Text("projectKey") is not { } project
             || job.Text("systemPrompt") is not { } system
             || job.Text("prompt") is not { } prompt
             || job.Text("mcpUrl") is not { } mcpUrl)
+        {
+            return null;
+        }
+
+        // 沒有或 null 才是組織對話；型別不對的欄位不能被當成「沒有專案」，免得放寬專案標頭。
+        var project = job.Text("projectKey");
+        if (project is null && job.Get("projectKey") is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) })
         {
             return null;
         }
@@ -108,7 +117,7 @@ internal sealed record TextEvent(string Delta) : AgentEvent
     public override JsonObject ToJson() => new() { ["type"] = "text", ["delta"] = Delta };
 }
 
-internal sealed record ToolEvent(string CallId, string Name, string Status, long? ChangeSetNumber = null, string? Error = null, string? ItemProposalId = null) : AgentEvent
+internal sealed record ToolEvent(string CallId, string Name, string Status, long? ChangeSetNumber = null, string? Error = null, string? ItemProposalId = null, string? ProjectProposalId = null) : AgentEvent
 {
     public override JsonObject ToJson() => new()
     {
@@ -119,6 +128,7 @@ internal sealed record ToolEvent(string CallId, string Name, string Status, long
         ["changeSetNumber"] = ChangeSetNumber,
         ["error"] = Error,
         ["itemProposalId"] = ItemProposalId,
+        ["projectProposalId"] = ProjectProposalId,
     };
 }
 

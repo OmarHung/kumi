@@ -6,6 +6,7 @@ import type {
   AssistantMessageInput,
   AssistantStreamEvent,
   ItemProposal,
+  ProjectProposal,
 } from './aiTypes';
 import { createSseParser, toStreamEvent } from './assistantStream';
 import { ApiError, apiRequest, CSRF_HEADER, networkError, unwrapResponse } from './http';
@@ -13,8 +14,15 @@ import { listItems } from './items';
 import type { Item } from './types';
 import { queryKeys } from './queryKeys';
 
-const conversationsPath = (projectKey: string) => `/v1/projects/${encodeURIComponent(projectKey)}/assistant/conversations`;
-const conversationPath = (projectKey: string, conversationId: string) =>
+/**
+ * 助理的對話屬於哪裡：專案代號，或 null＝不選專案（組織的對話，internal/HANDOFF-org-assistant.md）。
+ * 兩邊的端點、形狀一樣，只是路徑與快取的鍵分開。
+ */
+export type AssistantScope = string | null;
+
+const conversationsPath = (projectKey: AssistantScope) =>
+  projectKey === null ? '/v1/assistant/conversations' : `/v1/projects/${encodeURIComponent(projectKey)}/assistant/conversations`;
+const conversationPath = (projectKey: AssistantScope, conversationId: string) =>
   `${conversationsPath(projectKey)}/${encodeURIComponent(conversationId)}`;
 
 /** 成員能選的 AI；available 是 false 時沒有 AI 助理的入口。 */
@@ -29,21 +37,21 @@ export function useAiOptions() {
   });
 }
 
-export function listConversations(projectKey: string, signal?: AbortSignal): Promise<readonly AssistantConversationSummary[]> {
+export function listConversations(projectKey: AssistantScope, signal?: AbortSignal): Promise<readonly AssistantConversationSummary[]> {
   return apiRequest<readonly AssistantConversationSummary[]>(conversationsPath(projectKey), { signal });
 }
 
 /** 403 ai.assistant_forbidden；422 ai.unavailable（組織沒開 AI）。 */
-export function createConversation(projectKey: string): Promise<AssistantConversationSummary> {
+export function createConversation(projectKey: AssistantScope): Promise<AssistantConversationSummary> {
   return apiRequest<AssistantConversationSummary>(conversationsPath(projectKey), { method: 'POST', body: {} });
 }
 
-export function getConversation(projectKey: string, conversationId: string, signal?: AbortSignal): Promise<AssistantConversation> {
+export function getConversation(projectKey: AssistantScope, conversationId: string, signal?: AbortSignal): Promise<AssistantConversation> {
   return apiRequest<AssistantConversation>(conversationPath(projectKey, conversationId), { signal });
 }
 
 /** 409 ai.conversation_busy：正在回覆的對話不能刪。 */
-export function deleteConversation(projectKey: string, conversationId: string): Promise<null> {
+export function deleteConversation(projectKey: AssistantScope, conversationId: string): Promise<null> {
   return apiRequest<null>(conversationPath(projectKey, conversationId), {
     method: 'DELETE',
   });
@@ -55,7 +63,7 @@ const RUNNING_POLL_MS = 2000;
  * 對話清單。有哪一則「回覆中」就每兩秒讀一次，直到都存完：串流收到 done 的當下，伺服器還沒放掉那一則的租約，
  * 這時重讀的清單仍說它在回覆（標題後面一直是「回覆中」），輪詢是這個時間差的後備。
  */
-export function useConversations(projectKey: string) {
+export function useConversations(projectKey: AssistantScope) {
   return useQuery({
     queryKey: queryKeys.assistantConversations(projectKey),
     queryFn: ({ signal }) => listConversations(projectKey, signal),
@@ -68,7 +76,7 @@ export function useConversations(projectKey: string) {
  * 重抓會用伺服器那一份蓋掉正在長出來的文字，視窗重新取得焦點也一樣。
  * 其他時候伺服器說還在回覆（重新整理、串流中途斷線、剛按了停止、別的分頁在回）就每兩秒讀一次，直到它存完。
  */
-export function useConversation(projectKey: string, conversationId: string | undefined, isStreaming = false) {
+export function useConversation(projectKey: AssistantScope, conversationId: string | undefined, isStreaming = false) {
   return useQuery({
     queryKey: queryKeys.assistantConversation(projectKey, conversationId ?? ''),
     queryFn: ({ signal }) => getConversation(projectKey, conversationId ?? '', signal),
@@ -78,7 +86,7 @@ export function useConversation(projectKey: string, conversationId: string | und
   });
 }
 
-export function useCreateConversation(projectKey: string) {
+export function useCreateConversation(projectKey: AssistantScope) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => createConversation(projectKey),
@@ -97,7 +105,7 @@ export function useCreateConversation(projectKey: string) {
   });
 }
 
-export function useDeleteConversation(projectKey: string) {
+export function useDeleteConversation(projectKey: AssistantScope) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (conversationId: string) => deleteConversation(projectKey, conversationId),
@@ -196,7 +204,7 @@ async function readEvents(
  * 開始之後的事件一個一個交給 onEvent。signal 取消（停止）時回傳 aborted，不丟錯誤。
  */
 export async function streamAssistantReply(
-  projectKey: string,
+  projectKey: AssistantScope,
   conversationId: string,
   input: AssistantMessageInput,
   signal: AbortSignal,
@@ -217,7 +225,7 @@ export async function streamAssistantReply(
 }
 
 async function streamWith(
-  projectKey: string,
+  projectKey: AssistantScope,
   conversationId: string,
   input: AssistantMessageInput,
   signal: AbortSignal,
@@ -308,5 +316,50 @@ export function useDecideItemProposal(proposal: ItemProposal) {
     },
   });
   const dismiss = useMutation({ mutationFn: () => dismissItemProposal(proposal.id), onSuccess: settle });
+  return { apply, dismiss };
+}
+
+const projectProposalPath = (proposalId: string) => `/v1/ai/project-proposals/${encodeURIComponent(proposalId)}`;
+
+/** 404 ai.project_proposal_not_found：別人的、不存在的。 */
+export function getProjectProposal(proposalId: string, signal?: AbortSignal): Promise<ProjectProposal> {
+  return apiRequest<ProjectProposal>(projectProposalPath(proposalId), { signal });
+}
+
+/** 403（不是組織管理員）、409 project.key_taken、409 ai.project_proposal_closed、422 project.*：失敗時建議維持待處理。 */
+export function applyProjectProposal(proposalId: string): Promise<ProjectProposal> {
+  return apiRequest<ProjectProposal>(`${projectProposalPath(proposalId)}/apply`, { method: 'POST', body: {} });
+}
+
+/** 409 ai.project_proposal_closed。 */
+export function dismissProjectProposal(proposalId: string): Promise<ProjectProposal> {
+  return apiRequest<ProjectProposal>(`${projectProposalPath(proposalId)}/dismiss`, { method: 'POST', body: {} });
+}
+
+export function useProjectProposal(proposalId: string) {
+  return useQuery({
+    queryKey: queryKeys.projectProposal(proposalId),
+    queryFn: ({ signal }) => getProjectProposal(proposalId, signal),
+  });
+}
+
+/** 套用之後：換成伺服器回的新狀態，並讓專案清單失效（新專案要出現在側欄與 ⌘K）；不要：只換狀態。 */
+export function useDecideProjectProposal(proposal: ProjectProposal) {
+  const queryClient = useQueryClient();
+  const settle = (decided: ProjectProposal) => {
+    queryClient.setQueryData(queryKeys.projectProposal(proposal.id), decided);
+  };
+  const apply = useMutation({
+    mutationFn: () => applyProjectProposal(proposal.id),
+    onSuccess: (decided) => {
+      settle(decided);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+    onError: () => {
+      // 已經處理過（別的分頁按了）：以伺服器現在的狀態為準；代號被用掉等失敗維持待處理，重讀也不會變。
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectProposal(proposal.id) });
+    },
+  });
+  const dismiss = useMutation({ mutationFn: () => dismissProjectProposal(proposal.id), onSuccess: settle });
   return { apply, dismiss };
 }

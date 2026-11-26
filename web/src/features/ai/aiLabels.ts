@@ -32,6 +32,9 @@ export function effortLabel(effort: AiEffort | null): string {
   return effort === null ? DEFAULT_EFFORT_LABEL : EFFORT_LABELS[effort];
 }
 
+/** AI 助理不屬於任何專案的對話（組織層級）在畫面上的說法：面板的專案選單、主機用量。 */
+export const NO_PROJECT_LABEL = '不選專案';
+
 /** 助理用了哪個工具，畫面上的說法；進行中的在後面接「…中」由畫面決定。不認得的名稱照原文。 */
 const TOOL_LABELS: Readonly<Record<string, string>> = {
   get_blueprint: '讀取目前的設定',
@@ -43,6 +46,8 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   get_item: '讀取項目',
   search_items: '搜尋項目',
   propose_item_changes: '建議修改',
+  list_projects: '查看你的專案清單',
+  propose_project: '提出新專案',
 };
 
 /** itemKey：工具的段落帶得到編號時給（get_item 寫「讀取 WEB-12」）；沒有就寫「讀取項目」。 */

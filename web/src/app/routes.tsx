@@ -18,6 +18,7 @@ import {
   LazyAccountPage,
   LazyAiAccountsPage,
   LazyAssistantPage,
+  LazyOrganizationAssistantPage,
   LazyChangeSetListPage,
   LazyChangeSetPage,
   LazyDescriptionTemplateEditPage,
@@ -89,6 +90,8 @@ export const routes: RouteObject[] = [
               { path: 'projects/:projectKey/info', element: <LazyProjectInfoPage /> },
               // 對話編號可有可無：開新對話時網址換成編號，同一個路由，頁面不重新掛上，進行中的串流才不會斷。
               { path: 'projects/:projectKey/assistant/:conversationId?', element: <LazyAssistantPage /> },
+              // 不選專案的 AI 助理（組織的對話）；同樣對話編號可有可無。
+              { path: 'assistant/:conversationId?', element: <LazyOrganizationAssistantPage /> },
               { path: 'projects/:projectKey/deleted', element: <LazyDeletedItemsPage /> },
               { path: 'projects/:projectKey/import', element: <LazyItemImportPage /> },
               { path: 'projects/:projectKey/changesets', element: <LazyChangeSetListPage /> },

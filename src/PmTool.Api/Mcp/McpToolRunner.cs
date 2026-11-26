@@ -2,6 +2,7 @@ using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using PmTool.Abstractions;
 using PmTool.Ai;
 using PmTool.Api.OAuth;
 using PmTool.Api.Security;
@@ -37,18 +38,43 @@ internal sealed class McpToolRunner(
 
     /// <summary>
     /// 只列權杖的範圍涵蓋的工具：沒有 <c>agent:run</c> 的權杖看不到本機代理專用的工具；
-    /// 有 <c>agent:run</c> 的權杖再和本機代理的工具清單（<see cref="LocalAgentTools.Allowed"/>）取交集。
+    /// 有 <c>agent:run</c> 的權杖再和這次請求的範圍能用的工具取交集：專案的對話是 <see cref="LocalAgentTools.Allowed"/>，
+    /// 不選專案的組織對話是 <see cref="LocalAgentTools.AllowedForOrganization"/>。
     /// </summary>
-    public ValueTask<ListToolsResult> ListAsync(RequestContext<ListToolsRequestParams> request, CancellationToken cancellationToken)
+    public async ValueTask<ListToolsResult> ListAsync(RequestContext<ListToolsRequestParams> request, CancellationToken cancellationToken)
     {
         var http = httpContexts.HttpContext;
         var token = http is null ? null : SessionPrincipal.TryReadAccessToken(http.User);
 
-        // 主機代理的工作只看得到授權的工具（工作建立時定的清單），不看範圍。
+        // 主機代理的工作只看得到授權的工具（工作建立時定的清單），不看範圍；不選專案的工作再和組織對話的清單取交集。
         var grant = http is null ? null : HostCredentials.TryGetGrant(http);
-        var visible = McpToolCatalog.All.Where(tool =>
-            grant is not null ? grant.AllowedTools.Contains(tool.Name) : IsVisibleToToken(token, tool));
-        return ValueTask.FromResult(new ListToolsResult { Tools = [.. visible.Select(Describe)] });
+        var isAgent = grant is null && http is not null && McpProjectScope.Applies(token);
+        var agentScope = isAgent ? await ResolveListScopeAsync(http!, cancellationToken) : null;
+        if (isAgent && agentScope is null)
+        {
+            // 找不到工作：不知道這是哪一則對話，什麼都不列（呼叫時也會被擋）。
+            return new ListToolsResult { Tools = [] };
+        }
+
+        var visible = McpToolCatalog.All.Where(tool => grant is not null
+            ? GrantAllows(grant, tool.Name)
+            : IsVisibleToToken(token, tool) && (agentScope is not { } scope || scope.AllowsTool(tool.Name)));
+        return new ListToolsResult { Tools = [.. visible.Select(Describe)] };
+    }
+
+    /// <summary>
+    /// 列工具時的範圍：帶專案標頭的是限定專案（呼叫時還會用工作核對）；沒帶的要用工作找到對話，沒有專案才是只限組織。
+    /// 找不到工作是 null。
+    /// </summary>
+    private async Task<McpScope?> ResolveListScopeAsync(HttpContext http, CancellationToken cancellationToken)
+    {
+        if (McpProjectScope.Read(http.Request) is { } key)
+        {
+            return McpScope.ForProject(key);
+        }
+
+        var actor = SessionPrincipal.Read(http.User).ToActor();
+        return (await ResolveLocalScopeAsync(http, actor, cancellationToken)).Scope;
     }
 
     public async ValueTask<CallToolResult> CallAsync(RequestContext<CallToolRequestParams> request, CancellationToken cancellationToken)
@@ -72,62 +98,102 @@ internal sealed class McpToolRunner(
         }
 
         // 本機代理的權杖會交給成員電腦上的引擎：工具的上限由伺服器定，就算權杖另外有那個工具的範圍。
-        if (McpProjectScope.Applies(token) && !LocalAgentTools.IsAllowed(tool.Name))
+        // 這裡先擋兩種清單都沒有的；範圍確定之後（專案或組織）再用那一種的清單擋一次。
+        var isAgent = McpProjectScope.Applies(token);
+        if (isAgent && !LocalAgentTools.IsAllowed(tool.Name) && !LocalAgentTools.IsAllowedForOrganization(tool.Name))
         {
-            return Render(McpToolResult.Error($"本機代理的權杖不能用 {tool.Name} 這個工具。"));
+            return Render(McpToolResult.Error(ToolNotAllowedMessage(tool.Name)));
         }
 
         if (!limiter.TryAcquire(user.PersonId))
         {
-            return Render(McpToolResult.Error($"工具呼叫太頻繁了：每個人每分鐘最多 {McpLimits.ToolCallsPerMinute} 次，請稍後再試。"));
+            return Render(McpToolResult.Error(RateLimitedMessage));
         }
 
-        string? scope = null;
-        if (McpProjectScope.Applies(token))
+        var issuer = resolver.Resolve(http.Request).Issuer;
+        if (!isAgent)
         {
-            scope = McpProjectScope.Read(http.Request);
-            if (scope is null)
-            {
-                return Render(McpToolResult.Error(McpProjectScope.MissingMessage));
-            }
+            var ordinary = new McpToolContext(user.ToActor(), issuer, new McpServices(http.RequestServices)) { Scope = McpScope.Unrestricted };
+            return Render(await RunAsync(tool, ordinary, request.Params?.Arguments, cancellationToken));
         }
 
-        var context = new McpToolContext(user.ToActor(), resolver.Resolve(http.Request).Issuer, new McpServices(http.RequestServices))
+        var resolution = await ResolveLocalScopeAsync(http, user.ToActor(), cancellationToken);
+        if (resolution.Refusal is { } refusal)
         {
-            ScopedProject = scope,
+            return Render(refusal);
+        }
+
+        var scope = resolution.Scope!.Value;
+        if (!scope.AllowsTool(tool.Name))
+        {
+            return Render(McpToolResult.Error(ToolNotAllowedMessage(tool.Name)));
+        }
+
+        var context = new McpToolContext(user.ToActor(), issuer, new McpServices(http.RequestServices))
+        {
+            Scope = scope,
+            ConversationId = resolution.ConversationId,
         };
-        if (scope is null)
+        return Render(await CallForLocalAgentAsync(tool, context, resolution.JobId, http, request.Params?.Arguments, cancellationToken));
+    }
+
+    private static readonly string RateLimitedMessage = $"工具呼叫太頻繁了：每個人每分鐘最多 {McpLimits.ToolCallsPerMinute} 次，請稍後再試。";
+
+    private static string ToolNotAllowedMessage(string toolName) => $"本機代理的權杖不能用 {toolName} 這個工具。";
+
+    private sealed record LocalScopeResolution(McpScope? Scope, Guid JobId, Guid? ConversationId, McpToolResult? Refusal);
+
+    /// <summary>
+    /// 本機代理這個請求的範圍：用 <c>X-Kumi-Job</c> 的工作找到對話（伺服器端，模型改不了），對話有專案是限定專案（<c>X-Kumi-Project</c>
+    /// 一定要帶而且相同），沒有專案是只限組織（<c>X-Kumi-Project</c> 一定不能帶）。找不到工作、不是這個人的、已經結束的一律是同一句「找不到這件工作」。
+    /// </summary>
+    private async Task<LocalScopeResolution> ResolveLocalScopeAsync(HttpContext http, Actor actor, CancellationToken cancellationToken)
+    {
+        var jobId = McpProjectScope.ReadJob(http.Request);
+        if (jobId is null)
         {
-            return Render(await RunAsync(tool, context, request.Params?.Arguments, cancellationToken));
+            return Refused(McpProjectScope.HasJobHeader(http.Request) ? McpProjectScope.UnknownJobMessage : McpProjectScope.MissingJobMessage);
         }
 
-        return Render(await CallForLocalAgentAsync(tool, context, scope, http, request.Params?.Arguments, cancellationToken));
+        var budget = http.RequestServices.GetRequiredService<IAgentToolBudget>();
+        if (await budget.FindJobScopeAsync(AgentJobKind.Local, actor, jobId.Value, cancellationToken) is not { } found)
+        {
+            return Refused(McpProjectScope.UnknownJobMessage);
+        }
+
+        var header = McpProjectScope.Read(http.Request);
+        if (found.ProjectKey is null)
+        {
+            return McpProjectScope.HasHeader(http.Request)
+                ? Refused(McpProjectScope.OrganizationJobWithProjectMessage)
+                : new LocalScopeResolution(McpScope.OrganizationOnly, jobId.Value, found.ConversationId, null);
+        }
+
+        return string.Equals(header, found.ProjectKey, StringComparison.OrdinalIgnoreCase)
+            ? new LocalScopeResolution(McpScope.ForProject(found.ProjectKey), jobId.Value, found.ConversationId, null)
+            : Refused(McpProjectScope.UnknownJobMessage);
+
+        static LocalScopeResolution Refused(string message) => new(null, Guid.Empty, null, McpToolResult.Error(message));
     }
 
     /// <summary>
     /// 本機代理（<c>agent:run</c>）的工具呼叫：每次先在伺服器端計這件工作的額度（<see cref="IAgentToolBudget"/>），
     /// 工作編號來自 <c>X-Kumi-Job</c>（kumi 寫進引擎的 MCP 設定，模型改不了）。提出類的工具沒有成功時退還提出的名額。
+    /// 不選專案的對話，專案代號傳 null。
     /// </summary>
     private async Task<McpToolResult> CallForLocalAgentAsync(
-        McpTool tool, McpToolContext context, string projectKey, HttpContext http, IDictionary<string, JsonElement>? arguments,
+        McpTool tool, McpToolContext context, Guid jobId, HttpContext http, IDictionary<string, JsonElement>? arguments,
         CancellationToken cancellationToken)
     {
-        var jobId = McpProjectScope.ReadJob(http.Request);
-        if (jobId is null)
-        {
-            return McpToolResult.Error(
-                http.Request.Headers.ContainsKey(McpProjectScope.JobHeader) ? McpProjectScope.UnknownJobMessage : McpProjectScope.MissingJobMessage);
-        }
-
         var budget = http.RequestServices.GetRequiredService<IAgentToolBudget>();
         var isProposal = HostProposalTools.IsProposal(tool.Name);
-        var outcome = await budget.UseLocalAsync(context.Actor, jobId.Value, projectKey, isProposal, cancellationToken);
+        var outcome = await budget.UseLocalAsync(context.Actor, jobId, context.Scope.ProjectKey, isProposal, cancellationToken);
         if (BudgetRefusal(outcome) is { } refusal)
         {
             return refusal;
         }
 
-        var ticket = new BudgetTicket(budget, AgentJobKind.Local, jobId.Value, isProposal);
+        var ticket = new BudgetTicket(budget, AgentJobKind.Local, jobId, isProposal);
         return isProposal
             ? await RunProposalAsync(tool, context, arguments, ticket)
             : await RunAsync(tool, context, arguments, cancellationToken);
@@ -174,20 +240,18 @@ internal sealed class McpToolRunner(
     private async Task<CallToolResult> CallForGrantAsync(
         McpTool tool, HostToolGrant grant, HttpContext http, IDictionary<string, JsonElement>? arguments, CancellationToken cancellationToken)
     {
-        if (!grant.AllowedTools.Contains(tool.Name))
+        if (!GrantAllows(grant, tool.Name))
         {
             return Render(McpToolResult.Error($"這件工作不能用 {tool.Name} 這個工具。"));
         }
 
         if (!limiter.TryAcquire(grant.PersonId))
         {
-            return Render(McpToolResult.Error($"工具呼叫太頻繁了：每個人每分鐘最多 {McpLimits.ToolCallsPerMinute} 次，請稍後再試。"));
+            return Render(McpToolResult.Error(RateLimitedMessage));
         }
 
-        var context = new McpToolContext(grant.ToActor(), resolver.Resolve(http.Request).Issuer, new McpServices(http.RequestServices))
-        {
-            ScopedProject = grant.ProjectKey,
-        };
+        // 授權的專案是 null 是不選專案的組織對話：只限組織，不是「不限」。
+        var scope = McpScope.ForJob(grant.ProjectKey);
         var budget = http.RequestServices.GetRequiredService<IAgentToolBudget>();
         var isProposal = HostProposalTools.IsProposal(tool.Name);
         if (BudgetRefusal(await budget.UseHostAsync(grant.JobId, isProposal, cancellationToken)) is { } refusal)
@@ -195,6 +259,13 @@ internal sealed class McpToolRunner(
             return Render(refusal);
         }
 
+        var context = new McpToolContext(grant.ToActor(), resolver.Resolve(http.Request).Issuer, new McpServices(http.RequestServices))
+        {
+            Scope = scope,
+            ConversationId = isProposal && scope.Kind == McpScopeKind.OrganizationOnly
+                ? (await budget.FindJobScopeAsync(AgentJobKind.Host, null, grant.JobId, cancellationToken))?.ConversationId
+                : null,
+        };
         if (!isProposal)
         {
             return Render(await RunAsync(tool, context, arguments, cancellationToken));
@@ -264,8 +335,14 @@ internal sealed class McpToolRunner(
         public Task RefundAsync() => IsProposal ? Budget.RefundProposalAsync(Kind, JobId) : Task.CompletedTask;
     }
 
+    // 範圍之外的限制（專案或組織的清單）由呼叫的人再加上：這裡只看權杖的範圍涵蓋它，而且是本機代理能用的工具之一。
     private static bool IsVisibleToToken((Guid TokenId, IReadOnlyList<AccessTokenScope> Scopes)? token, McpTool tool) =>
-        token?.Scopes.Contains(tool.Scope) == true && (!McpProjectScope.Applies(token) || LocalAgentTools.IsAllowed(tool.Name));
+        token?.Scopes.Contains(tool.Scope) == true
+        && (!McpProjectScope.Applies(token) || LocalAgentTools.IsAllowed(tool.Name) || LocalAgentTools.IsAllowedForOrganization(tool.Name));
+
+    /// <summary>工具在授權的清單裡；不選專案的授權（<see cref="HostToolGrant.ProjectKey"/> 是 null）再和組織對話的清單取交集。</summary>
+    private static bool GrantAllows(HostToolGrant grant, string toolName) =>
+        grant.AllowedTools.Contains(toolName) && (grant.ProjectKey is not null || LocalAgentTools.IsAllowedForOrganization(toolName));
 
     public static string MissingScopeMessage(AccessTokenScope scope) =>
         $"這個連線沒有「{ScopeLabels[scope]}」（{AccessTokenScopes.NameOf(scope)}）的權限。" +

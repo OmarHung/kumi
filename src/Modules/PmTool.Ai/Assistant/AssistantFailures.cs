@@ -32,6 +32,23 @@ internal static class AssistantFailures
     public static Failure Unavailable() =>
         new(FailureKind.Invalid, AiErrorCodes.Unavailable, "組織還沒有開放可以用的 AI。請組織管理員到「AI 助理設定」開放組織的 API 金鑰，或允許成員使用自己的 AI 帳號；也可以請組織擁有者設定主機 AI 代理。");
 
+    public static Failure OrganizationChatUnsupported() =>
+        new(FailureKind.Invalid, AiErrorCodes.OrganizationChatUnsupported, "不選專案的對話不能選項目或附上附件，請到專案的 AI 助理。");
+
+    /// <summary>
+    /// 不選專案的對話要用本機或主機的引擎、而那邊的 kumi 太舊：舊版一定要有專案代號，也不認得新的工具，送過去整件工作會失敗。
+    /// 本機的請使用者更新自己的電腦，主機的請組織擁有者更新 ai-worker。
+    /// </summary>
+    public static Failure AgentUpdateRequired(Attachments.AgentSource source)
+    {
+        var version = string.IsNullOrWhiteSpace(source.Version) ? "不明" : source.Version;
+        var minimum = AiRules.MinAgentVersionForOrganizationChat;
+        var message = source.Hosted
+            ? $"「{source.Name}」的 ai-worker（kumi {version}）要 {minimum} 以上才能用在不選專案的對話，請組織擁有者更新主機的 ai-worker；在那之前請選一個專案，或換成 API 的模型。"
+            : $"「{source.Name}」那台電腦上的 kumi 是 {version}，要 {minimum} 以上才能用在不選專案的對話，請執行 kumi update；在那之前請選一個專案，或換成 API 的模型。";
+        return new(FailureKind.Conflict, AiErrorCodes.AgentUpdateRequired, message);
+    }
+
     public static Failure McpUrlMissing() =>
         new(FailureKind.Invalid, AiErrorCodes.SelectionInvalid, "這個部署還沒設定對外的網址，本機的引擎連不到 Kumi，請聯絡管理員（Security:PublicHost）。");
 }

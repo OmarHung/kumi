@@ -14,7 +14,7 @@ describe('助理：複製訊息', () => {
     const reply = makeAssistantMessage({
       parts: [
         { type: 'text', text: '第一段' },
-        { type: 'tool', callId: 'c1', name: 'get_blueprint', status: 'done', changeSetNumber: null, error: null, itemProposalId: null },
+        { type: 'tool', callId: 'c1', name: 'get_blueprint', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null },
         { type: 'text', text: '第二段' },
       ],
     });

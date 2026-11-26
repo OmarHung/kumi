@@ -82,8 +82,8 @@ internal sealed record AiConversationRow
 
     public required Guid OrganizationId { get; init; }
 
-    /// <summary>工作引擎的專案編號（模組之間不建外鍵）。</summary>
-    public required Guid ProjectId { get; init; }
+    /// <summary>工作引擎的專案編號（模組之間不建外鍵）；不選專案的組織對話是 null。</summary>
+    public Guid? ProjectId { get; init; }
 
     public required Guid PersonId { get; init; }
 
@@ -170,7 +170,7 @@ internal sealed record AiConnectionUsageRow
 
     public required Guid PersonId { get; init; }
 
-    public required string ProjectKey { get; init; }
+    public string? ProjectKey { get; init; }
 
     /// <summary>reserved、settled、released（同 <c>HostUsageStates</c>）。</summary>
     public required string State { get; init; }

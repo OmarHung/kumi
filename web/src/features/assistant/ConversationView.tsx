@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { AiOptions, AiSelection } from '../../api/aiTypes';
-import { useConversation } from '../../api/assistant';
+import { useConversation, type AssistantScope } from '../../api/assistant';
 import { isApiError } from '../../api/http';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState, RefetchErrorNotice } from '../../components/StatusViews/StatusViews';
@@ -23,7 +23,8 @@ const HTTP_NOT_FOUND = 404;
 const SKELETON_ROWS = 3;
 
 interface ConversationViewProps {
-  readonly projectKey: string;
+  /** 專案代號；null 是不選專案（組織的對話：沒有附件、不選項目）。 */
+  readonly projectKey: AssistantScope;
   readonly conversationId: string | undefined;
   readonly options: AiOptions;
   readonly selection: AiSelection | null;
@@ -36,7 +37,8 @@ interface ConversationViewProps {
 }
 
 interface BodyProps {
-  readonly projectKey: string;
+  /** 專案代號；null 是不選專案（組織的對話：沒有附件、不選項目）。 */
+  readonly projectKey: AssistantScope;
   readonly conversationId: string | undefined;
   readonly conversation: ReturnType<typeof useConversation>;
   readonly options: AiOptions;
@@ -67,7 +69,7 @@ function ConversationBody({ projectKey, conversationId, conversation, options, a
       />
     );
   }
-  if (messages === undefined || messages.length === 0) return <EmptyIntro onPick={onPick} hasItem={hasItem} />;
+  if (messages === undefined || messages.length === 0) return <EmptyIntro onPick={onPick} hasItem={hasItem} isOrganization={projectKey === null} />;
   return (
     <div className={styles.thread} data-content-start>
       {messages.map((message) => (

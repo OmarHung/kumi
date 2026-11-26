@@ -34,24 +34,24 @@ internal sealed partial class AssistantService(
         Actor actor, string? projectKey, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
-        var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
-        if (project.Failure is { } failure)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } failure)
         {
             return failure;
         }
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var now = time.GetUtcNow();
-        var canSeeAll = CanReadAllItems(project.Value);
+        var projectId = scope.Value.ProjectId;
+        var canSeeAll = scope.Value.CanReadAllItems;
         if (!canSeeAll)
         {
-            await DeleteSeenAllAsync(db, actor, project.Value.Project.Id, null, now, cancellationToken);
+            await DeleteSeenAllAsync(db, actor, projectId, null, now, cancellationToken);
         }
 
         var rows = await db.Conversations
             .AsNoTracking()
-            .Where(c => c.OrganizationId == actor.OrganizationId && c.ProjectId == project.Value.Project.Id && c.PersonId == actor.PersonId
+            .Where(c => c.OrganizationId == actor.OrganizationId && c.ProjectId == projectId && c.PersonId == actor.PersonId
                 && (canSeeAll || !c.SawAllItems))
             .OrderByDescending(c => c.UpdatedAt)
             .ThenByDescending(c => c.Id)
@@ -64,9 +64,8 @@ internal sealed partial class AssistantService(
         Actor actor, string? projectKey, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
-        var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
-        if (project.Failure is { } failure)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } failure)
         {
             return failure;
         }
@@ -82,7 +81,7 @@ internal sealed partial class AssistantService(
         {
             Id = Guid.CreateVersion7(),
             OrganizationId = actor.OrganizationId,
-            ProjectId = project.Value.Project.Id,
+            ProjectId = scope.Value.ProjectId,
             PersonId = actor.PersonId,
             MessageCount = 0,
             CreatedAt = now,
@@ -97,15 +96,14 @@ internal sealed partial class AssistantService(
         Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
-        var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
-        if (project.Failure is { } failure)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } failure)
         {
             return failure;
         }
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        var conversation = await FindVisibleConversationAsync(db, actor, project.Value, conversationId, cancellationToken);
+        var conversation = await FindVisibleConversationAsync(db, actor, scope.Value, conversationId, cancellationToken);
         if (conversation is null)
         {
             return AssistantFailures.ConversationNotFound();
@@ -134,15 +132,14 @@ internal sealed partial class AssistantService(
         Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
-        var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
-        if (project.Failure is { } failure)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } failure)
         {
             return failure;
         }
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        var conversation = await FindConversationAsync(db, actor, project.Value.Project.Id, conversationId, cancellationToken);
+        var conversation = await FindConversationAsync(db, actor, scope.Value.ProjectId, conversationId, cancellationToken);
         if (conversation is null)
         {
             return AssistantFailures.ConversationNotFound();
@@ -156,30 +153,52 @@ internal sealed partial class AssistantService(
         return deleted == 0 ? AssistantFailures.Busy() : Unit.Value;
     }
 
-    private Task<Result<ProjectDetail>> OpenProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
-        AssistantAccess.OpenProjectAsync(projects, actor, projectKey, cancellationToken);
+    /// <summary>
+    /// 對話在哪一邊：專案對話要看得到專案、有讀設定的權限；不選專案的組織對話不看任何專案的權限（登入的人就是組織的有效成員）。
+    /// 兩邊的對話分開：專案對話的 <c>project_id</c> 有值、組織對話是 null，用錯一邊讀一律找不到。
+    /// </summary>
+    private async Task<Result<ConversationScope>> OpenScopeAsync(Actor actor, string? projectKey, CancellationToken cancellationToken)
+    {
+        if (projectKey is null)
+        {
+            return new ConversationScope(null);
+        }
 
-    private static bool CanReadAllItems(ProjectDetail project) => AssistantAccess.CanReadAllItems(project);
+        var project = await AssistantAccess.OpenProjectAsync(projects, actor, projectKey, cancellationToken);
+        return project.Failure is { } failure ? failure : new ConversationScope(project.Value);
+    }
+
+    /// <summary>專案對話帶專案；組織對話沒有專案（<see cref="Project"/> 是 null）。</summary>
+    private sealed record ConversationScope(ProjectDetail? Project)
+    {
+        public Guid? ProjectId => Project?.Project.Id;
+
+        /// <summary>工作引擎回的專案代號（呼叫的人給的可能大小寫不同）。</summary>
+        public string? ProjectKey => Project?.Project.Key;
+
+        // 組織對話不讀項目，沒有「看得到全部項目」的問題。
+        public bool CanReadAllItems => Project is null || AssistantAccess.CanReadAllItems(Project);
+    }
 
     /// <summary>
     /// 找對話，並套用 AI-06：這則對話是在「看得到全部項目」時回覆過的，而他現在只剩自己的項目，歷史裡可能有他現在看不到的內容，
     /// 所以整則刪掉、當作不存在（不回內容）。正在回覆的刪不掉（回覆還要存），這次一樣當作不存在，之後再刪。
     /// </summary>
     private async Task<AiConversationRow?> FindVisibleConversationAsync(
-        AiDbContext db, Actor actor, ProjectDetail project, Guid conversationId, CancellationToken cancellationToken)
+        AiDbContext db, Actor actor, ConversationScope scope, Guid conversationId, CancellationToken cancellationToken)
     {
-        var conversation = await FindConversationAsync(db, actor, project.Project.Id, conversationId, cancellationToken);
-        if (conversation is null || !conversation.SawAllItems || CanReadAllItems(project))
+        var conversation = await FindConversationAsync(db, actor, scope.ProjectId, conversationId, cancellationToken);
+        if (conversation is null || !conversation.SawAllItems || scope.CanReadAllItems)
         {
             return conversation;
         }
 
-        await DeleteSeenAllAsync(db, actor, project.Project.Id, conversationId, time.GetUtcNow(), cancellationToken);
+        await DeleteSeenAllAsync(db, actor, scope.ProjectId, conversationId, time.GetUtcNow(), cancellationToken);
         return null;
     }
 
     private static Task<int> DeleteSeenAllAsync(
-        AiDbContext db, Actor actor, Guid projectId, Guid? conversationId, DateTimeOffset now, CancellationToken cancellationToken) =>
+        AiDbContext db, Actor actor, Guid? projectId, Guid? conversationId, DateTimeOffset now, CancellationToken cancellationToken) =>
         db.Conversations
             .Where(c => c.OrganizationId == actor.OrganizationId
                 && c.ProjectId == projectId
@@ -190,7 +209,7 @@ internal sealed partial class AssistantService(
             .ExecuteDeleteAsync(cancellationToken);
 
     private static Task<AiConversationRow?> FindConversationAsync(
-        AiDbContext db, Actor actor, Guid projectId, Guid conversationId, CancellationToken cancellationToken) =>
+        AiDbContext db, Actor actor, Guid? projectId, Guid conversationId, CancellationToken cancellationToken) =>
         db.Conversations
             .AsNoTracking()
             .SingleOrDefaultAsync(

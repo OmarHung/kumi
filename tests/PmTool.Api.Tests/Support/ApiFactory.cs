@@ -265,6 +265,8 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<IAssistantAttachmentService>();
         services.RemoveAll<IItemProposalService>();
         services.RemoveAll<IItemProposalCreator>();
+        services.RemoveAll<IProjectProposalService>();
+        services.RemoveAll<IProjectProposalCreator>();
         services.RemoveAll<ILocalAgentService>();
         services.RemoveAll<ILocalAgentDirectory>();
         services.RemoveAll<IHostAgentAdminService>();
@@ -313,6 +315,8 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<IAssistantAttachmentService>(Modules.AssistantAttachments);
         services.AddSingleton<IItemProposalService>(Modules.ItemProposals);
         services.AddSingleton<IItemProposalCreator>(Modules.ItemProposals);
+        services.AddSingleton<IProjectProposalService>(Modules.ProjectProposals);
+        services.AddSingleton<IProjectProposalCreator>(Modules.ProjectProposals);
         services.AddSingleton<ILocalAgentService>(Modules.LocalAgents);
         services.AddSingleton<ILocalAgentDirectory>(Modules.LocalAgentDirectory);
         services.AddSingleton<IHostAgentAdminService>(Modules.HostAdmin);

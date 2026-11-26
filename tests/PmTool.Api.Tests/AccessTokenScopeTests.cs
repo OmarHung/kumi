@@ -131,6 +131,14 @@ public sealed class AccessTokenScopeTests
         yield return new TestCaseData("GET", "/v1/projects/WEB/assistant/conversations/00000000-0000-0000-0000-000000000001").SetArgDisplayNames("讀助理的對話");
         yield return new TestCaseData("DELETE", "/v1/projects/WEB/assistant/conversations/00000000-0000-0000-0000-000000000001").SetArgDisplayNames("刪除助理的對話");
         yield return new TestCaseData("POST", "/v1/projects/WEB/assistant/conversations/00000000-0000-0000-0000-000000000001/messages").SetArgDisplayNames("送訊息給助理");
+        yield return new TestCaseData("GET", "/v1/assistant/conversations").SetArgDisplayNames("列出組織對話");
+        yield return new TestCaseData("POST", "/v1/assistant/conversations").SetArgDisplayNames("開新的組織對話");
+        yield return new TestCaseData("GET", "/v1/assistant/conversations/00000000-0000-0000-0000-000000000001").SetArgDisplayNames("讀組織對話");
+        yield return new TestCaseData("DELETE", "/v1/assistant/conversations/00000000-0000-0000-0000-000000000001").SetArgDisplayNames("刪除組織對話");
+        yield return new TestCaseData("POST", "/v1/assistant/conversations/00000000-0000-0000-0000-000000000001/messages").SetArgDisplayNames("送訊息給組織對話");
+        yield return new TestCaseData("GET", "/v1/ai/project-proposals/00000000-0000-0000-0000-000000000001").SetArgDisplayNames("讀新專案建議");
+        yield return new TestCaseData("POST", "/v1/ai/project-proposals/00000000-0000-0000-0000-000000000001/apply").SetArgDisplayNames("建立建議的專案");
+        yield return new TestCaseData("POST", "/v1/ai/project-proposals/00000000-0000-0000-0000-000000000001/dismiss").SetArgDisplayNames("作廢新專案建議");
         yield return new TestCaseData("GET", "/v1/account/local-agents").SetArgDisplayNames("列自己的本機代理電腦");
         yield return new TestCaseData("DELETE", "/v1/account/local-agents/00000000-0000-0000-0000-000000000001").SetArgDisplayNames("移除本機代理電腦");
         yield return new TestCaseData("POST", "/v1/client-errors").SetArgDisplayNames("回報錯誤");

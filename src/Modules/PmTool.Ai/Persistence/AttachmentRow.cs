@@ -14,7 +14,7 @@ internal sealed record AiAttachmentRow
     /// <summary>上傳的人。</summary>
     public required Guid PersonId { get; init; }
 
-    public required string ProjectKey { get; init; }
+    public string? ProjectKey { get; init; }
 
     /// <summary>送出之後才有；對話刪掉時變回 null。</summary>
     public Guid? ConversationId { get; init; }

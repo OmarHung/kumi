@@ -47,8 +47,9 @@ internal static class McpRequestGuard
             return await ChallengeAsync(context, server.Issuer);
         }
 
-        // 本機代理一定要說這個請求屬於哪個專案：沒說就整個請求拒絕，不讓它退回「看得到的全部專案」。
-        if (McpProjectScope.Applies(token) && McpProjectScope.Read(context.Request) is null)
+        // 本機代理一定要說這個請求屬於哪則對話：帶了專案標頭就要格式正確；沒帶專案標頭的只有不選專案的組織對話，
+        // 一定要帶工作標頭（範圍由伺服器用工作找到對話決定）。兩個都沒有就整個請求拒絕，不讓它退回「看得到的全部專案」。
+        if (McpProjectScope.Applies(token) && !HasConversationHeader(context.Request))
         {
             return (ApiFailure.BadRequest with { Message = McpProjectScope.MissingMessage }).ToResult();
         }
@@ -56,6 +57,9 @@ internal static class McpRequestGuard
         // 排在確認登入之後：沒登入的人不必知道上限，也不能靠大內文試探。
         return LimitBody(context) ?? await next(invocation);
     }
+
+    private static bool HasConversationHeader(HttpRequest request) =>
+        McpProjectScope.HasHeader(request) ? McpProjectScope.Read(request) is not null : McpProjectScope.HasJobHeader(request);
 
     /// <summary>
     /// 內文超過 <see cref="McpLimits.MaxRequestBytes"/> 回 413。Content-Length 先擋；沒有 Content-Length 的（chunked）靠 Kestrel 的上限，

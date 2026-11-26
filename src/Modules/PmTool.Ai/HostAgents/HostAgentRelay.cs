@@ -83,9 +83,11 @@ internal sealed class HostAgentRelay(
             request.Selection.Endpoint.Kind,
             selection.Model,
             selection.Effort,
-            LocalPromptBuilder.HostSystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey, request.Asker),
+            request.ProjectKey is null
+                ? LocalPromptBuilder.HostOrganizationSystemPrompt(request.Actor.IsOrganizationAdmin, request.Asker)
+                : LocalPromptBuilder.HostSystemPrompt(request.ProjectKey, request.Permissions, request.ItemKey, request.Asker),
             LocalPromptBuilder.Prompt(request.History, request.UserText, request.Asker),
-            LocalAgentTools.Allowed,
+            request.ProjectKey is null ? LocalAgentTools.AllowedForOrganization : LocalAgentTools.Allowed,
             AiRules.MaxToolCallsPerReply + 1)
         {
             Attachments = request.JobAttachments,

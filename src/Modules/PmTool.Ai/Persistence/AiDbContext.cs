@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Ai.Items;
+using PmTool.Ai.ProjectProposals;
 using PmTool.Ai.LocalAgents;
 
 namespace PmTool.Ai.Persistence;
@@ -23,6 +24,8 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
     public DbSet<AiMessageRow> Messages => Set<AiMessageRow>();
 
     public DbSet<ItemProposalRow> ItemProposals => Set<ItemProposalRow>();
+
+    public DbSet<ProjectProposalRow> ProjectProposals => Set<ProjectProposalRow>();
 
     public DbSet<LocalAgentRow> LocalAgents => Set<LocalAgentRow>();
 
@@ -138,6 +141,20 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
             proposal.Property(p => p.DescriptionRevision).HasMaxLength(MaxEnumLength);
             proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
             proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
+            proposal.HasIndex(p => new { p.OrganizationId, p.PersonId, p.CreatedAt });
+        });
+
+        modelBuilder.Entity<ProjectProposalRow>(proposal =>
+        {
+            proposal.ToTable("project_proposals");
+            proposal.HasKey(p => p.Id);
+            proposal.Property(p => p.Id).ValueGeneratedNever();
+            proposal.Property(p => p.Key).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
+            proposal.Property(p => p.Name).HasMaxLength(ProjectProposalLimits.MaxNameLength);
+            proposal.Property(p => p.Template).HasMaxLength(ProjectProposalLimits.MaxTemplateLength);
+            proposal.Property(p => p.TemplateName).HasMaxLength(ProjectProposalLimits.MaxTemplateLength);
+            proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
+            proposal.Property(p => p.CreatedProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
             proposal.HasIndex(p => new { p.OrganizationId, p.PersonId, p.CreatedAt });
         });
 

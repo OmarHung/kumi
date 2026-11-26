@@ -39,6 +39,9 @@ internal sealed class AgentConsole(TextWriter output, TextWriter error, bool jso
         WriteLine(output, $"已連線 {server}，這台電腦叫「{machineName}」，提供 {names}。等網頁送來的回覆，{stop}。");
     }
 
+    /// <summary>組織對話沒有專案。</summary>
+    private const string NoProject = "不選專案";
+
     public void Notice(string message) => WriteLine(error, message);
 
     public void JobFinished(JobSummary summary)
@@ -70,7 +73,7 @@ internal sealed class AgentConsole(TextWriter output, TextWriter error, bool jso
         };
         var reason = outcome.Error is { Length: > 0 } text ? $"：{text}" : string.Empty;
         WriteLine(output,
-            $"{at.ToLocalTime():HH:mm:ss}  {job.ProjectKey}  {EngineKinds.DisplayName(job.Engine)}  {job.Model}  {result}{reason}  {seconds.ToString("0.0", CultureInfo.InvariantCulture)} 秒");
+            $"{at.ToLocalTime():HH:mm:ss}  {job.ProjectKey ?? NoProject}  {EngineKinds.DisplayName(job.Engine)}  {job.Model}  {result}{reason}  {seconds.ToString("0.0", CultureInfo.InvariantCulture)} 秒");
     }
 
     private void WriteJson(JsonObject line)

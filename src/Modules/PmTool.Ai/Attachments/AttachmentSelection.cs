@@ -18,7 +18,7 @@ internal static class AttachmentSelection
     public static async Task<Result<IReadOnlyList<AiAttachmentRow>>> CheckAsync(
         AiDbContext db,
         Actor actor,
-        string projectKey,
+        string? projectKey,
         IReadOnlyList<Guid> ids,
         AgentSource? agent,
         DateTimeOffset now,
@@ -73,7 +73,7 @@ internal static class AttachmentSelection
     public static async Task<Failure?> BindAsync(
         AiDbContext db,
         Actor actor,
-        string projectKey,
+        string? projectKey,
         Guid conversationId,
         Guid messageId,
         IReadOnlyList<AiAttachmentRow> rows,

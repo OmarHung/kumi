@@ -5,6 +5,7 @@ using PmTool.Ai.Assistant.Transcript;
 using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
 using PmTool.Ai.Items;
+using PmTool.Ai.LocalAgents;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Providers;
 using PmTool.Work;
@@ -17,11 +18,15 @@ internal sealed partial class AssistantService
         Actor actor, string? projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
         ArgumentNullException.ThrowIfNull(input);
 
         // 檢查的順序見第 5.2 節；任何一項不過就什麼都不存。
         var attachmentIds = input.AttachmentIds ?? [];
+        if (projectKey is null && (input.ItemKey is not null || attachmentIds.Count > 0))
+        {
+            return AssistantFailures.OrganizationChatUnsupported();
+        }
+
         var text = CheckText(input.Text, allowEmpty: attachmentIds.Count > 0);
         if (text.Failure is { } invalidText)
         {
@@ -34,16 +39,24 @@ internal sealed partial class AssistantService
             return invalidSelection;
         }
 
-        var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
-        if (project.Failure is { } noProject)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } noProject)
         {
             return noProject;
+        }
+
+        var canonicalKey = scope.Value.ProjectKey;
+        if (projectKey is null
+            && AgentSourceOf(selection.Value) is { } agent
+            && !AgentVersions.IsAtLeast(agent.Version, AiRules.MinAgentVersionForOrganizationChat))
+        {
+            return AssistantFailures.AgentUpdateRequired(agent);
         }
 
         // 在預留名額、拿租約之前查：查人失敗時什麼都還沒存，不會留下沒放掉的預留。
         var asker = await FindAskerAsync(actor, cancellationToken);
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        var conversation = await FindVisibleConversationAsync(db, actor, project.Value, conversationId, cancellationToken);
+        var conversation = await FindVisibleConversationAsync(db, actor, scope.Value, conversationId, cancellationToken);
         if (conversation is null)
         {
             return AssistantFailures.ConversationNotFound();
@@ -53,7 +66,7 @@ internal sealed partial class AssistantService
         WorkItem? item = null;
         if (input.ItemKey is not null)
         {
-            var found = await ItemLookup.FindAsync(items, actor, project.Value.Project.Key, input.ItemKey, cancellationToken);
+            var found = await ItemLookup.FindAsync(items, actor, canonicalKey!, input.ItemKey, cancellationToken);
             if (found.Failure is { } noItem)
             {
                 return noItem;
@@ -67,7 +80,7 @@ internal sealed partial class AssistantService
 
         // 附件：數量、重複、都是自己在這個專案待送的、合計大小、選的來源讀得到（本機與主機的引擎看 kumi 的版本與引擎的種類）。
         var attachments = await AttachmentSelection.CheckAsync(
-            db, actor, project.Value.Project.Key, attachmentIds, AgentSourceOf(selection.Value), time.GetUtcNow(), cancellationToken);
+            db, actor, canonicalKey, attachmentIds, AgentSourceOf(selection.Value), time.GetUtcNow(), cancellationToken);
         if (attachments.Failure is { } badAttachments)
         {
             return badAttachments;
@@ -98,7 +111,7 @@ internal sealed partial class AssistantService
         if (hostSourceId is { } sourceId)
         {
             var reserved = await hostReservations.ReserveAsync(
-                actor, sourceId, project.Value.Project.Key, conversationId, assistantMessageId, cancellationToken);
+                actor, sourceId, canonicalKey, conversationId, assistantMessageId, cancellationToken);
             if (reserved.Failure is { } notReserved)
             {
                 return notReserved;
@@ -111,7 +124,7 @@ internal sealed partial class AssistantService
         var countsUsage = hostSourceId is null && !isLocal && !selection.Value.Endpoint.Personal;
         if (countsUsage
             && await usageLedger.ReserveAsync(
-                actor, selection.Value.Selection.ConnectionId, project.Value.Project.Key, assistantMessageId, cancellationToken) is { } overLimit)
+                actor, selection.Value.Selection.ConnectionId, canonicalKey, assistantMessageId, cancellationToken) is { } overLimit)
         {
             return overLimit;
         }
@@ -120,8 +133,8 @@ internal sealed partial class AssistantService
         try
         {
             begun = await BeginRunAsync(
-                db, actor, conversation, new UserTurn(text.Value, item?.Key, attachments.Value), project.Value.Project.Key,
-                hostSourceId is not null, CanReadAllItems(project.Value), cancellationToken);
+                db, actor, conversation, new UserTurn(text.Value, item?.Key, attachments.Value), canonicalKey,
+                hostSourceId is not null, scope.Value.Project is not null && scope.Value.CanReadAllItems, cancellationToken);
         }
         catch
         {
@@ -138,8 +151,8 @@ internal sealed partial class AssistantService
         var started = begun.Value;
         var session = runner.Start(new ReplyRequest(
             actor,
-            project.Value.Project.Key,
-            project.Value.MyPermissions,
+            canonicalKey,
+            scope.Value.Project?.MyPermissions ?? [],
             conversationId,
             assistantMessageId,
             started.User.Sequence + 1,
@@ -212,7 +225,7 @@ internal sealed partial class AssistantService
     /// 條件式的 UPDATE 是真正的互斥（好幾個 API 程序之間也只有一個拿得到）；advisory lock 只讓「數出來的數量」不被同時的請求搶先。
     /// </summary>
     private async Task<Result<BegunRun>> BeginRunAsync(
-        AiDbContext db, Actor actor, AiConversationRow conversation, UserTurn turn, string projectKey, bool queued, bool seesAllItems,
+        AiDbContext db, Actor actor, AiConversationRow conversation, UserTurn turn, string? projectKey, bool queued, bool seesAllItems,
         CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();

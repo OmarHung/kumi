@@ -13,7 +13,7 @@ internal sealed class GetBlueprintTool(AssistantToolContext context) : Assistant
 {
     protected override async Task<string> RunAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
-        var result = await Context.Projects.GetAsync(Context.Actor, Context.ProjectKey, cancellationToken);
+        var result = await Context.Projects.GetAsync(Context.Actor, Context.RequiredProjectKey, cancellationToken);
         if (result.Failure is { } failure)
         {
             return ToolResults.FromFailure(failure);
@@ -89,7 +89,7 @@ internal sealed class DescribeUsageTool(AssistantToolContext context) : Assistan
 {
     protected override async Task<string> RunAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
-        var result = await Context.Usage.DescribeAsync(Context.Actor, Context.ProjectKey, cancellationToken);
+        var result = await Context.Usage.DescribeAsync(Context.Actor, Context.RequiredProjectKey, cancellationToken);
         if (result.Failure is { } failure)
         {
             return ToolResults.FromFailure(failure);

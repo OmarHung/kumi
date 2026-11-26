@@ -26,6 +26,8 @@ internal sealed class McpServices(IServiceProvider provider)
     public IItemProposalCreator ItemProposals => provider.GetRequiredService<IItemProposalCreator>();
 
     public IPeopleDirectory People => provider.GetRequiredService<IPeopleDirectory>();
+
+    public IProjectProposalCreator ProjectProposals => provider.GetRequiredService<IProjectProposalCreator>();
 }
 
 /// <summary>
@@ -35,23 +37,30 @@ internal sealed class McpServices(IServiceProvider provider)
 internal sealed record McpToolContext(Actor Actor, string Issuer, McpServices Services)
 {
     /// <summary>
-    /// 本機代理的請求限定的專案（<see cref="McpProjectScope"/>）；null 是一般的權杖，不限。
-    /// 所有碰專案或項目的工具都要經過 <see cref="Project"/>、<see cref="Item"/>，限制只在這裡檢查一次。
+    /// 這次請求碰得到的範圍（<see cref="McpScope"/>：限定專案、只限組織、不限）。一定要明講，沒有預設值：
+    /// 忘了設定時編譯不過，而不是默默變成不限。所有碰專案或項目的工具都要經過 <see cref="Project"/>、<see cref="Item"/>，限制只在這裡檢查一次。
     /// </summary>
-    public string? ScopedProject { get; init; }
+    public required McpScope Scope { get; init; }
 
-    /// <summary>專案代號要是限定的那個（沒有限定就都可以）；不是的當作不存在。</summary>
+    /// <summary>
+    /// 代理這件工作的對話編號（伺服器從工作找到，模型改不了）；<c>propose_project</c> 用它記建議屬於哪則對話。
+    /// 一般的權杖沒有工作，是 null。
+    /// </summary>
+    public Guid? ConversationId { get; init; }
+
+    /// <summary>專案代號要是範圍允許的（不限都可以、限定要同一個、只限組織都不行）；不是的當作不存在。</summary>
     public string Project(string projectKey) =>
-        ScopedProject is null || string.Equals(projectKey.Trim(), ScopedProject, StringComparison.OrdinalIgnoreCase)
-            ? projectKey
-            : throw new McpArgumentException($"找不到專案「{projectKey}」。");
+        Scope.AllowsProject(projectKey) ? projectKey : throw new McpArgumentException($"找不到專案「{projectKey}」。");
 
-    /// <summary>項目編號是「專案代號-流水號」：專案代號要是限定的那個；不是的當作不存在。</summary>
+    /// <summary>項目編號是「專案代號-流水號」：專案代號要是範圍允許的；不是的當作不存在。</summary>
     public string Item(string itemKey)
     {
+        if (Scope.Kind == McpScopeKind.Unrestricted)
+        {
+            return itemKey;
+        }
+
         var dash = itemKey.LastIndexOf('-');
-        return ScopedProject is null || (dash > 0 && string.Equals(itemKey[..dash].Trim(), ScopedProject, StringComparison.OrdinalIgnoreCase))
-            ? itemKey
-            : throw new McpArgumentException($"找不到項目「{itemKey}」。");
+        return dash > 0 && Scope.AllowsProject(itemKey[..dash]) ? itemKey : throw new McpArgumentException($"找不到項目「{itemKey}」。");
     }
 }

@@ -20,4 +20,8 @@ internal static class AssistantToolNames
     public const string SearchItems = "search_items";
 
     public const string ProposeItemChanges = "propose_item_changes";
+
+    public const string ListProjects = "list_projects";
+
+    public const string ProposeProject = "propose_project";
 }

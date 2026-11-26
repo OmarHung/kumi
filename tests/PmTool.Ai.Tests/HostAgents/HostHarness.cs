@@ -241,7 +241,7 @@ internal sealed class HostHarness : IAsyncDisposable
         (await Host.Get<IAiOptionsService>().GetAsync(actor, CancellationToken.None)).Connections;
 
     public async Task<Result<AssistantRun>> TrySendAsync(
-        Actor actor, HostSource source, string text = "列出目前的狀態", string model = "default", string projectKey = AssistantHarness.ProjectKey)
+        Actor actor, HostSource source, string text = "列出目前的狀態", string model = "default", string? projectKey = AssistantHarness.ProjectKey)
     {
         var created = await Assistant.Service.CreateAsync(actor, projectKey, CancellationToken.None);
         if (created.Failure is { } failure)
@@ -259,7 +259,7 @@ internal sealed class HostHarness : IAsyncDisposable
 
     /// <summary>送出一則給主機來源的訊息（回覆在背景進行）。沒讀完的，測試結束時自動停掉。</summary>
     public async Task<LocalRun> SendAsync(
-        Actor actor, HostSource source, string text = "列出目前的狀態", string model = "default", string projectKey = AssistantHarness.ProjectKey)
+        Actor actor, HostSource source, string text = "列出目前的狀態", string model = "default", string? projectKey = AssistantHarness.ProjectKey)
     {
         var started = await TrySendAsync(actor, source, text, model, projectKey);
         Assert.That(started.Succeeded, Is.True, () => started.Failure?.Message ?? string.Empty);

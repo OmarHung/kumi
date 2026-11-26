@@ -7,6 +7,7 @@ import type {
   AssistantMessage,
   AssistantMessageInput,
   ItemProposal,
+  ProjectProposal,
 } from '../api/aiTypes';
 import { failure, ok } from './api';
 import { server } from './server';
@@ -81,14 +82,15 @@ export function makeAssistantMessage(overrides: Partial<AssistantMessage> = {}):
   });
 }
 
-const base = (projectKey: string) => `/v1/projects/${projectKey}/assistant/conversations`;
+/** projectKey 是 null：不選專案的組織對話。 */
+const base = (projectKey: string | null) => (projectKey === null ? '/v1/assistant/conversations' : `/v1/projects/${projectKey}/assistant/conversations`);
 
-export function serveConversations(projectKey: string, conversations: readonly AssistantConversationSummary[]): void {
+export function serveConversations(projectKey: string | null, conversations: readonly AssistantConversationSummary[]): void {
   server.use(http.get(base(projectKey), () => ok(conversations)));
 }
 
 /** GET 一則對話；回傳讀了幾次。 */
-export function serveConversation(projectKey: string, conversation: AssistantConversation) {
+export function serveConversation(projectKey: string | null, conversation: AssistantConversation) {
   let reads = 0;
   server.use(
     http.get(`${base(projectKey)}/${conversation.conversation.id}`, () => {
@@ -100,7 +102,7 @@ export function serveConversation(projectKey: string, conversation: AssistantCon
 }
 
 /** POST 開一則新的對話，回傳記下的次數。 */
-export function serveCreateConversation(projectKey: string, created: AssistantConversationSummary) {
+export function serveCreateConversation(projectKey: string | null, created: AssistantConversationSummary) {
   const calls: unknown[] = [];
   server.use(
     http.post(base(projectKey), async ({ request }) => {
@@ -111,7 +113,7 @@ export function serveCreateConversation(projectKey: string, created: AssistantCo
   return calls;
 }
 
-export function serveDeleteConversation(projectKey: string, id: string, reply = () => HttpResponse.json(null, { status: 204 })) {
+export function serveDeleteConversation(projectKey: string | null, id: string, reply = () => HttpResponse.json(null, { status: 204 })) {
   const deleted: string[] = [];
   server.use(
     http.delete(`${base(projectKey)}/${id}`, () => {
@@ -144,7 +146,7 @@ export function sseEvent(name: string, data: unknown): string {
  * 假的 POST …/messages：回 text/event-stream，內容由 script 一段一段送（拿到的 handle 可以留著之後再送）。
  * 請求被取消（停止）時串流關上。回傳記下的請求與目前的串流。
  */
-export function serveReply(projectKey: string, id: string, script: (stream: StreamHandle, body: AssistantMessageInput) => void) {
+export function serveReply(projectKey: string | null, id: string, script: (stream: StreamHandle, body: AssistantMessageInput) => void) {
   const sent: RecordedSend[] = [];
   let current: StreamHandle | null = null;
   server.use(
@@ -180,7 +182,7 @@ export function serveReply(projectKey: string, id: string, script: (stream: Stre
 }
 
 /** 送訊息被擋下（串流開始之前）：一般的 JSON 錯誤。 */
-export function rejectReply(projectKey: string, id: string, status: number, code: string, message: string): void {
+export function rejectReply(projectKey: string | null, id: string, status: number, code: string, message: string): void {
   server.use(http.post(`${base(projectKey)}/${id}/messages`, () => failure(status, code, message)));
 }
 
@@ -237,6 +239,50 @@ export function serveItemProposal(
     http.post(`${path}/dismiss`, () => {
       dismissed += 1;
       current = { ...current, status: 'dismissed', decidedAt: '2026-11-23T02:05:00Z' };
+      return ok(current);
+    }),
+  );
+  return { applied: () => applied, dismissed: () => dismissed };
+}
+
+export function makeProjectProposal(overrides: Partial<ProjectProposal> = {}): ProjectProposal {
+  return {
+    id: 'pp-1',
+    key: 'WEB',
+    name: '網站改版',
+    template: 'simple_tasks',
+    templateName: '簡單任務',
+    includeExamples: false,
+    description: null,
+    status: 'pending',
+    createdAt: '2026-11-26T02:00:00Z',
+    decidedAt: null,
+    createdProjectKey: null,
+    ...overrides,
+  };
+}
+
+/**
+ * 假的新專案建議端點：GET 回目前的狀態；apply 成功時換成 applied（帶 createdProjectKey），可以用 onApply 回失敗；dismiss 換成 dismissed。
+ * 回傳各自被呼叫的次數。
+ */
+export function serveProjectProposal(proposal: ProjectProposal, onApply: () => Response | null = () => null): ProposalBackend {
+  let current = proposal;
+  let applied = 0;
+  let dismissed = 0;
+  const path = `/v1/ai/project-proposals/${proposal.id}`;
+  server.use(
+    http.get(path, () => ok(current)),
+    http.post(`${path}/apply`, () => {
+      applied += 1;
+      const failed = onApply();
+      if (failed !== null) return failed;
+      current = { ...current, status: 'applied', decidedAt: '2026-11-26T02:05:00Z', createdProjectKey: current.key };
+      return ok(current);
+    }),
+    http.post(`${path}/dismiss`, () => {
+      dismissed += 1;
+      current = { ...current, status: 'dismissed', decidedAt: '2026-11-26T02:05:00Z' };
       return ok(current);
     }),
   );

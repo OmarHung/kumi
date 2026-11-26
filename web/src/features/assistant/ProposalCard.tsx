@@ -43,7 +43,7 @@ interface DescriptionBoxProps {
   readonly linkHosts?: 'always';
 }
 
-function DescriptionBox({ label, heading, text, linkHosts }: DescriptionBoxProps) {
+export function DescriptionBox({ label, heading, text, linkHosts }: DescriptionBoxProps) {
   const boxRef = useRef<HTMLElement>(null);
   const noteId = useId();
   const isOverflowing = useOverflow(boxRef, text);

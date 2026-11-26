@@ -3,6 +3,7 @@ import { useHostSourceUsage } from '../../api/hostAgents';
 import { Button } from '../../components/Button/Button';
 import { Dialog, DialogActions } from '../../components/Dialog/Dialog';
 import { List, ListRow } from '../../components/List/List';
+import { NO_PROJECT_LABEL } from '../ai/aiLabels';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState } from '../../components/StatusViews/StatusViews';
 import { formatCount, outcomeSummary, usageSummary } from './hostAgentText';
@@ -44,8 +45,8 @@ function UsageGroups({ data }: { readonly data: HostSourceUsage }) {
           <List label="依專案的用量">
             {data.projects.map((entry) => (
               <ListRow
-                key={entry.projectKey}
-                code={entry.projectKey}
+                key={entry.projectKey ?? NO_PROJECT_LABEL}
+                code={entry.projectKey ?? NO_PROJECT_LABEL}
                 title={outcomeSummary(entry.totals)}
                 meta={[{ key: 'tokens', label: 'token', content: tokensText(entry.totals.inputTokens, entry.totals.outputTokens) }]}
               />

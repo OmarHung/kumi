@@ -171,7 +171,7 @@ describe('M1：報讀', () => {
     expect(liveRegion()).toHaveTextContent(/^助理正在回覆$/);
 
     // Act
-    const tool = { type: 'tool', callId: 'c2', name: 'propose_changeset', status: 'done', changeSetNumber: 12, error: null, itemProposalId: null } as const;
+    const tool = { type: 'tool', callId: 'c2', name: 'propose_changeset', status: 'done', changeSetNumber: 12, error: null, itemProposalId: null, projectProposalId: null } as const;
     reply.stream()?.event('done', { message: makeAssistantMessage({ id: 'a1', parts: [tool] }) });
     reply.stream()?.close();
 

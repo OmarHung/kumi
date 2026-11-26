@@ -60,12 +60,11 @@ export const queryKeys = {
   // 伺服器提供下載的 kumi 執行檔（我的帳號的「命令列工具」）。
   cliCatalog: ['cli'],
   // AI 助理的對話放在專案底下，只有自己的。清單與一則對話各一份快取。
-  assistantConversations: (projectKey: string) => ['project', projectKey, 'assistant', 'conversations'],
-  assistantConversation: (projectKey: string, conversationId: string) => [
-    'project',
-    projectKey,
-    'assistant',
-    'conversations',
+  // projectKey 是 null：不選專案的組織對話，不掛在 ['project', key] 底下（專案的快取失效、改名不牽動它）。
+  assistantConversations: (projectKey: string | null) =>
+    projectKey === null ? ['ai', 'assistant', 'conversations'] : ['project', projectKey, 'assistant', 'conversations'],
+  assistantConversation: (projectKey: string | null, conversationId: string) => [
+    ...(projectKey === null ? ['ai', 'assistant', 'conversations'] : ['project', projectKey, 'assistant', 'conversations']),
     conversationId,
   ],
   // 助理選項目時的搜尋結果（只有這個專案的項目）；和項目清單的鍵分開：那邊是分頁的查詢，形狀不同。
@@ -74,6 +73,8 @@ export const queryKeys = {
   assistantItemChoiceLists: (projectKey: string) => ['project', projectKey, 'assistant-items'],
   // 助理提出的項目修改建議（套用、不要之後換成伺服器回的新狀態）。
   itemProposal: (proposalId: string) => ['ai', 'item-proposals', proposalId],
+  // 助理提出的新專案建議。
+  projectProposal: (proposalId: string) => ['ai', 'project-proposals', proposalId],
   // 變更集放在專案底下：套用之後讓整個專案失效時，清單與每一份的內容也一起重抓。
   changeSets: (projectKey: string) => ['project', projectKey, 'changesets'],
   changeSet: (projectKey: string, number: number) => ['project', projectKey, 'changesets', number],

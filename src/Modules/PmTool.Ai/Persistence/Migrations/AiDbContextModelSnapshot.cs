@@ -15,6 +15,7 @@ namespace PmTool.Ai.Persistence.Migrations
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
+#pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("ai")
                 .HasAnnotation("ProductVersion", "10.0.15")
@@ -71,7 +72,6 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnName("position");
 
                     b.Property<string>("ProjectKey")
-                        .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)")
                         .HasColumnName("project_key");
@@ -235,7 +235,6 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnName("person_id");
 
                     b.Property<string>("ProjectKey")
-                        .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)")
                         .HasColumnName("project_key");
@@ -284,7 +283,7 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("person_id");
 
-                    b.Property<Guid>("ProjectId")
+                    b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
@@ -729,7 +728,6 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnName("person_id");
 
                     b.Property<string>("ProjectKey")
-                        .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)")
                         .HasColumnName("project_key");
@@ -1037,7 +1035,6 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnName("person_id");
 
                     b.Property<string>("ProjectKey")
-                        .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)")
                         .HasColumnName("project_key");
@@ -1359,6 +1356,84 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.ToTable("local_agent_jobs", "ai");
                 });
 
+            modelBuilder.Entity("PmTool.Ai.Persistence.ProjectProposalRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedProjectKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("created_project_key");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IncludeExamples")
+                        .HasColumnType("boolean")
+                        .HasColumnName("include_examples");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Template")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("template");
+
+                    b.Property<string>("TemplateName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("template_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_proposals");
+
+                    b.HasIndex("OrganizationId", "PersonId", "CreatedAt")
+                        .HasDatabaseName("ix_project_proposals_organization_id_person_id_created_at");
+
+                    b.ToTable("project_proposals", "ai");
+                });
+
             modelBuilder.Entity("PmTool.Ai.Persistence.AiAttachmentRow", b =>
                 {
                     b.HasOne("PmTool.Ai.Persistence.AiConversationRow", null)
@@ -1393,6 +1468,7 @@ namespace PmTool.Ai.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_local_engines_local_agents_agent_id");
                 });
+#pragma warning restore 612, 618
         }
     }
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { AssistantConversationSummary } from '../../api/aiTypes';
-import { useConversations, useDeleteConversation } from '../../api/assistant';
+import { useConversations, useDeleteConversation, type AssistantScope } from '../../api/assistant';
 import { errorMessage } from '../../api/http';
 import { buttonClassName } from '../../components/Button/Button';
 import { ConfirmDialog } from '../../components/Dialog/ConfirmDialog';
@@ -11,14 +11,14 @@ import { Menu } from '../../components/Menu/Menu';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState } from '../../components/StatusViews/StatusViews';
 import { formatRelativeTime } from '../../domain/time';
-import { projectAssistantPath } from '../work-items/itemLinks';
+import { assistantPagePath } from '../work-items/itemLinks';
 import styles from './Assistant.module.css';
 
 const NEW_CONVERSATION = '新的對話';
 const SKELETON_ROWS = 4;
 
 interface ConversationListProps {
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   readonly currentId: string | undefined;
   /** 選了一則或按了「新的對話」之後（窄螢幕的對話框要關上）。 */
   readonly onNavigate?: () => void;
@@ -39,7 +39,7 @@ function ConversationRow({ projectKey, currentId, conversation, now, onDelete, o
   return (
     <li className={styles.conversationRow}>
       <Link
-        to={projectAssistantPath(projectKey, conversation.id)}
+        to={assistantPagePath(projectKey, conversation.id)}
         className={styles.conversationLink}
         aria-current={conversation.id === currentId ? 'true' : undefined}
         onClick={onNavigate}
@@ -76,7 +76,7 @@ function DeleteDialog({
   isCurrent,
   onClose,
 }: {
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   readonly conversation: AssistantConversationSummary;
   readonly isCurrent: boolean;
   readonly onClose: () => void;
@@ -97,7 +97,7 @@ function DeleteDialog({
           onSuccess: () => {
             onClose();
             if (isCurrent)
-              void navigate(projectAssistantPath(projectKey), {
+              void navigate(assistantPagePath(projectKey), {
                 replace: true,
               });
           },
@@ -152,7 +152,7 @@ export function ConversationList({ projectKey, currentId, onNavigate }: Conversa
   const [pendingDelete, setPendingDelete] = useState<AssistantConversationSummary | null>(null);
   return (
     <>
-      <Link to={projectAssistantPath(projectKey)} className={buttonClassName('secondary')} onClick={onNavigate}>
+      <Link to={assistantPagePath(projectKey)} className={buttonClassName('secondary')} onClick={onNavigate}>
         <Icon name="add" />
         {NEW_CONVERSATION}
       </Link>
