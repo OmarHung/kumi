@@ -40,7 +40,7 @@ function ProposalRows({ proposal }: { readonly proposal: ProjectProposal }) {
         <div className={styles.row}>
           <dt className={styles.label}>說明</dt>
           <dd className={styles.value}>
-            <DescriptionBox label="專案說明" heading="說明" text={proposal.description} linkHosts="always" />
+            <DescriptionBox label="專案說明" text={proposal.description} linkHosts="always" />
           </dd>
         </div>
       )}

@@ -37,7 +37,8 @@ const SCROLL_NOTE = '內容較長，捲動看完整的說明';
  */
 interface DescriptionBoxProps {
   readonly label: string;
-  readonly heading: string;
+  /** 框裡的小標題（改前、改後）；外面已經有欄位名稱時不給，免得同一個字出現兩次。 */
+  readonly heading?: string;
   readonly text: string;
   /** AI 建議的內容一律列出連結的網域；「現在的說明」不是 AI 寫的，維持預設。 */
   readonly linkHosts?: 'always';
@@ -56,9 +57,11 @@ export function DescriptionBox({ label, heading, text, linkHosts }: DescriptionB
         aria-describedby={isOverflowing ? noteId : undefined}
         tabIndex={isOverflowing ? 0 : undefined}
       >
-        <h4 className={styles.boxLabel} aria-hidden="true">
-          {heading}
-        </h4>
+        {heading !== undefined && (
+          <h4 className={styles.boxLabel} aria-hidden="true">
+            {heading}
+          </h4>
+        )}
         {text.trim() === '' ? <span className={styles.before}>{EMPTY_VALUE}</span> : <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts={linkHosts} />}
       </section>
       {isOverflowing && (

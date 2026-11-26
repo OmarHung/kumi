@@ -44,6 +44,16 @@ describe('新專案建議的卡片：內容', () => {
     expect(view.getByRole('button', { name: '不要' })).toBeInTheDocument();
   });
 
+  it('有說明時「說明」只出現一次（欄位名稱，說明框裡不再重複一個小標題）', async () => {
+    // Arrange / Act
+    renderCard(makeProjectProposal({ description: '目標：三月底前上線' }));
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText('目標：三月底前上線')).toBeInTheDocument();
+    expect(view.getAllByText('說明')).toHaveLength(1);
+  });
+
   it('沒有說明時不畫說明那一格；沒附範例寫「不附範例」', async () => {
     // Arrange / Act
     renderCard();
