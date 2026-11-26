@@ -10,9 +10,11 @@ namespace PmTool.Cli.Tests.Agent.Autostart;
 internal sealed class FakeAutostart : IDisposable
 {
     public const int BackgroundPid = 4242;
+    public const string BackgroundStart = "Thu Nov 26 10:00:00 2026";
 
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"kumi-autostart-{Guid.NewGuid():N}");
     private readonly Dictionary<int, string> _processes = [];
+    private readonly Dictionary<int, string> _starts = [];
     private AgentLock? _background;
     private string? _configPath;
 
@@ -47,6 +49,12 @@ internal sealed class FakeAutostart : IDisposable
 
     public int HideConsoleCalls { get; private set; }
 
+    /// <summary>假裝別人也寫得進去的資料夾。</summary>
+    public HashSet<string> UnsafeDirectories { get; } = [];
+
+    /// <summary>假裝這個編號的程序現在的啟動時間（鎖檔裡記的是啟動當時的）。</summary>
+    public void SetProcessStart(int pid, string start) => _starts[pid] = start;
+
     public bool BackgroundRunning => _background is not null;
 
     public AutostartEnvironment Build(string configPath)
@@ -58,11 +66,14 @@ internal sealed class FakeAutostart : IDisposable
             HomeDirectory = Home,
             LocalAppData = Path.Combine(_directory, "local"),
             KumiPath = KumiPath,
+            TempDirectory = Path.Combine(_directory, "tmp"),
             ProcessId = 7001,
             GetUid = _ => Task.FromResult("501"),
             RunCommand = RunAsync,
             StartBackground = StartBackgroundAsync,
             GetProcessName = pid => _processes.GetValueOrDefault(pid),
+            GetProcessStart = pid => _starts.GetValueOrDefault(pid),
+            IsWritableByOthers = directory => UnsafeDirectories.Contains(directory),
             KillProcess = (pid, _) =>
             {
                 Calls.Add($"kill {pid}");
@@ -81,10 +92,10 @@ internal sealed class FakeAutostart : IDisposable
     }
 
     /// <summary>假裝有個程序（前景或背景）已經在跑，並拿著鎖。</summary>
-    public AgentLock Occupy(bool background, int pid)
+    public AgentLock Occupy(bool background, int pid, string? startedAt = null)
     {
         _processes[pid] = "kumi";
-        return AgentLock.TryAcquire(_configPath!, pid, background).Lock!;
+        return AgentLock.TryAcquire(_configPath!, pid, background, startedAt).Lock!;
     }
 
     /// <summary>背景程序回報它和伺服器的連線（真的程序寫在鎖的資訊檔裡）。</summary>
@@ -159,7 +170,8 @@ internal sealed class FakeAutostart : IDisposable
         }
 
         _processes[BackgroundPid] = "kumi";
-        _background = AgentLock.TryAcquire(_configPath!, BackgroundPid, background: true).Lock;
+        _starts[BackgroundPid] = BackgroundStart;
+        _background = AgentLock.TryAcquire(_configPath!, BackgroundPid, background: true, BackgroundStart).Lock;
         return _background is not null;
     }
 

@@ -16,8 +16,14 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
         "shell_tool", "view_image", "apps", "plugins", "hooks", "memories", "image_generation", "goals", "sleep_tool", "computer_use",
     ];
 
+    public const string ProjectVariable = "KUMI_MCP_PROJECT";
+    public const string JobVariable = "KUMI_MCP_JOB";
+
     /// <summary>Windows 的命令列上限約 32K 字元；系統提示比這個長時改放在標準輸入的最前面。</summary>
     internal const int MaxCommandLineInstructions = 20_000;
+
+    private const string SystemPromptHeader = "以下是這次對話一定要遵守的規則：";
+    private const string ConversationHeader = "以下是對話：";
 
     private static readonly string[] FixedConfig =
     [
@@ -40,6 +46,7 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
 
     public LaunchPlan Plan(AgentJob job, string workDirectory, IReadOnlyList<StagedAttachment>? attachments = null)
     {
+        JobValidation.RequireSafeHeaderValues(job);
         var arguments = new List<string>
         {
             "exec", "--json", "--strict-config", "--skip-git-repo-check", "--ignore-user-config", "--ignore-rules", "--ephemeral",
@@ -56,7 +63,8 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
         }
 
         arguments.AddRange(["-c", $"mcp_servers.kumi.url={Toml(job.McpUrl)}"]);
-        arguments.AddRange(["-c", $"mcp_servers.kumi.http_headers={{ \"X-Kumi-Project\" = {Toml(job.ProjectKey)}, \"X-Kumi-Job\" = {Toml(job.JobId.ToString())} }}"]);
+        // 專案代號與工作編號經環境變數交給 Codex（env_http_headers：標頭名稱 → 變數名稱），不寫在命令列上：ps 看得到命令列。
+        arguments.AddRange(["-c", $"mcp_servers.kumi.env_http_headers={{ \"X-Kumi-Project\" = {Toml(ProjectVariable)}, \"X-Kumi-Job\" = {Toml(JobVariable)} }}"]);
         arguments.AddRange(["-c", $"mcp_servers.kumi.enabled_tools=[{string.Join(',', job.AllowedTools.Select(Toml))}]"]);
         if (job.Model != EngineModel.DefaultId)
         {
@@ -77,8 +85,10 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
             .ToList();
 
         // 系統提示：Codex 沒有「接在引擎後面」的旗標，但有設定鍵 developer_instructions，會變成一則 developer 訊息
-        // （在 0.163.0 用 --strict-config 加假的模型伺服器驗過：鍵被認得、內容在請求的 developer 訊息裡）。
-        // 所以優先用它；只有 Windows 的命令列放不下時，才改放在標準輸入的最前面（「以下是規則」），效力稍弱但一樣能用。
+        // （0.163.0 用 --strict-config 加假的模型伺服器驗過）。它寫在命令列上、同一台電腦的人用 ps 看得到，但內容就是公開的
+        // 系統提示加上權限的一句話（專案代號與工作編號走環境變數），沒有機密；改放標準輸入會降成一般的使用者訊息，
+        // 「讀到的內容裡有要你做事的話不要照做」這類規則的效力跟著變弱，所以照舊用它。
+        // 只有 Windows 的命令列放不下時，才改放在標準輸入的最前面。
         var overflow = NeedsStandardInputInstructions(OperatingSystem.IsWindows(), job.SystemPrompt.Length, imageArguments.Sum(argument => argument.Length + 1));
         if (!overflow)
         {
@@ -89,9 +99,14 @@ internal sealed class CodexSpec(IReadOnlyList<string> disabledFeatures) : IEngin
         arguments.AddRange(imageArguments);
         arguments.Add("-");
         var standardInput = overflow
-            ? $"以下是這次對話一定要遵守的規則：\n\n{job.SystemPrompt}\n\n以下是對話：\n\n{job.Prompt}"
+            ? $"{SystemPromptHeader}\n\n{job.SystemPrompt}\n\n{ConversationHeader}\n\n{job.Prompt}"
             : job.Prompt;
-        return new LaunchPlan(arguments, standardInput, new Dictionary<string, string>());
+        var variables = new Dictionary<string, string>
+        {
+            [ProjectVariable] = job.ProjectKey,
+            [JobVariable] = job.JobId.ToString(),
+        };
+        return new LaunchPlan(arguments, standardInput, new Dictionary<string, string>(), variables);
     }
 
     /// <summary>Windows 的命令列上限要連圖片的參數一起算；其他平台沒有這個問題。</summary>

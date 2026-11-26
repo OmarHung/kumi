@@ -58,6 +58,11 @@ internal sealed class EngineDiscovery(Func<string, string?> environment, string 
             return (null, $"{name} 跑不起來（claude --version 失敗）：請確認安裝完整，或重新安裝。");
         }
 
+        if (UntestedVersionNote(EngineKinds.ClaudeCode, FirstToken(version.StandardOutput)) is { } untested)
+        {
+            return (null, untested);
+        }
+
         if (await ProbeAsync(executable, ["--help"], cancellation) is not { } claudeHelp
             || ClaudeRequiredFlags.Where(flag => !HasFlag(claudeHelp.Output, flag)).ToArray() is { Length: > 0 })
         {
@@ -114,13 +119,18 @@ internal sealed class EngineDiscovery(Func<string, string?> environment, string 
             return (null, $"{name} 跑不起來（codex --version 失敗）：請確認安裝完整，或重新安裝。");
         }
 
+        if (UntestedVersionNote(EngineKinds.Codex, LastToken(version.StandardOutput)) is { } untested)
+        {
+            return (null, untested);
+        }
+
         if (await ProbeAsync(executable, ["login", "status"], cancellation) is not { ExitCode: 0 })
         {
             return (null, $"{name} 沒有登入：請在終端機執行 codex login。");
         }
 
         if (await ProbeAsync(executable, ["exec", "--help"], cancellation) is not { } help
-            || CodexRequiredFlags.Any(flag => !help.Output.Contains(flag, StringComparison.Ordinal)))
+            || CodexRequiredFlags.Any(flag => !HelpFlags.Contains(help.Output, flag)))
         {
             return (null, $"這個版本的 {name} 太舊，沒有 {string.Join("、", CodexRequiredFlags)} 這些安全用的選項，為了安全不提供 {name}。請更新 {name}。");
         }
@@ -138,11 +148,15 @@ internal sealed class EngineDiscovery(Func<string, string?> environment, string 
         return (engine, null);
     }
 
+    /// <summary>版本不在驗證過的範圍內：預設不提供並說明；<c>--allow-untested-engine</c> 放行。</summary>
+    private string? UntestedVersionNote(string kind, string version) =>
+        options.AllowUntestedEngine ? null : EngineVersionRange.For(kind).Check(version);
+
     private static string? BatchScriptNote(string name, string executable) => ExecutableLocator.IsBatchScript(executable)
         ? $"找到的 {name}（{Path.GetFileName(executable)}）是 .cmd／.bat：Windows 的批次檔對命令列的跳脫規則不同，系統提示裡的特殊字元會變成命令注入，所以不用。請改用 .exe 的安裝方式（例如官方的安裝程式），或用 KUMI_AGENT_{(name == "Codex" ? "CODEX" : "CLAUDE")}_PATH 指向 .exe。"
         : null;
 
-    private static bool HasFlag(string help, string flag) => EngineProber.HasFlag(help, flag);
+    private static bool HasFlag(string help, string flag) => HelpFlags.Contains(help, flag);
 
     private Task<ProbeResult?> ProbeAsync(string executable, string[] arguments, CancellationToken cancellation) =>
         _prober.ProbeAsync(executable, arguments, cancellation);

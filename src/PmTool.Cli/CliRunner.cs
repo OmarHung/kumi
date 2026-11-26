@@ -12,6 +12,11 @@ public static class CliRunner
         context = context.WithSafeOutput();
         try
         {
+            foreach (var warning in Settings.ConfigPermissions.Repair(context.ConfigPath))
+            {
+                await context.Error.WriteLineAsync($"警告：{warning}");
+            }
+
             return await DispatchAsync(args, context, cancellationToken);
         }
         catch (CliException exception)

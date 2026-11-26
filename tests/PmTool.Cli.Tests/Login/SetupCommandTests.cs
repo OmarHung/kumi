@@ -40,8 +40,8 @@ public sealed class SetupCommandTests
     [Test]
     public async Task Setup_AnsweringYesToEverything_LogsInOnceAndSetsUpBothEnginesAndTheAgent()
     {
-        // Arrange（claude、codex、本機代理、開機自動啟動：四題都用預設）
-        using var kit = Kit("\n\n\n\n");
+        // Arrange（claude、codex、本機代理用預設，開機自動啟動預設是「否」所以明講要）
+        using var kit = Kit("\n\n\ny\n");
 
         // Act
         var result = await kit.RunAsync("setup", "--server", CliHarness.ServerUrl);
@@ -111,7 +111,7 @@ public sealed class SetupCommandTests
     {
         // Arrange
         using var kit = Kit("n\nn\ny\nn\nn\n");
-        ServeSession(kit, ("pmt_cli_stored", ["items:read"]), ("pmt_agent_stored", ["agent:run", "items:read"]));
+        ServeSession(kit, ("pmt_cli_stored", ["items:read"]), ("pmt_agent_stored", ["agent:run", "blueprint:read", "blueprint:write", "items:read"]));
         new ConfigStore(kit.Cli.ConfigPath).Save(new StoredConfig { Server = CliHarness.ServerUrl, Token = "pmt_cli_stored", AgentToken = "pmt_agent_stored" });
 
         // Act
@@ -426,6 +426,23 @@ public sealed class SetupCommandTests
     }
 
     [Test]
+    public async Task Setup_PressingEnterOnTheAutostartQuestion_MeansNoAndTheQuestionSaysItUsesYourSubscription()
+    {
+        // Arrange（claude n、codex n、本機代理 y、自動啟動直接 Enter、現在啟動 n）
+        using var kit = Kit("n\nn\ny\n\nn\n");
+
+        // Act
+        var result = await kit.RunAsync("setup", "--server", CliHarness.ServerUrl);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Out, Does.Contain("AI 訂閱").And.Contain("[y/N]"));
+            Assert.That(kit.SubCommands, Is.Empty, "沒有明講要，就不能設開機自動啟動");
+        }
+    }
+
+    [Test]
     public async Task Setup_AutostartDeclined_OffersToStartButDoesNotWhenTheUserSaysNo()
     {
         // Arrange（claude n、codex n、本機代理 y、自動啟動 n、現在啟動 n）
@@ -574,4 +591,32 @@ public sealed class SetupCommandTests
     [TestCase("https://pm.example.com/mcp\n", false)]
     public void IsSafeUrl_OnlyAllowsAConservativeCharacterSet(string url, bool expected) =>
         Assert.That(PmTool.Cli.Setup.McpConfigurator.IsSafeUrl(url), Is.EqualTo(expected));
+
+    [TestCase("https://pm.example.com/mcp", true)]
+    [TestCase("http://127.0.0.1:8080/mcp", true)]
+    [TestCase("http://localhost:8080/mcp", true)]
+    [TestCase("http://[::1]:8080/mcp", true)]
+    [TestCase("http://pm.example.com/mcp", false)]
+    [TestCase("http://203.0.113.5:8080/mcp", false)]
+    [TestCase("ftp://pm.example.com/mcp", false)]
+    public void IsAllowedTransport_OnlyHttpsOrLoopback(string url, bool expected) =>
+        Assert.That(PmTool.Cli.Setup.McpConfigurator.IsAllowedTransport(url), Is.EqualTo(expected));
+
+    [Test]
+    public async Task Setup_ARemoteHttpServerEvenWithInsecure_DoesNotWriteTheMcpUrlIntoTheEngine()
+    {
+        // Arrange（--insecure 只放行這次指令的連線；寫進引擎設定檔的網址會一直被用，不能是明文）
+        using var kit = Kit("y\nn\nn\n");
+
+        // Act
+        var result = await kit.RunAsync("setup", "--server", "http://pm.example.com", "--insecure");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Out, Does.Contain("不是 https"));
+            Assert.That(_engines.Calls("claude"), Has.None.Contains("mcp add"));
+            Assert.That(_engines.ExistingUrl("claude"), Is.Null);
+        }
+    }
 }

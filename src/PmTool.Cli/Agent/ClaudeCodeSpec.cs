@@ -29,6 +29,7 @@ internal sealed class ClaudeCodeSpec : IEngineSpec
 
     public LaunchPlan Plan(AgentJob job, string workDirectory, IReadOnlyList<StagedAttachment>? attachments = null)
     {
+        JobValidation.RequireSafeHeaderValues(job);
         var arguments = new List<string>
         {
             "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",

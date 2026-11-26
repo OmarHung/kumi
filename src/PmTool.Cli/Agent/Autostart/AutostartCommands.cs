@@ -31,7 +31,7 @@ internal static class AutostartCommands
 
         if (!await manager.StopBackgroundAsync(call.CancellationToken))
         {
-            throw new CliException(ExitCodes.Error, "舊的背景程序停不下來，沒有更動設定。請到工作管理員或活動監視器結束 kumi，再執行一次。");
+            throw new CliException(ExitCodes.Error, "舊的背景程序停不下來，沒有更動設定。請到工作管理員或活動監視器結束 kumi，再執行一次。" + (manager.SkipNote is { } note ? " " + note : string.Empty));
         }
 
         AutostartManager.TrimLog(spec.LogPath);
@@ -56,7 +56,7 @@ internal static class AutostartCommands
 
         if (manager is not null && !await manager.StopBackgroundAsync(call.CancellationToken))
         {
-            throw new CliException(ExitCodes.Error, "背景的本機代理停不下來，沒有取消自動啟動。請到工作管理員或活動監視器結束 kumi，再執行一次。");
+            throw new CliException(ExitCodes.Error, "背景的本機代理停不下來，沒有取消自動啟動。請到工作管理員或活動監視器結束 kumi，再執行一次。" + (manager.SkipNote is { } note ? " " + note : string.Empty));
         }
 
         if (backend is not null)
@@ -96,7 +96,8 @@ internal static class AutostartCommands
 
         var recent = logPath is null ? [] : AutostartManager.LogTail(logPath, StatusLogLines);
         var enabled = backend?.IsInstalled() ?? false;
-        var report = new StatusReport(backend is not null, enabled, state, logPath, enabled && logPath is not null && !File.Exists(logPath), recent);
+        var usage = JobQuota.Read(call.Context.ConfigPath, () => DateTimeOffset.Now, state.Running);
+        var report = new StatusReport(backend is not null, enabled, state, logPath, enabled && logPath is not null && !File.Exists(logPath), recent, usage);
         if (call.Json)
         {
             call.Out.WriteLine(StatusJson(report).ToJsonString());
@@ -132,11 +133,20 @@ internal static class AutostartCommands
             throw new CliException(ExitCodes.Error, "找不到 kumi 自己的執行檔路徑，沒辦法寫啟動項目。");
         }
 
+        if (AutostartPathPolicy.Check(kumiPath, environment) is { } unsafePlace)
+        {
+            throw new CliException(ExitCodes.Error, unsafePlace);
+        }
+
+        var limits = AgentCommands.ApplyLimits(call, context.AgentOptions);
+
         return new AutostartSpec(
             kumiPath, credentials.Server,
             call.Arguments.Value("name") is { } name ? MachineIdentity.ResolveName(name) : null,
             [.. call.Arguments.Values("engine").Distinct()],
-            call.Arguments.Has("insecure"), BackgroundEnvironment(context), logPath);
+            call.Arguments.Has("insecure"), BackgroundEnvironment(context), logPath,
+            AgentCommands.ParseLimit(call, "max-jobs-per-hour"), AgentCommands.ParseLimit(call, "max-jobs-per-day"),
+            limits.AllowUntestedEngine);
     }
 
     /// <summary>launchd 啟動的程序不經過使用者的 shell：PATH 與找引擎要用的變數要自己帶。不帶任何權杖。</summary>
@@ -162,6 +172,13 @@ internal static class AutostartCommands
             {
                 call.Out.WriteLine(
                     $"已設定：登入電腦時會自動在背景啟動本機代理，現在已經在執行。記錄檔：{spec.LogPath}。kumi agent status 看狀態，kumi agent disable 取消。");
+                call.Out.WriteLine(
+                    $"它會在背景用你的 AI 訂閱執行網頁送來的對話，本機上限是每小時 {Limit(spec.MaxJobsPerHour, JobQuota.DefaultPerHour)}、每天 {Limit(spec.MaxJobsPerDay, JobQuota.DefaultPerDay)}"
+                    + "（--max-jobs-per-hour、--max-jobs-per-day 調整，0 是不限）。");
+                if (call.Context.Autostart.Os == AutostartOs.Windows)
+                {
+                    call.Out.WriteLine("注意：Windows 的開機自動啟動是實驗性的，還沒有在真的 Windows 上完整驗證過；有問題請看記錄檔，或用 kumi agent disable 取消。");
+                }
             }
 
             return ExitCodes.Success;
@@ -174,8 +191,19 @@ internal static class AutostartCommands
     }
 
     /// <param name="LogMissing">設了自動啟動、記錄檔卻不在：多半是資料夾被清理工具刪掉，launchd 不會自己建回來。</param>
+    /// <param name="Usage">這台電腦這一小時、今天領走的工作數與上限。</param>
     private sealed record StatusReport(
-        bool Supported, bool Enabled, AgentRunState State, string? LogPath, bool LogMissing, IReadOnlyList<string> Recent);
+        bool Supported, bool Enabled, AgentRunState State, string? LogPath, bool LogMissing, IReadOnlyList<string> Recent, QuotaUsage Usage);
+
+    private static string Limit(int? configured, int fallback)
+    {
+        var value = configured ?? fallback;
+        return value == 0 ? "不限" : $"{value} 件";
+    }
+
+    private static JsonObject UsageJson(QuotaWindow window) => new() { ["used"] = window.Used, ["limit"] = window.Limit };
+
+    private static string UsageText(QuotaWindow window) => window.IsUnlimited ? $"{window.Used} 件（不限）" : $"{window.Used} / {window.Limit} 件";
 
     private static JsonObject StatusJson(StatusReport report) => new()
     {
@@ -194,6 +222,12 @@ internal static class AutostartCommands
             : null,
         ["logPath"] = report.LogPath,
         ["logMissing"] = report.LogMissing,
+        ["usage"] = new JsonObject
+        {
+            ["hour"] = UsageJson(report.Usage.Hour),
+            ["day"] = UsageJson(report.Usage.Day),
+            ["limitsAreDefaults"] = report.Usage.LimitsAreDefaults,
+        },
         ["recentLog"] = new JsonArray([.. report.Recent.Select(line => (JsonNode?)line)]),
     };
 
@@ -210,6 +244,8 @@ internal static class AutostartCommands
             WriteConnectionText(output, connection);
         }
 
+        output.WriteLine($"領走的工作：這一小時 {UsageText(report.Usage.Hour)}，今天 {UsageText(report.Usage.Day)}"
+            + (report.Usage.LimitsAreDefaults ? "（沒有在執行，上限是預設值；實際的上限看下次啟動時的設定）" : string.Empty));
         if (logPath is null)
         {
             return;

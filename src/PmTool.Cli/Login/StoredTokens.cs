@@ -62,8 +62,8 @@ internal static class StoredTokens
         try
         {
             var session = await new ApiClient(call.Context.Http, server, token).GetAsync("session", null, call.CancellationToken);
-            var isAgent = session.Get("user") is not null
-                && session.Get("scopes") is { } scopes && LoginCommand.HasScope(scopes, LoginCommand.AccessTokenAgentScope);
+            // 範圍要恰好是本機代理固定的那一組才搬：混了 items:write 這類的不能存成本機代理的權杖（引擎拿得到它）。
+            var isAgent = session.Get("user") is not null && LoginCommand.IsExactAgentScopes(session.Get("scopes"));
             return isAgent ? stored with { AgentToken = token, Token = null } : stored;
         }
         catch (CliException)

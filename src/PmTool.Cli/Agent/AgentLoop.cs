@@ -18,12 +18,20 @@ internal sealed class AgentLoop(
     AgentOptions options,
     AgentConsole console,
     Func<DateTimeOffset> now,
-    ConnectionTracker? connection = null)
+    ConnectionTracker? connection = null,
+    JobQuota? quota = null)
 {
+    /// <summary>權杖缺範圍（<c>kumi agent login</c> 才補得回來）：等再久也不會好，不是暫時性的失敗。</summary>
+    public const string MissingScopesCode = "agent.missing_scopes";
+    public const string OverScopedCode = "agent.over_scoped";
+
+    private const string InsufficientScopeCode = "auth.insufficient_scope";
+
     private sealed record RunningJob(Guid JobId, Task Task, CancellationTokenSource Cancel);
 
     private CliException? _fatal;
     private bool _shuttingDown;
+    private bool _quotaNoticed;
 
     /// <summary>跑到 <paramref name="stop"/> 取消為止（Ctrl-C）；正在跑的照「中斷」結束、送出結果之後才回來。權杖失效時丟 <see cref="CliException"/>。</summary>
     public async Task RunAsync(CancellationToken stop)
@@ -36,7 +44,7 @@ internal sealed class AgentLoop(
             while (!loopStop.IsCancellationRequested)
             {
                 running.RemoveAll(job => job.Task.IsCompleted);
-                var capacity = options.MaxConcurrentJobs - running.Count;
+                var capacity = AvailableCapacity(options.MaxConcurrentJobs - running.Count);
                 var started = Stopwatch.GetTimestamp();
                 JsonElement? response;
                 try
@@ -82,6 +90,33 @@ internal sealed class AgentLoop(
         {
             throw Explain(_fatal);
         }
+    }
+
+    /// <summary>
+    /// 能領幾件：同時上限與本機的每小時、每天上限取最小。額度用完就是 0：照樣登記（網頁看得到引擎），但不領，
+    /// 伺服器那邊的工作 20 秒沒人領就失敗並說明是本機的上限。第一次用完時寫一行記錄，不會每次登記都寫。
+    /// </summary>
+    private int AvailableCapacity(int freeSlots)
+    {
+        if (quota is null)
+        {
+            return freeSlots;
+        }
+
+        var remaining = quota.Remaining();
+        if (remaining > 0)
+        {
+            _quotaNoticed = false;
+            return Math.Min(freeSlots, remaining);
+        }
+
+        if (!_quotaNoticed)
+        {
+            _quotaNoticed = true;
+            console.Notice($"已經到這台電腦的本機上限（{quota.ExhaustedReason()}）：額度恢復之前不領網頁送來的工作。要調整用 kumi agent start 的 --max-jobs-per-hour、--max-jobs-per-day（0 是不限）。");
+        }
+
+        return 0;
     }
 
     /// <summary>沒領到工作時的等待：滿了就等一件結束（或該登記了），長輪詢很快就回來就補足最短的間隔。</summary>
@@ -132,7 +167,38 @@ internal sealed class AgentLoop(
         }
 
         var cancel = new CancellationTokenSource();
-        running.Add(new RunningJob(job.JobId, Task.Run(() => RunJobAsync(job, cancel, loopStop)), cancel));
+        if (quota is not null && !quota.TryReserve())
+        {
+            // 伺服器沒照我們登記的件數派（或同時多派了）：額度不夠就不跑，結束成失敗讓網頁說明。
+            console.Notice($"收到工作但已經到本機上限（{quota.ExhaustedReason()}），不執行。");
+            running.Add(new RunningJob(job.JobId, Task.Run(() => RejectJobAsync(job, cancel)), cancel));
+            return;
+        }
+
+        // 來回次數以本機的上限為準：伺服器送來的數字超過就壓下來。
+        var limited = job.MaxTurns > options.MaxTurnsPerJob ? job with { MaxTurns = options.MaxTurnsPerJob } : job;
+        running.Add(new RunningJob(limited.JobId, Task.Run(() => RunJobAsync(limited, cancel, loopStop)), cancel));
+    }
+
+    private async Task RejectJobAsync(AgentJob job, CancellationTokenSource cancel)
+    {
+        using (cancel)
+        {
+            using var timeout = new CancellationTokenSource(options.FinishTimeout);
+            await FinishWithoutEngineAsync(job, timeout.Token);
+        }
+    }
+
+    private async Task FinishWithoutEngineAsync(AgentJob job, CancellationToken cancellation)
+    {
+        try
+        {
+            await PostFinishAsync(job, JobOutcome.Failed("這台電腦已經到本機代理的件數上限（每小時或每天），這件工作沒有執行。"), cancellation);
+        }
+        catch (OperationCanceledException)
+        {
+            console.Notice("送出結果超過時限，伺服器會當作逾時。");
+        }
     }
 
     private async Task RunJobAsync(AgentJob job, CancellationTokenSource cancel, CancellationTokenSource loopStop)
@@ -255,7 +321,8 @@ internal sealed class AgentLoop(
     }
 
     /// <summary>網路不通、逾時、伺服器出錯、被限流：等一下再試；其他（權杖無效、沒權限、不認得的端點）重試也一樣，要人處理。</summary>
-    internal static bool IsTransient(CliException exception) => exception.HttpStatus is null or >= 500 or 429;
+    internal static bool IsTransient(CliException exception) =>
+        exception.Code is not (MissingScopesCode or OverScopedCode or InsufficientScopeCode) && exception.HttpStatus is null or >= 500 or 429;
 
     private TimeSpan Backoff(int failures) => BackoffFor(failures, options.MaxBackoff);
 

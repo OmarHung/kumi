@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 
 using PmTool.Cli.Processes;
 
@@ -8,69 +7,49 @@ namespace PmTool.Cli.Agent;
 
 /// <summary>
 /// .NET 沒辦法替子程序開新的程序群組，主程序一結束就找不到它的孫程序了。所以在主程序還活著時（拿到結果的時候）
-/// 用 <c>ps</c> 記下它底下的程序，主程序結束之後把還活著的結束掉。只在 macOS 與 Linux 做事；Windows 靠 <c>Kill(entireProcessTree)</c>。
+/// 用 <c>ps</c> 記下它底下的程序（編號加啟動時間），主程序結束之後把還活著而且啟動時間一樣的結束掉：編號可能已經被別的程序重用，
+/// 只憑編號會誤殺。只在 macOS 與 Linux 做事；Windows 靠 <c>Kill(entireProcessTree)</c>。
 /// </summary>
 internal sealed class DescendantTracker
 {
-    private readonly HashSet<int> _known = [];
+    private readonly Dictionary<int, string> _known = [];
 
     public void Snapshot(int rootId)
     {
-        if (OperatingSystem.IsWindows())
+        var table = ProcessTable.Read();
+        if (table.Count == 0)
         {
+            // 沒有 ps 就沒辦法清，主程序的程序樹還是會被結束。
             return;
         }
 
-        try
+        lock (_known)
         {
-            if (SystemCommands.Find("ps") is not { } psPath)
-            {
-                return;
-            }
-
-            var info = new ProcessStartInfo(psPath) { RedirectStandardOutput = true, UseShellExecute = false };
-            info.ArgumentList.Add("-axo");
-            info.ArgumentList.Add("pid=,ppid=");
-            using var ps = SystemProcess.Start(info);
-            if (ps is null)
-            {
-                return;
-            }
-
-            var parents = new Dictionary<int, int>();
-            foreach (var line in ps.StandardOutput.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 2 && int.TryParse(parts[0], CultureInfo.InvariantCulture, out var pid) && int.TryParse(parts[1], CultureInfo.InvariantCulture, out var parent))
-                {
-                    parents[pid] = parent;
-                }
-            }
-
-            ps.WaitForExit();
-            lock (_known)
-            {
-                Collect(rootId, parents);
-            }
-        }
-        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException)
-        {
-            // 沒有 ps 就沒辦法清，主程序的程序樹還是會被結束。
+            Collect(rootId, table);
         }
     }
 
-    private void Collect(int rootId, Dictionary<int, int> parents)
+    /// <summary>直接記一個程序（測試用：模擬編號被重用）。</summary>
+    internal void Track(int processId, string start)
+    {
+        lock (_known)
+        {
+            _known[processId] = start;
+        }
+    }
+
+    private void Collect(int rootId, IReadOnlyList<ProcessEntry> table)
     {
         var added = true;
         var family = new HashSet<int> { rootId };
         while (added)
         {
             added = false;
-            foreach (var (pid, parent) in parents)
+            foreach (var entry in table)
             {
-                if (family.Contains(parent) && family.Add(pid))
+                if (family.Contains(entry.ParentId) && family.Add(entry.ProcessId))
                 {
-                    _known.Add(pid);
+                    _known[entry.ProcessId] = entry.Start;
                     added = true;
                 }
             }
@@ -79,14 +58,20 @@ internal sealed class DescendantTracker
 
     public async Task KillSurvivorsAsync()
     {
-        int[] pids;
+        KeyValuePair<int, string>[] known;
         lock (_known)
         {
-            pids = [.. _known];
+            known = [.. _known];
         }
 
-        foreach (var pid in pids)
+        foreach (var (pid, start) in known)
         {
+            if (!ProcessTable.IsSameProcess(pid, start))
+            {
+                // 已經結束了，或編號已經是別的程序。
+                continue;
+            }
+
             try
             {
                 using var process = Process.GetProcessById(pid);

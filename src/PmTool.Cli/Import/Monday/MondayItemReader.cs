@@ -124,6 +124,6 @@ internal static class MondayItemReader
                 MondayJson.Long(asset["file_size"]),
                 MondayJson.Text(asset["uploaded_by"]?["id"]),
                 MondayJson.Date(asset["created_at"]),
-                File.Exists(local) ? local : null);
+                File.Exists(local) && MondayDumpLayout.IsInsideDump(dump, local) ? local : null);
         })];
 }

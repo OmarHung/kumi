@@ -8,6 +8,18 @@ internal sealed record AgentOptions
     /// <summary>同時最多跑幾件（也是登記時的 capacity 上限）。</summary>
     public int MaxConcurrentJobs { get; init; } = 2;
 
+    /// <summary>本機的件數上限：這台電腦每小時最多領幾件（0 是不限）。<c>--max-jobs-per-hour</c> 調整。</summary>
+    public int MaxJobsPerHour { get; init; } = JobQuota.DefaultPerHour;
+
+    /// <summary>每天（本機時區的日曆日）最多領幾件（0 是不限）。<c>--max-jobs-per-day</c> 調整。</summary>
+    public int MaxJobsPerDay { get; init; } = JobQuota.DefaultPerDay;
+
+    /// <summary>一件工作引擎來回的次數上限：伺服器送來的 <c>maxTurns</c> 超過就壓到這個數字（伺服器出錯或被入侵時不能讓一件工作無止境地跑）。</summary>
+    public int MaxTurnsPerJob { get; init; } = 60;
+
+    /// <summary>放行不在驗證過的版本範圍內的引擎（<c>--allow-untested-engine</c>）；放行時啟動會警告。</summary>
+    public bool AllowUntestedEngine { get; init; }
+
     /// <summary>進度每隔多久回報一次。</summary>
     public TimeSpan FlushInterval { get; init; } = TimeSpan.FromMilliseconds(300);
 

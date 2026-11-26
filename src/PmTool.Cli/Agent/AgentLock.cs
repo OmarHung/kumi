@@ -7,8 +7,9 @@ namespace PmTool.Cli.Agent;
 /// <summary>
 /// 鎖現在被誰拿著。<see cref="Pid"/> 讀不到時是 null（拿鎖的人還來不及寫，或寫到一半）。
 /// <see cref="Connection"/> 是它最近回報的連線狀態；舊版的 kumi 不回報，也是 null。
+/// <see cref="StartedAt"/> 是程序的啟動時間（ps 的 lstart），結束它之前用來確認編號沒有被別的程序重用；舊版不記，是 null。
 /// </summary>
-internal sealed record AgentHolder(int? Pid, bool Background, AgentConnection? Connection = null);
+internal sealed record AgentHolder(int? Pid, bool Background, AgentConnection? Connection = null, string? StartedAt = null);
 
 /// <summary>
 /// 這台電腦上本機代理同時只能有一個：前景的 <c>kumi agent start</c> 與開機自動啟動的背景程序搶同一把鎖，
@@ -27,6 +28,7 @@ internal sealed class AgentLock : IDisposable
     private readonly object _gate = new();
     private int _pid;
     private bool _background;
+    private string? _startedAt;
     private bool _disposed;
 
     private AgentLock(FileStream stream, string infoPath)
@@ -36,7 +38,7 @@ internal sealed class AgentLock : IDisposable
     }
 
     /// <summary>拿得到就回鎖（用完要 Dispose）；被別人拿著回 null 與拿著的人。</summary>
-    public static (AgentLock? Lock, AgentHolder? Holder) TryAcquire(string configPath, int pid, bool background)
+    public static (AgentLock? Lock, AgentHolder? Holder) TryAcquire(string configPath, int pid, bool background, string? startedAt = null)
     {
         var directory = Path.GetDirectoryName(configPath)!;
         EnsureDirectory(directory);
@@ -44,7 +46,7 @@ internal sealed class AgentLock : IDisposable
         FileStream stream;
         try
         {
-            stream = new FileStream(Path.Combine(directory, FileName), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            stream = new FileStream(Path.Combine(directory, FileName), OwnerOnly(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
         }
         catch (IOException)
         {
@@ -52,7 +54,7 @@ internal sealed class AgentLock : IDisposable
         }
 
         var held = new AgentLock(stream, infoPath);
-        held.WriteInfo(pid, background);
+        held.WriteInfo(pid, background, startedAt: startedAt);
         return (held, null);
     }
 
@@ -61,13 +63,13 @@ internal sealed class AgentLock : IDisposable
     /// </summary>
     public static async Task<(AgentLock? Lock, AgentHolder? Holder)> TryAcquireWithRetryAsync(
         string configPath, int pid, bool background, int attempts, TimeSpan interval,
-        Func<TimeSpan, CancellationToken, Task> delay, CancellationToken cancellation)
+        Func<TimeSpan, CancellationToken, Task> delay, CancellationToken cancellation, string? startedAt = null)
     {
-        var result = TryAcquire(configPath, pid, background);
+        var result = TryAcquire(configPath, pid, background, startedAt);
         for (var attempt = 1; result.Lock is null && attempt < attempts; attempt++)
         {
             await delay(interval, cancellation);
-            result = TryAcquire(configPath, pid, background);
+            result = TryAcquire(configPath, pid, background, startedAt);
         }
 
         return result;
@@ -98,7 +100,7 @@ internal sealed class AgentLock : IDisposable
     {
         lock (_gate)
         {
-            return !_disposed && WriteInfo(_pid, _background, connection);
+            return !_disposed && WriteInfo(_pid, _background, connection, _startedAt);
         }
     }
 
@@ -127,6 +129,18 @@ internal sealed class AgentLock : IDisposable
         }
     }
 
+    /// <summary>設定資料夾裡的檔案建立時就只有自己讀寫（600），不留「先建出來、再改權限」之間別人讀得到的空檔。</summary>
+    internal static FileStreamOptions OwnerOnly(FileMode mode, FileAccess access, FileShare share)
+    {
+        var options = new FileStreamOptions { Mode = mode, Access = access, Share = share };
+        if (!OperatingSystem.IsWindows())
+        {
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+
+        return options;
+    }
+
     private static AgentHolder? ReadHolder(string infoPath)
     {
         try
@@ -135,7 +149,8 @@ internal sealed class AgentLock : IDisposable
             var root = document.RootElement;
             int? pid = root.TryGetProperty("pid", out var pidValue) && pidValue.TryGetInt32(out var parsed) && parsed > 0 ? parsed : null;
             var background = root.TryGetProperty("background", out var flag) && flag.ValueKind == JsonValueKind.True;
-            return new AgentHolder(pid, background, ReadConnection(root));
+            var startedAt = root.TryGetProperty("startedAt", out var started) && started.ValueKind == JsonValueKind.String ? started.GetString() : null;
+            return new AgentHolder(pid, background, ReadConnection(root), startedAt);
         }
         catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -160,7 +175,7 @@ internal sealed class AgentLock : IDisposable
 
     private string TemporaryInfoPath => _infoPath + ".tmp";
 
-    private bool WriteInfo(int pid, bool background, AgentConnection? connection = null)
+    private bool WriteInfo(int pid, bool background, AgentConnection? connection = null, string? startedAt = null)
     {
         if (pid <= 0)
         {
@@ -169,7 +184,13 @@ internal sealed class AgentLock : IDisposable
 
         _pid = pid;
         _background = background;
+        _startedAt = startedAt ?? _startedAt;
         var info = new JsonObject { ["pid"] = pid, ["background"] = background };
+        if (_startedAt is not null)
+        {
+            info["startedAt"] = _startedAt;
+        }
+
         if (connection is not null)
         {
             info["connection"] = new JsonObject
@@ -183,7 +204,13 @@ internal sealed class AgentLock : IDisposable
         // 先寫暫存檔再換名字：status 隨時會讀，不能讀到寫到一半的檔案（讀不懂會被當成「前景、沒有 PID」）。
         try
         {
-            File.WriteAllText(TemporaryInfoPath, info.ToJsonString());
+            // 暫存檔建立時就只有自己讀寫（600），再換名字：status 不會讀到寫到一半的檔案，別人也讀不到。
+            using (var stream = new FileStream(TemporaryInfoPath, OwnerOnly(FileMode.Create, FileAccess.Write, FileShare.None)))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(info.ToJsonString());
+            }
+
             File.Move(TemporaryInfoPath, _infoPath, overwrite: true);
             return true;
         }

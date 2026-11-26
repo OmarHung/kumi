@@ -2,8 +2,12 @@ using System.Text.RegularExpressions;
 
 namespace PmTool.Cli.Agent;
 
-/// <summary>引擎要怎麼啟動：命令列、從標準輸入送的提示、要先寫進暫存資料夾的檔案（檔名 → 內容）。</summary>
-internal sealed record LaunchPlan(IReadOnlyList<string> Arguments, string StandardInput, IReadOnlyDictionary<string, string> Files);
+/// <summary>引擎要怎麼啟動：命令列、從標準輸入送的提示、要先寫進暫存資料夾的檔案（檔名 → 內容）、要多放進子程序環境的變數（命令列看得到，環境與檔案看不到）。</summary>
+internal sealed record LaunchPlan(
+    IReadOnlyList<string> Arguments,
+    string StandardInput,
+    IReadOnlyDictionary<string, string> Files,
+    IReadOnlyDictionary<string, string>? Variables = null);
 
 /// <summary>一種引擎的啟動方式與事件轉換。命令列怎麼組，是這個指令最要緊的安全邊界，兩個實作各自照規格寫。</summary>
 internal interface IEngineSpec
@@ -54,7 +58,7 @@ internal static partial class JobValidation
         }
 
         // 專案代號會原樣進 MCP 的標頭與引擎的設定：只認伺服器專案代號的格式，換行、引號都進不來。
-        if (!ProjectKeyPattern().IsMatch(job.ProjectKey))
+        if (!IsSafeProjectKey(job.ProjectKey))
         {
             return "專案代號不正確";
         }
@@ -124,6 +128,20 @@ internal static partial class JobValidation
         }
 
         return Sha256Pattern().IsMatch(attachment.Sha256) ? null : "附件的雜湊不正確";
+    }
+
+    public static bool IsSafeProjectKey(string key) => ProjectKeyPattern().IsMatch(key);
+
+    /// <summary>
+    /// 專案代號與工作編號就要變成環境變數、再變成 HTTP 標頭了：組出啟動計畫的地方再檢查一次，不靠前面的 <see cref="Check"/> 一定有跑過。
+    /// 工作編號是 GUID（不是 Guid.Empty）；不合格丟例外，這件工作就不會跑。
+    /// </summary>
+    public static void RequireSafeHeaderValues(AgentJob job)
+    {
+        if (!IsSafeProjectKey(job.ProjectKey) || job.JobId == Guid.Empty)
+        {
+            throw new ArgumentException("專案代號或工作編號的格式不正確，不啟動這件工作。");
+        }
     }
 
     /// <summary>

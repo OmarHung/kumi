@@ -58,11 +58,14 @@ public sealed class CliContext
     internal Agent.Autostart.AutostartEnvironment Autostart { get; init; } = Agent.Autostart.AutostartEnvironment.Current();
 
     /// <summary>輸出換成會濾掉控制字元的版本；其他不變。</summary>
-    internal CliContext WithSafeOutput() => new()
+    internal CliContext WithSafeOutput() => WithWriters(new Output.SafeTextWriter(Out), new Output.SafeTextWriter(Error));
+
+    /// <summary>換掉標準輸出與標準錯誤；其他不變。</summary>
+    internal CliContext WithWriters(TextWriter output, TextWriter error) => new()
     {
         Http = Http,
-        Out = new Output.SafeTextWriter(Out),
-        Error = new Output.SafeTextWriter(Error),
+        Out = output,
+        Error = error,
         In = In,
         RawInput = RawInput,
         ConfigPath = ConfigPath,

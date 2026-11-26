@@ -1,7 +1,9 @@
+using PmTool.Cli.Processes;
+
 namespace PmTool.Cli.Agent;
 
 /// <summary>
-/// 用一個外部的命令列程式（claude、codex）跑工作：每件一個空的暫存資料夾、子程序環境拿掉會讓它改用 API 計費的變數、
+/// 用一個外部的命令列程式（claude、codex）跑工作：每件一個空的暫存資料夾、子程序環境只放白名單（含給 MCP 設定引用的權杖，見 <see cref="EngineEnvironment"/>）、
 /// 提示從標準輸入送、事件交給轉換器。引擎的失敗一律轉成結果，不丟例外。
 /// </summary>
 internal sealed class ProcessEngine(
@@ -14,19 +16,6 @@ internal sealed class ProcessEngine(
     AgentOptions options,
     string? detail = null) : IAgentEngine
 {
-    /// <summary>
-    /// 拿掉的環境變數：要用的是使用者自己的訂閱登入，不是 API 金鑰；也不讓引擎看到 kumi 自己的權杖變數。
-    /// 加上的 KUMI_MCP_TOKEN 只給 MCP 的設定引用。
-    /// </summary>
-    internal static readonly IReadOnlyList<string> RemovedVariables =
-    [
-        "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
-        "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
-        "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "OPENAI_BASE_URL",
-        "ANTHROPIC_FOUNDRY_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS",
-        "KUMI_TOKEN", "PM_TOKEN", ClaudeCodeSpec.TokenVariable,
-    ];
-
     private readonly ProcessRunner _runner = new(options);
 
     public string Kind => spec.Kind;
@@ -85,7 +74,7 @@ internal sealed class ProcessEngine(
         JobOutcome? outcome = null;
         var request = new ProcessRequest(
             executable, plan.Arguments, workDirectory, plan.StandardInput,
-            new Dictionary<string, string> { [ClaudeCodeSpec.TokenVariable] = mcpToken }, RemovedVariables);
+            new Dictionary<string, string>(plan.Variables ?? new Dictionary<string, string>()) { [ClaudeCodeSpec.TokenVariable] = mcpToken });
 
         var result = await _runner.RunAsync(request, line =>
         {

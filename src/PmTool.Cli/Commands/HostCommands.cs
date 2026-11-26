@@ -87,7 +87,7 @@ internal static class HostCommands
         var console = new AgentConsole(call.Out, call.Error, json: false);
         AgentCommands.SweepStaleWorkDirectories(context.AgentOptions, console);
         var service = new HostService(
-            store, context.Http, new HostEngineProbe(context.GetEnvironmentVariable, context.AgentOptions), kinds, context.HostOptions,
+            store, context.Http, new HostEngineProbe(context.GetEnvironmentVariable, context.AgentOptions, console.Notice), kinds, context.HostOptions,
             context.AgentOptions, console, HelpText.VersionNumber, () => DateTimeOffset.Now,
             server => Credentials.EnsureTransportAllowed(context, call.Arguments, server));
 

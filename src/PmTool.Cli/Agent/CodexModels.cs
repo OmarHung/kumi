@@ -14,15 +14,20 @@ internal static class CodexModels
     // 伺服器最多收 MaxLocalEngineModels（20）個，default 佔一個。
     private const int MaxModels = 19;
 
-    public static IReadOnlyList<EngineModel> Read(Func<string, string?> environment)
+    public static IReadOnlyList<EngineModel> Read(Func<string, string?> environment, Action<string>? log = null)
     {
         var home = environment("CODEX_HOME") is { Length: > 0 } configured
             ? configured
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
         var fallback = new EngineModel(EngineModel.DefaultId, "預設", []);
+        if (Processes.BoundedFile.TryReadText(Path.Combine(home, "models_cache.json"), log) is not { } text)
+        {
+            return [fallback];
+        }
+
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(home, "models_cache.json")));
+            using var document = JsonDocument.Parse(text);
             var models = document.RootElement.List("models")
                 .Where(model => model.Text("visibility") != "hide" && model.Text("slug") is { Length: > 0 })
                 .OrderBy(model => model.Number("priority") ?? long.MaxValue)
@@ -34,7 +39,7 @@ internal static class CodexModels
             // default 實際用哪個模型不確定（取決於使用者的 Codex 設定），不猜思考深度。
             return [fallback with { Efforts = common }, .. models];
         }
-        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
+        catch (JsonException)
         {
             return [fallback];
         }

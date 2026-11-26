@@ -12,7 +12,7 @@ public sealed class ProcessRunnerStopTests
         // Arrange
         var options = new AgentOptions { InterruptGrace = TimeSpan.FromSeconds(30), DrainTimeout = TimeSpan.FromMilliseconds(200) };
         var runner = new ProcessRunner(options, _ => null);
-        var request = new ProcessRequest("/bin/sleep", ["60"], Path.GetTempPath(), string.Empty, new Dictionary<string, string>(), []);
+        var request = new ProcessRequest("/bin/sleep", ["60"], Path.GetTempPath(), string.Empty, new Dictionary<string, string>());
         using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
         var clock = System.Diagnostics.Stopwatch.StartNew();
 

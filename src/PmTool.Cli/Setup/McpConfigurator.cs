@@ -18,6 +18,17 @@ internal sealed partial class McpConfigurator(CliContext context, TextWriter out
     /// <summary>網址只准這些字元：進得了 cmd.exe 的命令列也不會被當成指令。</summary>
     public static bool IsSafeUrl(string url) => SafeUrl().IsMatch(url);
 
+    /// <summary>
+    /// 寫進引擎設定的 MCP 網址只收 https 或本機（127.0.0.1、localhost、::1）的 http。
+    /// 引擎之後每一次都會帶著授權去連這個網址，而它是寫進 Claude Code／Codex 的設定檔、不再經過 kumi：
+    /// 命令列的 --insecure 只放行這一次指令，不能延伸到會留下來的設定，所以這裡不看 --insecure。
+    /// </summary>
+    public static bool IsAllowedTransport(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback));
+
+    internal const string InsecureMcpMessage = "MCP 網址不是 https（也不是本機）：授權會明文經過網路，不寫進 Claude Code／Codex 的設定。請改用 https 的網址，或手動設定。";
+
     [GeneratedRegex(@"^[A-Za-z0-9.:/\-\[\]]+\z")]
     private static partial Regex SafeUrl();
 
@@ -76,6 +87,11 @@ internal sealed partial class McpConfigurator(CliContext context, TextWriter out
         if (action == McpAction.KeepAndLogin)
         {
             return null;
+        }
+
+        if (!IsAllowedTransport(mcpUrl))
+        {
+            return InsecureMcpMessage;
         }
 
         if (action == McpAction.Replace && await RunCapturedAsync(engine, RemoveArguments(engine), cancellation) is { } removeFailure)

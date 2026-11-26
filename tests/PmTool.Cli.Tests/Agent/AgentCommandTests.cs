@@ -63,12 +63,35 @@ public sealed class AgentCommandTests
     }
 
     [Test]
+    public async Task Start_WithATokenThatCanAlsoWriteItems_RefusesWithoutRetryingAndSaysWhy()
+    {
+        // Arrange（引擎拿得到這把權杖，帶 items:write 等於讓引擎改得動項目）
+        using var cli = NewHarness();
+        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write", "items:read", "items:write"));
+
+        // Act
+        var result = await cli.RunAsync("agent", "start");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Error));
+            Assert.That(result.Error, Does.Contain("items:write").And.Contain("不多不少").And.Contain("kumi agent login"));
+            Assert.That(cli.Server.To("POST", "/v1/agent/check-in"), Is.Empty);
+        }
+    }
+
+    [Test]
+    public void IsTransient_ForAnOverScopedToken_IsFalse() =>
+        Assert.That(AgentLoop.IsTransient(new CliException(ExitCodes.Error, "x", code: AgentLoop.OverScopedCode)), Is.False);
+
+    [Test]
     public async Task Start_WhenNoEngineIsUsable_ExitsWithOneAndExplainsEachOne()
     {
         // Arrange
         using var cli = NewHarness();
         cli.Environment[ExecutableLocator.ClaudeVariable] = null;
-        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
 
         // Act
         var result = await cli.RunAsync("agent", "start");
@@ -102,7 +125,7 @@ public sealed class AgentCommandTests
         // Arrange
         using var cli = NewHarness();
         var job = TestJobs.Make();
-        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
         var calls = 0;
         cli.Server.On("POST", "/v1/agent/check-in", _ => Interlocked.Increment(ref calls) == 1
             ? FakeAgentServer.JobResponse(job)
@@ -142,7 +165,7 @@ public sealed class AgentCommandTests
         // Arrange
         using var cli = NewHarness();
         var job = TestJobs.Make();
-        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
         var calls = 0;
         cli.Server.On("POST", "/v1/agent/check-in", _ => Interlocked.Increment(ref calls) == 1
             ? FakeAgentServer.JobResponse(job)
@@ -172,7 +195,7 @@ public sealed class AgentCommandTests
     {
         // Arrange
         using var cli = NewHarness();
-        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
         cli.Server.OnError("POST", "/v1/agent/check-in", HttpStatusCode.Unauthorized, "auth.unauthorized", "x");
 
         // Act

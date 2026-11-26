@@ -33,6 +33,12 @@ internal sealed class ServiceLogs : IDisposable
         var environment = call.Context.Autostart;
         if (environment.LogPath is not { } path || !WritesItsOwnLog(environment.Os, path))
         {
+            // macOS 的 launchd 一直往記錄檔後面寫：不只 enable 的時候，每次背景程序啟動也修剪（登入就會啟動一次）。
+            if (environment.LogPath is { } launchdLog)
+            {
+                AutostartManager.TrimLog(launchdLog);
+            }
+
             return new ServiceLogs(new TimestampedWriter(call.Out, now), new TimestampedWriter(call.Error, now), false, null);
         }
 

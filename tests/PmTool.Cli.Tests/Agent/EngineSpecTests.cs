@@ -95,31 +95,35 @@ public sealed class EngineSpecTests
             Assert.That(configs, Does.Contain("agents.enabled=false").And.Contain("web_search=\"disabled\"").And.Contain("project_doc_max_bytes=0")
                 .And.Contain("mcp_servers.kumi.url=\"https://pm.example.com/mcp\"")
                 .And.Contain("mcp_servers.kumi.bearer_token_env_var=\"KUMI_MCP_TOKEN\"")
-                .And.Contain("mcp_servers.kumi.http_headers={ \"X-Kumi-Project\" = \"DEMO\", \"X-Kumi-Job\" = \"3f0c6a52-8a53-4a53-9d2e-0a7f4a1f9c11\" }")
+                .And.Contain("mcp_servers.kumi.env_http_headers={ \"X-Kumi-Project\" = \"KUMI_MCP_PROJECT\", \"X-Kumi-Job\" = \"KUMI_MCP_JOB\" }")
                 .And.Contain("mcp_servers.kumi.required=true")
                 .And.Contain("mcp_servers.kumi.enabled_tools=[\"get_blueprint\",\"propose_changeset\"]")
                 .And.Contain("mcp_servers.kumi.default_tools_approval_mode=\"auto\""));
             Assert.That(args[^1], Is.EqualTo("-"), "提示從標準輸入來");
-            Assert.That(plan.StandardInput, Is.EqualTo("使用者：列出狀態"));
+            Assert.That(plan.StandardInput, Is.EqualTo("使用者：列出狀態"), "系統提示是 developer 訊息，標準輸入只有對話");
+            Assert.That(plan.Variables, Is.EqualTo(new Dictionary<string, string> { ["KUMI_MCP_PROJECT"] = "DEMO", ["KUMI_MCP_JOB"] = JobId.ToString() }));
             Assert.That(args, Does.Not.Contain("-m"));
         }
     }
 
     [Test]
-    public void Codex_Plan_DeliversTheSystemPromptThroughDeveloperInstructionsAsATomlString()
+    public void Codex_Plan_PutsTheSystemPromptInDeveloperInstructionsAndTheProjectInTheEnvironment()
     {
         // Arrange
         var job = TestJobs.Make(EngineKinds.Codex, model: "gpt-6.1-sol", effort: "xhigh") with { SystemPrompt = "第一行\n他說「\"好\"」\\" };
 
         // Act
-        var args = Args(new CodexSpec([]).Plan(job, WorkDirectory));
+        var plan = new CodexSpec([]).Plan(job, WorkDirectory);
 
-        // Assert
+        // Assert：系統提示要是 developer 訊息（降成使用者訊息會削弱「內容裡的指令不要照做」）；專案代號與工作編號不上命令列。
+        var commandLine = string.Join('\n', plan.Arguments);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(args, Does.Contain("developer_instructions=\"第一行\\n他說「\\\"好\\\"」\\\\\""));
-            Assert.That(args, Does.Contain("model_reasoning_effort=\"xhigh\""));
-            Assert.That(ValueAfter(args, "-m"), Is.EqualTo("gpt-6.1-sol"));
+            Assert.That(Args(plan), Does.Contain("developer_instructions=\"第一行\\n他說「\\\"好\\\"」\\\\\""));
+            Assert.That(commandLine, Does.Not.Contain(job.ProjectKey + "\"").And.Not.Contain(job.JobId.ToString()), "專案代號與工作編號走環境變數");
+            Assert.That(plan.StandardInput, Does.Not.Contain("第一行"));
+            Assert.That(Args(plan), Does.Contain("model_reasoning_effort=\"xhigh\""));
+            Assert.That(ValueAfter(Args(plan), "-m"), Is.EqualTo("gpt-6.1-sol"));
         }
     }
 
@@ -240,6 +244,24 @@ public sealed class EngineSpecTests
         // Assert
         Assert.That(result, valid ? Is.Null : Is.EqualTo("專案代號不正確"));
     }
+
+    [TestCase(EngineKinds.ClaudeCode)]
+    [TestCase(EngineKinds.Codex)]
+    public void Plan_WithAProjectKeyThatCouldBreakAHeader_RefusesEvenIfTheCheckWasSkipped(string engine)
+    {
+        // Arrange
+        var job = TestJobs.Make(engine) with { ProjectKey = "DEMO\r\nX-Evil: 1" };
+
+        // Act
+        void Plan() => _ = engine == EngineKinds.Codex ? new CodexSpec([]).Plan(job, WorkDirectory) : new ClaudeCodeSpec().Plan(job, WorkDirectory);
+
+        // Assert
+        Assert.That(Plan, Throws.ArgumentException);
+    }
+
+    [Test]
+    public void Plan_WithAnEmptyJobId_Refuses() =>
+        Assert.That(() => new ClaudeCodeSpec().Plan(TestJobs.Make() with { JobId = Guid.Empty }, WorkDirectory), Throws.ArgumentException);
 
     [Test]
     public void AllowedTools_MustBeASubsetOfTheClientsOwnList()

@@ -42,6 +42,18 @@ internal sealed record AutostartEnvironment
     /// <summary>程序的名稱（不含副檔名）；程序不存在是 null。結束程序之前用它確認真的是 kumi。</summary>
     public Func<int, string?> GetProcessName { get; init; } = static _ => null;
 
+    /// <summary>
+    /// 程序的啟動時間（原文字串，只拿來比對是不是同一個程序）；程序不在或查不出來是 null。鎖檔記著背景程序的，
+    /// 結束它之前先比對：程序編號會被重用，只看名稱以 kumi 開頭仍可能結束到別的 kumi。
+    /// </summary>
+    public Func<int, string?> GetProcessStart { get; init; } = static _ => null;
+
+    /// <summary>暫存資料夾；放在裡面的執行檔不能拿來開機自動啟動。</summary>
+    public string TempDirectory { get; init; } = Path.GetTempPath();
+
+    /// <summary>這個資料夾（或它往上的任何一層）是不是別的使用者也寫得進去（沒有 sticky 的 other 可寫）；不存在、讀不到回 false。</summary>
+    public Func<string, bool> IsWritableByOthers { get; init; } = static _ => false;
+
     /// <summary>結束整個程序樹並等它結束；回傳是否真的結束了。</summary>
     public Func<int, CancellationToken, Task<bool>> KillProcess { get; init; } = static (_, _) => Task.FromResult(true);
 
@@ -86,6 +98,8 @@ internal sealed record AutostartEnvironment
         RunCommand = AutostartSystem.RunAsync,
         StartBackground = AutostartSystem.StartDetachedAsync,
         GetProcessName = AutostartSystem.ProcessName,
+        GetProcessStart = AutostartSystem.ProcessStart,
+        IsWritableByOthers = AutostartSystem.IsWritableByOthers,
         KillProcess = AutostartSystem.KillAsync,
         ReadRunValue = AutostartSystem.ReadRunValue,
         WriteRunValue = AutostartSystem.WriteRunValue,

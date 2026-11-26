@@ -186,7 +186,7 @@ public sealed class BrowserLoginCommandTests
         // Arrange（0.6.0 以前本機代理的權杖存在 Token、帶 agent:run；撤銷它會讓正在跑的本機代理 401）
         using var kit = Kit();
         kit.Cli.Server.On("GET", "/v1/session", request => request.Authorization == "Bearer pmt_old_agent"
-            ? FakeServer.Envelope(HttpStatusCode.OK, new { user = new { displayName = "王小明", email = "ming@example.com" }, scopes = new[] { "agent:run", "items:read" } })
+            ? FakeServer.Envelope(HttpStatusCode.OK, new { user = new { displayName = "王小明", email = "ming@example.com" }, scopes = new[] { "agent:run", "blueprint:read", "blueprint:write", "items:read" } })
             : LoginKit.Failure(HttpStatusCode.Unauthorized, "auth.unauthorized", "未登入"));
         new ConfigStore(kit.Cli.ConfigPath).Save(new StoredConfig { Server = CliHarness.ServerUrl, Token = "pmt_old_agent" });
 

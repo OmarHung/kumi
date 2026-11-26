@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using PmTool.Cli.Agent;
+using PmTool.Cli.Processes;
 
 namespace PmTool.Cli.Host;
 
@@ -42,7 +43,7 @@ internal sealed record ProbedEngine(
 /// 探測 Claude Code 與 Codex：裝了沒有、版本與安全用的旗標、登入了沒有、計費方式。只跑不送提示的指令，
 /// <b>不送模型請求</b>（不會用掉任何額度）；輸出裡的 email、組織名稱、金鑰的片段不留下。
 /// </summary>
-internal sealed class HostEngineProbe(Func<string, string?> environment, AgentOptions options)
+internal sealed class HostEngineProbe(Func<string, string?> environment, AgentOptions options, Action<string>? log = null)
 {
     private readonly EngineProber _prober = new(options);
 
@@ -105,7 +106,7 @@ internal sealed class HostEngineProbe(Func<string, string?> environment, AgentOp
 
         var versionText = EngineProber.FirstToken(version.StandardOutput);
         if (await _prober.ProbeAsync(executable, ["--help"], cancellation) is not { } help
-            || EngineProber.ClaudeRequiredFlags.Any(flag => !EngineProber.HasFlag(help.Output, flag)))
+            || EngineProber.ClaudeRequiredFlags.Any(flag => !HelpFlags.Contains(help.Output, flag)))
         {
             return Unsupported(kind, versionText, $"這個版本的 {name} 太舊或缺少安全用的選項，為了安全不接工作。請更新映像檔裡的 {name}。");
         }
@@ -132,7 +133,7 @@ internal sealed class HostEngineProbe(Func<string, string?> environment, AgentOp
 
         var versionText = EngineProber.LastToken(version.StandardOutput);
         if (await _prober.ProbeAsync(executable, ["exec", "--help"], cancellation) is not { } help
-            || EngineProber.CodexRequiredFlags.Any(flag => !help.Output.Contains(flag, StringComparison.Ordinal)))
+            || EngineProber.CodexRequiredFlags.Any(flag => !HelpFlags.Contains(help.Output, flag)))
         {
             return Unsupported(kind, versionText, $"這個版本的 {name} 太舊，缺少安全用的選項，為了安全不接工作。請更新映像檔裡的 {name}。");
         }
@@ -147,7 +148,7 @@ internal sealed class HostEngineProbe(Func<string, string?> environment, AgentOp
 
         var status = await CodexLoginAsync(executable, cancellation);
         var disabled = CodexSpec.DisableCandidates.Where(listed.Contains).ToArray();
-        return Finish(kind, versionText, status, CodexModels.Read(environment), executable, new CodexSpec(disabled));
+        return Finish(kind, versionText, status, CodexModels.Read(environment, log), executable, new CodexSpec(disabled));
     }
 
     /// <summary>
@@ -160,13 +161,20 @@ internal sealed class HostEngineProbe(Func<string, string?> environment, AgentOp
         var home = environment("CODEX_HOME") is { Length: > 0 } configured
             ? configured
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+        // 家目錄可能被別的程式寫入：只讀一般檔案、不跟隨連結、最多 1 MiB；讀不到當作沒有（沒有指紋就不比對）。
+        if (BoundedFile.TryReadBytes(Path.Combine(home, "auth.json"), log) is not { } bytes)
+        {
+            return null;
+        }
+
         try
         {
-            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(home, "auth.json")));
+            using var document = System.Text.Json.JsonDocument.Parse(bytes);
             return BillingClassifier.CodexFingerprint(document.RootElement);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (System.Text.Json.JsonException)
         {
+            log?.Invoke("auth.json 讀不懂，當作沒有指紋。");
             return null;
         }
     }

@@ -69,7 +69,7 @@ internal sealed class SetupLogin(CommandCall call, string server, TextWriter out
         }
     }
 
-    /// <summary>用這把權杖問伺服器登入的是誰；不通、已撤銷、範圍不對（命令列的不該有 agent:run、本機代理的一定要有）都當作沒有。</summary>
+    /// <summary>用這把權杖問伺服器登入的是誰；不通、已撤銷、範圍不對（命令列的不該有 agent:run、本機代理的要恰好是固定的那一組）都當作沒有。</summary>
     private async Task<string?> ValidAccountAsync(string? token, bool wantsAgentScope)
     {
         if (token is null)
@@ -85,8 +85,10 @@ internal sealed class SetupLogin(CommandCall call, string server, TextWriter out
                 return null;
             }
 
-            var hasAgentScope = session.Get("scopes") is { } scopes && LoginCommand.HasScope(scopes, LoginCommand.AccessTokenAgentScope);
-            return hasAgentScope == wantsAgentScope ? LoginCommand.Describe(session) : null;
+            var scopes = session.Get("scopes");
+            var hasAgentScope = scopes is { } granted && LoginCommand.HasScope(granted, LoginCommand.AccessTokenAgentScope);
+            var accepted = wantsAgentScope ? LoginCommand.IsExactAgentScopes(scopes) : !hasAgentScope;
+            return accepted ? LoginCommand.Describe(session) : null;
         }
         catch (CliException)
         {

@@ -88,7 +88,7 @@ public sealed class ServiceStartTests
         var calls = 0;
         cli.Server.On("GET", "/v1/session", _ => Interlocked.Increment(ref calls) <= failures
             ? FakeAgentServer.Failure(status, "server.unavailable", "伺服器暫時不能用")
-            : FakeServer.Envelope(HttpStatusCode.OK, new { scopes = new[] { "agent:run", "blueprint:read", "blueprint:write" } }));
+            : FakeServer.Envelope(HttpStatusCode.OK, new { scopes = new[] { "agent:run", "blueprint:read", "blueprint:write", "items:read" } }));
         cli.Server.On("POST", "/v1/agent/check-in", _ =>
         {
             cli.Interrupt!();
@@ -157,7 +157,7 @@ public sealed class ServiceStartTests
         // Arrange
         using var cli = NewCli();
         cli.Environment[ExecutableLocator.ClaudeVariable] = null;
-        cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
 
         // Act
         var result = await cli.RunAsync("agent", "start", "--service");
@@ -172,7 +172,7 @@ public sealed class ServiceStartTests
     {
         // Arrange
         using var cli = NewCli();
-        cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
         var calls = 0;
         cli.Server.On("POST", "/v1/agent/check-in", _ =>
         {

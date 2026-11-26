@@ -112,6 +112,9 @@ internal sealed class LoginKit : IDisposable
 
     public bool AgentSkipped { get; set; }
 
+    /// <summary>伺服器發的本機代理權杖的範圍；預設是固定的那一組。</summary>
+    public string[] AgentScopes { get; set; } = ["agent:run", "blueprint:read", "blueprint:write", "items:read"];
+
     public IReadOnlyList<JsonNode> Redeems
     {
         get
@@ -151,7 +154,7 @@ internal sealed class LoginKit : IDisposable
             {
                 account = new { displayName = "王小明", email = "ming@example.com", organizationName = "範例公司" },
                 cli = wantsCli ? new { token = new { id = "t1" }, secret = CliSecret } : null,
-                agent = wantsAgent && ReturnAgent && !AgentSkipped ? new { token = new { id = "t2" }, secret = AgentSecret } : null,
+                agent = wantsAgent && ReturnAgent && !AgentSkipped ? new { token = new { id = "t2", scopes = AgentScopes }, secret = AgentSecret } : null,
                 agentSkipped = wantsAgent && AgentSkipped,
             });
         });

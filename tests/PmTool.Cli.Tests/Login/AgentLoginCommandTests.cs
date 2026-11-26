@@ -68,7 +68,7 @@ public sealed class AgentLoginCommandTests
     {
         // Arrange
         using var kit = new LoginKit { Cli = { StandardInput = "pmt_agent_pasted\n" } };
-        kit.Cli.Server.On("GET", "/v1/session", new { user = new { displayName = "王小明", email = "ming@example.com" }, scopes = new[] { "agent:run", "items:read" } });
+        kit.Cli.Server.On("GET", "/v1/session", new { user = new { displayName = "王小明", email = "ming@example.com" }, scopes = new[] { "agent:run", "blueprint:read", "blueprint:write", "items:read" } });
         new ConfigStore(kit.Cli.ConfigPath).Save(new StoredConfig { Server = CliHarness.ServerUrl, Token = "pmt_cli_before" });
 
         // Act

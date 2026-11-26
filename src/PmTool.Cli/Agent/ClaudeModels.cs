@@ -93,7 +93,7 @@ internal static partial class ClaudeModels
 
             string? model = null;
             await runner.RunAsync(
-                new ProcessRequest(executable, arguments, directory.FullName, "hi", new Dictionary<string, string>(), ProcessEngine.RemovedVariables),
+                new ProcessRequest(executable, arguments, directory.FullName, "hi", new Dictionary<string, string>()),
                 line =>
                 {
                     model = ModelFromInit(line);

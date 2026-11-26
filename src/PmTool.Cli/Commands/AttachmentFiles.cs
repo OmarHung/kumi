@@ -62,11 +62,32 @@ internal static class AttachmentFiles
         }
 
         var lastSegment = raw[(raw.LastIndexOfAny(['/', '\\']) + 1)..];
-        var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string([.. lastSegment
             .Where(character => !char.IsControl(character)
                 && CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.Format)
-            .Select(character => invalid.Contains(character) ? '_' : character)]).Trim().TrimEnd('.');
-        return cleaned.Length == 0 ? fallback : cleaned;
+            .Select(character => InvalidCharacters.Contains(character) ? '_' : character)]).Trim().TrimEnd('.');
+        return cleaned.Length == 0 ? fallback : AvoidReservedName(cleaned);
+    }
+
+    // 不依執行的系統而不同（Path.GetInvalidFileNameChars 在 macOS 與 Linux 只有 / 與 NUL）：檔案可能被拷到 Windows 的隨身碟或共用資料夾。
+    private static readonly char[] InvalidCharacters = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'];
+
+    // Windows 把這些名字當成裝置：開檔會寫到裝置或失敗，副檔名也不能躲過（CON.txt 一樣）。上標的 ¹²³ 也算。
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+        "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM\u00B9", "COM\u00B2", "COM\u00B3",
+        "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT\u00B9", "LPT\u00B2", "LPT\u00B3",
+    };
+
+    /// <summary>
+    /// 第一個 . 之前的部分（去掉尾端空白）是 Windows 的保留名稱時，在最前面加底線。
+    /// 不分作業系統都改：檔案可能放到隨身碟或共用資料夾，在 Windows 上才開。
+    /// </summary>
+    public static string AvoidReservedName(string fileName)
+    {
+        var dot = fileName.IndexOf('.', StringComparison.Ordinal);
+        var stem = (dot < 0 ? fileName : fileName[..dot]).TrimEnd();
+        return ReservedNames.Contains(stem) ? "_" + fileName : fileName;
     }
 }

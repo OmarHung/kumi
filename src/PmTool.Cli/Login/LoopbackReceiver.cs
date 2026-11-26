@@ -27,7 +27,13 @@ internal sealed class LoopbackReceiver : IDisposable
     internal const string DonePath = "/kumi-login/done";
     private const int MaxHeadBytes = 8 * 1024;
     private const int MaxCodeLength = 512;
+
+    /// <summary>同時處理的連線上限：同一台電腦上的其他程式不能用一堆不送完的連線把真正的瀏覽器擠掉（每條最多撐 10 秒）。</summary>
+    internal const int MaxConcurrentConnections = 8;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>瀏覽器送請求標頭只要一瞬間；佔住連線不送完的程式 3 秒就關掉，擠不掉真正的瀏覽器。</summary>
+    internal static readonly TimeSpan DefaultHeaderTimeout = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan FlushGrace = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan DefaultDoneGrace = TimeSpan.FromSeconds(5);
 
@@ -45,12 +51,16 @@ internal sealed class LoopbackReceiver : IDisposable
     private readonly List<Task> _handlers = [];
     private readonly TaskCompletionSource _doneServed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TimeSpan _doneGrace;
+    private readonly TimeSpan _headerTimeout;
     private volatile LoopbackOutcome? _received;
+    private int _openConnections;
 
     /// <param name="state">這次登入的 state。</param>
     /// <param name="doneGrace">結果出來之後，最多等多久讓瀏覽器跟著導向取走最後一頁；預設 5 秒。</param>
-    public LoopbackReceiver(string state, TimeSpan? doneGrace = null)
+    /// <param name="headerTimeout">讀請求標頭的時限，沒送完就關掉這條連線；預設 3 秒。</param>
+    public LoopbackReceiver(string state, TimeSpan? doneGrace = null, TimeSpan? headerTimeout = null)
     {
+        _headerTimeout = headerTimeout ?? DefaultHeaderTimeout;
         _state = Encoding.ASCII.GetBytes(state);
         _doneGrace = doneGrace ?? DefaultDoneGrace;
     }
@@ -142,10 +152,19 @@ internal sealed class LoopbackReceiver : IDisposable
                 return;
             }
 
+            if (Interlocked.Increment(ref _openConnections) > MaxConcurrentConnections)
+            {
+                // 滿了就直接關掉：瀏覽器的請求很短，騰得出位子後重試（或導向的下一頁）就進得來。
+                Interlocked.Decrement(ref _openConnections);
+                client.Dispose();
+                continue;
+            }
+
             // 每條連線自己處理：一條不送完請求的連線（10 秒才放棄）拖不住真正的那一條。
             var handler = HandleAsync(client, outcome);
             lock (_handlers)
             {
+                _handlers.RemoveAll(task => task.IsCompleted);
                 _handlers.Add(handler);
             }
         }
@@ -157,32 +176,49 @@ internal sealed class LoopbackReceiver : IDisposable
         {
             try
             {
-                using var timeout = new CancellationTokenSource(RequestTimeout);
-                var stream = client.GetStream();
-                var target = await ReadRequestTargetAsync(stream, timeout.Token);
-                var (response, result, isDone) = Decide(target);
-                // 先記下結果再回應：瀏覽器跟著導向來要最後一頁時，這邊已經知道成功了。
-                if (result is not null)
-                {
-                    _received ??= result;
-                }
-
-                await stream.WriteAsync(response, timeout.Token);
-                await stream.FlushAsync(timeout.Token);
-                if (result is not null)
-                {
-                    outcome.TrySetResult(result);
-                }
-
-                if (isDone)
-                {
-                    _doneServed.TrySetResult();
-                }
+                await HandleCoreAsync(client, outcome);
             }
-            catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
+            finally
             {
-                // 瀏覽器中途斷線或太慢：這條連線作廢，繼續等下一條。
+                Interlocked.Decrement(ref _openConnections);
             }
+        }
+    }
+
+    private async Task HandleCoreAsync(TcpClient client, TaskCompletionSource<LoopbackOutcome> outcome)
+    {
+        try
+        {
+            var stream = client.GetStream();
+            string? target;
+            using (var headerTimeout = new CancellationTokenSource(_headerTimeout))
+            {
+                target = await ReadRequestTargetAsync(stream, headerTimeout.Token);
+            }
+
+            using var timeout = new CancellationTokenSource(RequestTimeout);
+            var (response, result, isDone) = Decide(target);
+            // 先記下結果再回應：瀏覽器跟著導向來要最後一頁時，這邊已經知道成功了。
+            if (result is not null)
+            {
+                _received ??= result;
+            }
+
+            await stream.WriteAsync(response, timeout.Token);
+            await stream.FlushAsync(timeout.Token);
+            if (result is not null)
+            {
+                outcome.TrySetResult(result);
+            }
+
+            if (isDone)
+            {
+                _doneServed.TrySetResult();
+            }
+        }
+        catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
+        {
+            // 瀏覽器中途斷線或太慢：這條連線作廢，繼續等下一條。
         }
     }
 
@@ -218,7 +254,8 @@ internal sealed class LoopbackReceiver : IDisposable
             return (LoginPages.See(done), new LoopbackOutcome(LoopbackKind.Denied), false);
         }
 
-        if (!query.TryGetValue("code", out var code) || code.Length is 0 or > MaxCodeLength)
+        // 格式不對的碼（別的程式亂送的）不當成結果：照樣等真正的回呼，直到逾時。
+        if (!query.TryGetValue("code", out var code) || !IsWellFormedCode(code))
         {
             return (LoginPages.Response(400, "Bad Request", LoginPages.Stale), null, false);
         }
@@ -233,6 +270,10 @@ internal sealed class LoopbackReceiver : IDisposable
         LoopbackKind.Denied => (LoginPages.Response(200, "OK", LoginPages.Denied), null, true),
         _ => (LoginPages.Response(404, "Not Found", LoginPages.NotFound), null, false),
     };
+
+    /// <summary>伺服器發的碼是網址安全的字元（Base64Url 一類）；長度有上限。</summary>
+    private static bool IsWellFormedCode(string code) =>
+        code.Length is > 0 and <= MaxCodeLength && code.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.' or '~');
 
     private bool FixedTimeEquals(string state) => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(state), _state);
 

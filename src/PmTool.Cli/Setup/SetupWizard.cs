@@ -95,7 +95,10 @@ internal sealed class SetupWizard(CommandCall call)
         var agent = present.Length > 0
             && await prompt.AskAsync("  讓網頁的 AI 助理用這台電腦的 Claude Code／Codex（本機代理）？");
         var autostart = agent && Context.Login.AutostartSupported
-            && await prompt.AskAsync("    登入電腦時自動在背景啟動本機代理？");
+            && await prompt.AskAsync(
+                "    登入電腦時自動在背景啟動本機代理？它會在你沒看著的時候，用你的 AI 訂閱（Claude／ChatGPT）執行網頁送來的對話，"
+                + "預設每小時最多 30 件、每天 200 件。（不設也可以，要用時自己執行 kumi agent start）",
+                defaultYes: false);
         await Out.WriteLineAsync();
         return new SetupPlan(plans, agent, autostart);
     }
@@ -112,6 +115,12 @@ internal sealed class SetupWizard(CommandCall call)
         {
             await Out.WriteLineAsync("    伺服器網址含有不支援的字元，沒辦法替它加上 MCP。");
             return new McpPlan(engine, null, "伺服器網址含有不支援的字元，請手動加上 MCP");
+        }
+
+        if (!McpConfigurator.IsAllowedTransport(url))
+        {
+            await Out.WriteLineAsync($"    {McpConfigurator.InsecureMcpMessage}");
+            return new McpPlan(engine, null, "MCP 網址不是 https，沒有寫進設定");
         }
 
         var existing = await mcp.InspectAsync(engine, call.CancellationToken);

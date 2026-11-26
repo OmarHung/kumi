@@ -112,9 +112,17 @@ internal static class LoginCommand
             throw new CliException(ExitCodes.Error, $"{server} 的回應不像 Kumi 的伺服器（沒有說登入的是誰），沒有存權杖。請確認伺服器網址。");
         }
 
-        if (target == LoginTarget.Agent && session.Get("scopes") is { } granted && !HasScope(granted, AccessTokenAgentScope))
+        if (target == LoginTarget.Agent && session.Get("scopes") is { } granted)
         {
-            throw new CliException(ExitCodes.Error, $"這把權杖沒有 {AccessTokenAgentScope} 範圍，不能給本機代理用。請到網頁「AI 帳號」建立本機代理用的權杖。");
+            if (!HasScope(granted, AccessTokenAgentScope))
+            {
+                throw new CliException(ExitCodes.Error, $"這把權杖沒有 {AccessTokenAgentScope} 範圍，不能給本機代理用。請到網頁「AI 帳號」建立本機代理用的權杖。");
+            }
+
+            if (!IsExactAgentScopes(granted))
+            {
+                throw new CliException(ExitCodes.Error, $"{AgentScopesProblem("這把權杖")}沒有存。請用 kumi agent login 讓伺服器發一把。");
+            }
         }
 
         var store = new ConfigStore(context.ConfigPath);
@@ -136,6 +144,19 @@ internal static class LoginCommand
     }
 
     internal const string AccessTokenAgentScope = "agent:run";
+
+    /// <summary>本機代理的權杖固定的範圍：多了（尤其是 items:write）引擎拿到就能改項目，少了代理用不了。</summary>
+    internal static readonly IReadOnlyList<string> AgentTokenScopes = [AccessTokenAgentScope, "blueprint:read", "blueprint:write", "items:read"];
+
+    /// <summary>範圍恰好等於 <see cref="AgentTokenScopes"/>（不分順序）；不是字串陣列也不算。</summary>
+    internal static bool IsExactAgentScopes(JsonElement? scopes) =>
+        scopes is { ValueKind: JsonValueKind.Array } array
+        && array.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String)
+        && array.EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)
+            .SequenceEqual(AgentTokenScopes.Order(StringComparer.Ordinal));
+
+    internal static string AgentScopesProblem(string subject) =>
+        $"{subject}的範圍不是本機代理固定的那一組（{string.Join("、", AgentTokenScopes)}，不多不少）：多了的會讓引擎改得動項目，少了代理用不了。";
 
     internal static bool HasScope(JsonElement scopes, string scope) =>
         scopes.ValueKind == JsonValueKind.Array && scopes.EnumerateArray().Any(item => item.ValueKind == JsonValueKind.String && item.GetString() == scope);

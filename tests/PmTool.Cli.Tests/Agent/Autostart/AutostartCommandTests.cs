@@ -49,7 +49,7 @@ public sealed class AutostartCommandTests
             cli.Environment[ExecutableLocator.ClaudeVariable] = scripts.Script("claude", "exit 0");
         }
 
-        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
         return cli;
     }
 

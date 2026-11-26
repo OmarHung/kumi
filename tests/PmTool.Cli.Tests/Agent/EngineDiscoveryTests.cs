@@ -263,7 +263,7 @@ public sealed class EngineDiscoveryTests
         // Arrange
         var old = _scripts.Script("claude", """
             case "$1 $2" in
-              "--version ") echo "1.0.0"; exit 0 ;;
+              "--version ") echo "2.1.330"; exit 0 ;;
               "--help ") echo "--tools --allowedTools"; exit 0 ;;
             esac
             exit 9

@@ -23,7 +23,7 @@ public sealed class WindowsAutostartTests
         _cli.Autostart = _os.Build(_cli.ConfigPath);
         new ConfigStore(_cli.ConfigPath).Save(new StoredConfig { Server = CliHarness.ServerUrl, Token = CliHarness.Token });
         _cli.Environment[ExecutableLocator.CodexVariable] = _scripts.Script("codex", "exit 0");
-        _cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write"));
+        _cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
     }
 
     [TearDown]

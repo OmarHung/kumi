@@ -1,7 +1,10 @@
 namespace PmTool.Cli.Agent.Autostart;
 
-/// <summary>背景程序現在的樣子，給 status 與 enable 用。<see cref="Connection"/> 是它最近回報的連線狀態（沒有回報是 null）。</summary>
-internal sealed record AgentRunState(bool Running, int? Pid, bool Background, AgentConnection? Connection = null);
+/// <summary>
+/// 背景程序現在的樣子，給 status 與 enable 用。<see cref="Connection"/> 是它最近回報的連線狀態（沒有回報是 null）；
+/// <see cref="StartedAt"/> 是它的啟動時間，結束它之前用來確認編號沒有被別的程序重用。
+/// </summary>
+internal sealed record AgentRunState(bool Running, int? Pid, bool Background, AgentConnection? Connection = null, string? StartedAt = null);
 
 /// <summary>
 /// 啟動、停止背景的本機代理，與回報它的狀態。是不是在跑只看 <see cref="AgentLock"/>：
@@ -13,12 +16,15 @@ internal sealed class AutostartManager(AutostartEnvironment environment, IAutost
     private const int LogTailBytes = 16 * 1024;
     private const long MaxLogBytes = 5 * 1024 * 1024;
 
+    /// <summary>沒有結束程序的原因（無從確認是同一個程序）；呼叫端接在錯誤訊息後面。</summary>
+    public string? SkipNote { get; private set; }
+
     public AgentRunState State()
     {
         var holder = AgentLock.Peek(configPath);
         return holder is null
             ? new AgentRunState(false, null, false)
-            : new AgentRunState(true, holder.Pid, holder.Background, holder.Connection);
+            : new AgentRunState(true, holder.Pid, holder.Background, holder.Connection, holder.StartedAt);
     }
 
     /// <summary>停掉背景的程序：先請啟動管理員收尾，等不到再結束程序（確認名稱是 kumi 才動手）。回傳是否已經停了。</summary>
@@ -35,9 +41,16 @@ internal sealed class AutostartManager(AutostartEnvironment environment, IAutost
             return true;
         }
 
-        if (State() is { Running: true, Background: true, Pid: { } pid } && IsKumi(pid))
+        if (State() is { Running: true, Background: true, Pid: { } pid } holder && IsKumi(pid))
         {
-            await environment.KillProcess(pid, cancellation);
+            if (IsSameProcess(pid, holder.StartedAt))
+            {
+                await environment.KillProcess(pid, cancellation);
+            }
+            else
+            {
+                SkipNote = $"無法確認 PID {pid} 還是當初啟動的那個 kumi（鎖檔沒記啟動時間，或現在查不出來），為了不誤殺別的程序沒有動手。請自己結束那個程序，或重開機。";
+            }
         }
 
         return await WaitUntilAsync(() => !State().Running, environment.StopTimeout, cancellation);
@@ -46,6 +59,13 @@ internal sealed class AutostartManager(AutostartEnvironment environment, IAutost
     /// <summary>啟動之後等背景程序拿到鎖；等到回 true。</summary>
     public Task<bool> WaitUntilRunningAsync(CancellationToken cancellation) =>
         WaitUntilAsync(() => State() is { Running: true, Background: true }, environment.StartTimeout, cancellation);
+
+    /// <summary>
+    /// 鎖檔記著背景程序的啟動時間，現在這個編號的程序啟動時間對不上就是編號被別人重用了，不能結束它。
+    /// 鎖檔沒記（舊版寫的）或現在查不出來就無從比對：和清子孫程序一樣不動手，不退回只看名稱（名稱 kumi 的別的程序也會被誤殺）。
+    /// </summary>
+    private bool IsSameProcess(int pid, string? recordedStart) =>
+        recordedStart is { Length: > 0 } && environment.GetProcessStart(pid) is { } actual && string.Equals(actual, recordedStart, StringComparison.Ordinal);
 
     public bool IsKumi(int pid) =>
         environment.GetProcessName(pid) is { } name && name.StartsWith(ProcessNamePrefix, StringComparison.OrdinalIgnoreCase);

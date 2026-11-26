@@ -149,6 +149,14 @@ internal sealed class BrowserLogin(CliContext context)
             throw new CliException(ExitCodes.Error, $"{request.Server} 的回應不像 Kumi 的伺服器（沒有給權杖），沒有登入。請確認伺服器網址。");
         }
 
+        if (agent is not null && !LoginCommand.IsExactAgentScopes(data.Get("agent")?.Get("token")?.Get("scopes")))
+        {
+            // 已經發出去了，但不存：存了就是把一把引擎拿得到、又能改項目的權杖放在設定檔裡。
+            throw new CliException(
+                ExitCodes.Error,
+                $"{LoginCommand.AgentScopesProblem("伺服器發給本機代理的權杖")}沒有存；請到網頁「設定 → 命令列與整合」的存取權杖把它撤銷，並通知管理員。");
+        }
+
         return new BrowserLoginResult(
             account.Display("displayName"), account.Display("email"), account.Display("organizationName"), cli, agent, skipped);
     }

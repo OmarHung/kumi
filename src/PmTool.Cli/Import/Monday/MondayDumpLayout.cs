@@ -48,6 +48,32 @@ internal static class MondayDumpLayout
     public static string AssetPath(string dump, string assetId, string fileName) =>
         Path.Combine(FilesPath(dump), SafeName(assetId), SafeFileName(fileName));
 
+    /// <summary>
+    /// 檔案真的在 dump 資料夾裡：從檔案一路往上到 dump 為止，沒有任何一層是符號連結（或 Windows 的接合點）。
+    /// 來路不明的 dump 可以在 files/ 底下放一個指到 ~/.ssh 的連結，不擋就會被當成附件上傳。
+    /// </summary>
+    public static bool IsInsideDump(string dump, string path)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(dump));
+        var current = Path.GetFullPath(path);
+        if (!current.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        while (current.Length > root.Length)
+        {
+            if (new FileInfo(current).LinkTarget is not null || File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
+            {
+                return false;
+            }
+
+            current = Path.GetDirectoryName(current) ?? root;
+        }
+
+        return true;
+    }
+
     /// <summary>編號、看板編號來自 monday 或 meta.json，不能直接當路徑用：只留英數、底線與連字號。</summary>
     public static string SafeName(string value)
     {
@@ -77,6 +103,7 @@ internal static class MondayDumpLayout
             return FallbackFileName;
         }
 
+        cleaned = Commands.AttachmentFiles.AvoidReservedName(cleaned);
         if (Encoding.UTF8.GetByteCount(cleaned) <= MaxFileNameBytes)
         {
             return cleaned;

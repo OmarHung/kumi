@@ -11,7 +11,8 @@ public sealed class ProcessEngineTests
     private const string Server = "https://pm.example.com";
     private static readonly string[] SecretVariables =
         ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "KUMI_TOKEN", "PM_TOKEN", "CLAUDE_CODE_USE_BEDROCK",
-         "ANTHROPIC_FOUNDRY_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS", "OPENAI_BASE_URL"];
+         "ANTHROPIC_FOUNDRY_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS", "OPENAI_BASE_URL",
+         "AWS_SECRET_ACCESS_KEY", "DATABASE_URL", "GITHUB_TOKEN", "KUMI_SOME_OTHER_SECRET"];
 
     private FakeEngineScripts _scripts = null!;
     private readonly Dictionary<string, string?> _savedEnvironment = [];
@@ -45,6 +46,8 @@ public sealed class ProcessEngineTests
         _scripts.Dispose();
     }
 
+    private static bool IsAllowedName(string name) => EngineEnvironment.IsAllowed(name, interactive: false) || name == "KUMI_MCP_TOKEN";
+
     private static ProcessEngine ClaudeEngine(string executable, AgentOptions? options = null) =>
         new(new ClaudeCodeSpec(), executable, "2.1.330", ClaudeCodeSpec.Models, McpToken, Server, options ?? Quick);
 
@@ -73,7 +76,7 @@ public sealed class ProcessEngineTests
     }
 
     [Test]
-    public async Task Run_StripsApiKeysAndKumiTokensFromTheEnginesEnvironmentAndAddsTheMcpToken()
+    public async Task Run_PassesOnlyAllowedVariablesToTheEngineAndAddsTheMcpToken()
     {
         // Arrange
         var engine = ClaudeEngine(_scripts.Recording("claude", "claude-success.jsonl"));
@@ -91,7 +94,8 @@ public sealed class ProcessEngineTests
             }
 
             Assert.That(_scripts.Read("env.txt"), Does.Contain($"KUMI_MCP_TOKEN={McpToken}"));
-            Assert.That(environment, Does.Contain("PATH"), "其他的環境變數照舊，引擎才找得到它要的東西");
+            Assert.That(environment, Does.Contain("PATH").And.Contain("HOME"), "引擎找得到它要的東西、登入存在 HOME 底下");
+            Assert.That(environment.Where(name => name != "_" && name != "PWD" && name != "OLDPWD" && name != "SHLVL"), Is.All.Matches<string>(IsAllowedName), "清單以外的都進不去");
         }
     }
 
@@ -322,7 +326,8 @@ public sealed class ProcessEngineTests
             Assert.That(_scripts.Read("stdin.txt"), Is.EqualTo(job.Prompt));
             Assert.That(args[^1], Is.EqualTo("-"));
             Assert.That(args, Does.Contain("--strict-config").And.Contain("--ephemeral").And.Contain("-m").And.Contain("gpt-6.1-sol"));
-            Assert.That(args.Any(arg => arg.StartsWith("developer_instructions=\"系統提示", StringComparison.Ordinal)), Is.True);
+            Assert.That(args, Has.Some.StartsWith("developer_instructions="), "系統提示是 developer 訊息");
+            Assert.That(_scripts.Read("env.txt"), Does.Contain($"KUMI_MCP_PROJECT={job.ProjectKey}").And.Contain($"KUMI_MCP_JOB={job.JobId}"));
         }
     }
 

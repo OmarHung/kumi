@@ -24,7 +24,7 @@ internal sealed class EngineProber(AgentOptions options)
         try
         {
             return await _runner.ProbeAsync(
-                new ProcessRequest(executable, arguments, directory.FullName, string.Empty, new Dictionary<string, string>(), ProcessEngine.RemovedVariables),
+                new ProcessRequest(executable, arguments, directory.FullName, string.Empty, new Dictionary<string, string>()),
                 cancellation);
         }
         finally
@@ -39,11 +39,6 @@ internal sealed class EngineProber(AgentOptions options)
             }
         }
     }
-
-    /// <summary>help 裡找得到這個旗標。Claude Code 把 <c>--append-system-prompt</c> 與 <c>-file</c> 合寫成 <c>--append-system-prompt[-file]</c>。</summary>
-    public static bool HasFlag(string help, string flag) =>
-        help.Contains(flag, StringComparison.Ordinal)
-        || (flag.EndsWith("-file", StringComparison.Ordinal) && help.Contains(flag[..^"-file".Length] + "[-file]", StringComparison.Ordinal));
 
     /// <summary><c>codex features list</c> 每行第一欄是功能名稱（後面是階段與開關）。</summary>
     public static HashSet<string> ParseFeatureNames(string output) =>

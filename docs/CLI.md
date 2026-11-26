@@ -69,7 +69,7 @@ kumi auth login --server https://pm.example.com
 # 在瀏覽器的 Kumi 頁面輸入這組確認碼再按「允許」。頁面上不是你在這台電腦剛執行的登入，請按「拒絕」。
 ```
 
-流程（照 RFC 8252 的原生程式作法）：`kumi` 在這台電腦的 `127.0.0.1` 開一個暫時的連接埠、打開瀏覽器到 Kumi 的同意頁；你按「允許」後，瀏覽器把一次性的碼帶回這個連接埠，`kumi` 用 PKCE 的 verifier 換成權杖並存進設定檔。伺服器只會把碼送到 `127.0.0.1`（連接埠是 `kumi` 自己報的，網址由伺服器組成）。發出來的就是一般的存取權杖，名稱是「kumi（電腦名稱）」，在網頁的「存取權杖」清單看得到、撤銷得掉。重新登入會換掉這台電腦上同一個伺服器、同一個帳號的舊權杖，清單不會越積越多。
+流程（照 RFC 8252 的原生程式作法）：`kumi` 在這台電腦的 `127.0.0.1` 開一個暫時的連接埠、打開瀏覽器到 Kumi 的同意頁；你按「允許」後，瀏覽器把一次性的碼帶回這個連接埠，`kumi` 用 PKCE 的 verifier 換成權杖並存進設定檔。kumi 讀瀏覽器請求標頭只給 3 秒，沒送完就關掉那條連線（同一台電腦上的其他程式不能靠佔住連線擠掉瀏覽器）。伺服器只會把碼送到 `127.0.0.1`（連接埠是 `kumi` 自己報的，網址由伺服器組成）。發出來的就是一般的存取權杖，名稱是「kumi（電腦名稱）」，在網頁的「存取權杖」清單看得到、撤銷得掉。重新登入會換掉這台電腦上同一個伺服器、同一個帳號的舊權杖，清單不會越積越多。
 
 **確認碼**：`kumi` 由這次登入的 PKCE challenge 算出六碼確認碼（`SHA-256("kumi-cli-login-confirm\n" ‖ challenge)` 的前 4 個位元組當大端的無號整數，除以 1,000,000 取餘數、補零到 6 位），印在終端機（寫到 stderr，`--json` 的 stdout 不受影響），同意頁要你輸入同一組才能按「允許」。確認碼只看自己的終端機；別人告訴你的確認碼（信件、訊息、電話，或頁面上別的數字，包括電腦名稱）一律不要輸入，頁面上不是你在這台電腦剛執行的登入，請按「拒絕」。登入成功之後，瀏覽器會停在不帶登入碼的頁面（`kumi` 收到碼就把瀏覽器導到沒有查詢字串的網址），登入碼不會留在網址列與瀏覽紀錄裡。`auth login`、`agent login`、`setup`、`--no-browser` 都一樣。0.8.0 以前的 `kumi` 不會印確認碼，同意頁會請你先更新：`kumi update`（需要還有效的權杖）；權杖已經失效時，到網頁「設定 → 命令列與整合」下載新版。
 
@@ -99,16 +99,17 @@ printf '%s' "$MY_TOKEN" | kumi auth login --server https://pm.example.com --with
 kumi agent login [--server 網址] [--no-browser] [--paste] [--with-token]
 ```
 
-流程和 `kumi auth login` 一樣，但要的是本機代理的權杖（範圍固定是 `agent:run`、`blueprint:read`、`blueprint:write`、`items:read`），存進 `agentToken`，不動命令列的那一把。組織沒有開放成員使用自己的 AI 帳號時，同意頁會說明、`kumi` 說「沒有建立本機代理的權杖」並結束（代碼 1）。`--paste`、`--with-token` 貼的是網頁「AI 帳號」建立的本機代理權杖，`kumi` 會先確認它有 `agent:run`。`kumi agent start` 與 `kumi agent enable` 依序用 `KUMI_TOKEN`、`agentToken`、`token`（舊設定檔只有一把時照樣能用）。
+流程和 `kumi auth login` 一樣，但要的是本機代理的權杖（範圍固定是 `agent:run`、`blueprint:read`、`blueprint:write`、`items:read`），存進 `agentToken`，不動命令列的那一把。組織沒有開放成員使用自己的 AI 帳號時，同意頁會說明、`kumi` 說「沒有建立本機代理的權杖」並結束（代碼 1）。`--paste`、`--with-token` 貼的是網頁「AI 帳號」建立的本機代理權杖，`kumi` 會先確認它的範圍恰好是上面那一組：沒有 `agent:run`，或多了（例如 `items:write`，引擎拿得到這把權杖就改得動項目）、少了，都不存、說明原因；瀏覽器登入時伺服器發下來的範圍不對也一樣不存。`kumi agent start` 與 `kumi agent enable` 依序用 `KUMI_TOKEN`、`agentToken`、`token`（舊設定檔只有一把時照樣能用）。
 
 本機代理的權杖只能用在領工作與連 MCP：REST API 上只能打 `/v1/agent/*`、`GET /v1/session`、`GET /v1/cli*`，其他一律 403；MCP 上只能用本機代理的十個工具。建立權杖時 `agent:run` 不能和 `items:write` 放在同一把。以前把同一把權杖同時拿來跑 `kumi` 的一般指令與本機代理的話，一般指令會變成 403，重新執行 `kumi setup`（或 `kumi auth login` 加 `kumi agent login`）分成兩把。
 
 ```bash
 kumi auth status    # 伺服器、登入身分、權杖從哪裡來、有沒有存本機代理的權杖
-kumi auth logout    # 刪掉這台電腦上存的兩把權杖
+kumi auth logout    # 刪掉這台電腦上存的兩把權杖；有終端機時會問要不要一併撤銷
+kumi auth logout --revoke   # 不問：一併撤銷伺服器上的權杖，並停掉背景的本機代理
 ```
 
-`logout` 只刪本機的檔案，**不會撤銷權杖**；懷疑權杖外流，或不用了，請到網頁「設定 → 命令列與整合」的「存取權杖」撤銷。
+`logout` 有終端機時會問「要一併撤銷伺服器上的權杖（命令列與本機代理的），並停掉背景的本機代理嗎」。答是，或加了 `--revoke`，會先停掉背景的本機代理（等於執行 `kumi agent disable`），再用每一把權杖呼叫 `DELETE /v1/account/tokens/current` 撤銷它自己，最後刪本機的檔案；撤銷失敗（連不上、權杖早就失效）會寫到標準錯誤說明，本機的檔案照樣刪。加了 `--json` 或沒有終端機又沒加 `--revoke` 時不問、**只刪本機的檔案，不撤銷**（要撤銷請加 `--revoke`，或到網頁「設定 → 命令列與整合」的「存取權杖」撤銷）。`--json` 的輸出多 `revoked`（`cliToken`、`agentToken`）、`revokeFailures`、`agentStopped`。
 
 ### 權杖的範圍
 
@@ -126,7 +127,7 @@ kumi auth logout    # 刪掉這台電腦上存的兩把權杖
 
 ### 設定檔與環境變數
 
-- 設定檔：`$XDG_CONFIG_HOME/kumi/config.json`，沒設時是 `~/.config/kumi/config.json`（舊版登入過、新的還沒有時，照樣用舊的 `pm-tool/config.json`，之後也存回那裡）。裡面有權杖。Unix 上檔案權限是 600（只有你讀寫），資料夾 700；**Windows 上 `kumi` 不另外設權限**，靠的是設定檔放在你的使用者資料夾底下（`%USERPROFILE%\.config`），其他一般帳號讀不到；共用的電腦請改用環境變數。
+- 設定檔：`$XDG_CONFIG_HOME/kumi/config.json`，沒設時是 `~/.config/kumi/config.json`（舊版登入過、新的還沒有時，照樣用舊的 `pm-tool/config.json`，之後也存回那裡）。裡面有權杖。Unix 上檔案權限是 600（只有你讀寫），資料夾 700；讀設定檔時發現別人（群組或其他使用者）讀得到，會收緊成 600（資料夾 700，只動名叫 `kumi` 或 `pm-tool` 的資料夾）並在標準錯誤警告，因為裡面的權杖在那之前可能被看過；**Windows 上 `kumi` 不另外設權限**，靠的是設定檔放在你的使用者資料夾底下（`%USERPROFILE%\.config`），其他一般帳號讀不到；共用的電腦請改用環境變數。
 - 環境變數優先於設定檔：`KUMI_SERVER`（伺服器網址）、`KUMI_TOKEN`（權杖）。`--server` 又優先於 `KUMI_SERVER`。改名前的 `PM_SERVER`、`PM_TOKEN` 也認得，新舊都有時用新的；錯誤訊息會說是哪一個變數。
 - `KUMI_TOKEN` 與設定檔裡的權杖，不是 `pmt_` 開頭、或中間有空白，`kumi` 在送出之前就報錯（結束代碼 2），不會把一段亂碼當成憑證送出去。
 - 設定檔裡的權杖只會送給當初登入的那個伺服器。用 `--server` 指向別的伺服器時，要用 `KUMI_TOKEN` 另外給權杖。
@@ -146,9 +147,9 @@ kumi setup [--server 網址] [--no-browser]
 
 1. **偵測**：找 `claude`、`codex`（環境變數 `KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH` 優先，再看 PATH），各跑一次 `--version`。都沒有時只設定命令列，並附安裝網址，之後裝好再跑一次 `kumi setup`。
 2. **問題全部先問完才動手**（Enter、`y`、`是` 是「是」；`n`、`否` 是「否」；其他重問）：讓 Claude Code 使用 Kumi？讓 Codex 使用 Kumi？讓網頁的 AI 助理用這台電腦的引擎（本機代理）？（macOS、Windows 才問）登入電腦時自動在背景啟動？引擎裡已經有一個叫 `kumi` 的 MCP 伺服器、卻指到別的網址時，多問一題「要換成這個伺服器嗎？」（預設否）。
-3. **登入**：設定檔裡已經有這個伺服器的權杖、伺服器認得、範圍也對（命令列的不能有 `agent:run`、本機代理的一定要有）就不再登入；缺的才**一次**開瀏覽器，同一頁核准命令列與本機代理兩把。登入沒有成功（拒絕、逾時）不中止精靈：MCP 的授權是 Claude Code／Codex 自己的流程。
-4. **Claude Code**：`claude mcp add --scope user --transport http kumi <伺服器>/mcp`（user 範圍，所有資料夾都能用），再用繼承終端機的方式跑 `claude mcp login kumi`（瀏覽器開 Kumi 的授權頁，按「允許」）。**Codex**：`codex mcp add kumi --url <伺服器>/mcp`——Codex 遇到支援 OAuth 的伺服器會在 `add` 裡**馬上**請你授權（印出網址、開瀏覽器，沒有關掉的選項），所以它也是繼承終端機跑；跑完讀 `codex mcp list --json` 的 `auth_status`，還沒授權才補跑 `codex mcp login kumi`，已經授權過就略過。加了 `--no-browser` 時兩個 `mcp login` 都加上 `--no-browser`（只印網址）；Codex 的 `add` 沒有這個選項，照樣會試著開瀏覽器，但也會印出網址。每個指令執行前都先印出整行；網址只准英數字與 `. : / - [ ]`，不合就不執行。`mcp login` 沒完成不擋後面的步驟，之後在引擎裡輸入 `/mcp` 選 kumi 登入。
-5. **本機代理**：要開機自動啟動就執行 `kumi agent enable --server …`；不要的話，總結印完後問「現在在這個視窗啟動本機代理嗎？」，是就執行 `kumi agent start`（視窗要一直開著）。組織沒有開放成員使用自己的 AI 帳號時這一步標「略過」。
+3. **登入**：設定檔裡已經有這個伺服器的權杖、伺服器認得、範圍也對（命令列的不能有 `agent:run`、本機代理的要恰好是固定的那一組）就不再登入；缺的才**一次**開瀏覽器，同一頁核准命令列與本機代理兩把。登入沒有成功（拒絕、逾時）不中止精靈：MCP 的授權是 Claude Code／Codex 自己的流程。
+4. **Claude Code**：寫進引擎設定的 MCP 網址只收 `https`，或本機（`127.0.0.1`、`localhost`、`::1`）的 `http`，就算加了 `--insecure` 也一樣（引擎之後每一次都會帶著授權連這個網址，它寫在引擎的設定檔裡、不再經過 `kumi`）：不合格就不寫、說明原因，請改用 https 的網址或自己設定。`claude mcp add --scope user --transport http kumi <伺服器>/mcp`（user 範圍，所有資料夾都能用），再用繼承終端機的方式跑 `claude mcp login kumi`（瀏覽器開 Kumi 的授權頁，按「允許」）。**Codex**：`codex mcp add kumi --url <伺服器>/mcp`——Codex 遇到支援 OAuth 的伺服器會在 `add` 裡**馬上**請你授權（印出網址、開瀏覽器，沒有關掉的選項），所以它也是繼承終端機跑；跑完讀 `codex mcp list --json` 的 `auth_status`，還沒授權才補跑 `codex mcp login kumi`，已經授權過就略過。加了 `--no-browser` 時兩個 `mcp login` 都加上 `--no-browser`（只印網址）；Codex 的 `add` 沒有這個選項，照樣會試著開瀏覽器，但也會印出網址。每個指令執行前都先印出整行；網址只准英數字與 `. : / - [ ]`，不合就不執行。`mcp login` 沒完成不擋後面的步驟，之後在引擎裡輸入 `/mcp` 選 kumi 登入。
+5. **本機代理**：問「登入電腦時自動在背景啟動本機代理？」**預設是「否」**（題目寫明它會在你沒看著的時候用你的 AI 訂閱執行網頁送來的對話，每小時最多 30 件、每天 200 件），要明講 y 才執行 `kumi agent enable --server …`；不要的話，總結印完後問「現在在這個視窗啟動本機代理嗎？」，是就執行 `kumi agent start`（視窗要一直開著）。組織沒有開放成員使用自己的 AI 帳號時這一步標「略過」。
 
 最後印總結（✓ 完成、– 略過、✗ 失敗並寫怎麼補）。結束代碼：全部做了或略過是 0；任何一步失敗是 1；用法錯誤（沒有終端機、`--json`）是 2。網頁的「設定精靈」會依權杖、MCP 授權與本機代理的狀態即時打勾。
 
@@ -249,7 +250,7 @@ kumi item update WEB-1 WEB-2 --assignee @me --set priority=high --set dueDate=20
 - **附件**：
   - `item attach 編號 檔案...` 一個檔案送一次（multipart，欄位 `file`），成功印「已附加 規格.pdf（1.2 MB）」。送出前先檢查：檔案存在、不是資料夾、讀得到、不超過 25 MiB（和伺服器的上限一樣）；不合格的結束代碼 2、不送出。多個檔案時一個失敗不影響其他的：失敗的逐筆印到標準錯誤（`檔案：原因`），有失敗時結束代碼是第一個失敗的（本機檢查不合格是 2；伺服器回 413、422 是 2，403、404、409 與連不上是 1）。`--json` 印成功的附件，是一個陣列。附件的數量上限、檔名規則、專案已封存等由伺服器判斷。需要 `items:write`。
   - `item attachments 編號` 列出編號（`attachment download` 要用）、檔名、大小（B、KB、MB）、上傳的人（名稱）、時間；`--json` 是伺服器的原始資料（含 `sha256`）。沒有附件時印「沒有附件」。需要 `items:read`。
-  - `attachment download 編號 [-o 路徑] [--item 項目編號] [--force]`：編號是附件的編號（GUID）。預設存成原本的檔名在目前的資料夾；`-o` 是資料夾就放在裡面，是檔案路徑就照它存（資料夾要已經存在）。檔名來自上傳的人，所以只留最後一段、去掉控制字元與格式字元、作業系統不收的字元換成 `_`，整理完是空的、`.` 或 `..` 就用 `attachment-<編號>`；它不會讓檔案寫到目前資料夾以外的地方（`-o` 是你自己給的，照原樣用）。目標已經存在時不覆蓋（結束代碼 2），加 `--force` 才覆蓋。內容串流寫到同資料夾的暫存檔，核對完才改成正式的名字，中途失敗或核對不合時不留下檔案（也不動原本的檔案）。
+  - `attachment download 編號 [-o 路徑] [--item 項目編號] [--force]`：編號是附件的編號（GUID）。預設存成原本的檔名在目前的資料夾；`-o` 是資料夾就放在裡面，是檔案路徑就照它存（資料夾要已經存在）。檔名來自上傳的人，所以只留最後一段、去掉控制字元與格式字元、作業系統不收的字元換成 `_`，整理完是空的、`.` 或 `..` 就用 `attachment-<編號>`；它不會讓檔案寫到目前資料夾以外的地方（`-o` 是你自己給的，照原樣用）；Windows 的保留名稱（`CON`、`NUL`、`COM1`、`CONIN$`、`CONOUT$`…，含副檔名，如 `nul.txt`）前面加 `_`；不合法的字元（`: * ? " < > |` 與控制字元）在每個作業系統上都換成 `_`，不看執行的系統。目標已經存在時不覆蓋（結束代碼 2），加 `--force` 才覆蓋。內容串流寫到同資料夾的暫存檔，核對完才改成正式的名字，中途失敗或核對不合時不留下檔案（也不動原本的檔案）。
   - **檔名與 sha256 的核對**：不用 `--item` 也會核對。檔名取下載回應 `Content-Disposition` 的 `filename*`（UTF-8），沒有才用 `filename`；sha256 取回應的 `X-Attachment-Sha256` 標頭，內容算出來不一樣就結束代碼 1、不留下檔案。加 `--item 項目編號` 時，`kumi` 會多讀一次那個項目的附件列表，改用列表的檔名與 `sha256`（兩邊 sha256 不一樣時照列表核對，並在標準錯誤說明）。舊的伺服器沒有 `X-Attachment-Sha256` 又沒給 `--item` 時，只比對大小（`Content-Length`），並在標準錯誤提醒。`--json` 印 `{ "path", "sha256" }`（`sha256` 是實際算出來的）。需要 `items:read`；附件不存在或看不到是 404（結束代碼 1）。
 - `kumi item view --json` 輸出 `{ "item": …, "children": […], "activity": […] }`；`activity` 是最近 10 筆，新的在前（伺服器的活動由舊到新分頁，`kumi` 照游標讀到最後一頁再取最後 10 筆，最多讀一萬筆）。
 
@@ -324,7 +325,7 @@ kumi import monday run --mapping ./monday.yaml --add-members             # 5. �
 
 - 先在網頁上建好專案（模板、代號）、加好人員（離職的人也建，加進專案再停用）；自訂欄位與選項（例如「客戶」）也先在設定頁加好。`run` 的檢查會一次列出缺什麼，有任何問題就什麼都不寫（結束代碼 2）。
 - 權杖要有 `items:read`、`items:write`、`blueprint:read`；`--add-members` 另外要 `blueprint:write`（把作者、負責人、關注的人加進專案，角色預設 `editor`，`--member-role` 可以換）。你要是每個目標專案的管理者。
-- `fetch` 只讀 `MONDAY_API_TOKEN`，不用登入 pm；`plan` 與 `run` 用登入的 pm。`--out` 的資料夾已經有別的東西（不是 dump）時拒絕覆蓋。超過 25 MiB 的檔案不下載，記在 `files/skipped.json`。
+- `fetch` 只讀 `MONDAY_API_TOKEN`，不用登入 pm；`plan` 與 `run` 用登入的 pm。`--out` 的資料夾已經有別的東西（不是 dump）時拒絕覆蓋。超過 25 MiB 的檔案不下載，記在 `files/skipped.json`。`run` 讀 dump 的檔案時，只搬真的在 dump 資料夾裡的普通檔案：`files/` 底下的符號連結（或路徑上有符號連結）一律不搬，當作「dump 裡沒有這個檔案」。
 - dump 與對應檔裡有真實的人名、Email、留言與檔案：**只放在自己的電腦，不要提交**（repo 的 `.gitignore` 擋了預設的名字 `monday-dump*/`、`monday*.yaml`）。
 - `run` 的報告：每個專案新增、略過的項目、留言、附件與沒搬的檔案，加上提醒（對不上的優先度、略過的值、截斷的留言、改用 `fallbackPerson` 的作者…）。`--report 檔案` 另外寫一份 JSON。中途失敗時印出已經完成的部分；再跑一次會從失敗的地方接下去。
 - 很久沒動的項目：對應檔的看板層可以寫 `stale: { before: 2026-09-01, state: canceled }`（`plan` 的草稿有一段註解掉的，取消註解就生效）。最後一次動（建立、留言、回覆裡最晚的，以 Asia/Taipei 計）早於 `before`、而且還沒結束（類別是 backlog、not_started、in_progress）的項目改匯成 `state`，不然舊的待辦會全擠進每個人「我的工作」的「已過期」。報告的提醒會彙總有幾個，乾跑也看得到。
@@ -340,40 +341,41 @@ kumi import monday run --mapping ./monday.yaml --add-members             # 5. �
 # 1. 用瀏覽器登入，建立本機代理用的權杖（範圍 agent:run、blueprint:read、blueprint:write、items:read）
 kumi agent login --server https://pm.example.com
 # 2. 開著它（終端機視窗不要關）；想要登入電腦時自動在背景啟動，改用下面的 kumi agent enable
-kumi agent start [--name 名稱] [--engine claude-code|codex]… [--json]
+kumi agent start [--name 名稱] [--engine claude-code|codex]… [--max-jobs-per-hour 件數] [--max-jobs-per-day 件數] [--allow-untested-engine] [--json]
 # 3. 在網頁的 AI 助理選「Claude Code（電腦名稱）」送訊息
 ```
 
 - `--name`：這台電腦在網頁上的名稱，預設是主機名稱。`--engine`：只提供某一個引擎，可以重複；預設兩個都試。
-- 組織要先開「AI 設定 → 允許成員使用自己的 AI 帳號」，不然登記時回 403（說明會寫出來）。權杖缺範圍時，指令一開始就說缺哪一個，並叫你執行 `kumi agent login`（結束代碼 1）。本機代理優先用 `kumi agent login` 存的專用權杖，沒有才用命令列登入的那一把（`KUMI_TOKEN` 最優先）。`items:read` 不在這個檢查裡：2026-11-23 以前建立的權杖少了它，代理照常啟動，只是助理讀不到項目（`get_item`、`search_items` 會回沒有權限），要讀項目請重建權杖。
+- 組織要先開「AI 設定 → 允許成員使用自己的 AI 帳號」，不然登記時回 403（說明會寫出來）。`kumi agent start` 與 `enable` 交給引擎的權杖（`KUMI_TOKEN` 或設定檔裡的）範圍必須恰好是 `agent:run`、`blueprint:read`、`blueprint:write`、`items:read`：缺哪一個，指令一開始就說缺哪一個；多了任何一個（尤其 `items:write`：引擎拿得到這把權杖，就改得動項目）也拒絕並說明，兩種都不會重試（背景程序也是直接結束，代碼 1），都叫你執行 `kumi agent login`。本機代理優先用 `kumi agent login` 存的專用權杖，沒有才用命令列登入的那一把（`KUMI_TOKEN` 最優先）。2026-11-23 以前建立、少了 `items:read` 的權杖現在也不能用：請重新 `kumi agent login`。
 - 模型選單的「預設」會顯示實際的思考深度，例如「預設（中）」：登記時每個模型帶 `defaultEffort`。Claude Code 依探到的模型代號照官方文件的預設（Fable 5.2、Opus 5.5、Sonnet 5.5、Haiku 5.5 是 medium，Opus 4.7 是 xhigh，其他 high；探不到是空），Codex 讀 `models_cache.json` 的 `default_reasoning_level`；不在該模型選項裡的一律不帶。
 - 圖片與 PDF（kumi 0.10.0 起）：網頁訊息附的圖片與 PDF 交給引擎，Claude Code 圖片與 PDF 都收，Codex 只有圖片（PDF 在網頁就會被擋下）。`kumi` 領到工作後用同一把權杖從 `GET /v1/agent/jobs/{工作}/attachments/{附件}` 下載到這件工作的暫存資料夾（檔名一律是 `attachment-N.副檔名`，不用伺服器給的檔名），核對大小與 SHA-256，Claude Code 改用 `--input-format stream-json` 把它們放進標準輸入的那一行訊息、Codex 每張圖片一個 `-i <路徑>`；工作結束連資料夾一起刪。下載失敗或核對不符，這件工作以失敗結束（「下載附件失敗」），不啟動引擎。0.9.x 以前的 kumi 收不到附件，網頁會請你 `kumi update`。主機的 `kumi host run` 一樣，下載走 `GET /v1/host-agent/jobs/{工作}/attachments/{附件}?lease=<租約>`（機器憑證與 `X-Kumi-Machine`）。
 - 這台電腦同時只能有一個本機代理（前景或背景）：設定檔的資料夾裡的 `agent.lock` 是單一執行的鎖，第二個會結束（代碼 1）並說誰拿著（PID）。旁邊的 `agent.lock.json` 記著拿鎖的 PID 與是不是背景（只在鎖被拿著時才可信）。
-- 電腦編號存在設定檔的資料夾（`agent.json`，Unix 上權限 600），之後都用同一個，伺服器才認得是同一台電腦。
+- 電腦編號存在設定檔的資料夾（`agent.json`；`agent.lock`、`agent.lock.json`、`agent-usage.json` 與主機代理的 `host-agent.json` 也一樣，建立時就是 600，發現別人讀得到的會收緊），之後都用同一個，伺服器才認得是同一台電腦。
 
 **開機自動啟動（macOS、Windows）**
 
 ```bash
-kumi agent enable [--server 網址] [--name 名稱] [--engine claude-code|codex]… [--json]   # 設定並立刻在背景啟動
-kumi agent status [--json]                                                              # 設定了沒、有沒有在跑、連不連得上、記錄檔最後 10 行
+kumi agent enable [--server 網址] [--name 名稱] [--engine claude-code|codex]… [--max-jobs-per-hour 件數] [--max-jobs-per-day 件數] [--allow-untested-engine] [--json]   # 設定並立刻在背景啟動
+kumi agent status [--json]                                                              # 設定了沒、有沒有在跑、連不連得上、這一小時與今天領了幾件、記錄檔最後 10 行
 kumi agent disable [--json]                                                             # 停掉背景程序並取消
 ```
 
-- `enable` 的檢查（任何一項不過就結束代碼 1，什麼都不改）：作業系統要是 macOS 或 Windows；權杖要存在設定檔（背景程序讀不到你的環境變數，用 `KUMI_TOKEN` 時請先 `kumi agent login`）且有 `agent:run` 等範圍；PATH 上要找得到 `claude` 或 `codex`；沒有前景的 `kumi agent start` 在跑（在跑的話說 PID，請先關掉那個視窗）。通過後先停掉舊的背景程序、寫入啟動項目、立刻在背景啟動，最多等 10 秒看到它拿到鎖；沒等到時啟動項目照樣留著，結束代碼 1，並印出記錄檔最後幾行。`--json` 印 `{"enabled":true,"running":…,"logPath":"…"}`。
-- `disable`：停掉背景程序（先請系統收尾，8 秒沒停才強制結束，而且結束前會確認程序名稱是 kumi）、移除啟動項目；沒設定過就說「沒有設定自動啟動。」（代碼 0）。前景的本機代理不受影響。`--json` 印 `{"enabled":false,"wasEnabled":…}`。
-- `status`：在跑的本機代理（前景或背景）會回報和伺服器的連線，`status` 多印一行「連線：」——「正在連線」（剛啟動，連不上時要等一兩分鐘才逾時）、「已連上伺服器」或「連不上或伺服器有問題，某時起一直在重試：原因」（連不上、5xx、429；時間是第一次失敗的時間；網路、VPN、proxy、防火牆或伺服器暫時的問題排除之後會自己接上，不用重新啟動）。kumi 0.9.1 起才回報，0.9.0 以前的沒有這一行。設了自動啟動、記錄檔卻不在時（多半是整個資料夾被清理工具刪掉，launchd 不會自己建回來）提醒執行 `kumi agent enable` 重建。
-- `status --json`：`{"supported","enabled","running","pid","background","connection","logPath","logMissing","recentLog":[]}`；不支援的作業系統 `supported` 是 false。`connection` 沒在跑或沒有回報時是 null，不然是 `{"state":"connecting|connected|retrying","since":"ISO 8601","error":…}`（`error` 只有 `retrying` 有，最多 300 字）；`logMissing` 是「設了自動啟動而記錄檔不在」。
-- 背景程序跑的是 `kumi agent start --service`：和 `start` 一樣，差別在連不上伺服器（登入電腦時網路常還沒好）、5xx、429 時**不結束**，依退避（1、2、4…最多 60 秒）一直重試；401、403（權杖失效或被撤銷、組織不開放）與沒有能用的引擎才結束（代碼 1，原因寫在記錄檔）。輸出每行前面加時間。連線狀態寫在設定檔資料夾的 `agent.lock.json`（拿著鎖時才可信，結束時刪掉），`kumi agent status` 讀它。
-- **macOS**：`~/Library/LaunchAgents/kumi.local-agent.plist`（`RunAtLoad`，沒設 `KeepAlive`，401、403 時不會被一直重開），用 `launchctl bootstrap／bootout gui/<uid>/kumi.local-agent`；記錄檔 `~/Library/Logs/Kumi/agent.log`（資料夾 700；超過 5 MB 時 `enable` 先清掉）。背景程序啟動時記錄檔不存在，代表 launchd 開不了它（資料夾被刪掉了），標準輸出沒有人接：kumi 自己建資料夾、自己寫進記錄檔（建不了就照舊只寫標準輸出，不影響執行）。plist 帶執行 `enable` 當下的 `PATH`，有設才帶 `XDG_CONFIG_HOME`、`KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH`；**不帶任何權杖**，權杖由背景程序從設定檔讀。
-- **Windows**：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `KumiLocalAgent`（整行命令，含空白與引號的參數照 Windows 規則加引號）；背景程序藏起主控台視窗，輸出寫到 `%LOCALAPPDATA%\Kumi\agent.log`；停止是結束程序（不能請它收尾，正在跑的工作由伺服器當逾時）。這一段沒有在真的 Windows 上驗證過。
+- `enable` 的檢查（任何一項不過就結束代碼 1，什麼都不改）：作業系統要是 macOS 或 Windows；權杖要存在設定檔（背景程序讀不到你的環境變數，用 `KUMI_TOKEN` 時請先 `kumi agent login`）且有 `agent:run` 等範圍；PATH 上要找得到 `claude` 或 `codex`；kumi 的執行檔不能在下載資料夾、暫存資料夾或別的使用者也寫得進去的資料夾（先解析符號連結再判斷；macOS 的路徑比對不分大小寫；資料夾往上任何一層、或執行檔本身，其他使用者或群組寫得進去也算；Windows 只擋下載與暫存資料夾，不查權限，因為 Windows 的開機自動啟動還是實驗性的；開機自動啟動每次登入都會執行它，放在那種地方別的程式換掉它就會被執行；會說怎麼搬，例如搬到 `~/.local/bin`，Windows 是 `%LOCALAPPDATA%\Programs\Kumi`，再執行一次）；沒有前景的 `kumi agent start` 在跑（在跑的話說 PID，請先關掉那個視窗）。通過後先停掉舊的背景程序、寫入啟動項目、立刻在背景啟動，最多等 10 秒看到它拿到鎖；沒等到時啟動項目照樣留著，結束代碼 1，並印出記錄檔最後幾行。`--json` 印 `{"enabled":true,"running":…,"logPath":"…"}`。
+- `disable`：停掉背景程序（先請系統收尾，8 秒沒停才強制結束，而且結束前會確認程序名稱是 kumi、啟動時間和鎖檔裡記的一樣：程序編號被別的程式重用時不會結束到它；鎖檔沒記啟動時間（舊版寫的）或現在查不出來時無從確認，也不動手，會說明並請你自己結束那個程序或重開機。啟動時間一律用 `ps` 的 UTC 時間記錄與比對）、移除啟動項目；沒設定過就說「沒有設定自動啟動。」（代碼 0）。前景的本機代理不受影響。`--json` 印 `{"enabled":false,"wasEnabled":…}`。
+- `status`：在跑的本機代理（前景或背景）會回報和伺服器的連線，`status` 多印一行「連線：」——「正在連線」（剛啟動，連不上時要等一兩分鐘才逾時）、「已連上伺服器」或「連不上或伺服器有問題，某時起一直在重試：原因」（連不上、5xx、429；時間是第一次失敗的時間；網路、VPN、proxy、防火牆或伺服器暫時的問題排除之後會自己接上，不用重新啟動）。kumi 0.9.1 起才回報，0.9.0 以前的沒有這一行。設了自動啟動、記錄檔卻不在時（多半是整個資料夾被清理工具刪掉，launchd 不會自己建回來）提醒執行 `kumi agent enable` 重建。 另外印「領走的工作：這一小時 …，今天 …」（本機的上限，見下面的 `--max-jobs-per-hour`、`--max-jobs-per-day`）。
+- `status --json`：`{"supported","enabled","running","pid","background","connection","logPath","logMissing","usage":{"hour":{"used","limit"},"day":{"used","limit"},"limitsAreDefaults"},"recentLog":[]}`；不支援的作業系統 `supported` 是 false。`connection` 沒在跑或沒有回報時是 null，不然是 `{"state":"connecting|connected|retrying","since":"ISO 8601","error":…}`（`error` 只有 `retrying` 有，最多 300 字）；`logMissing` 是「設了自動啟動而記錄檔不在」。`limit` 是 0 表示不限；代理在跑時 `limit` 是那次啟動的值，沒在跑時顯示預設值（30、200），`limitsAreDefaults` 是 true，文字輸出也會註明。
+- 背景程序跑的是 `kumi agent start --service`：和 `start` 一樣，差別在連不上伺服器（登入電腦時網路常還沒好）、5xx、429 時**不結束**，依退避（1、2、4…最多 60 秒）一直重試；401、403（權杖失效或被撤銷、組織不開放）、權杖缺範圍與沒有能用的引擎才結束（代碼 1，原因寫在記錄檔）。輸出每行前面加時間，訊息裡的換行與控制字元換成空白（伺服器回的字不能偽造出另一行記錄）。連線狀態寫在設定檔資料夾的 `agent.lock.json`（拿著鎖時才可信，結束時刪掉），`kumi agent status` 讀它。
+- **macOS**：`~/Library/LaunchAgents/kumi.local-agent.plist`（`RunAtLoad`，沒設 `KeepAlive`，401、403 時不會被一直重開），用 `launchctl bootstrap／bootout gui/<uid>/kumi.local-agent`；記錄檔 `~/Library/Logs/Kumi/agent.log`（資料夾 700；超過 5 MB 時 `enable` 與每次背景程序啟動都先清掉；Windows 也是啟動時清）。背景程序啟動時記錄檔不存在，代表 launchd 開不了它（資料夾被刪掉了），標準輸出沒有人接：kumi 自己建資料夾、自己寫進記錄檔（建不了就照舊只寫標準輸出，不影響執行）。plist 帶執行 `enable` 當下的 `PATH`，有設才帶 `XDG_CONFIG_HOME`、`KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH`；**不帶任何權杖**，權杖由背景程序從設定檔讀。
+- **Windows**：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `KumiLocalAgent`（整行命令，含空白與引號的參數照 Windows 規則加引號）；背景程序藏起主控台視窗，輸出寫到 `%LOCALAPPDATA%\Kumi\agent.log`；停止是結束程序（不能請它收尾，正在跑的工作由伺服器當逾時）。**Windows 的開機自動啟動是實驗性的**：沒有在真的 Windows 上完整驗證過，`kumi agent enable` 的輸出也會這樣說明；有問題請看 `agent.log` 或用 `kumi agent disable` 取消，並回報。
 - kumi 搬了位置、或用 `kumi update` 換了新檔之後，執行一次 `kumi agent enable` 讓啟動項目指到新的路徑。
 
 **它做什麼**
 
+- **本機上限**：這台電腦每小時最多領 30 件、每天（本機時區的日曆日）最多 200 件，`--max-jobs-per-hour`、`--max-jobs-per-day` 可以調（0 是不限；`enable` 會把你給的值寫進啟動項目，沒給的用預設）。用完就不領工作（照樣登記，網頁看得到引擎；送出的工作伺服器等 20 秒沒人領就失敗），記錄寫一行說明；額度恢復（過一小時、隔天）會自動繼續。領走的時間存在設定檔旁邊的 `agent-usage.json`（Unix 上權限 600，先寫暫存檔再換名，當機不會留下半個檔案），重啟不會歸零；檔案壞掉讀不出來時不當作沒用過：這一小時與今天都當作已經用到上限，壞檔改名成 `agent-usage.json.corrupt` 留著，並寫一行記錄（過了一小時或隔天、或刪掉壞檔才恢復）；`kumi agent status` 顯示用了多少。一件工作引擎來回的次數本機上限是 60（伺服器送來的更大就壓到 60）。開機自動啟動之後沒有人看著，這是你自己的 AI 訂閱額度的最後一道門。
 - 只往外連伺服器（長輪詢），不開任何連接埠。登記這台電腦有哪些引擎與模型，網頁送來一則回覆就領走，在本機用無頭模式執行 `claude -p` 或 `codex exec`，把文字與工具的進度每 300 毫秒（或累積 50 則）回報給伺服器，結束時送結果與 token 用量。同時最多跑 2 件。
 - 引擎**只能用 Kumi 的 MCP 上的唯讀與提出變更的工具**（`get_blueprint`、`list_templates`、`get_template`、`describe_usage`、`preview_changeset`、`propose_changeset`、`get_changeset`，以及讀項目的 `get_item`、`search_items` 與建議修改項目的 `propose_item_changes`），提出的變更集標「AI 代理提出」，還是要有人核准。助理能讀項目，但只能「建議」修改：`propose_item_changes` 只存一份建議，使用者在網頁按「套用」才會真的改；工具成功時，回報的進度會帶建議的編號（`itemProposalId`）給網頁顯示。不能讀寫你的檔案、不能跑指令、不能上網：Claude Code 關掉所有內建工具，Codex 關掉執行指令的工具與其他碰得到電腦的功能；專案的設定是組織裡的人寫的，可能夾帶提示注入，不關的話可能被誘導去讀你電腦上的檔案。
-- 每件工作在一個新的空暫存資料夾（權限 700）裡跑，結束就刪；提示從標準輸入送，不放在命令列；不載入你自己的設定、hooks、技能與記憶（Codex 全域的 `AGENTS.md` 關不掉，照樣會帶進去）。
-- 子程序的環境拿掉 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`CODEX_API_KEY`、`KUMI_TOKEN` 這類變數（要用的是你的訂閱登入，不是 API 計費），只加上給 MCP 設定引用的 `KUMI_MCP_TOKEN`（你的權杖，只存在這個子程序的環境裡，不寫進檔案或命令列）。
+- 每件工作在一個新的空暫存資料夾（權限 700）裡跑，結束就刪；對話從標準輸入送，不放在命令列（同一台電腦的其他使用者用 `ps` 看得到命令列，裡面不會有對話、專案代號或權杖；Codex 的專案代號與工作編號經環境變數 `KUMI_MCP_PROJECT`、`KUMI_MCP_JOB` 交給它的 `env_http_headers`）；不載入你自己的設定、hooks、技能與記憶（2026-11-26 在 Claude Code 2.1.332、Codex 0.163.0 實測：Claude Code 不載入使用者層級的 `CLAUDE.md`；Codex 全域的 `$CODEX_HOME/AGENTS.md`（含 `AGENTS.override.md`）沒有旗標或設定關得掉，照樣會帶進去，所以 `kumi agent start` 啟動時會列出這個檔案，檔案裡不要放機密）。Claude Code 的系統提示是工作資料夾裡的檔案（`--append-system-prompt-file`）；Codex 沒有這種旗標，系統提示用 `-c developer_instructions` 放在命令列：內容是公開的系統提示加上一句權限說明，沒有機密，而改放標準輸入會降成一般的使用者訊息、規則的效力變弱（只有 Windows 的命令列放不下時才改放標準輸入的最前面）。
+- 子程序的環境是**白名單**：只留跑得起來、登入得了需要的（`PATH`、`HOME`、使用者與語系、終端機、時區、暫存資料夾、`HTTP_PROXY`／`HTTPS_PROXY`／`NO_PROXY`、`SSL_CERT_FILE`、`NODE_EXTRA_CA_CERTS`、`XDG_*`、`CLAUDE_CONFIG_DIR`、`CODEX_HOME`，Windows 另有 `SystemRoot`、`USERPROFILE`、`APPDATA` 這類），其他一律不交給引擎：你的 API 金鑰（`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`CODEX_API_KEY`，要用的是你的訂閱登入，不是 API 計費）、雲端與資料庫的憑證、`KUMI_TOKEN` 都進不去。再加上給 MCP 設定引用的 `KUMI_MCP_TOKEN`（你的權杖，只存在這個子程序的環境裡，不寫進檔案或命令列）。公司網路用了非標準名稱的代理或憑證變數時，把名稱（逗號分隔）放進環境變數 `KUMI_ENGINE_PASSTHROUGH_ENV`，那幾個才會交給引擎。`KUMI_TOKEN`、`PM_TOKEN` 與 `KUMI_MCP_*` 不論怎麼寫都不放行（`KUMI_MCP_*` 由 kumi 自己設）；放行 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 這類金鑰是你的選擇，但引擎會因此改走 API 計費、不再用你的訂閱登入。`kumi setup`、`kumi host login` 這類繼承終端機的子程序也一樣用白名單（另外放行開瀏覽器要用的 `DISPLAY`、`BROWSER` 之類），而且每次在一個新建、只有你進得去的空資料夾裡跑，用完就刪：共用暫存資料夾裡別人放的 `.mcp.json` 之類的專案設定影響不到它。
 - 終端機每件工作印一行（時間、專案、引擎、模型、結果、秒數），**不印對話內容**；`--json` 時標準輸出每行一個 JSON（`{"event":"ready",…}` 與每件工作的 `{"event":"job","status":"complete|stopped|failed",…}`），提示與警告寫標準錯誤。
 
 **它不做**
@@ -390,15 +392,16 @@ kumi agent disable [--json]                                                     
 | Codex | `codex` 在 PATH 上、已登入（ChatGPT）、版本夠新 | `codex --version`、`codex login status`、`codex exec --help`、`codex features list` |
 
 - Codex 的 `codex features list` 一定要有 `shell_tool`（才關得掉執行指令的工具），沒有就**不提供 Codex**，訊息會說原因。`--disable` 只帶列得出來的功能。模型清單讀 `$CODEX_HOME/models_cache.json`（沒設 `CODEX_HOME` 時是 `~/.codex`），讀不懂就只有「預設」。Claude Code 的模型代號固定是 `default`、`opus`、`sonnet`、`haiku`（別名，Claude Code 更新後自然指到新的模型）；啟動時各用和跑工作相同的隔離旗標探一次實際的模型（平行、每個最多 20 秒，讀到 `system/init` 的 `model` 就結束整個程序樹，那時還沒有送出任何模型請求，不花額度），把版本放進顯示名稱（「預設（Opus 5.5）」「Sonnet 5.5」），探不到的退回「Opus」「Sonnet」這類名稱；啟動那一行也會印出預設模型。
+- **已驗證的版本範圍**：Claude Code 2.1.330 以上、3.0.0 以下（不含），Codex 0.163.0 以上、1.0.0 以下（不含）。範圍外（含讀不出版本）預設不提供並說明；`--allow-untested-engine` 放行，啟動時警告。放行只跳過版本檢查，必要的旗標與 `shell_tool` 照樣要有。
 - 找不到執行檔、沒登入的引擎會略過並說怎麼裝、怎麼登入；兩個都不能用就結束（代碼 1）。執行檔不在 PATH 上時，用環境變數 `KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH` 指定完整路徑。
 
 **安全上的限制**
 
 - **MCP 網址要同源**：伺服器送來的 MCP 網址必須和登入的伺服器同源（scheme、主機、連接埠一樣），路徑剛好是（伺服器基底路徑加）`/mcp`，沒有 query 與 fragment，也不能有 `$`、`{`、`}`、`"`、`\`、`%`、空白、控制字元；不合格的工作不跑。寫進引擎設定的是正規化後的網址。原因：Claude Code 會展開設定檔裡的 `${VAR}`，網址夾帶變數就會把你的環境變數送去別的主機。
-- **MCP 限在對話的專案**：兩個引擎的 MCP 設定都固定帶標頭 `X-Kumi-Project: <專案代號>`（Claude Code 的 `mcp.json` 與 Codex 的 `http_headers`，字面值），伺服器對代理的權杖只准碰那個專案；同一處還有 `X-Kumi-Job: <工作編號>`（領到的那件工作，伺服器用它計這件工作的工具額度，0.9.0 起，舊版的 kumi 打不了工具、要 `kumi update`）；專案代號先用 `\A[A-Z][A-Z0-9]{0,19}\z` 檢查，不合格的工作不跑。
+- **MCP 限在對話的專案**：兩個引擎的 MCP 設定都固定帶標頭 `X-Kumi-Project: <專案代號>`（Claude Code 的 `mcp.json` 與 Codex 的 `http_headers`，字面值），伺服器對代理的權杖只准碰那個專案；同一處還有 `X-Kumi-Job: <工作編號>`（領到的那件工作，伺服器用它計這件工作的工具額度，0.9.0 起，舊版的 kumi 打不了工具、要 `kumi update`）；專案代號先用 `\A[A-Z][A-Z0-9]{0,19}\z` 檢查，不合格的工作不跑；組出啟動計畫、要變成環境變數與標頭之前再檢查一次專案代號與工作編號（GUID），不合格就不啟動那件工作。
 - **工具只能是 Kumi 的十個**（`get_blueprint`、`list_templates`、`get_template`、`describe_usage`、`preview_changeset`、`propose_changeset`、`get_changeset`、`get_item`、`search_items`、`propose_item_changes`）：伺服器送來的 `allowedTools` 只要有別的名字，這件工作就不跑。
 - **Windows 只接受 `.exe` 的引擎**：`.cmd`、`.bat` 要經過 cmd.exe，它的跳脫規則和一般程式不同，系統提示裡的特殊字元會變成命令注入，所以找到的是批次檔時不提供那個引擎（說明會寫出來），請改用 `.exe` 的安裝方式，或用 `KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH` 指向 `.exe`。PATH 裡的相對路徑項目一律略過。
-- **必要的旗標**：啟動時用 `claude --help`、`codex exec --help` 確認安全用的旗標都在（Claude Code：`--tools`、`--allowedTools`、`--setting-sources`、`--strict-mcp-config`、`--disable-slash-commands`、`--append-system-prompt-file`、`--no-session-persistence`、`--permission-mode`、`--mcp-config`；Codex：`--strict-config`、`--ignore-user-config`、`--ignore-rules`、`--ephemeral`，並且要有 `shell_tool`），缺了就不提供那個引擎並請你更新。探測用的指令也各在新建、權限 700 的空暫存資料夾裡跑。
+- **必要的旗標**：啟動時用 `claude --help`、`codex exec --help` 確認安全用的旗標都在（Claude Code：`--tools`、`--allowedTools`、`--setting-sources`、`--strict-mcp-config`、`--disable-slash-commands`、`--append-system-prompt-file`、`--no-session-persistence`、`--permission-mode`、`--mcp-config`；Codex：`--strict-config`、`--ignore-user-config`、`--ignore-rules`、`--ephemeral`，並且要有 `shell_tool`），缺了就不提供那個引擎並請你更新；旗標要整個比對（`--tools` 不會因為 help 裡有 `--tools-extra` 就算有）。探測用的指令也各在新建、權限 700 的空暫存資料夾裡跑。
 - **引擎一出現預期以外的東西就停下**：Claude Code 的 `system/init` 沒有出現、欄位缺漏、有內建工具、技能或斜線指令不是空的，或在 init 之前就有動作；Codex 出現 `agent_message`、`reasoning`、`mcp_tool_call`（server 要是 `kumi`）、`todo_list`、`error` 以外的項目。這件工作立刻結束並回報失敗。
 - 使用者在網頁按「停止」或按 Ctrl-C 而停下的工作，一律以「中斷」結束，引擎被打斷時吐出的診斷字串不送給伺服器、也不印出來。
 - 引擎正常結束後，它留下的背景程序也會被清掉（macOS、Linux）。程序收到 SIGTERM 或 SIGHUP 的處理和 Ctrl-C 一樣，收尾卡住時再來一次就直接結束。
@@ -434,7 +437,7 @@ kumi host logout <claude-code|codex>
 - **碼不放在命令列**：`pair` 與 `login` 的碼在終端機上提示輸入（不回顯），不是終端機就讀標準輸入的第一行（一個位元組一個位元組讀到換行，後面的內容留給子程序：`printf '碼\n金鑰\n' | … kumi host login codex` 的金鑰會交給 codex）；命令列上給碼是用法錯誤（結束代碼 2）。典型用法：`docker compose exec -it ai-worker kumi host pair`。
 - **狀態檔** `host-agent.json` 在 `$KUMI_HOST_STATE_DIR`（預設 `~/.local/state/kumi-host/`，容器裡是 `/home/kumi/.kumi-host/`，在資料卷上），資料夾 700、檔案 600，內容 `{ server, agentId, agentName, machineKey, credential, logins: { claude_code | codex: { loginId, fingerprint } } }`。`credential` 是機器憑證（`kha_…`，只能呼叫 `/v1/host-agent/*`）；`machineKey` 第一次產生後一直沿用（重新配對也不換）；`loginId` 是 Kumi 的登入流程完成的那一次登入，`fingerprint` 是當時登入帳號的雜湊（只存本機，不送出），用來發現「在 Kumi 以外換了登入」：指紋對不上就不再報登入編號（伺服器當作未授權）。憑證、登入碼、配對碼、機器憑證都不出現在命令列、記錄、輸出與引擎子程序的環境裡；引擎只拿到每件工作專用的工具授權（環境變數 `KUMI_MCP_TOKEN`）。
 - **`run` 設定有問題時不結束**（容器才不會一直重啟）：沒配對 → 每 30 秒看一次狀態檔、記「等待配對」；伺服器回 401（代理被停用、憑證過期、機器編號和配對時的不同、或配對的人不再是擁有者）→ 不結束，記「伺服器不認這把機器憑證：被停用、過期或需要重新配對」，每 60 秒再試一次（重新啟用之後同一把憑證自己接上；每 30 秒看狀態檔有沒有換新憑證）；網路錯誤 → 退避 1～30 秒；伺服器轉址（設了 `Security:RequireHttps` 的部署）→ 說明要把 `AI_WORKER_SERVER` 換成對外的 https 網址，每分鐘再試；每次登記都帶 `machineKey` 與電腦名稱；伺服器在憑證剩不到 30 天時回 `rotatedCredential`（新的 `kha_…`），worker 等沒有工作在跑時才寫進狀態檔（暫存檔加 rename、權限 600；只換掉發新憑證時的那一把，中間被重新配對就不蓋掉），之後用新的，伺服器在新的第一次被用到時讓舊的作廢。第一次用一份憑證登記成功時記「已配對「名稱」，開始登記到 …」。SIGTERM／SIGINT：正在跑的以「中斷」結束、送出結果，結束代碼 0。
-- **探測**：啟動時、每 5 分鐘、登出之後、狀態檔的登入變動時，以及工作失敗而錯誤像是登入失效時，重新探測兩個引擎（版本、安全用的旗標、登入狀態、計費方式），**不送任何模型請求**，結果放進每次登記；**每件工作開始前**再跑一次登入狀態（只有狀態指令），沒登入、不是 API 計費或帳號換了就不跑、那件以失敗結束。Codex 的帳號指紋只看 `auth.json` 的登入方式、API 金鑰與 account_id（Codex 刷新權杖會改寫檔案，不能雜湊整個檔）。計費判斷：`claude auth status` 的 `authMethod` 是 `claude.ai` → 訂閱、`api_key` → API，其他 → 不明；`codex login status` 的「Logged in using ChatGPT」→ 訂閱、「Logged in using an API key」→ API，其他 → 不明。訂閱與不明的伺服器一律不接為組織來源。輸出裡的 email、組織名稱、金鑰片段不送、不印。
+- **探測**：啟動時、每 5 分鐘、登出之後、狀態檔的登入變動時，以及工作失敗而錯誤像是登入失效時，重新探測兩個引擎（版本、安全用的旗標、登入狀態、計費方式），**不送任何模型請求**，結果放進每次登記；**每件工作開始前**再跑一次登入狀態（只有狀態指令），沒登入、不是 API 計費或帳號換了就不跑、那件以失敗結束。讀引擎家目錄的檔案（`auth.json`、Codex 的 `models_cache.json`；位置照 `CODEX_HOME` 等環境變數）一律只讀一般檔案、不跟隨符號連結、最多 1 MiB，讀不到、太大或讀不懂當作沒有（沒有指紋就不比對、模型清單用預設）並寫一行記錄，不會讓 kumi 當掉。Codex 的帳號指紋只看 `auth.json` 的登入方式、API 金鑰與 account_id（Codex 刷新權杖會改寫檔案，不能雜湊整個檔）。計費判斷：`claude auth status` 的 `authMethod` 是 `claude.ai` → 訂閱、`api_key` → API，其他 → 不明；`codex login status` 的「Logged in using ChatGPT」→ 訂閱、「Logged in using an API key」→ API，其他 → 不明。訂閱與不明的伺服器一律不接為組織來源。輸出裡的 email、組織名稱、金鑰片段不送、不印。
 - **回報**：每批帶租約（`lease`）與這批第一則的流水號（`firstSeq`）；送出而不確定有沒有到的那一批原封不動重送，以伺服器回的 `nextSeq` 為準；收到 `cancelled`、401、404、409 就停下引擎、以「中斷」結束；連續三批的內容被拒（4xx）也停下。伺服器派來的工作超過這台同時能跑的件數時，立刻回報失敗（不默默丟掉）。
 - **`login`**：認領登入碼後執行 CLI 自己的登入並**繼承終端機**（Claude Code：`claude auth login --console`；Codex：`codex login --with-api-key`，貼上金鑰後按 Ctrl-D），Kumi 不碰密碼、授權碼、金鑰。跑完探測登入與計費、回報伺服器；伺服器拒絕（例如訂閱帳號、期限過了、擁有者身分變了）就執行 CLI 的登出、清掉 `loginId`、印出原因、結束代碼 1。
 - **`logout`**：先清掉狀態檔的登入編號，再執行 CLI 的登出（平常用網頁的「登出」，worker 下一次登記時收到並自己執行）。
@@ -455,7 +458,7 @@ kumi host logout <claude-code|codex>
 
 `kumi agent start` 是長駐指令：按 Ctrl-C 正常結束是 0；沒有能用的引擎、權杖不能用（缺範圍、無效、被撤銷）是 1；用法不對是 2。
 
-錯誤訊息寫到標準錯誤：伺服器說的原因，加上每個細項（路徑與說明）。細項和主要訊息一樣時只印一次。給人看的輸出（`--json` 以外）印出之前，會濾掉伺服器回的文字裡的控制字元（例如 ESC 序列），標題或留言裡夾帶的終端機指令不會生效。未預期的例外只印一行簡短的訊息（只有例外的型別，沒有內容與堆疊），結束代碼 1。`plan` 在有資料影響或擋住的原因時也回 3，所以 CI 可以用它檢查「這份修改會不會動到資料」。
+錯誤訊息寫到標準錯誤：伺服器說的原因，加上每個細項（路徑與說明）。細項和主要訊息一樣時只印一次。給人看的輸出（`--json` 以外）印出之前，會濾掉伺服器回的文字裡的控制字元（例如 ESC 序列）與 Unicode 的格式字元（方向覆寫、零寬字元：它們能讓畫面上的字和實際內容不同），單獨的歸位字元（沒接著換行的 `\r`，會讓後面的字蓋掉前面的）換成空白，標題或留言裡夾帶的終端機指令不會生效。未預期的例外只印一行簡短的訊息（只有例外的型別，沒有內容與堆疊），結束代碼 1。`plan` 在有資料影響或擋住的原因時也回 3，所以 CI 可以用它檢查「這份修改會不會動到資料」。
 
 ## 在 CI 裡用
 

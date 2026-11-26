@@ -99,6 +99,59 @@ internal static class AutostartSystem
         }
     }
 
+    /// <summary>macOS／Linux 用 ps 的啟動時間（和清子孫程序同一份）；Windows 用程序自己的啟動時間（UTC、到秒）。</summary>
+    public static string? ProcessStart(int pid)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return ProcessTable.StartOf(pid);
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return process.HasExited ? null : process.StartTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Unix：路徑往上到根目錄，任何一層 other 或群組可寫又沒有 sticky 就算（路徑是檔案時檢查檔案本身再往上）。
+    /// 群組可寫也算：群組裡的別人（macOS 的 admin 群組）一樣換得掉裡面的檔案。Windows 不看權限（見 <see cref="AutostartPathPolicy"/> 的位置規則）。</summary>
+    public static bool IsWritableByOthers(string directory)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            for (var current = directory; !string.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
+            {
+                if (!Directory.Exists(current) && !File.Exists(current))
+                {
+                    continue;
+                }
+
+                var mode = File.GetUnixFileMode(current);
+                if ((mode.HasFlag(UnixFileMode.OtherWrite) || mode.HasFlag(UnixFileMode.GroupWrite)) && !mode.HasFlag(UnixFileMode.StickyBit))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
     public static async Task<bool> KillAsync(int pid, CancellationToken cancellation)
     {
         try

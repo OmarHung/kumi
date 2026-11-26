@@ -16,15 +16,13 @@ internal enum LineVerdict
     Abort,
 }
 
-/// <param name="SetVariables">加進子程序環境的變數。</param>
-/// <param name="RemoveVariables">從子程序環境拿掉的變數（先拿掉再加）。</param>
+/// <param name="SetVariables">加進子程序環境的變數；子程序的環境其餘只有 <see cref="EngineEnvironment"/> 的白名單。</param>
 internal sealed record ProcessRequest(
     string FileName,
     IReadOnlyList<string> Arguments,
     string WorkingDirectory,
     string StandardInput,
-    IReadOnlyDictionary<string, string> SetVariables,
-    IReadOnlyCollection<string> RemoveVariables);
+    IReadOnlyDictionary<string, string> SetVariables);
 
 /// <summary>不送提示的小指令的結果；版本在標準輸出，登入狀態有時印在標準錯誤。</summary>
 internal sealed record ProbeResult(int ExitCode, string StandardOutput, string StandardError)
@@ -122,15 +120,7 @@ internal sealed class ProcessRunner(AgentOptions options, Func<string, string?> 
             info.ArgumentList.Add(argument);
         }
 
-        foreach (var name in request.RemoveVariables)
-        {
-            info.Environment.Remove(name);
-        }
-
-        foreach (var (name, value) in request.SetVariables)
-        {
-            info.Environment[name] = value;
-        }
+        EngineEnvironment.Apply(info.Environment, request.SetVariables);
 
         try
         {

@@ -173,7 +173,7 @@ internal sealed class ContentImporter(
     {
         if (asset.LocalPath is null)
         {
-            return (null, plan.SkippedFiles.TryGetValue(asset.Id, out var reason) ? SkipReason(reason) : "dump 裡沒有這個檔案（fetch 沒加 --files？）");
+            return (null, plan.SkippedFiles.TryGetValue(asset.Id, out var reason) ? SkipReason(reason) : "dump 裡沒有這個檔案（fetch 沒加 --files？），或它是符號連結、不在 dump 資料夾裡");
         }
 
         if (AttachmentFiles.Problem(asset.LocalPath) is { } problem)

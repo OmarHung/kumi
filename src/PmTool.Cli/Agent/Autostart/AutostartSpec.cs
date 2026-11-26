@@ -10,7 +10,10 @@ internal sealed record AutostartSpec(
     IReadOnlyList<string> Engines,
     bool Insecure,
     IReadOnlyDictionary<string, string> Environment,
-    string LogPath)
+    string LogPath,
+    int? MaxJobsPerHour = null,
+    int? MaxJobsPerDay = null,
+    bool AllowUntestedEngine = false)
 {
     /// <summary>kumi 後面接的參數（不含 kumi 自己）。</summary>
     public IReadOnlyList<string> Arguments
@@ -31,6 +34,22 @@ internal sealed record AutostartSpec(
             if (Insecure)
             {
                 arguments.Add("--insecure");
+            }
+
+            if (AllowUntestedEngine)
+            {
+                arguments.Add("--allow-untested-engine");
+            }
+
+            // 只有使用者明講的才帶：沒講的由背景程序自己用預設值（也就是以後改預設時，已經設好的人跟著改）。
+            if (MaxJobsPerHour is { } perHour)
+            {
+                arguments.AddRange(["--max-jobs-per-hour", perHour.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+            }
+
+            if (MaxJobsPerDay is { } perDay)
+            {
+                arguments.AddRange(["--max-jobs-per-day", perDay.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
             }
 
             return arguments;
