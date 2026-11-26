@@ -76,14 +76,15 @@ a.label {
   }
 }
 
-/* 「好處」「代價」：小標用一般的字色與半粗，和後面的說明分得出來（不用顏色表達好壞，第 9 節：顏色只表達意義）。 */
-.term {
-  font-weight: var(--weight-semibold);
-  color: var(--color-text);
+
+/* 名稱與旁邊的兩個說明提示一行；放不下時說明提示折到下一行，不擠名稱。 */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
 }
 
-/* 好處與代價：和上面的費用那一行隔開一點，一組一組讀。 */
 .tradeoffs {
-  display: block;
-  margin-top: var(--space-2);
+  display: inline-flex;
 }

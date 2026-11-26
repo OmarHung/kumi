@@ -1,0 +1,40 @@
+/*
+ * 只有圖示的說明提示（docs/design/07-components.md 的 Toggletip）。按鈕是方形的 ghost 按鈕（觸控時跟著 --control-height-sm 變大）；
+ * 浮出來的框用 Floating 的外殼（和 Popover 同一種：細線、--radius-md、--shadow-popover），只是內距小、字小，寬度有上限。
+ */
+.root {
+  display: inline-flex;
+}
+
+/* 用屬性選取提高權重，蓋過 Button 的左右內距（和 IconButton 同一個做法）。 */
+.trigger[class] {
+  width: var(--control-height-sm);
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: 0;
+  color: var(--color-text-muted);
+}
+
+.trigger[data-tone='success'] {
+  color: var(--color-success);
+}
+
+.trigger[data-tone='warning'] {
+  color: var(--color-warning);
+}
+
+.surface {
+  padding: var(--space-2) var(--space-3);
+}
+
+.bubble {
+  display: block;
+  max-width: 18rem;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.bubbleLabel {
+  font-weight: var(--weight-semibold);
+}

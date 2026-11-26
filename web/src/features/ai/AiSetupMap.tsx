@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { useCurrentUser } from '../../auth/CurrentUser';
 import { SettingsSection } from '../../components/SettingsSection/SettingsSection';
+import { Toggletip } from '../../components/Toggletip/Toggletip';
 import { AI_SETUP_COLUMNS, canOpenAiSetup, managedByText, visibleAiSetupRows, type AiSetupCell, type AiSetupPage } from './aiSetupCells';
 import styles from './AiSetupMap.module.css';
 
@@ -15,35 +16,35 @@ const ADVICE =
 interface CellProps {
   readonly cell: AiSetupCell;
   readonly page: AiSetupPage;
-  readonly isDetailed: boolean;
 }
 
-function CellBody({ cell, page, isDetailed }: CellProps) {
+/** 名稱旁邊的兩個說明提示：好處（勾）與代價（警告），滑過、鍵盤移到上面或點一下才浮出那一句（每一頁都有，不佔版面）。 */
+function Tradeoffs({ cell }: { readonly cell: AiSetupCell }) {
+  return (
+    <span className={styles.tradeoffs}>
+      <Toggletip icon="success" tone="success" label="好處" text={cell.pros} />
+      <Toggletip icon="warning" tone="warning" label="代價" text={cell.cons} />
+    </span>
+  );
+}
+
+function CellBody({ cell, page }: CellProps) {
   const user = useCurrentUser();
   const isCurrent = cell.page === page;
   const managedBy = managedByText(cell);
   return (
     <td className={styles.cell} data-current={isCurrent || undefined}>
-      {canOpenAiSetup(cell, user) ? (
-        <Link className={styles.label} to={cell.href} aria-current={isCurrent ? 'page' : undefined}>
-          {cell.label}
-        </Link>
-      ) : (
-        <span className={styles.label}>{cell.label}</span>
-      )}
+      <span className={styles.head}>
+        {canOpenAiSetup(cell, user) ? (
+          <Link className={styles.label} to={cell.href} aria-current={isCurrent ? 'page' : undefined}>
+            {cell.label}
+          </Link>
+        ) : (
+          <span className={styles.label}>{cell.label}</span>
+        )}
+        <Tradeoffs cell={cell} />
+      </span>
       <span className={styles.detail}>{cell.detail}</span>
-      {isDetailed && (
-        <span className={styles.tradeoffs}>
-          <span className={styles.detail}>
-            <span className={styles.term}>好處：</span>
-            {cell.pros}
-          </span>
-          <span className={styles.detail}>
-            <span className={styles.term}>代價：</span>
-            {cell.cons}
-          </span>
-        </span>
-      )}
       {!canOpenAiSetup(cell, user) && managedBy !== null && <span className={styles.detail}>{managedBy}</span>}
     </td>
   );
@@ -61,7 +62,7 @@ function MapNote({ isDetailed, isSingleRow }: { readonly isDetailed: boolean; re
 
 /**
  * 三頁 AI 助理設定最上面的對照（docs/design/08-interaction.md 8.3「AI 的四種接法」），整塊滿寬（右欄放不下四格）。
- * 完整版（isDetailed，AI 助理設定頁：管理員在這裡決定開哪幾種）多寫每一格的好處、代價與一句建議；另外兩頁只是告訴人「這一頁是哪一格」，用精簡版。：兩列（全組織共用、只有自己）乘兩欄（API 金鑰、Claude Code／Codex）。
+ * 每一格的好處與代價在名稱旁邊的兩個說明提示裡（每一頁都有）；isDetailed（AI 助理設定頁：管理員在這裡決定開哪幾種）多一句選擇的建議。：兩列（全組織共用、只有自己）乘兩欄（API 金鑰、Claude Code／Codex）。
  * 目前這一頁的格子用選取的底（和次導覽的目前所在同一套），其他格子是連到那一頁的連結；看不到的頁不給連結，寫由誰設定。
  * 用真的表格：列與欄的標題是 th，報讀軟體唸得出「全組織共用、API 金鑰：組織的 API 金鑰」。
  */
@@ -96,7 +97,7 @@ export function AiSetupMap({ page, isDetailed = false }: { readonly page: AiSetu
                 </th>
               )}
               {row.cells.map((cell) => (
-                <CellBody key={cell.kind} cell={cell} page={page} isDetailed={isDetailed} />
+                <CellBody key={cell.kind} cell={cell} page={page} />
               ))}
             </tr>
           ))}
