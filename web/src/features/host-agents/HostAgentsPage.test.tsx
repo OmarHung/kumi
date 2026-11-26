@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { exampleEngine, exampleHostAgent, LOGIN_CODE, PAIRING_CODE } from '../../test/hostAgents';
 import { exampleOwner } from '../../test/fixtures';
@@ -193,6 +193,21 @@ describe('主機 AI 代理：憑證到期與警告', () => {
     // Assert
     await waitFor(() => { expect(screen.queryByText('憑證過期了，請重新配對。')).not.toBeInTheDocument(); });
     expect(screen.queryByRole('button', { name: '重新配對（辦公室主機）' })).not.toBeInTheDocument();
+    expect(backend.pairings).toEqual(['agent-1']);
+  });
+
+  it('同一瞬間連按兩下（畫面還沒更新）也只配對一次：第二組配對碼會讓第一組失效', async () => {
+    // Arrange
+    const warning = { kind: 'credential_expired', machineName: null, at: '2026-11-25T01:00:00+00:00' } as const;
+    const { backend } = await openHostSection({ agents: [exampleHostAgent({ warning, credentialExpiresAt: '2026-01-05T08:00:00+00:00' })] });
+    const button = await screen.findByRole('button', { name: '重新配對（辦公室主機）' });
+
+    // Act：兩下在同一個工作裡送出，中間沒有機會重新畫面
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    // Assert
+    await waitFor(() => { expect(screen.queryByText('憑證過期了，請重新配對。')).not.toBeInTheDocument(); });
     expect(backend.pairings).toEqual(['agent-1']);
   });
 

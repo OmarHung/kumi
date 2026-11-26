@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { HostAgent, HostAgentPairing } from '../../api/hostAgentTypes';
 import { useRepairHostAgent, useUpdateHostAgent } from '../../api/hostAgents';
 import { errorMessage } from '../../api/http';
@@ -109,19 +109,28 @@ function AgentWarning({ agent, isRepairing, onRepair }: AgentWarningProps) {
   );
 }
 
-/** 重新配對：選單與警告列共用同一個請求，進行中再按不會再送一次。 */
+/**
+ * 重新配對：選單與警告列共用同一個請求，進行中再按不會再送一次。
+ * 用 ref 擋：isPending 要等下一次畫面更新才變，連按的兩下落在同一次更新之前時都會看到「沒在送」，
+ * 送出兩次的話第二組配對碼會讓第一組失效。
+ */
 function useAgentRepair(agentId: string, onPaired: (pairing: HostAgentPairing) => void, onError: (error: unknown) => void) {
   const mutation = useRepairHostAgent();
+  const inFlight = useRef(false);
   return {
     isPending: mutation.isPending,
     start: () => {
-      if (mutation.isPending) return;
+      if (inFlight.current) return;
+      inFlight.current = true;
       mutation.mutate(agentId, {
         onSuccess: (pairing) => {
           onPaired(pairing);
           mutation.reset();
         },
         onError,
+        onSettled: () => {
+          inFlight.current = false;
+        },
       });
     },
   };
