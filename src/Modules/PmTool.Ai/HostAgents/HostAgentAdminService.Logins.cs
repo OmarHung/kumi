@@ -116,13 +116,7 @@ internal sealed partial class HostAgentAdminService
         await db.HostLogins
             .Where(l => l.AgentId == agentId && l.Engine == name && l.State == HostLoginStates.Completed)
             .ExecuteUpdateAsync(set => set.SetProperty(l => l.State, HostLoginStates.Cancelled), cancellationToken);
-        var requested = HostEnginesJson.DeserializeNames(agent.LogoutRequested);
-        if (!requested.Contains(name))
-        {
-            var updated = HostEnginesJson.SerializeNames([.. requested, name]);
-            await db.HostAgents.Where(a => a.Id == agentId)
-                .ExecuteUpdateAsync(set => set.SetProperty(a => a.LogoutRequested, updated), cancellationToken);
-        }
+        await HostLogoutRequests.AddAsync(db, agentId, name, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
         signals.Signal(agentId);

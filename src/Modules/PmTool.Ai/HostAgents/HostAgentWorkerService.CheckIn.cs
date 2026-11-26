@@ -85,7 +85,6 @@ internal sealed partial class HostAgentWorkerService
         var stillLoggedIn = checkIn.Engines.Where(e => e.LoggedIn).Select(e => AiEnumNames.NameOf(e.Kind)).ToHashSet();
         var logout = requested.Where(stillLoggedIn.Contains).ToList();
         var engines = HostEnginesJson.Serialize(checkIn.Engines);
-        var remaining = HostEnginesJson.SerializeNames(logout);
         var rotated = row.CredentialExpiresAt is { } expires && expires - now < AiRules.HostCredentialRenewBefore
             ? HostSecrets.NewToken(HostSecrets.CredentialPrefix)
             : null;
@@ -94,9 +93,11 @@ internal sealed partial class HostAgentWorkerService
                 .SetProperty(a => a.LastSeenAt, now)
                 .SetProperty(a => a.AgentVersion, checkIn.AgentVersion)
                 .SetProperty(a => a.ServerUrl, checkIn.ServerUrl)
-                .SetProperty(a => a.Engines, engines)
-                .SetProperty(a => a.LogoutRequested, remaining),
+                .SetProperty(a => a.Engines, engines),
             cancellationToken);
+        // 只拿掉已經登出的那幾個，不把讀到的整份寫回：讀完之後擁有者剛按的登出不會被蓋掉。
+        // 讀完之後才加入、而且已經登出的，下一次登記再拿掉。
+        await HostLogoutRequests.RemoveAsync(db, row.Id, [.. requested.Where(name => !stillLoggedIn.Contains(name))], cancellationToken);
         if (rotated is not null && !await TryStoreNextCredentialAsync(db, row, rotated, now, cancellationToken))
         {
             rotated = null;

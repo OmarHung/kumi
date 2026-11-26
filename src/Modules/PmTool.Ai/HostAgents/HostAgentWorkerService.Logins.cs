@@ -139,20 +139,6 @@ internal sealed partial class HostAgentWorkerService
 
     private static string Clean(string text) => LocalAgents.LocalAgentValidator.CleanText(text);
 
-    private static async Task ClearLogoutRequestAsync(AiDbContext db, Guid agentId, string engine, CancellationToken cancellationToken)
-    {
-        var row = await db.HostAgents.AsNoTracking().SingleOrDefaultAsync(a => a.Id == agentId, cancellationToken);
-        if (row is null)
-        {
-            return;
-        }
-
-        var requested = HostEnginesJson.DeserializeNames(row.LogoutRequested);
-        if (requested.Contains(engine))
-        {
-            var left = HostEnginesJson.SerializeNames(requested.Where(name => name != engine));
-            await db.HostAgents.Where(a => a.Id == agentId)
-                .ExecuteUpdateAsync(set => set.SetProperty(a => a.LogoutRequested, left), cancellationToken);
-        }
-    }
+    private static Task ClearLogoutRequestAsync(AiDbContext db, Guid agentId, string engine, CancellationToken cancellationToken) =>
+        HostLogoutRequests.RemoveAsync(db, agentId, [engine], cancellationToken);
 }
