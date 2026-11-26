@@ -128,11 +128,13 @@ export function useUpdateHostAgent() {
   });
 }
 
+/**
+ * 等重讀完才算結束：警告列（和它的「重新配對」鈕）要等清單重讀才換掉，配對一結束就放行的話，
+ * 連按的第二下落在這個空檔就會再配對一次，第二組配對碼讓第一組失效。
+ */
 export function useRepairHostAgent() {
   const invalidate = useInvalidateHost();
-  return useMutation({ mutationFn: repairHostAgent, gcTime: 0, onSettled: () => {
-      void invalidate();
-    } });
+  return useMutation({ mutationFn: repairHostAgent, gcTime: 0, onSettled: () => invalidate() });
 }
 
 export function useDeleteHostAgent() {

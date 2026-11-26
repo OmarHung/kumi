@@ -1,5 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { http } from 'msw';
+import { server } from '../../test/server';
 import { exampleEngine, exampleHostAgent, LOGIN_CODE, PAIRING_CODE } from '../../test/hostAgents';
 import { exampleOwner } from '../../test/fixtures';
 import { signedInAs } from '../../test/api';
@@ -207,6 +209,32 @@ describe('主機 AI 代理：憑證到期與警告', () => {
     fireEvent.click(button);
 
     // Assert
+    await waitFor(() => { expect(screen.queryByText('憑證過期了，請重新配對。')).not.toBeInTheDocument(); });
+    expect(backend.pairings).toEqual(['agent-1']);
+  });
+
+  it('第二下落在配對完成、清單還沒重讀之前（機器慢時的連按）也只配對一次', async () => {
+    // Arrange：配對之後的重讀先卡住，固定出「配對已完成、警告列還在」的空檔
+    const warning = { kind: 'credential_expired', machineName: null, at: '2026-11-25T01:00:00+00:00' } as const;
+    const { backend } = await openHostSection({ agents: [exampleHostAgent({ warning, credentialExpiresAt: '2026-01-05T08:00:00+00:00' })] });
+    const button = await screen.findByRole('button', { name: '重新配對（辦公室主機）' });
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    server.use(http.get('/v1/ai/host', async () => {
+      if (backend.pairings.length > 0) await gate;
+      return undefined;
+    }));
+
+    // Act
+    fireEvent.click(button);
+    await waitFor(() => { expect(backend.pairings).toHaveLength(1); });
+    await settle();
+    fireEvent.click(button);
+    await settle();
+    release();
+
+    // Assert
+    expect(await screen.findByRole('region', { name: '配對碼' })).toHaveTextContent(PAIRING_CODE);
     await waitFor(() => { expect(screen.queryByText('憑證過期了，請重新配對。')).not.toBeInTheDocument(); });
     expect(backend.pairings).toEqual(['agent-1']);
   });
