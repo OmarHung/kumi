@@ -8,6 +8,7 @@ import { COMMAND_NAME } from '../../config/product';
 import { PlatformPicker, type DownloadChoice } from './cliPlatform';
 import { CHIP_HINT, HASH_NOTE, NO_DOWNLOAD_NOTE, downloadLabel, isMac } from './cliText';
 import { CopyBlock } from './ConnectAgentSection';
+import { LocalAgentOfflineHelp } from './LocalAgentOfflineHelp';
 import { COMMAND_NOTE, STATUS_NOTE, oneLineCommand, setupCommand } from './setupText';
 import type { StatusKind, StatusLine } from './setupStatus';
 import { useSetupStatus } from './useSetupStatus';
@@ -187,6 +188,7 @@ export function StatusStep() {
       <p className="visually-hidden" role="status">
         {message}
       </p>
+      {status.localAgent.isOffline === true && <LocalAgentOfflineHelp />}
       <p className={accountStyles.note}>{STATUS_NOTE}</p>
     </>
   );

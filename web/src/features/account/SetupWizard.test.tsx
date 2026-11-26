@@ -288,6 +288,42 @@ describe('設定精靈：第三步的即時狀態', () => {
     expect(await within(third).findByText('已登記，目前離線')).toBeInTheDocument();
   });
 
+  it('本機代理都離線：教怎麼排查與修復（看狀態、重新啟動、重新登入）', async () => {
+    // Arrange
+    const { user, section } = await openWizard({
+      serve: () => {
+        serveAiOptions(makeAiOptions({ canAddPersonal: true }));
+        serveLocalAgents([exampleMachine({ online: false })]);
+      },
+    });
+
+    // Act
+    const third = await reachStatusStep(section, user);
+
+    // Assert
+    const help = await within(third).findByRole('region', { name: '本機代理離線時' });
+    expect(within(help).getByRole('region', { name: '看狀態的指令' })).toHaveTextContent('kumi agent status');
+    expect(within(help).getByRole('region', { name: '重新在背景啟動的指令' })).toHaveTextContent('kumi agent enable');
+    expect(within(help).getByRole('region', { name: '重新登入本機代理的指令' })).toHaveTextContent('kumi agent login --server');
+  });
+
+  it('本機代理在線：不顯示排查的說明', async () => {
+    // Arrange
+    const { user, section } = await openWizard({
+      serve: () => {
+        serveAiOptions(makeAiOptions({ canAddPersonal: true }));
+        serveLocalAgents([exampleMachine({ name: 'MacBook-Pro' })]);
+      },
+    });
+
+    // Act
+    const third = await reachStatusStep(section, user);
+
+    // Assert
+    expect(await within(third).findByText('在線：MacBook-Pro')).toBeInTheDocument();
+    expect(within(third).queryByRole('region', { name: '本機代理離線時' })).not.toBeInTheDocument();
+  });
+
   it('組織不允許自己的 AI 帳號、也沒有電腦：本機代理那列寫「組織沒有開放」', async () => {
     // Arrange
     const { user, section } = await openWizard({ serve: () => { serveAiOptions(makeAiOptions({ canAddPersonal: false })); } });

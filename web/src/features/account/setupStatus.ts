@@ -9,6 +9,8 @@ export type StatusKind = 'done' | 'todo' | 'muted' | 'pending' | 'error';
 export interface StatusLine {
   readonly kind: StatusKind;
   readonly text: string;
+  /** 本機代理有登記、但沒有一台在線：第三步要接著教怎麼排查。 */
+  readonly isOffline?: boolean;
 }
 
 function distinct(names: readonly string[]): readonly string[] {
@@ -41,5 +43,5 @@ export function agentsLine(grants: readonly OAuthGrant[]): StatusLine {
 export function localAgentLine(machines: readonly LocalAgentMachine[], isAllowed: boolean): StatusLine {
   if (machines.length === 0) return isAllowed ? { kind: 'todo', text: '還沒有' } : { kind: 'muted', text: '組織沒有開放' };
   const online = distinct(machines.filter((machine) => machine.online).map((machine) => machine.name));
-  return online.length > 0 ? { kind: 'done', text: `在線：${online.join('、')}` } : { kind: 'todo', text: '已登記，目前離線' };
+  return online.length > 0 ? { kind: 'done', text: `在線：${online.join('、')}` } : { kind: 'todo', text: '已登記，目前離線', isOffline: true };
 }

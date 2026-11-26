@@ -51,7 +51,7 @@ describe('設定精靈：本機代理的狀態', () => {
   });
 
   it('都離線：已登記，目前離線', () => {
-    expect(localAgentLine([exampleMachine({ online: false })], true)).toEqual({ kind: 'todo', text: '已登記，目前離線' });
+    expect(localAgentLine([exampleMachine({ online: false })], true)).toEqual({ kind: 'todo', text: '已登記，目前離線', isOffline: true });
   });
 
   it('沒有電腦：允許是還沒有，不允許是組織沒有開放；已經有電腦時不允許也照列', () => {
