@@ -156,7 +156,7 @@ bash scripts/ops/deploy-local.sh --no-build
 **備份加密（選用，預設關）**：`.env` 填 `BACKUP_AGE_RECIPIENT`（[age](https://github.com/FiloSottile/age) 的公鑰，`age1…`）時，資料庫的備份在寫進備份目錄**之前**就用 age 加密成 `.dump.age`：`pg_dump` 的輸出直接送進 age，備份目錄裡從頭到尾沒有明文。沒填就照舊存明文的 `.dump`。
 
 - **為什麼**：備份會被複製到別的磁碟、雲端硬碟，也會被備份軟體讀走；明文的備份裡有所有資料，也有 Data Protection 的金鑰（沒設憑證時是明文）與 AI 金鑰、寄信密碼的密文。加密之後，只有拿著私鑰的人讀得了。
-- **開的步驟**（8080 與試用環境目前都**還沒開**）：
+- **開的步驟**（預設關著，需要時照下面做）：
   1. 在一台信得過的電腦上產生一對金鑰。私鑰**不要放進 repo、不要放進 `.env`、不要和備份放在同一個地方**：
      ```
      (umask 077; docker run --rm --entrypoint age-keygen pm-tool-backup > ~/kumi-backup-key.txt)   # 需要先建過 backup 映像檔（deploy-local.sh 會建）
