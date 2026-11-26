@@ -44,6 +44,22 @@ async function goTo(router: ReturnType<typeof renderApp>['router'], path: string
   });
 }
 
+describe('面板的輸入框', () => {
+  it('送出按法的選單鈕很窄：只留按鍵，完整的說法給報讀軟體；附加檔案也在同一列', async () => {
+    // Arrange
+    const { user } = openApp();
+
+    // Act
+    const dialog = await openPanel(user);
+
+    // Assert
+    const picker = await within(dialog).findByRole('combobox', { name: '送出的按法' });
+    expect(picker).toHaveTextContent(/↵/);
+    expect(within(picker).getByText(/Enter 送出/)).toHaveClass('visually-hidden');
+    expect(within(dialog).getByRole('button', { name: '附加檔案' })).toBeInTheDocument();
+  });
+});
+
 describe('右下角的按鈕', () => {
   it('組織有開放的模型：每一頁都有', async () => {
     // Arrange / Act
@@ -554,7 +570,7 @@ describe('專案', () => {
     await waitFor(() => {
       expect(reply.stream()).not.toBeNull();
     });
-    reply.stream()?.event('start', { userMessage: { id: 'u1', role: 'user', createdAt: '2026-11-23T02:00:00Z', parts: [{ type: 'text', text: '你好' }], status: null, error: null, selection: null, connectionName: null, usage: null }, assistantMessageId: 'a1' });
+    reply.stream()?.event('start', { userMessage: { id: 'u1', role: 'user', createdAt: '2026-11-23T02:00:00Z', parts: [{ type: 'text', text: '你好' }], status: null, error: null, selection: null, connectionName: null, usage: null, attachments: [] }, assistantMessageId: 'a1' });
 
     // Act
     await goTo(router, '/projects/AGY');
@@ -562,7 +578,7 @@ describe('專案', () => {
     // Assert
     expect(within(panel).getByLabelText('目前的專案')).toHaveTextContent('冒煙測試');
     act(() => {
-      reply.stream()?.event('done', { message: { id: 'a1', role: 'assistant', createdAt: '2026-11-23T02:00:01Z', parts: [{ type: 'text', text: '好' }], status: 'complete', error: null, selection: null, connectionName: null, usage: null } });
+      reply.stream()?.event('done', { message: { id: 'a1', role: 'assistant', createdAt: '2026-11-23T02:00:01Z', parts: [{ type: 'text', text: '好' }], status: 'complete', error: null, selection: null, connectionName: null, usage: null, attachments: [] } });
       reply.stream()?.close();
     });
     await waitFor(() => {
@@ -617,7 +633,7 @@ describe('送訊息與串流', () => {
 
 function completeStart(stream: ReturnType<typeof serveReply>['stream'] extends () => infer R ? R : never) {
   stream?.event('start', {
-    userMessage: { id: 'u1', role: 'user', createdAt: '2026-11-23T02:00:00Z', parts: [{ type: 'text', text: '拆驗收' }], status: null, error: null, selection: null, connectionName: null, usage: null },
+    userMessage: { id: 'u1', role: 'user', createdAt: '2026-11-23T02:00:00Z', parts: [{ type: 'text', text: '拆驗收' }], status: null, error: null, selection: null, connectionName: null, usage: null, attachments: [] },
     assistantMessageId: 'a1',
   });
 }

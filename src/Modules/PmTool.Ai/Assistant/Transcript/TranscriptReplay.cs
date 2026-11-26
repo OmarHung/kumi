@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.Persistence;
 
 namespace PmTool.Ai.Assistant.Transcript;
@@ -34,6 +35,8 @@ internal static class TranscriptReplay
         TranscriptText text => new TextContent(isAssistant ? ReplyMarkerFilter.WithMarker(text.Text) : text.Text),
         TranscriptCall call => new FunctionCallContent(ReplayId(sequence, call.CallId), call.Name, ArgumentsOf(call.Arguments)),
         TranscriptResult result => new FunctionResultContent(ReplayId(sequence, result.CallId), result.Result),
+        TranscriptAttachment attachment => new AttachmentReference(
+            attachment.Id, attachment.FileName, attachment.ContentType, AttachmentKinds.Parse(attachment.Kind), attachment.SizeBytes),
         _ => throw new FormatException("不認得的訊息內容。"),
     };
 

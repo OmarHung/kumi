@@ -38,14 +38,14 @@ public sealed partial class AiMaintenanceWorker(IServiceScopeFactory scopes, ILo
             {
                 if ((await status.GetPendingMigrationsAsync(cancellationToken)).Count > 0)
                 {
-                    return new AiMaintenanceResult(0, 0, 0);
+                    return new AiMaintenanceResult(0, 0, 0, 0);
                 }
             }
 
             var result = await scope.ServiceProvider.GetRequiredService<IAiMaintenance>().SweepAsync(cancellationToken);
-            if (result.Conversations > 0 || result.JobPayloads > 0 || result.ConnectionUsageRows > 0)
+            if (result.Conversations > 0 || result.JobPayloads > 0 || result.ConnectionUsageRows > 0 || result.Attachments > 0)
             {
-                LogSwept(logger, result.Conversations, result.JobPayloads, result.ConnectionUsageRows);
+                LogSwept(logger, result.Conversations, result.JobPayloads, result.ConnectionUsageRows, result.Attachments);
             }
 
             return result;
@@ -53,12 +53,12 @@ public sealed partial class AiMaintenanceWorker(IServiceScopeFactory scopes, ILo
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             LogRunFailed(logger, exception);
-            return new AiMaintenanceResult(0, 0, 0);
+            return new AiMaintenanceResult(0, 0, 0, 0);
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "AI 的定期清理：刪掉 {Conversations} 則過期的對話、清掉 {Payloads} 件工作的內容、刪掉 {UsageRows} 列過期的連線用量。")]
-    private static partial void LogSwept(ILogger logger, int conversations, int payloads, int usageRows);
+    [LoggerMessage(Level = LogLevel.Information, Message = "AI 的定期清理：刪掉 {Conversations} 則過期的對話、清掉 {Payloads} 件工作的內容、刪掉 {UsageRows} 列過期的連線用量、清掉 {Attachments} 個助理附件。")]
+    private static partial void LogSwept(ILogger logger, int conversations, int payloads, int usageRows, int attachments);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "AI 的定期清理這一輪失敗，下一輪重來。")]
     private static partial void LogRunFailed(ILogger logger, Exception exception);

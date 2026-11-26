@@ -34,6 +34,7 @@ internal static class ApiRoutes
             .MapAiSettingsEndpoints()
             .MapPersonalAiEndpoints()
             .MapAssistantEndpoints()
+            .MapAssistantAttachmentEndpoints()
             .MapItemProposalEndpoints()
             .MapLocalAgentEndpoints()
             .MapHostAgentAdminEndpoints()

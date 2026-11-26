@@ -48,6 +48,8 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
     public DbSet<AiConnectionUsageRow> ConnectionUsage => Set<AiConnectionUsageRow>();
 
+    public DbSet<AiAttachmentRow> Attachments => Set<AiAttachmentRow>();
+
     /// <summary>執行時與設計時（產生遷移）共用同一套設定，兩邊才不會產生不一樣的模型。</summary>
     public static DbContextOptionsBuilder Configure(DbContextOptionsBuilder options, string connectionString) =>
         options
@@ -151,6 +153,28 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
             // 每人每天的則數、全組織每月的則數與 token：都依組織與預留的時間找。
             usage.HasIndex(u => new { u.OrganizationId, u.PersonId, u.CreatedAt });
             usage.HasIndex(u => new { u.OrganizationId, u.CreatedAt });
+        });
+
+        modelBuilder.Entity<AiAttachmentRow>(attachment =>
+        {
+            attachment.ToTable("attachments");
+            attachment.HasKey(a => a.Id);
+            attachment.Property(a => a.Id).ValueGeneratedNever();
+            attachment.Property(a => a.ProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
+            attachment.Property(a => a.FileName).HasMaxLength(AssistantAttachmentRules.MaxFileNameLength);
+            attachment.Property(a => a.ContentType).HasMaxLength(MaxEnumLength * 2);
+            attachment.Property(a => a.Kind).HasMaxLength(MaxEnumLength);
+            attachment.Property(a => a.Sha256).HasMaxLength(64);
+
+            // 待送的數量與過期清理：依組織、人、上傳時間找。
+            attachment.HasIndex(a => new { a.OrganizationId, a.PersonId, a.UploadedAt });
+            attachment.HasIndex(a => a.UploadedAt);
+
+            // 訊息、對話刪掉時資料列留著（檔案還在儲存空間裡），外鍵設成 null 之後由維護先刪檔再刪列。
+            attachment.HasIndex(a => a.MessageId);
+            attachment.HasIndex(a => a.ConversationId);
+            attachment.HasOne<AiMessageRow>().WithMany().HasForeignKey(a => a.MessageId).OnDelete(DeleteBehavior.SetNull);
+            attachment.HasOne<AiConversationRow>().WithMany().HasForeignKey(a => a.ConversationId).OnDelete(DeleteBehavior.SetNull);
         });
 
         ConfigureLocalAgents(modelBuilder);

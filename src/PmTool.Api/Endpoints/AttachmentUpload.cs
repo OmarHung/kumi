@@ -52,11 +52,11 @@ internal static class AttachmentUpload
     /// 放寬這個請求的大小上限：Kestrel 的 MaxRequestBodySize 只對這個端點調到檔案上限加 1 MiB，其他端點不受影響。
     /// 測試用的伺服器沒有這個功能，所以 <see cref="LimitedBodyStream"/> 與 Content-Length 的檢查才是真正擋人的那一層。
     /// </summary>
-    public static void RaiseKestrelLimit(HttpContext context)
+    public static void RaiseKestrelLimit(HttpContext context, long maxRequestBytes = MaxRequestBytes)
     {
         if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } feature)
         {
-            feature.MaxRequestBodySize = MaxRequestBytes;
+            feature.MaxRequestBodySize = maxRequestBytes;
         }
     }
 
@@ -70,9 +70,11 @@ internal static class AttachmentUpload
         CancellationToken cancellationToken,
         IDictionary<string, string>? fields = null,
         IReadOnlySet<string>? allowedFields = null,
-        string tooLargeCode = WorkErrorCodes.AttachmentTooLarge)
+        string tooLargeCode = WorkErrorCodes.AttachmentTooLarge,
+        long maxRequestBytes = MaxRequestBytes,
+        ApiFailure? tooLargeFailure = null)
     {
-        var tooLarge = tooLargeCode == WorkErrorCodes.AttachmentTooLarge ? TooLarge : TooLargeWith(tooLargeCode);
+        var tooLarge = tooLargeFailure ?? (tooLargeCode == WorkErrorCodes.AttachmentTooLarge ? TooLarge : TooLargeWith(tooLargeCode));
         if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var mediaType)
             || !mediaType.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase)
             || HeaderUtilities.RemoveQuotes(mediaType.Boundary).Value is not { Length: > 0 and <= MaxBoundaryLength } boundary)
@@ -81,12 +83,12 @@ internal static class AttachmentUpload
         }
 
         // 超過上限的請求不必開始讀：Content-Length 是用戶端說的，說錯也沒關係，下面的串流會再算實際收到的量。
-        if (request.ContentLength > MaxRequestBytes)
+        if (request.ContentLength > maxRequestBytes)
         {
             return (null, tooLarge);
         }
 
-        var body = new LimitedBodyStream(request.Body, MaxRequestBytes);
+        var body = new LimitedBodyStream(request.Body, maxRequestBytes);
         var reader = new MultipartReader(boundary, body);
         var textFields = 0;
         try

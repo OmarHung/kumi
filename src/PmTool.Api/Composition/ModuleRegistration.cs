@@ -50,7 +50,8 @@ internal static class ModuleRegistration
         services.AddKnowledgeModule(connections, AttachmentConfiguration.Read(configuration));
         services.AddAiModule(connections, new AiModuleOptions(
             AllowPrivateEndpoints: SettingValues.ReadFlag(configuration, AllowPrivateAiEndpointsSetting, defaultValue: false),
-            PublicUrl: TransportSecurity.From(configuration).PublicHost is { } host ? $"https://{host}" : null));
+            PublicUrl: TransportSecurity.From(configuration).PublicHost is { } host ? $"https://{host}" : null),
+            AttachmentConfiguration.Read(configuration));
 
         // 本機的引擎連的 MCP 網址：依請求組（和 OpenRouter 的回呼網址、OAuth 的 issuer 同一個算法）。
         services.AddHttpContextAccessor();

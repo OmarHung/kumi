@@ -24,6 +24,7 @@ import {
   Columns3,
   CircleUserRound,
   Contrast,
+  Copy,
   CornerDownRight,
   Code,
   Ellipsis,
@@ -55,12 +56,14 @@ import {
   Monitor,
   Moon,
   PanelLeft,
+  Paperclip,
   PanelRight,
   Pencil,
   Plus,
   Search,
   Settings,
   Sparkles,
+  Square,
   SquareCode,
   SquareKanban,
   Strikethrough,
@@ -106,6 +109,10 @@ const ICONS = {
   share: Share2,
   externalLink: ExternalLink,
   upload: Upload,
+  // AI 助理的輸入框與訊息：附加檔案、複製訊息、停止回覆（方形，填滿）。
+  attach: Paperclip,
+  copy: Copy,
+  stop: Square,
   // 附件的檔案類型（PM-5）：圖片、PDF、文件、試算表、壓縮檔、其他。
   fileImage: FileImage,
   filePdf: FileText,
@@ -180,6 +187,8 @@ export const ICON_NAMES = Object.keys(ICONS) as readonly IconName[];
 
 // lucide 的「contrast」是外圈加半個圓的輪廓；把半個圓填滿，才是「半滿的圓」。
 const HALF_FILLED: ReadonlySet<IconName> = new Set(['stateInProgress']);
+// 停止鈕的方形整個填滿：一眼看得出是「停」，不是空的框。
+const FILLED: ReadonlySet<IconName> = new Set(['stop']);
 
 export interface IconProps {
   readonly name: IconName;
@@ -199,7 +208,7 @@ export function Icon({ name, size = 16, className }: IconProps) {
       aria-hidden="true"
       focusable="false"
       data-icon={name}
-      className={cx(styles.icon, HALF_FILLED.has(name) && styles.halfFilled, className)}
+      className={cx(styles.icon, HALF_FILLED.has(name) && styles.halfFilled, FILLED.has(name) && styles.filled, className)}
     />
   );
 }

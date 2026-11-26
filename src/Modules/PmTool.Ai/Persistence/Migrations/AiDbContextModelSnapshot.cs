@@ -22,6 +22,92 @@ namespace PmTool.Ai.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("PmTool.Ai.Persistence.AiAttachmentRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("BoundAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("bound_at");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("content_type");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("uploaded_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_attachments");
+
+                    b.HasIndex("ConversationId")
+                        .HasDatabaseName("ix_attachments_conversation_id");
+
+                    b.HasIndex("MessageId")
+                        .HasDatabaseName("ix_attachments_message_id");
+
+                    b.HasIndex("UploadedAt")
+                        .HasDatabaseName("ix_attachments_uploaded_at");
+
+                    b.HasIndex("OrganizationId", "PersonId", "UploadedAt")
+                        .HasDatabaseName("ix_attachments_organization_id_person_id_uploaded_at");
+
+                    b.ToTable("attachments", "ai");
+                });
+
             modelBuilder.Entity("PmTool.Ai.Persistence.AiConnectionRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1253,6 +1339,21 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasDatabaseName("ix_local_agent_jobs_organization_id_person_id_state_created_at");
 
                     b.ToTable("local_agent_jobs", "ai");
+                });
+
+            modelBuilder.Entity("PmTool.Ai.Persistence.AiAttachmentRow", b =>
+                {
+                    b.HasOne("PmTool.Ai.Persistence.AiConversationRow", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_attachments_conversations_conversation_id");
+
+                    b.HasOne("PmTool.Ai.Persistence.AiMessageRow", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_attachments_messages_message_id");
                 });
 
             modelBuilder.Entity("PmTool.Ai.Persistence.AiMessageRow", b =>

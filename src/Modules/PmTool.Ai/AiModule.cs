@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
 using PmTool.Ai.Items;
 using PmTool.Ai.LocalAgents;
@@ -10,21 +11,24 @@ using PmTool.Ai.Login;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Providers;
 using PmTool.Ai.Settings;
+using PmTool.Storage;
 
 namespace PmTool.Ai;
 
 public static class AiModule
 {
     /// <summary>執行與遷移用同一個連線、不另外授權。本機開發與測試用。</summary>
-    public static IServiceCollection AddAiModule(this IServiceCollection services, string connectionString, AiModuleOptions? options = null) =>
-        services.AddAiModule(new DatabaseConnections(connectionString), options ?? new AiModuleOptions());
+    public static IServiceCollection AddAiModule(
+        this IServiceCollection services, string connectionString, AiModuleOptions? options = null, FileStoreSettings? attachments = null) =>
+        services.AddAiModule(new DatabaseConnections(connectionString), options ?? new AiModuleOptions(), attachments);
 
     /// <summary>
     /// 註冊 AI 模組。它依賴工作引擎的 <c>IProjectService</c>、<c>IBlueprintChangeService</c>、<c>IBlueprintUsageService</c>、
     /// <c>ITemplateLibrary</c>（助理的工具）、<c>IPeopleDirectory</c>（主機代理確認擁有者與成員的現在角色）、<see cref="IOrganizationClock"/>（這個月的用量）與 Data Protection（加密金鑰），都由組合根註冊。
     /// </summary>
     /// <exception cref="ArgumentException">連線字串是空的，或執行的角色名稱不合 <see cref="RuntimeRoleGrants.RoleNamePattern"/>。</exception>
-    public static IServiceCollection AddAiModule(this IServiceCollection services, DatabaseConnections connections, AiModuleOptions options)
+    public static IServiceCollection AddAiModule(
+        this IServiceCollection services, DatabaseConnections connections, AiModuleOptions options, FileStoreSettings? attachments = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(connections);
@@ -50,6 +54,15 @@ public static class AiModule
         services.TryAddSingleton<AssistantReplyRunner>();
         services.TryAddScoped<ConnectionUsageLedger>();
         services.TryAddScoped<IAssistantService, AssistantService>();
+
+        // 助理的附件：檔案放在共用的儲存空間（和項目、知識庫的附件同一份設定與容量上限；組合根註冊過的設定留下來，沒有才用預設）。
+        services.TryAddSingleton(attachments ?? new FileStoreSettings(null));
+        services.TryAddSingleton<IFileStore>(provider => FileStores.Create(provider.GetRequiredService<FileStoreSettings>()));
+        services.TryAddSingleton(StorageQuotaSettings.Default);
+        services.TryAddSingleton<IStorageQuota, StorageQuota>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IStorageUsageSource, AssistantAttachmentUsage>());
+        services.TryAddSingleton<AttachmentReplay>();
+        services.TryAddScoped<IAssistantAttachmentService, AssistantAttachmentService>();
 
         // 工作包 A1（供應商、設定）。gateway 與 protector 用 TryAdd：測試先放假的，就不會真的連出去。
         services.TryAddSingleton<IAiProviderGateway>(_ => new AiProviderGateway(options));

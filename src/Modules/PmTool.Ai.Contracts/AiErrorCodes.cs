@@ -137,4 +137,30 @@ public static class AiErrorCodes
 
     /// <summary>組織連線的用量到了上限（409；每人每天、全組織每月的則數或 token）。訊息說明是哪一種、什麼時候恢復；什麼都不存。</summary>
     public const string UsageLimitReached = "ai.usage_limit_reached";
+
+    /// <summary>附件太大（413）：依類型的上限見 <see cref="AssistantAttachmentRules"/>，或一則訊息的附件合計超過上限（送出時 422）。</summary>
+    public const string AttachmentTooLarge = "ai.attachment_too_large";
+
+    /// <summary>附件的類型不收（422）：只收 PNG、JPEG、GIF、WebP、PDF 與 UTF-8 的文字檔（看內容判斷）。</summary>
+    public const string AttachmentTypeNotAllowed = "ai.attachment_type_not_allowed";
+
+    /// <summary>附件的檔名不合規則（422，路徑 fileName）。</summary>
+    public const string AttachmentNameInvalid = "ai.attachment_name_invalid";
+
+    /// <summary>
+    /// 找不到附件（下載與刪除是 404）。送出時帶的編號不是自己待送的（別人的、已經送過的、過期刪掉的）回 422 同一個代碼，什麼都不存。
+    /// </summary>
+    public const string AttachmentNotFound = "ai.attachment_not_found";
+
+    /// <summary>附件太多：一則訊息超過 <see cref="AssistantAttachmentRules.MaxPerMessage"/> 個（送出時 422），或待送的超過 <see cref="AssistantAttachmentRules.MaxPendingPerPerson"/> 個（上傳時 409）。</summary>
+    public const string TooManyAttachments = "ai.too_many_attachments";
+
+    /// <summary>選的來源讀不到這種附件（422）：本機與主機上的 Claude Code／Codex 只讀得到文字檔。什麼都不存。</summary>
+    public const string AttachmentUnsupported = "ai.attachment_unsupported";
+
+    /// <summary>組織的儲存空間滿了（409；和項目的附件共用上限）。</summary>
+    public const string AttachmentQuotaExceeded = "ai.attachment_quota_exceeded";
+
+    /// <summary>這個人往回 24 小時的上傳量到了上限（409；和項目的附件共用上限）。</summary>
+    public const string AttachmentDailyQuotaExceeded = "ai.attachment_daily_quota_exceeded";
 }

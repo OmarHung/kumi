@@ -13,6 +13,7 @@ function placeholder(id: string, createdAt: string): AssistantMessage {
     connectionName: null,
     usage: null,
     itemKey: null,
+    attachments: [],
   };
 }
 

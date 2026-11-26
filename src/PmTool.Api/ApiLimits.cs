@@ -68,6 +68,10 @@ public static class ApiLimits
     // 一個壞掉的畫面或腳本反覆送，不能在一分鐘內燒掉一大筆。
     public const int AssistantMessagePermitsPerWindow = 10;
 
+    // AI 助理附件的上傳，每個人每個視窗最多幾次。每一次都會寫檔、讀內容判斷類型並算進容量；
+    // 一則訊息最多 5 個、待送最多 20 個，30 次足夠連續附幾輪，壞掉的畫面或腳本不能反覆灌檔案。
+    public const int AssistantAttachmentUploadPermitsPerWindow = 30;
+
     // 本機代理的三個端點，每個人每個視窗最多幾次：長輪詢每 25 秒一次，加上進行中的回覆每 300 毫秒回報一次（同時最多 2 件）。
     // 全域的已登入額度（SignedInPermitsPerWindow）照樣算進去，所以這一個只是讓它單獨有上限，不會比全域的多。
     public const int LocalAgentPermitsPerWindow = 600;

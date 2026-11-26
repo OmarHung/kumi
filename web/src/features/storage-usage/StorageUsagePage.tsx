@@ -17,6 +17,7 @@ const NO_PERMISSION = '只有組織的擁有者與管理員可以看儲存空間
 const AREA_TITLES: Readonly<Record<string, string>> = {
   item_attachments: '項目的附件',
   knowledge_attachments: '知識庫的附件',
+  assistant_attachments: 'AI 助理的附件',
 };
 
 function OrganizationSection({ usage }: { readonly usage: StorageUsage }) {
@@ -25,7 +26,7 @@ function OrganizationSection({ usage }: { readonly usage: StorageUsage }) {
   const isFull = limit !== null && usage.totalBytes >= limit;
   const isOver = limit !== null && usage.totalBytes > limit;
   return (
-    <SettingsSection title="組織的附件" description="項目與知識庫的附件加起來，刪除的項目與垃圾桶裡的頁面也照算。" isContentStart>
+    <SettingsSection title="組織的附件" description="項目、知識庫與 AI 助理的附件加起來，刪除的項目與垃圾桶裡的頁面也照算。" isContentStart>
       <div className={styles.stack}>
         <p className={styles.figure}>
           {limit === null ? `已用 ${formatBytes(usage.totalBytes)}，不限制` : `已用 ${formatBytes(usage.totalBytes)}／${formatLimit(limit)}`}

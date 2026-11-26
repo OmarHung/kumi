@@ -8,3 +8,8 @@
 .halfFilled path {
   fill: currentcolor;
 }
+
+/* 停止的方形：整個填滿。 */
+.filled rect {
+  fill: currentcolor;
+}

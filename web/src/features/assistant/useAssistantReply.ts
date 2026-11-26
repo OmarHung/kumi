@@ -21,6 +21,8 @@ export interface SendRequest {
   readonly selection: AiSelection;
   /** 針對哪個項目；沒選是 null。 */
   readonly itemKey: string | null;
+  /** 已經上傳好的附件編號，依順序；沒有是空陣列。 */
+  readonly attachmentIds: readonly string[];
   /** 伺服器收下了（串流開始）。輸入框在這時才清掉字：送出之前失敗的，字要留著。 */
   readonly onAccepted: () => void;
 }
@@ -72,7 +74,7 @@ async function runStream(context: StreamContext, id: string, request: SendReques
   const outcome: StreamOutcome = await streamAssistantReply(
     projectKey,
     id,
-    { text: request.text, selection: request.selection, itemKey: request.itemKey },
+    { text: request.text, selection: request.selection, itemKey: request.itemKey, attachmentIds: request.attachmentIds },
     signal,
     (event) => {
       if (event.type === 'start') {

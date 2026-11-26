@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using PmTool.Abstractions;
 using PmTool.Ai.Assistant.Transcript;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
 using PmTool.Ai.Items;
 using PmTool.Ai.Persistence;
@@ -18,7 +19,8 @@ internal sealed partial class AssistantService
         ArgumentNullException.ThrowIfNull(input);
 
         // 檢查的順序見第 5.2 節；任何一項不過就什麼都不存。
-        var text = CheckText(input.Text);
+        var attachmentIds = input.AttachmentIds ?? [];
+        var text = CheckText(input.Text, allowEmpty: attachmentIds.Count > 0);
         if (text.Failure is { } invalidText)
         {
             return invalidText;
@@ -56,13 +58,22 @@ internal sealed partial class AssistantService
             item = found.Value;
         }
 
+        var hostSourceId = selection.Value.Endpoint.HostSourceId;
+        var isLocal = hostSourceId is null && selection.Value.Endpoint.Kind.IsLocalEngine();
+
+        // 附件：數量、重複、都是自己在這個專案待送的、合計大小、選的來源讀得到（本機與主機的引擎只讀得到文字檔）。
+        var attachments = await AttachmentSelection.CheckAsync(
+            db, actor, project.Value.Project.Key, attachmentIds, hostSourceId is not null || isLocal, time.GetUtcNow(), cancellationToken);
+        if (attachments.Failure is { } badAttachments)
+        {
+            return badAttachments;
+        }
+
         if (conversation.MessageCount + 2 > AiRules.MaxMessagesPerConversation)
         {
             return AssistantFailures.TooLong();
         }
 
-        var hostSourceId = selection.Value.Endpoint.HostSourceId;
-        var isLocal = hostSourceId is null && selection.Value.Endpoint.Kind.IsLocalEngine();
         var mcpUrl = isLocal ? mcpUrls.GetMcpUrl() : null;
         if (isLocal && mcpUrl is null)
         {
@@ -97,7 +108,8 @@ internal sealed partial class AssistantService
         try
         {
             begun = await BeginRunAsync(
-                db, actor, conversation, text.Value, item?.Key, hostSourceId is not null, CanReadAllItems(project.Value), cancellationToken);
+                db, actor, conversation, new UserTurn(text.Value, item?.Key, attachments.Value), project.Value.Project.Key,
+                hostSourceId is not null, CanReadAllItems(project.Value), cancellationToken);
         }
         catch
         {
@@ -128,8 +140,10 @@ internal sealed partial class AssistantService
             ItemKey = item?.Key,
             HostJobId = hostJobId,
             CountsUsage = countsUsage,
+            UserAttachments = AttachmentSelection.ToReferences(attachments.Value),
         });
-        return new AssistantRun(AssistantMessageMapper.ToMessage(started.User), assistantMessageId, session);
+        return new AssistantRun(
+            AssistantMessageMapper.ToMessage(started.User, AttachmentSelection.ToContracts(attachments.Value)), assistantMessageId, session);
     }
 
     private async Task ReleaseReservationsAsync(Guid? hostJobId, Guid? usageId)
@@ -145,10 +159,10 @@ internal sealed partial class AssistantService
         }
     }
 
-    private static Result<string> CheckText(string? text)
+    private static Result<string> CheckText(string? text, bool allowEmpty)
     {
         var trimmed = (text ?? string.Empty).Trim();
-        if (trimmed.Length == 0)
+        if (trimmed.Length == 0 && !allowEmpty)
         {
             return AssistantFailures.MessageInvalid("訊息不能是空的。");
         }
@@ -169,7 +183,7 @@ internal sealed partial class AssistantService
     /// 條件式的 UPDATE 是真正的互斥（好幾個 API 程序之間也只有一個拿得到）；advisory lock 只讓「數出來的數量」不被同時的請求搶先。
     /// </summary>
     private async Task<Result<BegunRun>> BeginRunAsync(
-        AiDbContext db, Actor actor, AiConversationRow conversation, string text, string? itemKey, bool queued, bool seesAllItems,
+        AiDbContext db, Actor actor, AiConversationRow conversation, UserTurn turn, string projectKey, bool queued, bool seesAllItems,
         CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
@@ -203,11 +217,17 @@ internal sealed partial class AssistantService
             return AssistantFailures.Unreadable();
         }
 
-        var user = NewUserRow(actor, conversation.Id, current.MessageCount + 1, text, itemKey, now);
+        var user = NewUserRow(actor, conversation.Id, current.MessageCount + 1, turn, now);
         db.Messages.Add(user);
         await db.SaveChangesAsync(cancellationToken);
 
-        var title = TitleOf(text);
+        // 附件在同一個交易裡綁上：綁不到（剛好被刪掉、過期）整個交易不提交，租約與使用者的訊息一起回滾。
+        if (await AttachmentSelection.BindAsync(db, actor, projectKey, conversation.Id, user.Id, turn.Attachments, now, cancellationToken) is { } notBound)
+        {
+            return notBound;
+        }
+
+        var title = TitleOf(turn.Text.Length > 0 ? turn.Text : turn.Attachments[0].FileName);
         var sequence = user.Sequence;
         await db.Conversations
             .Where(c => c.Id == conversation.Id)
@@ -257,21 +277,30 @@ internal sealed partial class AssistantService
         }
     }
 
-    private static AiMessageRow NewUserRow(Actor actor, Guid conversationId, int sequence, string text, string? itemKey, DateTimeOffset now) => new()
+    private static AiMessageRow NewUserRow(Actor actor, Guid conversationId, int sequence, UserTurn turn, DateTimeOffset now)
     {
-        Id = Guid.CreateVersion7(),
-        ConversationId = conversationId,
-        OrganizationId = actor.OrganizationId,
-        Sequence = sequence,
-        Role = AssistantMessageMapper.UserRoleName,
-        Parts = AssistantMessageMapper.WriteParts([new AssistantTextPart(text)]),
-        Transcript = AssistantJson.Serialize(new[]
+        // 沒打字（只附了檔案）時不放空的文字段落：Anthropic 不收空的文字區塊，網頁也不必畫空的泡泡。
+        var parts = turn.Text.Length > 0 ? new AssistantPart[] { new AssistantTextPart(turn.Text) } : [];
+        var contents = new List<TranscriptContent>();
+        if (turn.Text.Length > 0)
         {
-            new TranscriptMessage(TranscriptMessage.UserRole, [new TranscriptText(text)]),
-        }),
-        CreatedAt = now,
-        ItemKey = itemKey,
-    };
+            contents.Add(new TranscriptText(turn.Text));
+        }
+
+        contents.AddRange(AttachmentSelection.ToTranscript(turn.Attachments));
+        return new AiMessageRow
+        {
+            Id = Guid.CreateVersion7(),
+            ConversationId = conversationId,
+            OrganizationId = actor.OrganizationId,
+            Sequence = sequence,
+            Role = AssistantMessageMapper.UserRoleName,
+            Parts = AssistantMessageMapper.WriteParts(parts),
+            Transcript = AssistantJson.Serialize(new[] { new TranscriptMessage(TranscriptMessage.UserRole, contents) }),
+            CreatedAt = now,
+            ItemKey = turn.ItemKey,
+        };
+    }
 
     /// <summary>標題：第一則訊息的前幾個字，換行與 Tab 換成空白；不把一個字（代理對）切成兩半。</summary>
     private static string TitleOf(string text)
@@ -284,6 +313,9 @@ internal sealed partial class AssistantService
 
         return AiText.Cut(flat, AiRules.MaxTitleLength).TrimEnd();
     }
+
+    /// <summary>使用者這一則：整理過的文字（可以是空的）、選的項目與已經檢查過的附件。</summary>
+    private sealed record UserTurn(string Text, string? ItemKey, IReadOnlyList<AiAttachmentRow> Attachments);
 
     private sealed record BegunRun(
         AiMessageRow User, IReadOnlyList<ChatMessage> History, DateTimeOffset LeaseUntil);

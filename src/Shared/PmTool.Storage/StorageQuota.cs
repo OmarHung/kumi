@@ -2,7 +2,7 @@ using PmTool.Abstractions;
 
 namespace PmTool.Storage;
 
-public enum StorageArea { ItemAttachments, KnowledgeAttachments }
+public enum StorageArea { ItemAttachments, KnowledgeAttachments, AssistantAttachments }
 
 /// <param name="OrganizationBytes">組織的總量上限；0 是不限制。</param>
 /// <param name="PersonBytesPerDay">每人過去 24 小時上傳的上限；0 是不限制。</param>

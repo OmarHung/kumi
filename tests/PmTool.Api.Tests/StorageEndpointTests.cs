@@ -21,7 +21,7 @@ public sealed class StorageEndpointTests
         factory.Modules.StorageQuota.Report = new StorageUsageReport(
             20L * StorageQuotaSettings.GiB,
             2L * StorageQuotaSettings.GiB,
-            [new StorageAreaUsage(StorageArea.ItemAttachments, 1_073_741_824, 312), new StorageAreaUsage(StorageArea.KnowledgeAttachments, 214_748_364, 40)]);
+            [new StorageAreaUsage(StorageArea.ItemAttachments, 1_073_741_824, 312), new StorageAreaUsage(StorageArea.KnowledgeAttachments, 214_748_364, 40), new StorageAreaUsage(StorageArea.AssistantAttachments, 1024, 2)]);
         using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
 
         // Act
@@ -31,9 +31,10 @@ public sealed class StorageEndpointTests
         // Assert
         var expected = JsonNode.Parse(
             """
-            {"organizationLimitBytes":21474836480,"personDailyLimitBytes":2147483648,"totalBytes":1288490188,
+            {"organizationLimitBytes":21474836480,"personDailyLimitBytes":2147483648,"totalBytes":1288491212,
              "areas":[{"area":"item_attachments","bytes":1073741824,"files":312},
-                      {"area":"knowledge_attachments","bytes":214748364,"files":40}]}
+                      {"area":"knowledge_attachments","bytes":214748364,"files":40},
+                      {"area":"assistant_attachments","bytes":1024,"files":2}]}
             """);
         using (Assert.EnterMultipleScope())
         {

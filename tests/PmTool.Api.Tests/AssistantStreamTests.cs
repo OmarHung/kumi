@@ -66,7 +66,7 @@ public sealed class AssistantStreamTests
             AssertJson(frames[0].Data, $$"""
                 {"userMessage":{"id":"33333333-3333-3333-3333-333333333331","role":"user","createdAt":"2026-11-23T03:00:00Z",
                   "parts":[{"type":"text","text":"把驗收拆成內部驗收和客戶驗收"}],
-                  "status":null,"error":null,"selection":null,"connectionName":null,"usage":null,"itemKey":null},
+                  "status":null,"error":null,"selection":null,"connectionName":null,"usage":null,"itemKey":null,"attachments":[]},
                  "assistantMessageId":"{{assistantId}}"}
                 """);
             AssertJson(frames[1].Data, """{"delta":"好，我先讀目前的設定。"}""");

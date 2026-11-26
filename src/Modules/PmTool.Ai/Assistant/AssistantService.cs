@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
 using PmTool.Ai.Persistence;
 using PmTool.Ai.Providers;
@@ -65,11 +66,8 @@ internal sealed partial class AssistantService(
             return failure;
         }
 
-        // 組織沒開 AI 但允許個人連線時，成員也能開對話、用自己的連線送訊息；選的連線能不能用，送訊息時由 AiSelectionResolver 把關。
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        // 組織擁有者開了主機來源時，組織的有效成員也能開對話。
-        if (!await db.Settings.AnyAsync(s => s.OrganizationId == actor.OrganizationId && (s.Enabled || s.AllowPersonalConnections), cancellationToken)
-            && !await hostSources.AnyAsync(actor, cancellationToken))
+        if (!await AssistantAccess.IsAvailableAsync(db, hostSources, actor, cancellationToken))
         {
             return AssistantFailures.Unavailable();
         }
@@ -112,7 +110,18 @@ internal sealed partial class AssistantService(
             .Where(m => m.ConversationId == conversationId && m.OrganizationId == actor.OrganizationId)
             .OrderBy(m => m.Sequence)
             .ToListAsync(cancellationToken);
-        return new AssistantConversation(ToSummary(conversation, time.GetUtcNow()), [.. messages.Select(AssistantMessageMapper.ToMessage)]);
+
+        // 附件只讀還綁在訊息上的（對話還在，所以不會有孤兒），依訊息分好。
+        var messageIds = messages.Select(m => m.Id).ToList();
+        var attachments = (await db.Attachments
+            .AsNoTracking()
+            .Where(a => a.OrganizationId == actor.OrganizationId && a.MessageId != null && messageIds.Contains(a.MessageId.Value))
+            .OrderBy(a => a.Position)
+            .ToListAsync(cancellationToken))
+            .ToLookup(a => a.MessageId!.Value, AttachmentMapper.ToContract);
+        return new AssistantConversation(
+            ToSummary(conversation, time.GetUtcNow()),
+            [.. messages.Select(m => AssistantMessageMapper.ToMessage(m, [.. attachments[m.Id]]))]);
     }
 
     public async Task<Result<Unit>> DeleteAsync(
@@ -140,19 +149,10 @@ internal sealed partial class AssistantService(
         return deleted == 0 ? AssistantFailures.Busy() : Unit.Value;
     }
 
-    /// <summary>看得到專案、而且有讀設定的權限。助理的所有操作都先過這裡。</summary>
-    private async Task<Result<ProjectDetail>> OpenProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken)
-    {
-        var project = await projects.GetAsync(actor, projectKey, cancellationToken);
-        if (project.Failure is { } failure)
-        {
-            return failure;
-        }
+    private Task<Result<ProjectDetail>> OpenProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
+        AssistantAccess.OpenProjectAsync(projects, actor, projectKey, cancellationToken);
 
-        return project.Value.MyPermissions.Contains(WorkPermissions.BlueprintRead) ? project : AssistantFailures.Forbidden();
-    }
-
-    private static bool CanReadAllItems(ProjectDetail project) => project.MyPermissions.Contains(WorkPermissions.ItemRead);
+    private static bool CanReadAllItems(ProjectDetail project) => AssistantAccess.CanReadAllItems(project);
 
     /// <summary>
     /// 找對話，並套用 AI-06：這則對話是在「看得到全部項目」時回覆過的，而他現在只剩自己的項目，歷史裡可能有他現在看不到的內容，

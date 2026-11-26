@@ -3,6 +3,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PmTool.Ai.Assistant.Tools;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
 using PmTool.Ai.LocalAgents;
 using PmTool.Ai.Assistant.Transcript;
@@ -26,6 +27,7 @@ internal sealed class AssistantReplyRunner(
     LocalAgentRelay relay,
     HostAgentRelay hostRelay,
     HostTimings hostTimings,
+    AttachmentReplay attachmentReplay,
     ILogger<AssistantReplyRunner> logger)
 {
     public const string TimeoutMessage = "超過 5 分鐘，回覆中斷了。";
@@ -63,9 +65,9 @@ internal sealed class AssistantReplyRunner(
             try
             {
                 outcome = isHosted
-                    ? await hostRelay.RunAsync(request, localRecorder, session, linked.Token)
+                    ? await hostRelay.RunAsync(await ResolveAttachmentsAsync(request, linked.Token), localRecorder, session, linked.Token)
                     : isLocal
-                        ? await relay.RunAsync(request, localRecorder, session, linked.Token)
+                        ? await relay.RunAsync(await ResolveAttachmentsAsync(request, linked.Token), localRecorder, session, linked.Token)
                         : await StreamAsync(request, accumulator, session, linked.Token);
             }
             catch (OperationCanceledException) when (linked.IsCancellationRequested)
@@ -128,7 +130,9 @@ internal sealed class AssistantReplyRunner(
             })
             .Build(provider);
 
-        await foreach (var update in client.GetStreamingResponseAsync(Compose(request), options, cancellationToken))
+        // 交易已經提交了：這時才讀附件的檔案（不佔著資料庫的交易），依預算換成圖片、PDF 與文字。
+        var messages = await attachmentReplay.ResolveAsync(Compose(request), AttachmentTarget.ApiModel, cancellationToken);
+        await foreach (var update in client.GetStreamingResponseAsync(messages, options, cancellationToken))
         {
             foreach (var runEvent in accumulator.Apply(update))
             {
@@ -161,6 +165,35 @@ internal sealed class AssistantReplyRunner(
         return new ReplyOutcome(AssistantMessageStatus.Complete, null);
     }
 
+    /// <summary>
+    /// 本機與主機上的引擎只收文字：把這一則與歷史裡的附件換成文字檔的內容或一行說明，結果放回 <c>History</c> 與 <c>UserText</c>，
+    /// 後面的 <c>LocalPromptBuilder</c> 照舊排成文字。
+    /// </summary>
+    private async Task<ReplyRequest> ResolveAttachmentsAsync(ReplyRequest request, CancellationToken cancellationToken)
+    {
+        if (request.UserAttachments.Count == 0 && !request.History.Any(m => m.Contents.Any(c => c is AttachmentReference)))
+        {
+            return request;
+        }
+
+        var all = new List<ChatMessage>(request.History) { UserMessage(request) };
+        var resolved = await attachmentReplay.ResolveAsync(all, AttachmentTarget.TextOnly, cancellationToken);
+        var userText = string.Join("\n\n", resolved[^1].Contents.OfType<TextContent>().Select(t => t.Text));
+        return request with { History = [.. resolved.Take(resolved.Count - 1)], UserText = userText };
+    }
+
+    private static ChatMessage UserMessage(ReplyRequest request)
+    {
+        var contents = new List<AIContent>();
+        if (request.UserText.Length > 0)
+        {
+            contents.Add(new TextContent(request.UserText));
+        }
+
+        contents.AddRange(request.UserAttachments);
+        return new ChatMessage(ChatRole.User, contents);
+    }
+
     private static List<ChatMessage> Compose(ReplyRequest request)
     {
         var messages = new List<ChatMessage>
@@ -174,7 +207,7 @@ internal sealed class AssistantReplyRunner(
         }
 
         messages.AddRange(request.History);
-        messages.Add(new ChatMessage(ChatRole.User, request.UserText));
+        messages.Add(UserMessage(request));
         return messages;
     }
 

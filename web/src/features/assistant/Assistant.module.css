@@ -195,9 +195,16 @@
   list-style: none;
 }
 
-.userMessage {
+.userBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   align-self: flex-end;
+  gap: var(--space-1);
   max-width: 85%;
+}
+
+.userMessage {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-lg);
   background: var(--color-neutral-soft);
@@ -264,9 +271,72 @@
 .messageFooter {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
+  min-height: var(--control-height-sm);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+}
+
+.footerText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- 複製訊息 ---- */
+
+/* 使用者的複製鈕在泡泡下方右側；高度固定，按鈕出現不推動後面的訊息（多出來的部分疊在訊息之間的間距上）。 */
+.userActions {
+  display: flex;
+  justify-content: flex-end;
+  height: var(--space-3);
+}
+
+.userActions .copyGroup {
+  align-self: flex-start;
+}
+
+.copyGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+/* 說明靠按鈕左邊展開，沒有內容時不佔寬度。 */
+.copyStatus {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.copyGroup[data-state='failed'] .copyStatus {
+  color: var(--color-danger);
+}
+
+.copyGroup[data-state='copied'] .copyButton {
+  color: var(--color-success);
+}
+
+/* 平常藏起來（還是在無障礙樹與 Tab 順序裡）；滑鼠移過訊息或焦點進到訊息才顯示，觸控一律顯示。 */
+.copyButton {
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.userBlock:hover .copyButton,
+.userBlock:focus-within .copyButton,
+.assistantMessage:hover .copyButton,
+.assistantMessage:focus-within .copyButton,
+.copyGroup:not([data-state='idle']) .copyButton {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .copyButton {
+    opacity: 1;
+  }
 }
 
 /* ---- 輸入框 ---- */
@@ -366,4 +436,158 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   white-space: normal;
+}
+
+/* 檔案拖進來：文字框外面一圈強調色的虛線（畫在外面，不推動版面），告訴使用者放開就會附加。 */
+.inputFrame[data-dragging='true'] {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+.attachNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+/* ---- 輸入框上方的附件小卡：高度固定，名稱與狀態各一行 ---- */
+
+.chips {
+  --chip-height: 3rem;
+  --chip-width: 15rem;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: var(--chip-width);
+  max-width: 100%;
+  height: var(--chip-height);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.chip[data-status='failed'],
+.chip[data-status='rejected'],
+.chip[data-unsupported='true'] {
+  border-color: var(--color-danger);
+}
+
+.chipThumb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+}
+
+.chipImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chipText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chipName {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipMeta[data-tone='danger'] {
+  display: block;
+  color: var(--color-danger);
+}
+
+/* ---- 訊息裡的附件：圖片縮圖固定大小，其他檔案是小卡 ---- */
+
+.attachedList {
+  --attached-image-width: 10rem;
+  --attached-image-height: 7.5rem;
+
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachedImage {
+  display: block;
+  width: var(--attached-image-width);
+  height: var(--attached-image-height);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-soft);
+}
+
+.attachedImage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachedFile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: 13rem;
+  max-width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.attachedFileText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sendKeyLabel {
+  white-space: nowrap;
 }

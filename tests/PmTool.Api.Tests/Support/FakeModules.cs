@@ -81,6 +81,8 @@ internal sealed class FakeModules
 
     public FakeAssistantService Assistant { get; } = new();
 
+    public FakeAssistantAttachmentService AssistantAttachments { get; } = new();
+
     public FakeLocalAgentService LocalAgents { get; } = new();
 
     public FakeLocalAgentDirectory LocalAgentDirectory { get; } = new();

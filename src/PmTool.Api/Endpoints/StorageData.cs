@@ -2,7 +2,7 @@ using PmTool.Storage;
 
 namespace PmTool.Api.Endpoints;
 
-/// <param name="Area">分類的名稱，snake_case（item_attachments、knowledge_attachments）。</param>
+/// <param name="Area">分類的名稱，snake_case（item_attachments、knowledge_attachments、assistant_attachments）。</param>
 internal sealed record StorageAreaData(string Area, long Bytes, long Files)
 {
     public static StorageAreaData From(StorageAreaUsage usage) => new(NameOf(usage.Area), usage.Bytes, usage.Files);
@@ -12,6 +12,7 @@ internal sealed record StorageAreaData(string Area, long Bytes, long Files)
     {
         StorageArea.ItemAttachments => "item_attachments",
         StorageArea.KnowledgeAttachments => "knowledge_attachments",
+        StorageArea.AssistantAttachments => "assistant_attachments",
         _ => throw new ArgumentOutOfRangeException(nameof(area), area, "沒有對應的名稱。"),
     };
 }

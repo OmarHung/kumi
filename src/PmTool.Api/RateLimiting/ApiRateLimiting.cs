@@ -32,6 +32,9 @@ internal static class ApiRateLimiting
     /// <summary>送訊息給 AI 助理另外套用的限制，依人計算（<see cref="ApiLimits.AssistantMessagePermitsPerWindow"/>）。</summary>
     public const string AssistantMessagePolicy = "assistant-message";
 
+    /// <summary>AI 助理附件的上傳另外套用的限制，依人計算（<see cref="ApiLimits.AssistantAttachmentUploadPermitsPerWindow"/>）。</summary>
+    public const string AssistantAttachmentUploadPolicy = "assistant-attachment-upload";
+
     /// <summary>本機代理的三個端點（登記的長輪詢、回報、結束）另外套用的限制，依人計算（<see cref="ApiLimits.LocalAgentPermitsPerWindow"/>）。</summary>
     public const string LocalAgentPolicy = "local-agent";
 
@@ -112,6 +115,7 @@ internal static class ApiRateLimiting
             options.AddPolicy(EmailTestPolicy, EmailTestsPerCaller);
             options.AddPolicy(AiProviderCallPolicy, AiProviderCallsPerCaller);
             options.AddPolicy(AssistantMessagePolicy, AssistantMessagesPerCaller);
+            options.AddPolicy(AssistantAttachmentUploadPolicy, AssistantAttachmentUploadsPerCaller);
             options.AddPolicy(LocalAgentPolicy, LocalAgentCallsPerCaller);
             options.AddPolicy(HostPairPolicy, HostPairPerAddress);
             options.AddPolicy(OAuthTokenPolicy, OAuthTokenPerAddress);
@@ -189,6 +193,9 @@ internal static class ApiRateLimiting
 
     private static RateLimitPartition<string> AssistantMessagesPerCaller(HttpContext context) =>
         RateLimitPartition.GetFixedWindowLimiter(Identify(context).Key, _ => FixedWindow(ApiLimits.AssistantMessagePermitsPerWindow));
+
+    private static RateLimitPartition<string> AssistantAttachmentUploadsPerCaller(HttpContext context) =>
+        RateLimitPartition.GetFixedWindowLimiter(Identify(context).Key, _ => FixedWindow(ApiLimits.AssistantAttachmentUploadPermitsPerWindow));
 
     // 鍵加前綴，不和網頁的額度混在一起：本機代理忙的時候，網頁上的操作不會因此被擋。
     private static RateLimitPartition<string> LocalAgentCallsPerCaller(HttpContext context) =>

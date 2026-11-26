@@ -31,7 +31,10 @@ public interface IAssistantService
         Actor actor, string projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken);
 }
 
-/// <param name="Text">使用者打的字。前後的空白去掉；最長 <see cref="AiRules.MaxMessageLength"/>；不能有 NUL 與控制字元（換行與 Tab 可以）。</param>
+/// <param name="Text">
+/// 使用者打的字。前後的空白去掉；最長 <see cref="AiRules.MaxMessageLength"/>；不能有 NUL 與控制字元（換行與 Tab 可以）。
+/// 有附件時可以是空的（對話的標題改用第一個附件的檔名）。
+/// </param>
 /// <param name="Selection">這一則用哪個連線、模型、思考深度。要是 <see cref="IAiOptionsService"/> 現在列得出來的。</param>
 public sealed record AssistantMessageInput(string Text, AiSelection Selection)
 {
@@ -40,6 +43,14 @@ public sealed record AssistantMessageInput(string Text, AiSelection Selection)
     /// 不然 <see cref="AiErrorCodes.ItemNotFound"/>（什麼都不存）。助理在提示裡知道使用者在看哪一個，自己用工具讀它。
     /// </summary>
     public string? ItemKey { get; init; }
+
+    /// <summary>
+    /// 這則訊息的附件（<see cref="IAssistantAttachmentService.UploadAsync"/> 上傳的待送附件），依這個順序顯示與送出。
+    /// 要是自己在這個專案待送的、不重複、最多 <see cref="AssistantAttachmentRules.MaxPerMessage"/> 個、合計不超過
+    /// <see cref="AssistantAttachmentRules.MaxBytesPerMessage"/>；選的來源讀不到的類型回 <see cref="AiErrorCodes.AttachmentUnsupported"/>。
+    /// 任何一項不過就什麼都不存；存下使用者的訊息時在同一個交易裡綁上（之後不能再用）。
+    /// </summary>
+    public IReadOnlyList<Guid> AttachmentIds { get; init; } = [];
 }
 
 /// <summary>
@@ -140,6 +151,9 @@ public sealed record AssistantMessage(Guid Id, AssistantRole Role, IReadOnlyList
 
     /// <summary>使用者的訊息才有：送出時選的項目（<see cref="AssistantMessageInput.ItemKey"/>），網頁在訊息上標「關於 WEB-12」。</summary>
     public string? ItemKey { get; init; }
+
+    /// <summary>使用者的訊息才有：送出時帶的附件，依送出的順序；沒有是空的。</summary>
+    public IReadOnlyList<AssistantAttachment> Attachments { get; init; } = [];
 }
 
 public sealed record AssistantUsage(long InputTokens, long OutputTokens);

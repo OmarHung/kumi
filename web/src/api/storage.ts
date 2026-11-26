@@ -1,7 +1,7 @@
 import { apiRequest } from './http';
 
 /** 儲存空間用量的分類：項目的附件、知識庫的附件。網頁不認得的分類照原字串顯示。 */
-export type StorageArea = 'item_attachments' | 'knowledge_attachments';
+export type StorageArea = 'item_attachments' | 'knowledge_attachments' | 'assistant_attachments';
 
 export interface StorageAreaUsage {
   readonly area: StorageArea;

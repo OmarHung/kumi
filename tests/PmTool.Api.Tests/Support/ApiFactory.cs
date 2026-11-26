@@ -262,6 +262,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<IPersonalAiConnectionService>();
         services.RemoveAll<IOpenRouterLoginService>();
         services.RemoveAll<IAssistantService>();
+        services.RemoveAll<IAssistantAttachmentService>();
         services.RemoveAll<IItemProposalService>();
         services.RemoveAll<IItemProposalCreator>();
         services.RemoveAll<ILocalAgentService>();
@@ -309,6 +310,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<IPersonalAiConnectionService>(Modules.PersonalAi);
         services.AddSingleton<IOpenRouterLoginService>(Modules.OpenRouterLogin);
         services.AddSingleton<IAssistantService>(Modules.Assistant);
+        services.AddSingleton<IAssistantAttachmentService>(Modules.AssistantAttachments);
         services.AddSingleton<IItemProposalService>(Modules.ItemProposals);
         services.AddSingleton<IItemProposalCreator>(Modules.ItemProposals);
         services.AddSingleton<ILocalAgentService>(Modules.LocalAgents);

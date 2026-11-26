@@ -10,12 +10,17 @@ internal static class AssistantMessageMapper
 
     public const string AssistantRoleName = "assistant";
 
-    public static AssistantMessage ToMessage(AiMessageRow row)
+    /// <param name="attachments">使用者的訊息帶的附件，依送出的順序；助理的回覆不用給。</param>
+    public static AssistantMessage ToMessage(AiMessageRow row, IReadOnlyList<AssistantAttachment>? attachments = null)
     {
         var parts = ReadParts(row.Parts);
         if (row.Role == UserRoleName)
         {
-            return new AssistantMessage(row.Id, AssistantRole.User, parts, row.CreatedAt) { ItemKey = row.ItemKey };
+            return new AssistantMessage(row.Id, AssistantRole.User, parts, row.CreatedAt)
+            {
+                ItemKey = row.ItemKey,
+                Attachments = attachments ?? [],
+            };
         }
 
         return new AssistantMessage(row.Id, AssistantRole.Assistant, parts, row.CreatedAt)

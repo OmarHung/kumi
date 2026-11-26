@@ -7,9 +7,23 @@ namespace PmTool.Api.Endpoints;
 /// 要送的訊息：<c>text</c> 與這一則用哪個連線、模型、思考深度。<c>effort</c> 是 null 或省略時用模型自己的預設。
 /// 另外定義而不直接收合約的型別，模組加屬性時對外的內文不會跟著變。
 /// </summary>
-internal sealed record AssistantMessageRequest(string Text, AssistantSelectionData Selection, string? ItemKey = null)
+internal sealed record AssistantMessageRequest(
+    string Text, AssistantSelectionData Selection, string? ItemKey = null, IReadOnlyList<Guid>? AttachmentIds = null)
 {
-    public AssistantMessageInput ToInput() => new(Text, Selection.ToSelection()) { ItemKey = ItemKey };
+    /// <summary><c>attachmentIds</c> 省略或 null 等於沒有附件；數量、重複與歸屬由模組判斷。</summary>
+    public AssistantMessageInput ToInput() => new(Text, Selection.ToSelection())
+    {
+        ItemKey = ItemKey,
+        AttachmentIds = AttachmentIds ?? [],
+    };
+}
+
+/// <summary>附件：<c>kind</c> 是 image、pdf 或 text（snake_case）。內容在下載的端點。</summary>
+internal sealed record AssistantAttachmentData(
+    Guid Id, string FileName, string ContentType, long SizeBytes, AssistantAttachmentKind Kind, DateTimeOffset UploadedAt)
+{
+    public static AssistantAttachmentData From(AssistantAttachment attachment) => new(
+        attachment.Id, attachment.FileName, attachment.ContentType, attachment.SizeBytes, attachment.Kind, attachment.UploadedAt);
 }
 
 /// <param name="Effort">snake_case：none、low、medium、high、xhigh、max；null 是不指定。</param>
@@ -37,7 +51,7 @@ internal sealed record AssistantConversationDetailData(AssistantConversationData
 }
 
 /// <summary>
-/// 一則訊息。<c>itemKey</c> 只有使用者的訊息可能有值（送出時選的項目）。使用者的訊息 <c>status</c>、<c>error</c>、<c>selection</c>、<c>connectionName</c>、<c>usage</c> 都是 null（寫出 null，不省略）。
+/// 一則訊息。<c>itemKey</c> 只有使用者的訊息可能有值（送出時選的項目）；<c>attachments</c> 使用者的訊息是送出時的附件，助理的回覆是空陣列（寫出 []，不省略）。使用者的訊息 <c>status</c>、<c>error</c>、<c>selection</c>、<c>connectionName</c>、<c>usage</c> 都是 null（寫出 null，不省略）。
 /// </summary>
 internal sealed record AssistantMessageData(
     Guid Id,
@@ -49,7 +63,8 @@ internal sealed record AssistantMessageData(
     AssistantSelectionData? Selection,
     string? ConnectionName,
     AssistantUsageData? Usage,
-    string? ItemKey = null)
+    string? ItemKey,
+    IReadOnlyList<AssistantAttachmentData> Attachments)
 {
     public static AssistantMessageData From(AssistantMessage message) => new(
         message.Id,
@@ -61,7 +76,8 @@ internal sealed record AssistantMessageData(
         message.Selection is { } selection ? AssistantSelectionData.From(selection) : null,
         message.ConnectionName,
         message.Usage is { } usage ? new AssistantUsageData(usage.InputTokens, usage.OutputTokens) : null,
-        message.ItemKey);
+        message.ItemKey,
+        [.. message.Attachments.Select(AssistantAttachmentData.From)]);
 }
 
 /// <summary>

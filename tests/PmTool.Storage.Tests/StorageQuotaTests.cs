@@ -137,6 +137,7 @@ public sealed class StorageQuotaTests
         {
             (StorageArea.ItemAttachments, 30L, 3L),
             (StorageArea.KnowledgeAttachments, 0L, 0L),
+            (StorageArea.AssistantAttachments, 0L, 0L),
         }));
         Assert.That(result.Value.TotalBytes, Is.EqualTo(30));
     }

@@ -14,6 +14,7 @@ export function storageUsageOf(overrides: Partial<StorageUsage> = {}): StorageUs
     areas: [
       { area: 'item_attachments', bytes: 1_073_741_824, files: 312 },
       { area: 'knowledge_attachments', bytes: 214_748_364, files: 40 },
+      { area: 'assistant_attachments', bytes: 52_428_800, files: 7 },
     ],
     ...overrides,
   };

@@ -1,4 +1,4 @@
-import { ApiError, apiRequest, CSRF_HEADER, networkError, unwrapResponse } from './http';
+import { ApiError, apiRequest, ClientErrorCodes, CSRF_HEADER, networkError, unwrapResponse } from './http';
 import { itemResourcePath } from './items';
 import type { Instant, PersonRef } from './types';
 
@@ -48,6 +48,8 @@ export interface UploadOptions {
   /** 已經送出的位元組與總數；瀏覽器不知道總數時 total 是 null。 */
   readonly onProgress?: (sent: number, total: number | null) => void;
   readonly signal?: AbortSignal;
+  /** 沒有信封的 413（代理伺服器擋的）要顯示的說明；沒給是項目附件的 25 MB。 */
+  readonly tooLargeMessage?: string;
 }
 
 const HTTP_TOO_LARGE = 413;
@@ -58,10 +60,11 @@ const TOO_LARGE_MESSAGE = `檔案超過 ${String(ATTACHMENT_MAX_BYTES / (1024 * 
  * 413 常常是前面的代理伺服器擋的，沒有 API 的信封：換成說得出原因的訊息與代碼，
  * 不然使用者看到的是「伺服器的回應格式不正確」。
  */
-function explained(error: unknown): Error {
+function explained(error: unknown, tooLargeMessage: string): Error {
   if (!(error instanceof ApiError)) return networkError();
-  if (error.status !== HTTP_TOO_LARGE || error.code === TOO_LARGE_CODE) return error;
-  return new ApiError({ status: error.status, code: TOO_LARGE_CODE, message: TOO_LARGE_MESSAGE });
+  // 有信封的 413（例如助理附件的 ai.attachment_too_large）訊息已經說得出原因，只換沒有信封的。
+  if (error.status !== HTTP_TOO_LARGE || error.code !== ClientErrorCodes.invalidResponse) return error;
+  return new ApiError({ status: error.status, code: TOO_LARGE_CODE, message: tooLargeMessage });
 }
 
 function abortError(): DOMException {
@@ -77,7 +80,7 @@ function abortError(): DOMException {
  * 不設 Content-Type：瀏覽器要自己帶 multipart 的 boundary。
  */
 export function uploadFile<T>(url: string, file: File, options: UploadOptions = {}): Promise<T> {
-  const { onProgress, signal } = options;
+  const { onProgress, signal, tooLargeMessage = TOO_LARGE_MESSAGE } = options;
   return new Promise<T>((resolve, reject) => {
     if (signal?.aborted === true) {
       reject(abortError());
@@ -98,7 +101,7 @@ export function uploadFile<T>(url: string, file: File, options: UploadOptions = 
       try {
         resolve(unwrapResponse(request.status, request.responseText) as T);
       } catch (error) {
-        reject(explained(error));
+        reject(explained(error, tooLargeMessage));
       }
     });
     request.addEventListener('error', () => {

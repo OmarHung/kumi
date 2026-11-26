@@ -206,6 +206,20 @@ export interface AssistantUsage {
   readonly outputTokens: number;
 }
 
+/** 附件的種類：看內容判斷。image 與 pdf 只有 API 的模型讀得到，text 所有來源都讀得到。 */
+export type AssistantAttachmentKind = 'image' | 'pdf' | 'text';
+
+/** 助理訊息的附件（待送的或已經送出的）。內容在 GET /v1/projects/{key}/assistant/attachments/{id}/content。 */
+export interface AssistantAttachment {
+  readonly id: string;
+  readonly fileName: string;
+  /** image/png、image/jpeg、image/gif、image/webp、application/pdf、text/plain。 */
+  readonly contentType: string;
+  readonly sizeBytes: number;
+  readonly kind: AssistantAttachmentKind;
+  readonly uploadedAt: string;
+}
+
 export interface AssistantMessage {
   readonly id: string;
   readonly role: 'user' | 'assistant';
@@ -220,6 +234,8 @@ export interface AssistantMessage {
   readonly usage: AssistantUsage | null;
   /** 使用者的訊息才有：送出時選的項目（畫面標「關於 WEB-12」）。 */
   readonly itemKey: string | null;
+  /** 使用者的訊息才有：送出時帶的附件，依順序；助理的回覆是空陣列。 */
+  readonly attachments: readonly AssistantAttachment[];
 }
 
 export interface AssistantConversationSummary {
@@ -243,6 +259,8 @@ export interface AssistantMessageInput {
   readonly selection: AiSelection;
   /** 這則訊息針對的項目；沒有選是 null。 */
   readonly itemKey: string | null;
+  /** 待送附件的編號（上傳時拿到的），依順序，最多 5 個；沒有是空陣列。有附件時 text 可以是空的。 */
+  readonly attachmentIds: readonly string[];
 }
 
 /** 送訊息的回應（text/event-stream）裡的事件。最後一定是 done。 */

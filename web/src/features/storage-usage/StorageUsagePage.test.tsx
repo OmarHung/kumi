@@ -28,6 +28,9 @@ describe('儲存空間頁', () => {
     const knowledge = screen.getByRole('region', { name: '知識庫的附件' });
     expect(knowledge).toHaveTextContent('204.8 MiB');
     expect(knowledge).toHaveTextContent('40 個檔案');
+    const assistant = screen.getByRole('region', { name: 'AI 助理的附件' });
+    expect(assistant).toHaveTextContent('50.0 MiB');
+    expect(assistant).toHaveTextContent('7 個檔案');
     expect(screen.getByRole('region', { name: '每人每日的上傳量' })).toHaveTextContent('2 GiB');
     expect(screen.getByText(/Attachments:Quota:\*/)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();

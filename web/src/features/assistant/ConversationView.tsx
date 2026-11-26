@@ -112,6 +112,7 @@ export function ConversationView({ projectKey, conversationId, options, selectio
       </div>
       <ReplyAnnouncer messages={conversation.data?.messages} watchedId={reply.lastMessageId} activeMessageId={isStreamingHere ? reply.active.messageId : null} phase={isStreamingHere ? reply.active.phase : null} />
       <Composer
+        projectKey={projectKey}
         options={options}
         selection={selection}
         onSelectionChange={onSelectionChange}
@@ -125,9 +126,10 @@ export function ConversationView({ projectKey, conversationId, options, selectio
         fill={fill}
         inputRef={inputRef}
         hasItem={itemKey !== null}
-        onSend={(text, chosen, onAccepted) => {
+        isCompact={variant === 'panel'}
+        onSend={(text, chosen, attachmentIds, onAccepted) => {
           pin();
-          void reply.send({ text, selection: chosen, itemKey, onAccepted });
+          void reply.send({ text, selection: chosen, itemKey, attachmentIds, onAccepted });
         }}
         onStop={reply.stop}
       />

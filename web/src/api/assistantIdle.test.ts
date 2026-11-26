@@ -23,7 +23,7 @@ function stubFetch(firstChunk: string | null) {
 }
 
 const START = 'event: start\ndata: {"userMessage":{"id":"u"},"assistantMessageId":"a"}\n\n';
-const INPUT = { text: 'x', selection: { connectionId: 'c', model: 'm', effort: null }, itemKey: null };
+const INPUT = { text: 'x', selection: { connectionId: 'c', model: 'm', effort: null }, itemKey: null, attachmentIds: [] };
 
 afterEach(() => {
   vi.useRealTimers();

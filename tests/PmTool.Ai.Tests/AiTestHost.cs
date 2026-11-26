@@ -51,6 +51,9 @@ internal sealed class AiTestHost : IAsyncDisposable
         services.AddDataProtection().UseEphemeralDataProtectionProvider();
         configure?.Invoke(services);
 
+        // 助理的附件放在記憶體裡的儲存空間；要看或弄壞檔案的測試用 Get<IFileStore>() 拿到同一個。
+        services.TryAddSingleton<PmTool.Storage.IFileStore>(new Attachments.MemoryFileStore());
+
         // 工作包 A1：預設的假供應商（模組用 TryAdd，configure 先註冊的會留下來）。
         services.TryAddSingleton<IAiProviderGateway>(new StubAiProviderGateway());
 

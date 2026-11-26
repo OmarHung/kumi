@@ -63,6 +63,7 @@ export function makeMessage(overrides: Partial<AssistantMessage> = {}): Assistan
     connectionName: null,
     itemKey: null,
     usage: null,
+    attachments: [],
     ...overrides,
   };
 }

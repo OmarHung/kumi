@@ -113,7 +113,7 @@ describe('送出與串流', () => {
     await waitFor(() => {
       expect(reply.sent).toHaveLength(1);
     });
-    expect(reply.sent[0]?.body).toEqual({ text: '你好', selection: CLAUDE_SELECTION, itemKey: null });
+    expect(reply.sent[0]?.body).toEqual({ text: '你好', selection: CLAUDE_SELECTION, itemKey: null, attachmentIds: [] });
     expect(reply.sent[0]?.headers.get('X-PmTool-Csrf')).toBe('1');
   });
 

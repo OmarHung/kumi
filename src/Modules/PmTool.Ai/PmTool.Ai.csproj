@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PmTool.Ai.Contracts\PmTool.Ai.Contracts.csproj" />
     <ProjectReference Include="..\..\Shared\PmTool.Http\PmTool.Http.csproj" />
+    <ProjectReference Include="..\..\Shared\PmTool.Storage\PmTool.Storage.csproj" />
     <ProjectReference Include="..\PmTool.Blueprint\PmTool.Blueprint.csproj" />
     <ProjectReference Include="..\PmTool.Identity.Contracts\PmTool.Identity.Contracts.csproj" />
     <ProjectReference Include="..\PmTool.Work.Contracts\PmTool.Work.Contracts.csproj" />

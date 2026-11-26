@@ -20,6 +20,7 @@ internal sealed record TranscriptMessage(string Role, IReadOnlyList<TranscriptCo
 [JsonDerivedType(typeof(TranscriptText), "text")]
 [JsonDerivedType(typeof(TranscriptCall), "call")]
 [JsonDerivedType(typeof(TranscriptResult), "result")]
+[JsonDerivedType(typeof(TranscriptAttachment), "attachment")]
 internal abstract record TranscriptContent;
 
 internal sealed record TranscriptText(string Text) : TranscriptContent;
@@ -30,3 +31,9 @@ internal sealed record TranscriptCall(string CallId, string Name, JsonElement Ar
 
 /// <param name="Result">工具回的 JSON 字串。</param>
 internal sealed record TranscriptResult(string CallId, string Result) : TranscriptContent;
+
+/// <summary>
+/// 使用者的訊息帶的附件，放在文字之後。只存參照：內容在儲存空間，重送給模型時才讀（<c>AttachmentReplay</c>）。
+/// 檔名、類型與種類存一份，之後附件的資料列刪了（對話刪掉才會）也不影響這裡；種類是 <c>AttachmentKinds</c> 的固定文字。
+/// </summary>
+internal sealed record TranscriptAttachment(Guid Id, string FileName, string ContentType, string Kind, long SizeBytes) : TranscriptContent;

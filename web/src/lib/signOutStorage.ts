@@ -5,6 +5,7 @@ import { TAB_BADGE_STORAGE_KEY } from '../features/inbox/tabBadgePreference';
 import { ACTIVITY_VIEW_STORAGE_KEY } from '../features/item-page/activityView';
 import { MY_WORK_ORDER_KEY } from '../features/my-work/myWorkColumnOrder';
 import { MY_WORK_WIDTHS_KEY } from '../features/my-work/myWorkColumns';
+import { SEND_KEY_STORAGE_KEY } from '../features/assistant/sendKey';
 import { TOAST_MODE_STORAGE_KEY } from '../features/notification-toasts/toastMode';
 import { SIDEBAR_STORAGE_KEY } from '../features/shell/sidebarPreference';
 import { FLOATING_PANEL_WIDTH_STORAGE_KEY } from '../components/SidePanel/floatingPanelWidth';
@@ -30,6 +31,7 @@ export const PRESERVED_LOCAL_KEYS: ReadonlySet<string> = new Set([
   FLOATING_PANEL_WIDTH_STORAGE_KEY,
   SIDE_PANEL_WIDTH_STORAGE_KEY,
   TOAST_MODE_STORAGE_KEY,
+  SEND_KEY_STORAGE_KEY,
   TAB_BADGE_STORAGE_KEY,
   EDITOR_MODE_STORAGE_KEY,
   WEEK_START_STORAGE_KEY,

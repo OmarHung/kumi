@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI;
 using PmTool.Abstractions;
+using PmTool.Ai.Attachments;
 using PmTool.Ai.Providers;
 
 namespace PmTool.Ai.Assistant;
@@ -32,4 +33,7 @@ internal sealed record ReplyRequest(
 
     /// <summary>這則訊息選的項目編號；沒選是 null。</summary>
     public string? ItemKey { get; init; }
+
+    /// <summary>這則訊息帶的附件（還只是參照，要送給模型前由 <c>AttachmentReplay</c> 讀檔）；沒有是空的。</summary>
+    public IReadOnlyList<AttachmentReference> UserAttachments { get; init; } = [];
 }

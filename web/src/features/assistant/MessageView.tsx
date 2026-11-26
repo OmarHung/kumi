@@ -6,6 +6,8 @@ import { Markdown } from '../../components/Markdown/Markdown';
 import { Notice } from '../../components/Notice/Notice';
 import { effortLabel, toolLabel } from '../ai/aiLabels';
 import { changeSetPagePath, itemPagePath } from '../work-items/itemLinks';
+import { CopyMessageButton } from './CopyMessageButton';
+import { MessageAttachments } from './MessageAttachments';
 import { ProposalCard } from './ProposalCard';
 import { replyPhaseText, type ReplyPhase } from './replyPhase';
 import { findModel } from './selection';
@@ -91,20 +93,40 @@ interface MessageViewProps {
   readonly phase?: ReplyPhase;
 }
 
+/** 複製用的文字：使用者打的字、助理回覆的文字段落（多段用空行接起來，不含工具列與卡片）。 */
+function copyTextOf(message: AssistantMessage): string {
+  const texts = message.parts.flatMap((part) => (part.type === 'text' && part.text !== '' ? [part.text] : []));
+  return message.role === 'user' ? texts.join('') : texts.join('\n\n');
+}
+
+function UserMessage({ message, projectKey }: { readonly message: AssistantMessage; readonly projectKey: string }) {
+  const text = copyTextOf(message);
+  return (
+    <div className={styles.userBlock}>
+      <MessageAttachments attachments={message.attachments} projectKey={projectKey} />
+      {(text !== '' || message.itemKey !== null) && (
+        <div className={styles.userMessage}>
+          {message.itemKey !== null && (
+            <Link to={itemPagePath(projectKey, message.itemKey)} className={styles.aboutItem}>
+              {`關於 ${message.itemKey}`}
+            </Link>
+          )}
+          {text}
+        </div>
+      )}
+      {text !== '' && (
+        <div className={styles.userActions}>
+          <CopyMessageButton text={text} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function MessageView({ message, projectKey, options, isStreaming, phase = null }: MessageViewProps) {
-  if (message.role === 'user') {
-    return (
-      <div className={styles.userMessage}>
-        {message.itemKey !== null && (
-          <Link to={itemPagePath(projectKey, message.itemKey)} className={styles.aboutItem}>
-            {`關於 ${message.itemKey}`}
-          </Link>
-        )}
-        {message.parts.map((part) => (part.type === 'text' ? part.text : '')).join('')}
-      </div>
-    );
-  }
+  if (message.role === 'user') return <UserMessage message={message} projectKey={projectKey} />;
   const footer = isStreaming ? null : footerText(message, options);
+  const copyText = isStreaming ? '' : copyTextOf(message);
   const hasRunningTool = message.parts.some((part) => part.type === 'tool' && part.status === 'running');
   return (
     <div className={styles.assistantMessage}>
@@ -118,7 +140,12 @@ export function MessageView({ message, projectKey, options, isStreaming, phase =
         </div>
       )}
       {message.status === 'failed' && <Notice tone="warning">{message.error ?? DEFAULT_FAILURE}</Notice>}
-      {footer !== null && <div className={styles.messageFooter}>{footer}</div>}
+      {(footer !== null || copyText !== '') && (
+        <div className={styles.messageFooter}>
+          <span className={styles.footerText}>{footer}</span>
+          {copyText !== '' && <CopyMessageButton text={copyText} />}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
 import { resetActivityViewForTests } from '../features/item-page/activityView';
 import { resetCalendarDateModeForTests } from '../lib/calendarDateMode';
 import { resetEditorModeForTests } from '../lib/editorMode';
+import { resetSendKeyForTests } from '../features/assistant/sendKey';
 import { resetToastModeForTests } from '../features/notification-toasts/toastMode';
 import { resetTabBadgeForTests } from '../features/inbox/tabBadgePreference';
 import { resetItemPanelModeForTests } from '../lib/itemPanelMode';
@@ -59,6 +60,7 @@ afterEach(() => {
   resetItemPanelModeForTests();
   // 通知提示的顯示方式同理。
   resetToastModeForTests();
+  resetSendKeyForTests();
   // 分頁圖示的圓點同理。
   resetTabBadgeForTests();
   // 編輯方式（所見即所得或 Markdown 原文）同理。
