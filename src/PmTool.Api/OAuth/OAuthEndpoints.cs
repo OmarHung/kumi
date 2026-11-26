@@ -1,7 +1,7 @@
 namespace PmTool.Api.OAuth;
 
 /// <summary>
-/// pm-tool 自己的 OAuth 2.1 授權伺服器的端點（給 MCP 用戶端用）。規格見 <c>internal/HANDOFF-mcp.md</c> 第 3、4 節。
+/// Kumi 自己的 OAuth 2.1 授權伺服器的端點（給 MCP 用戶端用）。規格見 <c>internal/HANDOFF-mcp.md</c> 第 3、4 節。
 /// 協定端點在 <see cref="OAuthProtocolEndpoints"/>，同意頁與「我的帳號」的端點在 <see cref="OAuthAccountEndpoints"/>。
 /// </summary>
 internal static class OAuthEndpoints

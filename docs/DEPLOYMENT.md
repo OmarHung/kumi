@@ -1,6 +1,6 @@
 # 上雲端的部署手冊
 
-這份寫給要把 pm-tool 放到雲端、或放到自己的伺服器上給別人用的人。本機自用的那一套（`compose.yaml`、`scripts/ops/`）看 `docs/OPERATIONS.md`，不是這一份。
+這份寫給要把 Kumi 放到雲端、或放到自己的伺服器上給別人用的人。本機自用的那一套（`compose.yaml`、`scripts/ops/`）看 `docs/OPERATIONS.md`，不是這一份。
 
 - 指令可以直接複製。`<…>` 換成自己的值，例如 `<專案>` 是 GCP 的專案 ID、`<區域>` 是 `asia-east1` 這種區域。
 - GCP 的部分只寫了做法，還沒有在真的專案上跑過（2026-11-17）。第一次照做時，對不上的地方請改回這份文件。
@@ -125,7 +125,7 @@ mkdir -m 700 pmtool-dp
   umask 077
   openssl rand -hex 24 | tr -d '\n' > pmtool-dp/dataprotection.password
   openssl req -x509 -newkey rsa:3072 -sha256 -days 3650 -nodes \
-    -subj "/CN=pm-tool DataProtection" \
+    -subj "/CN=Kumi DataProtection" \
     -keyout pmtool-dp/dataprotection.key -out pmtool-dp/dataprotection.crt
   openssl pkcs12 -export -inkey pmtool-dp/dataprotection.key -in pmtool-dp/dataprotection.crt \
     -passout file:pmtool-dp/dataprotection.password -out pmtool-dp/dataprotection.pfx
@@ -256,7 +256,7 @@ mkdir -m 700 pmtool-dp
 
 ### 1.9 MCP 與 OAuth（用自己的 Claude Code／Codex 連）
 
-使用者電腦上的 Claude Code、Codex 連到 `https://<網域>/mcp`，用 pm-tool 的帳號登入授權（說明在 `docs/MCP.md`）。部署時要注意：
+使用者電腦上的 Claude Code、Codex 連到 `https://<網域>/mcp`，用 Kumi 的帳號登入授權（說明在 `docs/MCP.md`）。部署時要注意：
 
 - **一定要設 `Security__PublicHost`**：OAuth 的 issuer 與 MCP 的網址都由它組成（`https://<PublicHost>`、`https://<PublicHost>/mcp`）。沒設時用請求的 Host 標頭，只適合本機；上線沒設的話，用戶端看到的網址可能和中繼資料對不上，授權會失敗。
 - **反向代理不用改設定**：`/.well-known/oauth-authorization-server`、`/.well-known/oauth-protected-resource`、`/oauth/*`、`/mcp` 都是一般的 HTTP，照現在的轉送就好。

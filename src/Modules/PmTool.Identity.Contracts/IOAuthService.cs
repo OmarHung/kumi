@@ -3,8 +3,8 @@ using PmTool.Abstractions;
 namespace PmTool.Identity;
 
 /// <summary>
-/// pm-tool 自己的 OAuth 2.1 授權伺服器：讓使用者自己電腦上的 AI 代理（Claude Code、Codex 這類 MCP 用戶端）
-/// 用 pm-tool 的帳號登入授權，拿到只能用在 MCP 端點的權杖。規格見 <c>internal/HANDOFF-mcp.md</c> 第 3、4 節。
+/// Kumi 自己的 OAuth 2.1 授權伺服器：讓使用者自己電腦上的 AI 代理（Claude Code、Codex 這類 MCP 用戶端）
+/// 用 Kumi 的帳號登入授權，拿到只能用在 MCP 端點的權杖。規格見 <c>internal/HANDOFF-mcp.md</c> 第 3、4 節。
 /// 發出去的存取權杖就是一把個人存取權杖（<c>pmt_…</c>，同一張表、同一套範圍與驗證），多帶一個授權的編號
 /// （<see cref="ActiveAccessToken.GrantId"/>），只能用在 MCP。
 /// 預期中的失敗用 <see cref="OAuthError"/> 的代碼（OAuth 的錯誤格式），不用 IdentityErrorCodes：

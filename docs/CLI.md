@@ -550,6 +550,6 @@ cp -R skills/kumi skills/kumi-planning <專案>/.claude/skills/
 
 其他代理沒有 skill 機制時，在它的說明檔（例如 `AGENTS.md`）寫「操作 Kumi 時先讀 `skills/kumi/SKILL.md`；要規劃結構、記需求、看進度時再讀 `skills/kumi-planning/SKILL.md`」。
 
-權杖由使用者自己用 `kumi auth login` 登入，不要貼給代理；範圍只勾要用的，例如只要它看進度就給 `items:read`。這個 repo 自己不會載入這兩份 skill（不在 `.claude/skills/` 底下），在這裡開發 pm-tool 時不會被它們干擾。
+權杖由使用者自己用 `kumi auth login` 登入，不要貼給代理；範圍只勾要用的，例如只要它看進度就給 `items:read`。這個 repo 自己不會載入這兩份 skill（不在 `.claude/skills/` 底下），在這裡開發 Kumi 時不會被它們干擾。
 
 裝了 skill 不影響本機代理（`kumi agent start`）：它跑引擎時不載入使用者與專案的 skill（Claude Code 只讀 `project` 設定、啟動事件的 skills 要是空的；Codex 關掉 `skills.include_instructions`），工作目錄也是空的暫存資料夾。

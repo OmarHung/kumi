@@ -8,7 +8,7 @@ const API_ORIGIN = 'http://localhost:8080';
 // 產品名稱還是暫定的；index.html 的標題也從同一個常數來，改名時只改一個地方。
 function productNamePlugin(): Plugin {
   return {
-    name: 'pm-tool-product-name',
+    name: 'kumi-product-name',
     transformIndexHtml: (html) => html.replaceAll('%PRODUCT_NAME%', PRODUCT_NAME),
   };
 }

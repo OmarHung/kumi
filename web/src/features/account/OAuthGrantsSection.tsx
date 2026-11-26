@@ -101,7 +101,7 @@ function RevokeGrantDialog({ grant, onClose, onRevoked }: {
 }
 
 /**
- * 已授權的 AI 代理（internal/HANDOFF-mcp.md 第 6.2 節）：用 OAuth 連上 pm-tool 的 Claude Code、Codex 等。
+ * 已授權的 AI 代理（internal/HANDOFF-mcp.md 第 6.2 節）：用 OAuth 連上 Kumi 的 Claude Code、Codex 等。
  * 每一列有「撤銷」，要確認；撤銷之後那一列不在了，清單由重抓決定。
  * 撤銷後按的那顆按鈕不在了，對話框關上時焦點無處可回：移到原位置的那一列（最後一列被撤銷就移到上一列）的「撤銷」，
  * 清單空了就移到區塊的標題。

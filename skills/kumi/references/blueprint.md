@@ -22,7 +22,7 @@ summary: 一句話說明       # 也可以用 apply --summary 給
 
 送出的是全文，差異由伺服器對照 `baseVersion` 算。所以沒有要改的部分照原樣留著；從檔案裡刪掉的東西會被當成要刪除。
 
-在 pm-tool 的 repo 裡，格式的唯一依據是 `schemas/blueprint/v0/`（`project-blueprint.schema.json`、`changeset.schema.json` 與 `examples/`）。不在 repo 裡時，以這份文件與 `kumi blueprint validate` 的訊息為準。
+在 Kumi 的 repo 裡，格式的唯一依據是 `schemas/blueprint/v0/`（`project-blueprint.schema.json`、`changeset.schema.json` 與 `examples/`）。不在 repo 裡時，以這份文件與 `kumi blueprint validate` 的訊息為準。
 
 ## 目錄
 

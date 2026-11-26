@@ -7,9 +7,9 @@ namespace PmTool.Api.Tests;
 [TestFixture]
 public sealed class WebHostingTests
 {
-    private const string IndexHtml = "<!doctype html><title>pm-tool</title><div id=\"root\"></div>";
+    private const string IndexHtml = "<!doctype html><title>kumi</title><div id=\"root\"></div>";
     internal const string AssetPath = "assets/index-3f9a2c1b.js";
-    private const string AssetContent = "console.log('pm-tool');";
+    private const string AssetContent = "console.log('kumi');";
 
     [TestCase("/")]
     [TestCase("/projects/WEB")]

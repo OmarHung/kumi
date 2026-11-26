@@ -1,6 +1,6 @@
 # 本機自用的操作手冊
 
-這份寫給在自己的 Mac 上跑 pm-tool、自己照顧它的人。
+這份寫給在自己的 Mac 上跑 Kumi、自己照顧它的人。
 
 - 指令都可以直接複製，在 repo 的根目錄執行。腳本在 repo 的哪個目錄下執行都一樣。
 - 這一套只綁本機（`127.0.0.1`），沒有 HTTPS，不要直接放到網路上。要上雲端或給別人用，看 `docs/DEPLOYMENT.md`。
@@ -123,7 +123,7 @@ bash scripts/ops/deploy-local.sh --no-build
 
 - 它在 Docker 的資料卷外面：`docker compose down -v` 刪不到它。刪掉整個 repo 資料夾就會一起刪掉。
 - 目錄權限 700、檔案 600。檔案預設沒有加密，裡面是真實資料；要加密看下面的「備份加密」。
-- **權限擋不住這台 Mac 的其他帳號**：repo 放在外接碟上時，macOS 預設用「忽略擁有者」（`noowners`）掛載外接碟，這台 Mac 上每個本機帳號都被當成擁有者。要更嚴格，把備份放在內接碟的家目錄底下，`.env` 寫絕對路徑（不能用 `~`），例如 `BACKUP_DIR=/Users/<你的帳號>/pm-tool-backups`。換目錄之後把舊的備份搬過去（`rsync -a backups/ /Users/<你的帳號>/pm-tool-backups/`，`.pmtool-project` 也會一起過去），再讓 backup 服務換上新的目錄：`docker compose up -d --no-build backup`。
+- **權限擋不住這台 Mac 的其他帳號**：repo 放在外接碟上時，macOS 預設用「忽略擁有者」（`noowners`）掛載外接碟，這台 Mac 上每個本機帳號都被當成擁有者。要更嚴格，把備份放在內接碟的家目錄底下，`.env` 寫絕對路徑（不能用 `~`），例如 `BACKUP_DIR=/Users/<你的帳號>/kumi-backups`。換目錄之後把舊的備份搬過去（`rsync -a backups/ /Users/<你的帳號>/kumi-backups/`，`.pmtool-project` 也會一起過去），再讓 backup 服務換上新的目錄：`docker compose up -d --no-build backup`。
 - 被 git 忽略，不會進版控。
 - 目錄裡的 `.pmtool-project` 寫著這個目錄屬於哪一套（例如 `pm-tool`）。不要刪，也不要讓兩套共用一個目錄（見第 9 節）。
 
@@ -201,7 +201,7 @@ bash scripts/ops/backup-now.sh before-import   # 自己取標籤：小寫英文�
 `backups/` 和 repo 在同一顆磁碟上。那顆磁碟壞了，資料和備份會一起不見。至少每週複製一次到另一顆磁碟：
 
 ```
-rsync -a backups/ "/Volumes/<另一顆磁碟>/pm-tool-backups/"
+rsync -a backups/ "/Volumes/<另一顆磁碟>/kumi-backups/"
 ```
 
 - `rsync -a` 會保留 600 的權限與檔案的修改時間。不加 `--delete`，舊的備份在另一邊會一直留著，自己清。
@@ -450,11 +450,11 @@ docker run -d --name pmtool-mailpit --network <演練的網路，例如 pm-tool-
 
 ## 16. 用自己的 Claude Code／Codex 連（MCP）
 
-使用者在自己的電腦上用 Claude Code 或 Codex（自己的訂閱）連 pm-tool 的 MCP 伺服器，第一次連線時在瀏覽器登入 pm-tool、按「允許」。步驟、範圍與撤銷見 `docs/MCP.md`；網頁「設定 → 命令列與整合」有這個部署的網址與可以複製的指令。
+使用者在自己的電腦上用 Claude Code 或 Codex（自己的訂閱）連 Kumi 的 MCP 伺服器，第一次連線時在瀏覽器登入 Kumi、按「允許」。步驟、範圍與撤銷見 `docs/MCP.md`；網頁「設定 → 命令列與整合」有這個部署的網址與可以複製的指令。
 
 **連不上時**：
 
-1. 用戶端說授權失敗：確認瀏覽器開的是 pm-tool 的授權頁、登入的是對的帳號；授權頁顯示錯誤時照錯誤處理（例如「resource 不對」通常是用戶端的網址打錯，要是 `https://<網域>/mcp`）。
+1. 用戶端說授權失敗：確認瀏覽器開的是 Kumi 的授權頁、登入的是對的帳號；授權頁顯示錯誤時照錯誤處理（例如「resource 不對」通常是用戶端的網址打錯，要是 `https://<網域>/mcp`）。
 2. 授權過、之後連不上：到「設定 → 命令列與整合」的「已授權的 AI 代理」看還在不在（被撤銷、30 天沒用的要重新授權）；帳號停用也會失效。
 3. `bash scripts/ops/errors.sh`：OAuth 的錯誤在 `PmTool.Identity` 開頭的類別、MCP 在 `PmTool.Api.Mcp`。記錄裡不會有權杖。
 4. 本機（8080，沒有 HTTPS）也能接：`claude mcp add --transport http kumi http://localhost:8080/mcp`。
@@ -631,7 +631,7 @@ mkdir -m 700 ~/kumi-secrets
   cd ~/kumi-secrets
   openssl rand -hex 24 | tr -d '\n' > dataprotection.password
   openssl req -x509 -newkey rsa:3072 -sha256 -days 3650 -nodes \
-    -subj "/CN=pm-tool DataProtection" -keyout dp.key -out dp.crt
+    -subj "/CN=Kumi DataProtection" -keyout dp.key -out dp.crt
   openssl pkcs12 -export -inkey dp.key -in dp.crt \
     -passout file:dataprotection.password -out dataprotection.pfx
   rm dp.key dp.crt

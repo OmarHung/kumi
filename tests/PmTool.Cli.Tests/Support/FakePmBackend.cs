@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 namespace PmTool.Cli.Tests;
 
 /// <summary>
-/// 假的 pm-tool 伺服器的歷史匯入部分：人員、專案、週期、成員、四個 history 端點。它記得匯入過什麼，
+/// 假的 Kumi 伺服器的歷史匯入部分：人員、專案、週期、成員、四個 history 端點。它記得匯入過什麼，
 /// 所以重跑時 lookup 與略過的行為和真的一樣。規則只做到測試需要的：成員、外部編號重複、回覆的順序。
 /// </summary>
 internal sealed partial class FakePmBackend

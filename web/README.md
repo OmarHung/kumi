@@ -1,4 +1,4 @@
-# pm-tool-web
+# kumi-web
 
 專案管理工具的網頁版。React 19、TypeScript（strict）、Vite；路由用 React Router，伺服器資料用 TanStack Query。樣式是 CSS Modules 加上 `src/styles/tokens.css` 的設計變數，沒有 UI 元件庫；圖示用 `lucide-react`（只在 `components/Icon` 匯入）。畫面照 [`docs/DESIGN.md`](../docs/DESIGN.md) 的設計規範做（規範分成五份、節號共用：設計變數、元件、控制項、流程與互動在 [`docs/design/`](../docs/design/)，對照表在它的第 0 節）。方向是「明亮的工作室」（規範第 1 節，視覺翻新）：紫藍的強調色（大片的實心底用 `--color-accent-solid`）、帶一點紫藍的中性色、圓一點的角（`--radius-sm`～`--radius-xl`）與柔和帶色相的陰影；拉丁字母與數字用自帶的 Plus Jakarta Sans、編號與代號的等寬字用自帶的 Geist Mono（`@fontsource-variable/*`，`main.tsx` 匯入、由 Vite 打包、和網站同網域，OFL-1.1），中文是系統的台灣字體。選取、反白、提示、狀態都不畫左邊或上方的色條：選取是 `--color-selected` 的底加強調色的字，反白是實心的強調色，提示與還沒送出的修改是淡底加文字。
 

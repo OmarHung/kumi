@@ -5,7 +5,7 @@ using PmTool.Cli.Import.Monday.Run;
 
 namespace PmTool.Cli.Tests;
 
-/// <summary>kumi import monday run：整個流程對假的 monday 與假的 pm-tool 伺服器走一次（交接第 6 節）。</summary>
+/// <summary>kumi import monday run：整個流程對假的 monday 與假的 Kumi 伺服器走一次（交接第 6 節）。</summary>
 [TestFixture]
 public sealed class MondayRunCommandTests
 {
