@@ -1,5 +1,5 @@
 /* 本機代理的接上步驟（AI 帳號頁的「本機代理」）。版面的外距沿用 AccountPage.module.css。 */
-/* 步驟：序號在文字外面，指令區塊沿用「連接 Claude Code／Codex」的樣子。 */
+/* 步驟：序號在文字外面，指令區塊沿用「在 AI 工具裡用 Kumi」的樣子。 */
 .steps {
   display: flex;
   flex-direction: column;

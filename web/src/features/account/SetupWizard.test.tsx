@@ -247,8 +247,8 @@ describe('設定精靈：第三步的即時狀態', () => {
       expect(within(third).getAllByText('還沒有')).toHaveLength(3);
     });
     expect(within(third).getByText('命令列工具')).toBeInTheDocument();
-    expect(within(third).getByText('Claude Code／Codex')).toBeInTheDocument();
-    expect(within(third).getByText('本機代理')).toBeInTheDocument();
+    expect(within(third).getByText('在 AI 工具裡用 Kumi')).toBeInTheDocument();
+    expect(within(third).getByText('本機代理（AI 助理用你的電腦）')).toBeInTheDocument();
   });
 
   it('都做完了：已登入的電腦、已授權的應用、在線的電腦', async () => {
@@ -372,7 +372,7 @@ describe('設定精靈：只在看得到第三步時才每 5 秒讀', () => {
     const { machines, user, section } = await openWithCounter();
     const third = await reachStatusStep(section, user);
     await waitFor(() => {
-      expect(within(third).getByText('本機代理').closest('div')).toHaveTextContent('本機代理還沒有');
+      expect(within(third).getByText('本機代理（AI 助理用你的電腦）').closest('div')).toHaveTextContent('本機代理（AI 助理用你的電腦）還沒有');
     });
     const before = machines.listCalls();
 

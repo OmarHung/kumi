@@ -1,4 +1,4 @@
-/* 命令列工具：步驟一格一格排，指令區塊沿用「連接 Claude Code／Codex」的樣子。外距沿用 AccountPage.module.css。 */
+/* 命令列工具：步驟一格一格排，指令區塊沿用「在 AI 工具裡用 Kumi」的樣子。外距沿用 AccountPage.module.css。 */
 .steps {
   display: flex;
   flex-direction: column;

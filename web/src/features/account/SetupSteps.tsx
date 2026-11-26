@@ -4,7 +4,7 @@ import { Button, buttonClassName } from '../../components/Button/Button';
 import { Icon, type IconName } from '../../components/Icon/Icon';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState } from '../../components/StatusViews/StatusViews';
-import { COMMAND_NAME } from '../../config/product';
+import { COMMAND_NAME, PRODUCT_NAME } from '../../config/product';
 import { PlatformPicker, type DownloadChoice } from './cliPlatform';
 import { CHIP_HINT, HASH_NOTE, NO_DOWNLOAD_NOTE, downloadLabel, isMac } from './cliText';
 import { CopyBlock } from './ConnectAgentSection';
@@ -153,6 +153,8 @@ function StatusRow({ label, kind, text, action }: StatusRowProps) {
   );
 }
 
+const AGENTS_LABEL = `在 AI 工具裡用 ${PRODUCT_NAME}`;
+
 interface StatusEntry {
   readonly label: string;
   readonly line: StatusLine;
@@ -219,8 +221,9 @@ export function StatusStep() {
   );
   const entries: readonly StatusEntry[] = [
     { label: '命令列工具', line: status.cli },
-    { label: 'Claude Code／Codex', line: status.agents },
-    { label: '本機代理', line: status.localAgent },
+    // 兩項都有 Claude Code／Codex、方向相反：標籤寫出方向（在它們裡面用 Kumi／網頁的 AI 助理用它們）。
+    { label: AGENTS_LABEL, line: status.agents },
+    { label: '本機代理（AI 助理用你的電腦）', line: status.localAgent },
   ];
   const message = useCompletionAnnouncement(entries);
   return (

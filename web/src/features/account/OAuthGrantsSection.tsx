@@ -127,7 +127,7 @@ export function OAuthGrantsSection() {
     <SettingsSection
       title="已授權的 AI 代理"
       headingId={headingId}
-      description="用你的帳號連上來的 Claude Code、Codex 等；它們能做的事不會超過你自己的權限。"
+      description="你在 Claude Code、Codex 等工具裡授權連上來的（上面那一塊設定的）；它們能做的事不會超過你自己的權限。"
     >
       <Notice tone="info">{note}</Notice>
       <GrantContent

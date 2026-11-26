@@ -166,14 +166,14 @@ describe('我的帳號：已授權的 AI 代理', () => {
   });
 });
 
-describe('我的帳號：連接 Claude Code／Codex', () => {
+describe('我的帳號：在 AI 工具裡用 Kumi', () => {
   const URL_TEXT = `${window.location.origin}/mcp`;
 
   async function openConnect() {
     signedInAs(exampleOwner);
     serveOAuthGrants([]);
     const view = renderApp('/account/integrations');
-    const section = await screen.findByRole('region', { name: '連接 Claude Code／Codex' });
+    const section = await screen.findByRole('region', { name: '在 AI 工具裡用 Kumi' });
     return { ...view, section };
   }
 

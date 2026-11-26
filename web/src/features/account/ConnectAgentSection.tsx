@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { Button } from '../../components/Button/Button';
 import { SettingsSection } from '../../components/SettingsSection/SettingsSection';
 import { COMMAND_NAME, PRODUCT_NAME } from '../../config/product';
@@ -77,17 +78,29 @@ export function CopyBlock({ label, text, wrap = false, onCopy }: { readonly labe
   );
 }
 
+const CONNECT_TITLE = `在 AI 工具裡用 ${PRODUCT_NAME}`;
+
 /**
- * 連接 Claude Code／Codex（internal/HANDOFF-mcp.md 第 6.2 節）：這個部署的 MCP 網址與兩個用戶端各自的設定指令。
+ * 左欄的說明：Claude Code／Codex 在這一頁出現兩次、方向相反（這裡是在它們裡面用 Kumi 的工具，本機代理是讓網頁的 AI 助理用它們），
+ * 寫出方向並連到另一個方向的那一塊。
+ */
+function ConnectNote() {
+  return (
+    <p>
+      只有你能用。在你電腦上的 Claude Code／Codex 裡叫 {PRODUCT_NAME} 的工具，用的是你自己的 Claude／ChatGPT 訂閱，看得到、做得到的和你自己一樣。反過來讓網頁的 AI
+      助理用你的 Claude Code／Codex，是「AI 帳號」的<Link to="/account/ai#local-agent">本機代理</Link>。
+    </p>
+  );
+}
+
+/**
+ * 在 AI 工具裡用 Kumi（原本叫「連接 Claude Code／Codex」，internal/HANDOFF-mcp.md 第 6.2 節）：這個部署的 MCP 網址與兩個用戶端各自的設定指令。
  * 兩行指令一起貼：加進去之後接著登入，瀏覽器會開授權頁，使用者按「允許」就綁好了。上面的設定精靈會自動做這些。
  */
 export function ConnectAgentSection() {
   const url = mcpUrl();
   return (
-    <SettingsSection
-      title="連接 Claude Code／Codex"
-      description={`用的是你自己的 Claude／ChatGPT 訂閱；${PRODUCT_NAME} 只提供工具，看得到的、做得到的和你自己一樣。`}
-    >
+    <SettingsSection title={CONNECT_TITLE} description={<ConnectNote />}>
       <p className={accountStyles.note}>
         MCP 網址：<code>{url}</code>。上面的設定精靈會自動做下面的事；想自己來，照下面貼進終端機。
       </p>

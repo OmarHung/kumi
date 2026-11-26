@@ -1,5 +1,5 @@
 import type { CliPackage } from '../../api/cli';
-import { COMMAND_NAME } from '../../config/product';
+import { COMMAND_NAME, PRODUCT_NAME } from '../../config/product';
 import { installCommand, isMac, pathCommand, quotedOrigin } from './cliText';
 
 /** 設定精靈三步的標題（畫面與測試都用這一份）。 */
@@ -9,7 +9,7 @@ export const STEP_TITLES = {
   status: '完成的項目',
 } as const;
 
-export const WIZARD_NOTE = `一次設定好命令列工具、Claude Code／Codex 與本機代理。`;
+export const WIZARD_NOTE = `一次設定好三件事：命令列工具、在 Claude Code／Codex 裡用 ${PRODUCT_NAME}，以及讓網頁的 AI 助理用你電腦上的 Claude Code／Codex（本機代理）。`;
 
 export const COMMAND_NOTE = '會問你要設定哪些，再開瀏覽器請你按「允許」（Claude Code、Codex 各會再開一次授權頁）。';
 
