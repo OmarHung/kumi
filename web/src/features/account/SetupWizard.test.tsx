@@ -288,7 +288,7 @@ describe('設定精靈：第三步的即時狀態', () => {
     expect(await within(third).findByText('已登記，目前離線')).toBeInTheDocument();
   });
 
-  it('本機代理都離線：教怎麼排查與修復（看狀態、重新啟動、重新登入）', async () => {
+  it('本機代理都離線：按「排查說明」開對話框教怎麼排查與修復，關上後焦點回到按鈕', async () => {
     // Arrange
     const { user, section } = await openWizard({
       serve: () => {
@@ -296,15 +296,20 @@ describe('設定精靈：第三步的即時狀態', () => {
         serveLocalAgents([exampleMachine({ online: false })]);
       },
     });
+    const third = await reachStatusStep(section, user);
+    const button = await within(third).findByRole('button', { name: '排查說明' });
 
     // Act
-    const third = await reachStatusStep(section, user);
+    await user.click(button);
 
     // Assert
-    const help = await within(third).findByRole('region', { name: '本機代理離線時' });
-    expect(within(help).getByRole('region', { name: '看狀態的指令' })).toHaveTextContent('kumi agent status');
-    expect(within(help).getByRole('region', { name: '重新在背景啟動的指令' })).toHaveTextContent('kumi agent enable');
-    expect(within(help).getByRole('region', { name: '重新登入本機代理的指令' })).toHaveTextContent('kumi agent login --server');
+    const dialog = await screen.findByRole('dialog', { name: '本機代理離線時怎麼排查' });
+    expect(within(dialog).getByRole('region', { name: '看狀態的指令' })).toHaveTextContent('kumi agent status');
+    expect(within(dialog).getByRole('region', { name: '重新在背景啟動的指令' })).toHaveTextContent('kumi agent enable');
+    expect(within(dialog).getByRole('region', { name: '重新登入本機代理的指令' })).toHaveTextContent('kumi agent login --server');
+    await user.click(within(dialog).getByRole('button', { name: '關閉' }));
+    expect(screen.queryByRole('dialog', { name: '本機代理離線時怎麼排查' })).not.toBeInTheDocument();
+    expect(button).toHaveFocus();
   });
 
   it('本機代理在線：不顯示排查的說明', async () => {
@@ -321,7 +326,7 @@ describe('設定精靈：第三步的即時狀態', () => {
 
     // Assert
     expect(await within(third).findByText('在線：MacBook-Pro')).toBeInTheDocument();
-    expect(within(third).queryByRole('region', { name: '本機代理離線時' })).not.toBeInTheDocument();
+    expect(within(third).queryByRole('button', { name: '排查說明' })).not.toBeInTheDocument();
   });
 
   it('組織不允許自己的 AI 帳號、也沒有電腦：本機代理那列寫「組織沒有開放」', async () => {
@@ -527,6 +532,33 @@ describe('設定精靈：第三步的變化唸給報讀軟體聽', () => {
 
     // Assert
     expect(within(third).queryByText(/命令列工具：已登入/)).not.toBeInTheDocument();
+  });
+});
+
+describe('設定精靈：本機代理的排查說明', () => {
+  it('對話框開著時代理上線：對話框留著並說已經在線，關上後焦點到「完成的項目」', async () => {
+    // Arrange
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    let agents: ReturnType<typeof serveLocalAgents> | undefined;
+    const { user, section } = await openWizard({
+      serve: () => {
+        serveAiOptions(makeAiOptions({ canAddPersonal: true }));
+        agents = serveLocalAgents([exampleMachine({ online: false })]);
+      },
+    });
+    const third = await reachStatusStep(section, user);
+    await user.click(await within(third).findByRole('button', { name: '排查說明' }));
+    const dialog = await screen.findByRole('dialog', { name: '本機代理離線時怎麼排查' });
+
+    // Act
+    agents?.set([exampleMachine({ name: 'MacBook-Pro' })]);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // Assert
+    expect(await within(dialog).findByText('本機代理已經在線了，可以關上這個視窗。')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: '關閉' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(third).getByRole('heading', { name: /完成的項目/ })).toHaveFocus();
   });
 });
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cliDownloadPath, type CliPackage } from '../../api/cli';
 import { Button, buttonClassName } from '../../components/Button/Button';
 import { Icon, type IconName } from '../../components/Icon/Icon';
@@ -128,7 +128,15 @@ const LINE_ICONS: Readonly<Record<StatusKind, IconName>> = {
   error: 'error',
 };
 
-function StatusRow({ label, kind, text }: { readonly label: string; readonly kind: StatusKind; readonly text: string }) {
+interface StatusRowProps {
+  readonly label: string;
+  readonly kind: StatusKind;
+  readonly text: string;
+  /** 結果後面接的按鈕（本機代理離線時的「排查說明」）。 */
+  readonly action?: ReactNode;
+}
+
+function StatusRow({ label, kind, text, action }: StatusRowProps) {
   return (
     <div className={styles.line} data-kind={kind}>
       <dt className={styles.lineLabel}>
@@ -137,7 +145,10 @@ function StatusRow({ label, kind, text }: { readonly label: string; readonly kin
         </span>
         {label}
       </dt>
-      <dd className={styles.lineText}>{text}</dd>
+      <dd className={styles.lineText}>
+        {text}
+        {action}
+      </dd>
     </div>
   );
 }
@@ -168,9 +179,44 @@ function useCompletionAnnouncement(entries: readonly StatusEntry[]): string {
   return seen.message;
 }
 
+/**
+ * 本機代理離線時的「排查說明」對話框的開關。開著時代理上線，按鈕會不見、對話框照樣留著；
+ * 關上時按鈕已經不在，焦點交給這一步的標題（不然 ModalFrame 還給已卸下的按鈕，焦點掉到 body）。
+ * 在 effect 裡放：要等對話框卸下、ModalFrame 還完焦點之後才輪到這裡。
+ */
+function useOfflineHelp(isOffline: boolean) {
+  const [isOpen, setIsOpen] = useState(false);
+  const anchorRef = useRef<HTMLDListElement>(null);
+  const shouldFocusHeading = useRef(false);
+  useEffect(() => {
+    if (isOpen || !shouldFocusHeading.current) return;
+    shouldFocusHeading.current = false;
+    anchorRef.current?.closest('li')?.querySelector<HTMLElement>('h3')?.focus();
+  }, [isOpen]);
+  return {
+    isOpen,
+    anchorRef,
+    open: () => {
+      setIsOpen(true);
+    },
+    close: () => {
+      shouldFocusHeading.current = !isOffline;
+      setIsOpen(false);
+    },
+  };
+}
+
 /** 第三步：即時看完成了哪幾項（只有畫出這一步時才每 5 秒讀；分頁看不見時不讀）。 */
 export function StatusStep() {
   const status = useSetupStatus();
+  const isOffline = status.localAgent.isOffline === true;
+  const { isOpen: isHelpOpen, anchorRef, open: openHelp, close: closeHelp } = useOfflineHelp(isOffline);
+  const helpButton = (
+    <Button size="sm" variant="ghost" onClick={openHelp}>
+      <Icon name="info" />
+      排查說明
+    </Button>
+  );
   const entries: readonly StatusEntry[] = [
     { label: '命令列工具', line: status.cli },
     { label: 'Claude Code／Codex', line: status.agents },
@@ -179,17 +225,23 @@ export function StatusStep() {
   const message = useCompletionAnnouncement(entries);
   return (
     <>
-      <dl className={styles.status}>
+      <dl ref={anchorRef} className={styles.status}>
         {entries.map(({ label, line }) => (
-          <StatusRow key={label} label={label} {...line} />
+          <StatusRow
+            key={label}
+            label={label}
+            kind={line.kind}
+            text={line.text}
+            action={line.isOffline === true ? helpButton : undefined}
+          />
         ))}
       </dl>
       {/* 永遠掛著：live region 要先在畫面上，之後寫進去的字才會被唸出來。 */}
       <p className="visually-hidden" role="status">
         {message}
       </p>
-      {status.localAgent.isOffline === true && <LocalAgentOfflineHelp />}
       <p className={accountStyles.note}>{STATUS_NOTE}</p>
+      {isHelpOpen && <LocalAgentOfflineHelp isOnline={!isOffline} onClose={closeHelp} />}
     </>
   );
 }
