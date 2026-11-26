@@ -42,7 +42,7 @@ public static class AiRules
     /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放 propose_new_items：舊版的 kumi 看到不認得的工具會整件工作不跑。
     /// 舊版照樣能用，只是少了這個工具，提示裡請模型叫使用者 <c>kumi update</c>。
     /// </summary>
-    public const string MinAgentVersionForNewItemProposals = "0.14.0";
+    public const string MinAgentVersionForNewItemProposals = "0.15.0";
 
     public const int MaxMachineNameLength = 60;
 

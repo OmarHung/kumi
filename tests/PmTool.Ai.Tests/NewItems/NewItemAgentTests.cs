@@ -18,7 +18,7 @@ public sealed class NewItemAgentTests
     public async Task LocalJob_FromAnOldKumi_HasNoNewItemsToolAndTheUpdateAdvice()
     {
         // Arrange
-        await using var h = await StartLocalAsync("0.13.0");
+        await using var h = await StartLocalAsync("0.14.0");
         var engine = await h.RegisterAsync();
         await h.SendAsync(engine, "新增一個任務");
 
@@ -80,7 +80,7 @@ public sealed class NewItemAgentTests
         Assert.That(tools.Select(t => t.NewItemProposalId), Is.EqualTo(new Guid?[] { mine, null, null }));
     }
 
-    [TestCase("0.13.0", false)]
+    [TestCase("0.14.0", false)]
     [TestCase(NewVersion, true)]
     public async Task HostJob_HasTheNewItemsToolOnlyForAWorkerThatIsNewEnough(string version, bool hasTool)
     {
