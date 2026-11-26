@@ -52,6 +52,11 @@ internal sealed class FakeProjectService : IProjectService
         return OnList(actor);
     }
 
+    public Func<Actor, NewProject, Result<Unit>> OnCheckNewProject { get; set; } = (_, _) => Unit.Value;
+
+    public Task<Result<Unit>> CheckNewProjectAsync(Actor actor, NewProject project, CancellationToken cancellationToken) =>
+        Task.FromResult(OnCheckNewProject(actor, project));
+
     public Task<Result<ProjectSummary>> CreateAsync(Actor actor, NewProject project, CancellationToken cancellationToken)
     {
         _createCalls.Enqueue((actor, project));

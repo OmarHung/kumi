@@ -48,7 +48,7 @@ internal sealed record LocalAgentJobData(
     AiProviderKind Engine,
     string Model,
     AiEffort? Effort,
-    string ProjectKey,
+    string? ProjectKey,
     string SystemPrompt,
     string Prompt,
     IReadOnlyList<string> AllowedTools,

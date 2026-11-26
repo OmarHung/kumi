@@ -14,6 +14,12 @@ public interface IProjectService
     /// </summary>
     Task<Result<ProjectSummary>> CreateAsync(Actor actor, NewProject project, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 檢查一個新專案能不能建，和 <see cref="CreateAsync"/> 同一套規則（只有組織管理員、代號、名稱、模板、說明、代號還沒有人用），
+    /// 什麼都不寫。AI 助理的新專案建議在提出時用它先擋；使用者按「建立專案」時 <see cref="CreateAsync"/> 會再檢查一次（中間代號可能被用掉）。
+    /// </summary>
+    Task<Result<Unit>> CheckNewProjectAsync(Actor actor, NewProject project, CancellationToken cancellationToken);
+
     /// <summary>專案、它目前的藍圖與成員。看不到的專案和不存在的專案一樣回 NotFound，不透露它存在。</summary>
     Task<Result<ProjectDetail>> GetAsync(Actor actor, string projectKey, CancellationToken cancellationToken);
 

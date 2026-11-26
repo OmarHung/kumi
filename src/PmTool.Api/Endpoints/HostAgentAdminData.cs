@@ -185,7 +185,7 @@ internal sealed record HostAgentOverviewData(IReadOnlyList<HostAgentData> Agents
 
 internal sealed record HostPersonUsageData(PersonReference Person, HostUsageTotalsData Totals);
 
-internal sealed record HostProjectUsageData(string ProjectKey, HostUsageTotalsData Totals);
+internal sealed record HostProjectUsageData(string? ProjectKey, HostUsageTotalsData Totals);
 
 internal sealed record HostSourceUsageData(
     string Month, HostUsageTotalsData Totals, IReadOnlyList<HostPersonUsageData> People, IReadOnlyList<HostProjectUsageData> Projects)

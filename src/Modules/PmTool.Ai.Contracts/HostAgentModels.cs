@@ -189,11 +189,14 @@ public enum HostToolReplayKind
     InProgress,
 }
 
-/// <param name="ProjectKey">工作所屬的專案；所有工具只准碰它（和本機代理的 <c>X-Kumi-Project</c> 同一個效果，但由伺服器的工作資料決定）。</param>
+/// <param name="ProjectKey">
+/// 工作所屬的專案；所有工具只准碰它（和本機代理的 <c>X-Kumi-Project</c> 同一個效果，但由伺服器的工作資料決定）。
+/// null 是不選專案的組織對話：只准用 <see cref="LocalAgentTools.AllowedForOrganization"/>、不碰任何專案的資料（不是「不限專案」）。
+/// </param>
 /// <param name="AllowedTools">MCP 工具的名稱（不含前綴），和工作的 <see cref="HostJob.AllowedTools"/> 相同。</param>
 /// <param name="IsOrganizationAdmin">發問的人<b>現在</b>的角色（擁有者或管理員），每次解析時從身分模組讀。</param>
 public sealed record HostToolGrant(
-    Guid OrganizationId, Guid PersonId, bool IsOrganizationAdmin, string ProjectKey, IReadOnlyList<string> AllowedTools, Guid JobId)
+    Guid OrganizationId, Guid PersonId, bool IsOrganizationAdmin, string? ProjectKey, IReadOnlyList<string> AllowedTools, Guid JobId)
 {
     public Actor ToActor() => new(OrganizationId, PersonId, IsOrganizationAdmin);
 }
@@ -432,7 +435,8 @@ public sealed record HostUsageTotals(int Requests, int Completed, int Failed, in
 
 public sealed record HostPersonUsage(Guid PersonId, HostUsageTotals Totals);
 
-public sealed record HostProjectUsage(string ProjectKey, HostUsageTotals Totals);
+/// <param name="ProjectKey">不選專案的組織對話是 null（網頁顯示「不選專案」）。</param>
+public sealed record HostProjectUsage(string? ProjectKey, HostUsageTotals Totals);
 
 /// <summary>一個來源一個月的用量。成員與專案依則數由多到少。</summary>
 public sealed record HostSourceUsage(string Month, HostUsageTotals Totals, IReadOnlyList<HostPersonUsage> People, IReadOnlyList<HostProjectUsage> Projects);
@@ -508,7 +512,7 @@ public sealed record HostJob(
     AiProviderKind Engine,
     string Model,
     AiEffort? Effort,
-    string ProjectKey,
+    string? ProjectKey,
     string SystemPrompt,
     string Prompt,
     IReadOnlyList<string> AllowedTools,

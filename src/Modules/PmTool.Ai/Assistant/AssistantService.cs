@@ -31,9 +31,10 @@ internal sealed partial class AssistantService(
     HostTimings hostTimings) : IAssistantService
 {
     public async Task<Result<IReadOnlyList<AssistantConversationSummary>>> ListAsync(
-        Actor actor, string projectKey, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
         var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
         if (project.Failure is { } failure)
         {
@@ -60,9 +61,10 @@ internal sealed partial class AssistantService(
     }
 
     public async Task<Result<AssistantConversationSummary>> CreateAsync(
-        Actor actor, string projectKey, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
         var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
         if (project.Failure is { } failure)
         {
@@ -92,9 +94,10 @@ internal sealed partial class AssistantService(
     }
 
     public async Task<Result<AssistantConversation>> GetAsync(
-        Actor actor, string projectKey, Guid conversationId, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
         var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
         if (project.Failure is { } failure)
         {
@@ -128,9 +131,10 @@ internal sealed partial class AssistantService(
     }
 
     public async Task<Result<Unit>> DeleteAsync(
-        Actor actor, string projectKey, Guid conversationId, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
         var project = await OpenProjectAsync(actor, projectKey, cancellationToken);
         if (project.Failure is { } failure)
         {

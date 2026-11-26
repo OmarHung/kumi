@@ -14,9 +14,10 @@ namespace PmTool.Ai.Assistant;
 internal sealed partial class AssistantService
 {
     public async Task<Result<AssistantRun>> StartAsync(
-        Actor actor, string projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：不選專案的組織對話由實作的工作包接上。
         ArgumentNullException.ThrowIfNull(input);
 
         // 檢查的順序見第 5.2 節；任何一項不過就什麼都不存。

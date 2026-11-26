@@ -79,8 +79,15 @@ internal sealed class FakeProjectService : IProjectService
 
     public Task<IReadOnlyList<ProjectSummary>> ListAsync(Actor actor, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Func<Actor, NewProject, Result<ProjectSummary>> OnCreate { get; set; } = (_, _) => throw new NotSupportedException();
+
+    public Func<Actor, NewProject, Result<Unit>> OnCheckNewProject { get; set; } = (_, _) => Unit.Value;
+
     public Task<Result<ProjectSummary>> CreateAsync(Actor actor, NewProject project, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+        Task.FromResult(OnCreate(actor, project));
+
+    public Task<Result<Unit>> CheckNewProjectAsync(Actor actor, NewProject project, CancellationToken cancellationToken) =>
+        Task.FromResult(OnCheckNewProject(actor, project));
 
     public Task<Result<ProjectMember>> SetMemberAsync(
         Actor actor, string projectKey, Guid personId, string role, CancellationToken cancellationToken) => throw new NotSupportedException();

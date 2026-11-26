@@ -32,6 +32,12 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForAttachments = "0.10.0";
 
+    /// <summary>
+    /// 不選專案的組織對話要用本機或主機的引擎時，kumi 要在這個版本以上：舊版一定要有專案代號、也不認得 list_projects、propose_project，
+    /// 送過去整件工作會失敗。送出時擋下（<see cref="AiErrorCodes.AgentUpdateRequired"/>），什麼都不存。
+    /// </summary>
+    public const string MinAgentVersionForOrganizationChat = "0.12.0";
+
     public const int MaxMachineNameLength = 60;
 
     /// <summary>一個引擎最多列幾個模型。</summary>
@@ -167,6 +173,9 @@ public static class AiRules
 
     /// <summary>內建助理一則回覆裡最多提出幾份變更集（propose_changeset）。</summary>
     public const int MaxChangeSetsPerReply = 1;
+
+    /// <summary>一則回覆最多提出幾份新專案建議（和變更集一樣，避免模型一口氣開一堆）。</summary>
+    public const int MaxProjectProposalsPerReply = 1;
 
     /// <summary>本機代理與主機代理的一件工作最多呼叫幾次工具（伺服器端計，和引擎拿到的上限無關）。</summary>
     public const int MaxAgentToolCallsPerJob = 13;

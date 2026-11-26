@@ -87,6 +87,18 @@ public static class AiErrorCodes
     /// <summary>這份修改建議已經套用或作廢了（409）。</summary>
     public const string ItemProposalClosed = "ai.item_proposal_closed";
 
+    /// <summary>新專案建議不存在或不是自己的（404）。</summary>
+    public const string ProjectProposalNotFound = "ai.project_proposal_not_found";
+
+    /// <summary>新專案建議已經建立或作廢（409）。</summary>
+    public const string ProjectProposalClosed = "ai.project_proposal_closed";
+
+    /// <summary>不選專案的組織對話不收這個東西（選的項目、附件）（422）。</summary>
+    public const string OrganizationChatUnsupported = "ai.organization_chat_unsupported";
+
+    /// <summary>選的本機或主機來源的 kumi 太舊，做不了這件事（409）；訊息說要 <c>kumi update</c>。</summary>
+    public const string AgentUpdateRequired = "ai.agent_update_required";
+
     /// <summary>主機代理的管理與登入只有組織擁有者能做（403）；管理員也不行。每次都向身分模組重新確認，不看登入當時的角色。</summary>
     public const string HostOwnerOnly = "ai.host_owner_only";
 

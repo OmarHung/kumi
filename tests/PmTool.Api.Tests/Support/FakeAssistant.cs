@@ -17,31 +17,31 @@ internal sealed class FakeAssistantService : IAssistantService
 
     public static readonly DateTimeOffset At = new(2026, 11, 23, 3, 0, 0, TimeSpan.Zero);
 
-    private readonly ConcurrentQueue<(Actor Actor, string ProjectKey)> _listCalls = new();
-    private readonly ConcurrentQueue<(Actor Actor, string ProjectKey)> _createCalls = new();
-    private readonly ConcurrentQueue<(Actor Actor, string ProjectKey, Guid Id)> _getCalls = new();
-    private readonly ConcurrentQueue<(Actor Actor, string ProjectKey, Guid Id)> _deleteCalls = new();
+    private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey)> _listCalls = new();
+    private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey)> _createCalls = new();
+    private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey, Guid Id)> _getCalls = new();
+    private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey, Guid Id)> _deleteCalls = new();
     private readonly ConcurrentQueue<StartCall> _startCalls = new();
 
-    public Func<Actor, string, Result<IReadOnlyList<AssistantConversationSummary>>> OnList { get; set; } =
+    public Func<Actor, string?, Result<IReadOnlyList<AssistantConversationSummary>>> OnList { get; set; } =
         (_, _) => new List<AssistantConversationSummary> { Summary() };
 
-    public Func<Actor, string, Result<AssistantConversationSummary>> OnCreate { get; set; } = (_, _) => Summary();
+    public Func<Actor, string?, Result<AssistantConversationSummary>> OnCreate { get; set; } = (_, _) => Summary();
 
-    public Func<Actor, string, Guid, Result<AssistantConversation>> OnGet { get; set; } =
+    public Func<Actor, string?, Guid, Result<AssistantConversation>> OnGet { get; set; } =
         (_, _, _) => new AssistantConversation(Summary(messageCount: 2), [UserMessage(), AssistantReply()]);
 
-    public Func<Actor, string, Guid, Result<Unit>> OnDelete { get; set; } = (_, _, _) => Unit.Value;
+    public Func<Actor, string?, Guid, Result<Unit>> OnDelete { get; set; } = (_, _, _) => Unit.Value;
 
     public Func<StartCall, Result<AssistantRun>> OnStart { get; set; } = _ => QuickRun();
 
-    public IReadOnlyList<(Actor Actor, string ProjectKey)> ListCalls => _listCalls.ToArray();
+    public IReadOnlyList<(Actor Actor, string? ProjectKey)> ListCalls => _listCalls.ToArray();
 
-    public IReadOnlyList<(Actor Actor, string ProjectKey)> CreateCalls => _createCalls.ToArray();
+    public IReadOnlyList<(Actor Actor, string? ProjectKey)> CreateCalls => _createCalls.ToArray();
 
-    public IReadOnlyList<(Actor Actor, string ProjectKey, Guid Id)> GetCalls => _getCalls.ToArray();
+    public IReadOnlyList<(Actor Actor, string? ProjectKey, Guid Id)> GetCalls => _getCalls.ToArray();
 
-    public IReadOnlyList<(Actor Actor, string ProjectKey, Guid Id)> DeleteCalls => _deleteCalls.ToArray();
+    public IReadOnlyList<(Actor Actor, string? ProjectKey, Guid Id)> DeleteCalls => _deleteCalls.ToArray();
 
     public IReadOnlyList<StartCall> StartCalls => _startCalls.ToArray();
 
@@ -85,33 +85,33 @@ internal sealed class FakeAssistantService : IAssistantService
     }
 
     public Task<Result<IReadOnlyList<AssistantConversationSummary>>> ListAsync(
-        Actor actor, string projectKey, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, CancellationToken cancellationToken)
     {
         _listCalls.Enqueue((actor, projectKey));
         return Task.FromResult(OnList(actor, projectKey));
     }
 
-    public Task<Result<AssistantConversationSummary>> CreateAsync(Actor actor, string projectKey, CancellationToken cancellationToken)
+    public Task<Result<AssistantConversationSummary>> CreateAsync(Actor actor, string? projectKey, CancellationToken cancellationToken)
     {
         _createCalls.Enqueue((actor, projectKey));
         return Task.FromResult(OnCreate(actor, projectKey));
     }
 
     public Task<Result<AssistantConversation>> GetAsync(
-        Actor actor, string projectKey, Guid conversationId, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken)
     {
         _getCalls.Enqueue((actor, projectKey, conversationId));
         return Task.FromResult(OnGet(actor, projectKey, conversationId));
     }
 
-    public Task<Result<Unit>> DeleteAsync(Actor actor, string projectKey, Guid conversationId, CancellationToken cancellationToken)
+    public Task<Result<Unit>> DeleteAsync(Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken)
     {
         _deleteCalls.Enqueue((actor, projectKey, conversationId));
         return Task.FromResult(OnDelete(actor, projectKey, conversationId));
     }
 
     public Task<Result<AssistantRun>> StartAsync(
-        Actor actor, string projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken)
     {
         var call = new StartCall(actor, projectKey, conversationId, input);
         _startCalls.Enqueue(call);
@@ -128,7 +128,7 @@ internal sealed class FakeAssistantService : IAssistantService
     }
 }
 
-internal sealed record StartCall(Actor Actor, string ProjectKey, Guid ConversationId, AssistantMessageInput Input);
+internal sealed record StartCall(Actor Actor, string? ProjectKey, Guid ConversationId, AssistantMessageInput Input);
 
 /// <summary>
 /// 一則由測試控制節奏的回覆：測試決定什麼時候送出哪個事件，讀的人（API）取消或離開時留下記錄。

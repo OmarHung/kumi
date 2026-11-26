@@ -6,29 +6,35 @@ namespace PmTool.Ai;
 /// 專案的 AI 助理：幫忙調整專案的設定（藍圖）。它讀設定、模板與統計數字，算預覽，提出變更集等人核准；
 /// 不讀項目的內文、不能套用、不能改項目。權限等於發起的人（要有 blueprint.read，提出還要 blueprint.propose）。
 /// 對話只有本人看得到。專案看不到一律回 NotFound（工作引擎的代碼）。規格見 <c>internal/HANDOFF-ai-assistant.md</c> 第 4、5 節。
+/// <para>
+/// 每個方法的 <c>projectKey</c> 是 null 時是「不選專案」的組織對話（<c>internal/HANDOFF-org-assistant.md</c>）：組織的有效成員（含訪客）
+/// 在組織能用 AI 時都能開；工具只有模板、看得到的專案清單與提出新專案（<see cref="IProjectProposalService"/>）。
+/// 組織對話與專案對話是分開的兩組：用專案代號讀不到組織對話，反之亦然（一律 <see cref="AiErrorCodes.ConversationNotFound"/>）。
+/// 組織對話不收選的項目與附件（<see cref="AiErrorCodes.OrganizationChatUnsupported"/>）。
+/// </para>
 /// </summary>
 public interface IAssistantService
 {
     /// <summary>自己在這個專案的對話，新的（最後更新）在前，最多 <see cref="AiRules.MaxConversationsListed"/> 則。</summary>
     Task<Result<IReadOnlyList<AssistantConversationSummary>>> ListAsync(
-        Actor actor, string projectKey, CancellationToken cancellationToken);
+        Actor actor, string? projectKey, CancellationToken cancellationToken);
 
     /// <summary>開一則空的對話。組織沒開 AI 時回 <see cref="AiErrorCodes.Unavailable"/>。</summary>
-    Task<Result<AssistantConversationSummary>> CreateAsync(Actor actor, string projectKey, CancellationToken cancellationToken);
+    Task<Result<AssistantConversationSummary>> CreateAsync(Actor actor, string? projectKey, CancellationToken cancellationToken);
 
     /// <summary>一則對話的全部訊息，舊的在前。</summary>
     Task<Result<AssistantConversation>> GetAsync(
-        Actor actor, string projectKey, Guid conversationId, CancellationToken cancellationToken);
+        Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken);
 
     /// <summary>刪掉一則對話與它的訊息（真的刪，不能復原）。正在回覆時回 <see cref="AiErrorCodes.ConversationBusy"/>。</summary>
-    Task<Result<Unit>> DeleteAsync(Actor actor, string projectKey, Guid conversationId, CancellationToken cancellationToken);
+    Task<Result<Unit>> DeleteAsync(Actor actor, string? projectKey, Guid conversationId, CancellationToken cancellationToken);
 
     /// <summary>
     /// 送出一則訊息並開始回覆。先檢查權限、對話、訊息、選擇、同時在跑的回覆，任何一項不過就回失敗，什麼都不存；
     /// 通過的話使用者的訊息已經存下、對話標成正在回覆，回傳的 <see cref="AssistantRun"/> 要讀到結束。
     /// </summary>
     Task<Result<AssistantRun>> StartAsync(
-        Actor actor, string projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken);
+        Actor actor, string? projectKey, Guid conversationId, AssistantMessageInput input, CancellationToken cancellationToken);
 }
 
 /// <param name="Text">
@@ -119,7 +125,7 @@ public sealed record AssistantTextPart(string Text) : AssistantPart;
 /// <param name="CallId">這則回覆裡的編號。</param>
 /// <param name="Name">
 /// 工具的名稱：get_blueprint、list_templates、get_template、describe_usage、preview_changeset、propose_changeset、get_changeset、
-/// get_item、search_items、propose_item_changes。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
+/// get_item、search_items、propose_item_changes；組織對話是 list_templates、get_template、list_projects、propose_project。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
 /// </param>
 /// <param name="ChangeSetNumber">propose_changeset 成功時，提出的變更集編號（網頁畫成「變更集 #12」的卡片）。</param>
 /// <param name="Error">失敗時給人看的原因，繁體中文。</param>
@@ -128,6 +134,9 @@ public sealed record AssistantToolPart(
 {
     /// <summary>propose_item_changes 成功時，建立的修改建議（<see cref="IItemProposalService"/>；網頁畫成有「套用」「不要」的卡片）。</summary>
     public Guid? ItemProposalId { get; init; }
+
+    /// <summary>propose_project 成功時，建立的新專案建議（<see cref="IProjectProposalService"/>；網頁畫成有「建立專案」「不要」的卡片）。</summary>
+    public Guid? ProjectProposalId { get; init; }
 }
 
 /// <summary>一則訊息。</summary>

@@ -68,7 +68,7 @@ public sealed record LocalEngineInfo(AiProviderKind Kind, string Version, IReadO
 /// <param name="Engine"><see cref="AiProviderKind.ClaudeCode"/> 或 <see cref="AiProviderKind.Codex"/>。</param>
 /// <param name="Model">要用的模型代號；<c>default</c> 是不指定。</param>
 /// <param name="Effort">思考深度；null 是不指定。</param>
-/// <param name="ProjectKey">對話所屬的專案，工具都要帶它。</param>
+/// <param name="ProjectKey">對話所屬的專案，工具都要帶它；不選專案的組織對話是 null（kumi 0.12.0 起，這時不送 <c>X-Kumi-Project</c>）。</param>
 /// <param name="SystemPrompt">伺服器組好的系統提示（和內建助理同一份規則，加上 MCP 工具的說法）。</param>
 /// <param name="Prompt">整段對話（舊的在前）加上這一則訊息，已經排成一段文字；不靠引擎自己記的工作階段。</param>
 /// <param name="AllowedTools">MCP 工具的名稱，例如 <c>get_blueprint</c>。</param>
@@ -79,7 +79,7 @@ public sealed record LocalAgentJob(
     AiProviderKind Engine,
     string Model,
     AiEffort? Effort,
-    string ProjectKey,
+    string? ProjectKey,
     string SystemPrompt,
     string Prompt,
     IReadOnlyList<string> AllowedTools,
@@ -123,6 +123,20 @@ public static class LocalAgentTools
     ];
 
     public static bool IsAllowed(string toolName) => Allowed.Contains(toolName);
+
+    /// <summary>
+    /// 不選專案的組織對話的工作能用的工具。MCP 對這種工作（權杖帶 <c>agent:run</c>、工作的對話沒有專案；或主機授權的專案是 null）
+    /// 用它當上限，而且一律不碰任何專案的資料：沒有專案不等於「全部專案都能碰」。
+    /// </summary>
+    public static IReadOnlyList<string> AllowedForOrganization { get; } =
+    [
+        "list_templates",
+        "get_template",
+        "list_projects",
+        "propose_project",
+    ];
+
+    public static bool IsAllowedForOrganization(string toolName) => AllowedForOrganization.Contains(toolName);
 }
 
 /// <summary>本機代理回報的一則進度。JSON 用 <c>type</c> 分：<c>text</c>、<c>tool</c>。</summary>

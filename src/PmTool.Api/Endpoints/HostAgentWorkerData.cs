@@ -76,7 +76,7 @@ internal sealed record HostJobData(
     AiProviderKind Engine,
     string Model,
     AiEffort? Effort,
-    string ProjectKey,
+    string? ProjectKey,
     string SystemPrompt,
     string Prompt,
     IReadOnlyList<string> AllowedTools,
