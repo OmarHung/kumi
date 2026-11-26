@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using PmTool.Ai.Assistant;
+using PmTool.Ai.Assistant.Transcript;
 
 namespace PmTool.Ai.LocalAgents;
 
@@ -119,7 +120,7 @@ internal static partial class LocalPromptBuilder
             }
 
             var label = message.Role == ChatRole.User ? UserLabel : AssistantLabel;
-            var text = TextOf(message);
+            var text = TextOf(message, message.Role == ChatRole.Assistant);
             if (text.Length == 0)
             {
                 continue;
@@ -148,7 +149,7 @@ internal static partial class LocalPromptBuilder
         current.Clear();
     }
 
-    private static string TextOf(ChatMessage message)
+    private static string TextOf(ChatMessage message, bool isAssistant)
     {
         var parts = new List<string>();
         foreach (var content in message.Contents)
@@ -156,7 +157,7 @@ internal static partial class LocalPromptBuilder
             switch (content)
             {
                 case TextContent { Text.Length: > 0 } text:
-                    parts.Add(text.Text);
+                    parts.Add(isAssistant ? ReplyMarkerFilter.WithMarker(text.Text) : text.Text);
                     break;
                 case FunctionCallContent call:
                     parts.Add($"（用了 {call.Name}）");

@@ -22,7 +22,7 @@ public sealed class AssistantReplyTests
     {
         // Arrange
         var conversation = await _h.NewConversationAsync();
-        _h.Script.Enqueue(Turn.Create().Text("你").Text("好").Usage(10, 2).Finish(ChatFinishReason.Stop));
+        _h.Script.Enqueue(Turn.Create().Text("[REPLY]\n你").Text("好").Usage(10, 2).Finish(ChatFinishReason.Stop));
 
         // Act
         var reply = await _h.SendAsync(conversation.Id);
@@ -102,8 +102,8 @@ public sealed class AssistantReplyTests
         // Arrange
         var conversation = await _h.NewConversationAsync();
         _h.Script
-            .Enqueue(Turn.Create().Text("我先讀設定。").Call("toolu_01", "get_blueprint"))
-            .Enqueue(Turn.Create().Text("讀好了。").Finish(ChatFinishReason.Stop));
+            .Enqueue(Turn.Create().Text("[REPLY]\n我先讀設定。").Call("toolu_01", "get_blueprint"))
+            .Enqueue(Turn.Create().Text("[REPLY]\n讀好了。").Finish(ChatFinishReason.Stop));
 
         // Act
         var reply = await _h.SendAsync(conversation.Id);
@@ -232,7 +232,7 @@ public sealed class AssistantReplyTests
     {
         // Arrange
         var conversation = await _h.NewConversationAsync();
-        _h.Script.Enqueue(Turn.Create().Text("寫到一半").Hang());
+        _h.Script.Enqueue(Turn.Create().Text("[REPLY]\n寫到一半").Hang());
         var run = await _h.StartAsync(conversation.Id);
         using var stop = new CancellationTokenSource();
         var events = new List<AssistantRunEvent>();
@@ -265,7 +265,7 @@ public sealed class AssistantReplyTests
     {
         // Arrange
         var conversation = await _h.NewConversationAsync();
-        _h.Script.Enqueue(Turn.Create().Text("一段").Hang());
+        _h.Script.Enqueue(Turn.Create().Text("[REPLY]\n一段").Hang());
         var run = await _h.StartAsync(conversation.Id);
 
         // Act
@@ -293,7 +293,7 @@ public sealed class AssistantReplyTests
         await _h.DisposeAsync();
         _h = await AssistantHarness.StartAsync(timings: new AssistantTimings(TimeSpan.FromMilliseconds(300), AiRules.RunLease));
         var conversation = await _h.NewConversationAsync();
-        _h.Script.Enqueue(Turn.Create().Text("慢慢想").Hang());
+        _h.Script.Enqueue(Turn.Create().Text("[REPLY]\n慢慢想").Hang());
 
         // Act
         var reply = await _h.SendAsync(conversation.Id);

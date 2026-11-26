@@ -58,4 +58,15 @@ public sealed class AssistantPromptRulesTests
         // Act & Assert：模型偶爾把思考寫進回覆的文字（英文、半截），使用者看到的回覆裡不該有它。
         Assert.That(prompt, Does.Contain("回覆只寫給使用者看的內容"));
     }
+
+    [TestCaseSource(nameof(Prompts))]
+    public void SystemPrompt_TellsTheModelToPutTheAnswerAfterTheReplyMarkerLine(string prompt)
+    {
+        // Act & Assert：混進回覆的推理與控制標記都在標記之前，伺服器只取標記之後的內容（ReplyMarkerFilter）。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompt, Does.Contain("單獨一行的 `[REPLY]`"));
+            Assert.That(prompt, Does.Contain("這一行之前不要寫任何東西"));
+        }
+    }
 }

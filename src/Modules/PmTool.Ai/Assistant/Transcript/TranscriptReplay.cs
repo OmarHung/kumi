@@ -25,13 +25,13 @@ internal static class TranscriptReplay
             TranscriptMessage.ToolRole => ChatRole.Tool,
             _ => throw new FormatException($"不認得的訊息角色：{message.Role}"),
         };
-        return new ChatMessage(role, [.. message.Contents.Select(content => ToContent(content, sequence))]);
+        return new ChatMessage(role, [.. message.Contents.Select(content => ToContent(content, sequence, role == ChatRole.Assistant))]);
     }
 
     // 編號換成「這一則的序號加上呼叫的編號」：各家供應商的編號格式不同，也不能在整段對話裡重複。
-    private static AIContent ToContent(TranscriptContent content, int sequence) => content switch
+    private static AIContent ToContent(TranscriptContent content, int sequence, bool isAssistant) => content switch
     {
-        TranscriptText text => new TextContent(text.Text),
+        TranscriptText text => new TextContent(isAssistant ? ReplyMarkerFilter.WithMarker(text.Text) : text.Text),
         TranscriptCall call => new FunctionCallContent(ReplayId(sequence, call.CallId), call.Name, ArgumentsOf(call.Arguments)),
         TranscriptResult result => new FunctionResultContent(ReplayId(sequence, result.CallId), result.Result),
         _ => throw new FormatException("不認得的訊息內容。"),

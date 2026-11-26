@@ -18,9 +18,12 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
     private readonly List<AssistantPart> _parts = [];
     private readonly StringBuilder _segment = new();
     private readonly StringBuilder _all = new();
-    private readonly List<string> _segments = [];
     private readonly Dictionary<string, int> _toolIndexes = new(StringComparer.Ordinal);
     private readonly ToolMarkupFilter _markup = new();
+    private readonly ReplyMarkerFilter _marker = new();
+
+    // 沒有標記、後面接著工具的段落在 _parts 裡的位置：整則回覆有標記就丟掉，一個標記都沒有就留在原位。
+    private readonly HashSet<int> _withheldIndexes = [];
 
     public long? InputTokens { get; private set; }
 
@@ -58,7 +61,7 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
     public (IReadOnlyList<AssistantRunEvent> Events, IReadOnlyList<AssistantPart> Parts, IReadOnlyList<TranscriptMessage> Transcript) Finish(
         string unresolvedError)
     {
-        var events = AppendText(_markup.Flush());
+        var events = EndSegment(isLast: true);
         FlushSegment();
         for (var i = 0; i < _parts.Count; i++)
         {
@@ -70,25 +73,64 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
             }
         }
 
-        return (events, [.. _parts], TranscriptOf());
+        IReadOnlyList<AssistantPart> shown = _marker.SawMarker
+            ? [.. _parts.Where((_, index) => !_withheldIndexes.Contains(index))]
+            : [.. _parts];
+        return (events, shown, TranscriptOf(shown));
     }
 
     // 工具前後的文字是不同的段落，串起來要有換行。只有工具、沒有文字時存一句說明，不留空的：
     // 空的 transcript 會讓下一輪變成連續兩則使用者訊息。
-    private IReadOnlyList<TranscriptMessage> TranscriptOf()
+    private static IReadOnlyList<TranscriptMessage> TranscriptOf(IReadOnlyList<AssistantPart> shown)
     {
-        if (_segments.Count > 0)
+        // 從最後要顯示的段落取：畫面上有的文字，下一則送回去的對話也要有（含模型沒照格式寫時放回原位的那幾段）。
+        var segments = shown.OfType<AssistantTextPart>().Select(part => part.Text).ToList();
+        if (segments.Count > 0)
         {
-            return [new TranscriptMessage(TranscriptMessage.AssistantRole, [new TranscriptText(string.Join("\n", _segments))])];
+            return [new TranscriptMessage(TranscriptMessage.AssistantRole, [new TranscriptText(string.Join("\n", segments))])];
         }
 
-        var tools = _parts.OfType<AssistantToolPart>().Select(t => t.Name).Distinct().ToList();
+        var tools = shown.OfType<AssistantToolPart>().Select(t => t.Name).Distinct().ToList();
         return tools.Count == 0
             ? []
             : [new TranscriptMessage(TranscriptMessage.AssistantRole, [new TranscriptText($"（用了 {string.Join("、", tools)}，沒有文字回覆）")])];
     }
 
-    private List<AssistantRunEvent> AddText(string delta) => AppendText(_markup.Push(delta));
+    private List<AssistantRunEvent> AddText(string delta) => AppendText(_marker.Push(_markup.Push(delta)));
+
+    /// <summary>過濾器留著的文字交出來並結束這一段；沒有標記、後面接著工具的那一段不發事件，只在 _parts 佔著位置。</summary>
+    private List<AssistantRunEvent> EndSegment(bool isLast)
+    {
+        var events = AppendText(_marker.Push(_markup.Flush()));
+        var end = _marker.EndSegment(isLast);
+        events.AddRange(AppendText(end.Output));
+        if (end.Withheld is { } withheld)
+        {
+            Withhold(withheld);
+        }
+
+        return events;
+    }
+
+    private void Withhold(string text)
+    {
+        var room = MaxReplyCharacters - _all.Length;
+        if (text.Length > room)
+        {
+            Truncated = true;
+            text = AiText.Cut(text, Math.Max(room, 0));
+        }
+
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        FlushSegment();
+        _all.Append(text);
+        _withheldIndexes.Add(_parts.Count);
+        _parts.Add(new AssistantTextPart(text));
+    }
 
     private List<AssistantRunEvent> AppendText(string delta)
     {
@@ -117,7 +159,7 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
         // 已經在跑的工具更新狀態不是段落的邊界，過濾器留著的半截標記要等後面的字接上。
         if (!_toolIndexes.TryGetValue(tool.CallId, out var index))
         {
-            events.AddRange(AppendText(_markup.Flush()));
+            events.AddRange(EndSegment(isLast: false));
             if (_toolIndexes.Count >= LocalAgentLimits.MaxToolCallsPerReply)
             {
                 ToolLimitExceeded = true;
@@ -159,7 +201,6 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
 
         var text = _segment.ToString();
         _parts.Add(new AssistantTextPart(text));
-        _segments.Add(text);
         _segment.Clear();
     }
 }

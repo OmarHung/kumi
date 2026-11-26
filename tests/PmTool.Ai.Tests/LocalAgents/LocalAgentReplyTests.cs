@@ -30,12 +30,12 @@ public sealed class LocalAgentReplyTests
         var job = await _h.ClaimAsync();
 
         // Act
-        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("先讀"), LocalAgentHarness.Text("設定。"));
+        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("[REPLY]\n先讀"), LocalAgentHarness.Text("設定。"));
         await _h.ReportAsync(job.JobId, LocalAgentHarness.Tool("toolu_1", "get_blueprint", AssistantToolStatus.Running));
         await _h.ReportAsync(job.JobId, LocalAgentHarness.Tool("toolu_1", "get_blueprint", AssistantToolStatus.Done));
         await _h.ReportAsync(job.JobId, LocalAgentHarness.Tool("toolu_2", "propose_changeset", AssistantToolStatus.Running));
         await _h.ReportAsync(job.JobId, LocalAgentHarness.Tool("toolu_2", "propose_changeset", AssistantToolStatus.Done, 12));
-        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("變更集 #12 等你核准"));
+        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("[REPLY]\n變更集 #12 等你核准"));
         await _h.FinishAsync(job.JobId, usage: new AssistantUsage(1200, 80));
         var events = await run.ReadAllAsync();
         var final = events.OfType<AssistantRunCompleted>().Single().Message;
@@ -87,7 +87,7 @@ public sealed class LocalAgentReplyTests
         await StartAsync();
         var run = await _h.SendAsync(_engine, "第一句");
         var job = await _h.ClaimAsync();
-        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("你"), LocalAgentHarness.Tool("t1", "get_blueprint", AssistantToolStatus.Done), LocalAgentHarness.Text("好"));
+        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("[REPLY]\n你"), LocalAgentHarness.Tool("t1", "get_blueprint", AssistantToolStatus.Done), LocalAgentHarness.Text("[REPLY]\n好"));
         await _h.FinishAsync(job.JobId);
         var first = await run.ReadAllAsync();
         _h.Assistant.Script.Reply("收到");
@@ -104,7 +104,7 @@ public sealed class LocalAgentReplyTests
             Assert.That(row.Transcript, Does.Contain("你\\n好").And.Not.Contain("call"));
             Assert.That(
                 seen.Where(m => m.Role != ChatRole.System).Select(m => (m.Role, m.Text)),
-                Is.EqualTo(new[] { (ChatRole.User, "第一句"), (ChatRole.Assistant, "你\n好"), (ChatRole.User, "第二句") }));
+                Is.EqualTo(new[] { (ChatRole.User, "第一句"), (ChatRole.Assistant, "[REPLY]\n你\n好"), (ChatRole.User, "第二句") }));
         }
     }
 
@@ -133,7 +133,7 @@ public sealed class LocalAgentReplyTests
         await StartAsync();
         var first = await _h.SendAsync(_engine, "第一句");
         var firstJob = await _h.ClaimAsync();
-        await _h.ReportAsync(firstJob.JobId, LocalAgentHarness.Text("答一"), LocalAgentHarness.Tool("t1", "get_blueprint", AssistantToolStatus.Done));
+        await _h.ReportAsync(firstJob.JobId, LocalAgentHarness.Text("[REPLY]\n答一"), LocalAgentHarness.Tool("t1", "get_blueprint", AssistantToolStatus.Done));
         await _h.FinishAsync(firstJob.JobId);
         await first.ReadAllAsync();
 
@@ -142,7 +142,7 @@ public sealed class LocalAgentReplyTests
         var secondJob = await _h.ClaimAsync();
 
         // Assert
-        Assert.That(secondJob.Prompt, Does.Contain("<<<使用者>>>\n第一句\n<<<結束>>>").And.Contain("<<<助理>>>\n答一\n<<<結束>>>").And.EndWith("<<<使用者>>>\n第二句\n<<<結束>>>"));
+        Assert.That(secondJob.Prompt, Does.Contain("<<<使用者>>>\n第一句\n<<<結束>>>").And.Contain("<<<助理>>>\n[REPLY]\n答一\n<<<結束>>>").And.EndWith("<<<使用者>>>\n第二句\n<<<結束>>>"));
     }
 
     [Test]
@@ -291,7 +291,7 @@ public sealed class LocalAgentReplyTests
         await StartAsync();
         var run = await _h.SendAsync(_engine);
         var job = await _h.ClaimAsync();
-        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("寫到一半"));
+        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("[REPLY]\n寫到一半"));
         var agent = Task.Run(async () =>
         {
             // 本機代理：每次回報都看有沒有被要求取消，有就結束引擎、送結束。
@@ -327,7 +327,7 @@ public sealed class LocalAgentReplyTests
         await StartAsync();
         var run = await _h.SendAsync(_engine);
         var job = await _h.ClaimAsync();
-        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("寫到一半"));
+        await _h.ReportAsync(job.JobId, LocalAgentHarness.Text("[REPLY]\n寫到一半"));
 
         // Act
         var events = await run.ReadUntilStopAsync(e => e is AssistantTextDelta);

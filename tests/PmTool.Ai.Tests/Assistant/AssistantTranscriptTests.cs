@@ -23,8 +23,8 @@ public sealed class AssistantTranscriptTests
         // Arrange
         var conversation = await _h.NewConversationAsync();
         _h.Script
-            .Enqueue(Turn.Create().Text("先讀。").Call("toolu_01AAA", "get_blueprint"))
-            .Reply("好了。");
+            .Enqueue(Turn.Create().Text("[REPLY]\n先讀。").Call("toolu_01AAA", "get_blueprint"))
+            .Reply("[REPLY]\n好了。");
 
         // Act
         var reply = await _h.SendAsync(conversation.Id, "改一下");
@@ -58,7 +58,7 @@ public sealed class AssistantTranscriptTests
     {
         // Arrange
         var conversation = await _h.NewConversationAsync();
-        _h.Script.Enqueue(Turn.Create().Text("先讀。").Call("toolu_01AAA", "get_blueprint")).Reply("好了。");
+        _h.Script.Enqueue(Turn.Create().Text("[REPLY]\n先讀。").Call("toolu_01AAA", "get_blueprint")).Reply("[REPLY]\n好了。");
         await _h.SendAsync(conversation.Id, "第一個問題");
         _h.Script.Reply("第二個答案");
 
@@ -76,8 +76,8 @@ public sealed class AssistantTranscriptTests
             Assert.That(messages[0].Text, Is.EqualTo(AssistantPrompt.SystemPrompt));
             Assert.That(messages[1].Text, Does.Contain("WEB").And.Not.Contain("網站改版"));
             Assert.That(messages[2].Text, Is.EqualTo("第一個問題"));
-            Assert.That(messages[3].Text, Is.EqualTo("先讀。"));
-            Assert.That(messages[5].Text, Is.EqualTo("好了。"));
+            Assert.That(messages[3].Text, Is.EqualTo("[REPLY]\n先讀。"), "重送歷史時標記補回去。");
+            Assert.That(messages[5].Text, Is.EqualTo("[REPLY]\n好了。"));
             Assert.That(messages[6].Text, Is.EqualTo("第二個問題"));
         }
     }
@@ -174,7 +174,7 @@ public sealed class AssistantTranscriptTests
     {
         // Arrange
         var conversation = await _h.NewConversationAsync();
-        _h.Script.Enqueue(Turn.Create().Text("說到一半").Throw(new InvalidOperationException("壞了")));
+        _h.Script.Enqueue(Turn.Create().Text("[REPLY]\n說到一半").Throw(new InvalidOperationException("壞了")));
         await _h.SendAsync(conversation.Id, "問一");
         _h.Script.Reply("好");
 
@@ -184,7 +184,7 @@ public sealed class AssistantTranscriptTests
         // Assert
         Assert.That(_h.Script.Calls.Last().Messages.Select(m => m.Text), Is.EqualTo(new[]
         {
-            AssistantPrompt.SystemPrompt, _h.Script.Calls.Last().Messages[1].Text, "問一", "說到一半", "問二",
+            AssistantPrompt.SystemPrompt, _h.Script.Calls.Last().Messages[1].Text, "問一", "[REPLY]\n說到一半", "問二",
         }));
     }
 

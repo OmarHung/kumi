@@ -116,6 +116,44 @@ public sealed class LocalPromptBuilderTests
         var prompt = LocalPromptBuilder.Prompt(history, "再問");
 
         // Assert
-        Assert.That(prompt, Does.Contain("<<<助理>>>\n答一\n答二\n<<<結束>>>"));
+        Assert.That(prompt, Does.Contain("<<<助理>>>\n[REPLY]\n答一\n[REPLY]\n答二\n<<<結束>>>"));
+    }
+
+    [Test]
+    public void Prompt_AssistantTextGetsTheReplyMarkerLineButToolNotesAndUserTurnsDoNot()
+    {
+        // Arrange
+        IReadOnlyList<ChatMessage> history =
+        [
+            new(ChatRole.User, "問"),
+            new(ChatRole.Assistant, [new TextContent("先看看"), new FunctionCallContent("c1", "get_blueprint")]),
+            new(ChatRole.Tool, [new FunctionResultContent("c1", "{}")]),
+            new(ChatRole.Assistant, "答"),
+            new(ChatRole.Assistant, string.Empty),
+        ];
+
+        // Act
+        var prompt = LocalPromptBuilder.Prompt(history, "再問");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompt, Does.Contain("<<<助理>>>\n[REPLY]\n先看看\n（用了 get_blueprint）\n[REPLY]\n答\n<<<結束>>>"));
+            Assert.That(prompt, Does.Contain("<<<使用者>>>\n問\n<<<結束>>>"));
+            Assert.That(prompt, Does.EndWith("<<<使用者>>>\n再問\n<<<結束>>>"));
+        }
+    }
+
+    [Test]
+    public void Prompt_AssistantTextThatAlreadyStartsWithTheMarker_IsNotMarkedTwice()
+    {
+        // Arrange：歷史先經過 transcript 的還原，那裡已經補過一次。
+        IReadOnlyList<ChatMessage> history = [new(ChatRole.Assistant, "[REPLY]\n答")];
+
+        // Act
+        var prompt = LocalPromptBuilder.Prompt(history, "再問");
+
+        // Assert
+        Assert.That(prompt, Does.Contain("<<<助理>>>\n[REPLY]\n答\n<<<結束>>>"));
     }
 }

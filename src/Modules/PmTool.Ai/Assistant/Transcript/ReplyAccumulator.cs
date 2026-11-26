@@ -24,6 +24,12 @@ internal sealed class ReplyAccumulator : IReplyRecorder
     private readonly List<string> _callOrder = [];
     private readonly HashSet<string> _resolved = new(StringComparer.Ordinal);
     private readonly ToolMarkupFilter _markup = new();
+    private readonly ReplyMarkerFilter _marker = new();
+
+    // 沒有標記、後面接著工具的段落在 _parts 裡的位置與它在 transcript 裡的那一筆：整則回覆有標記就兩邊都丟掉，
+    // 一個標記都沒有就留在原位（畫面上有的文字，下一則送回給模型的歷史也要有）。
+    private readonly HashSet<int> _withheldIndexes = [];
+    private readonly List<TranscriptText> _withheldContents = [];
 
     public ChatFinishReason? FinishReason { get; private set; }
 
@@ -74,7 +80,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
     public IReadOnlyList<AssistantRunEvent> ResolveOpenCalls(string error)
     {
         var events = new List<AssistantRunEvent>();
-        DrainMarkup(events);
+        DrainMarkup(events, isLast: true);
         FlushText();
         foreach (var providerId in _callOrder.Where(id => !_resolved.Contains(id)).ToList())
         {
@@ -88,7 +94,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
     public IReadOnlyList<AssistantRunEvent> AddNote(string note)
     {
         var events = new List<AssistantRunEvent>();
-        DrainMarkup(events);
+        DrainMarkup(events, isLast: true);
         AppendText(note, events);
         return events;
     }
@@ -101,17 +107,66 @@ internal sealed class ReplyAccumulator : IReplyRecorder
         FlushText();
         FlushAssistant();
         FlushTool();
-        return (events, [.. _parts], [.. _messages]);
+        return (events, PartsToShow(), TranscriptToKeep());
     }
 
     private void AddModelText(string delta, List<AssistantRunEvent> events)
     {
         // 模型偶爾吐出 NUL：資料庫的 jsonb 不收，存的時候整則都會失敗。
-        AppendText(_markup.Push(delta.Replace("\0", string.Empty, StringComparison.Ordinal)), events);
+        var visible = _markup.Push(delta.Replace("\0", string.Empty, StringComparison.Ordinal));
+        AppendText(_marker.Push(visible), events);
     }
 
-    /// <summary>過濾器留著的文字交出來：工具開始、有結果、加說明、收尾之前都要，段落的順序才和模型說話的順序一樣。</summary>
-    private void DrainMarkup(List<AssistantRunEvent> events) => AppendText(_markup.Flush(), events);
+    /// <summary>
+    /// 過濾器留著的文字交出來並結束這一段：工具開始、有結果、加說明、收尾之前都要，段落的順序才和模型說話的順序一樣。
+    /// 沒有標記、後面接著工具的文字不發事件（補發會出現在畫面的最後面），只在 _parts 佔著它的位置。
+    /// </summary>
+    private void DrainMarkup(List<AssistantRunEvent> events, bool isLast = false)
+    {
+        AppendText(_marker.Push(_markup.Flush()), events);
+        var end = _marker.EndSegment(isLast);
+        AppendText(end.Output, events);
+        if (end.Withheld is { } withheld)
+        {
+            Withhold(withheld);
+        }
+    }
+
+    private void Withhold(string text)
+    {
+        FlushText();
+        FlushTool();
+        _withheldIndexes.Add(_parts.Count);
+        _parts.Add(new AssistantTextPart(text));
+        var content = new TranscriptText(text);
+        _withheldContents.Add(content);
+        _assistant.Add(content);
+    }
+
+    private IReadOnlyList<AssistantPart> PartsToShow() => _marker.SawMarker
+        ? [.. _parts.Where((_, index) => !_withheldIndexes.Contains(index))]
+        : [.. _parts];
+
+    /// <summary>
+    /// 有標記的回覆把留著的那幾筆從 transcript 拿掉（照參考比對：同樣的字可能也是正常的回答），拿完變空的訊息不留。
+    /// </summary>
+    private IReadOnlyList<TranscriptMessage> TranscriptToKeep()
+    {
+        if (!_marker.SawMarker || _withheldContents.Count == 0)
+        {
+            return [.. _messages];
+        }
+
+        return
+        [
+            .. _messages
+                .Select(message => message with { Contents = [.. message.Contents.Where(content => !IsWithheld(content))] })
+                .Where(message => message.Contents.Count > 0),
+        ];
+    }
+
+    private bool IsWithheld(TranscriptContent content) =>
+        _withheldContents.Exists(withheld => ReferenceEquals(withheld, content));
 
     private void AppendText(string text, List<AssistantRunEvent> events)
     {

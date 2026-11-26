@@ -30,7 +30,7 @@ public sealed class HostQueueTests
 
         // Act
         var job = await _h.ClaimAsync(_setup.Worker);
-        await _h.ReportAsync(_setup.Worker, job, 1, new LocalAgentText("你"), new LocalAgentText("好"));
+        await _h.ReportAsync(_setup.Worker, job, 1, new LocalAgentText("[REPLY]\n你"), new LocalAgentText("好"));
         await _h.FinishAsync(_setup.Worker, job, usage: new AssistantUsage(10, 5));
         var events = await run.ReadAllAsync();
 
@@ -228,7 +228,7 @@ public sealed class HostQueueTests
         // Arrange
         var run = await _h.SendAsync(_h.Member, _setup.Source);
         var job = await _h.ClaimAsync(_setup.Worker);
-        await _h.ReportAsync(_setup.Worker, job, 1, new LocalAgentText("開始"));
+        await _h.ReportAsync(_setup.Worker, job, 1, new LocalAgentText("[REPLY]\n開始"));
         var reading = run.ReadUntilStopAsync(e => e is AssistantTextDelta);
 
         // Act
