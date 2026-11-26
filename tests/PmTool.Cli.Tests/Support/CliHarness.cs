@@ -17,6 +17,8 @@ internal sealed class CliHarness : IDisposable
     {
         Directory.CreateDirectory(_directory);
         ConfigPath = Path.Combine(_directory, "kumi", "config.json");
+        // 家目錄也指到測試自己的資料夾：skill 的位置（~/.claude、~/.codex）不能落到真正的家目錄。
+        Environment["HOME"] = Path.Combine(_directory, "home");
         Update = new PmTool.Cli.Commands.UpdateEnvironment(
             Path.Combine(_directory, "install", "kumi"), true, PmTool.Cli.Commands.UpdateOs.MacOS,
             System.Runtime.InteropServices.Architecture.Arm64, System.Runtime.InteropServices.Architecture.Arm64,

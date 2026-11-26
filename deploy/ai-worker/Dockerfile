@@ -14,6 +14,8 @@ RUN dotnet restore src/PmTool.Cli/PmTool.Cli.csproj
 COPY schemas/ schemas/
 # kumi licenses 把這三份內嵌進執行檔（PmTool.Cli.csproj）；少了建置會失敗。
 COPY LICENSE NOTICE THIRD-PARTY-NOTICES.txt ./
+# kumi skill install 把 skills/ 內嵌進執行檔（PmTool.Cli.csproj）；少了建置會失敗。
+COPY skills/ skills/
 COPY src/PmTool.Cli/ src/PmTool.Cli/
 COPY src/Modules/PmTool.Blueprint/ src/Modules/PmTool.Blueprint/
 # 產生 kumi 這個啟動檔（apphost），ENTRYPOINT 直接用它。

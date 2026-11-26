@@ -1,19 +1,21 @@
 using PmTool.Cli.Commands;
+using PmTool.Cli.Skills;
 
 namespace PmTool.Cli.Setup;
 
 /// <param name="Action">null 是不設定這個引擎（使用者說不要，或已經有別的設定又不換）。</param>
 internal sealed record McpPlan(DetectedEngine Engine, McpAction? Action, string SkipReason);
 
-internal sealed record SetupPlan(IReadOnlyList<McpPlan> Mcp, bool Agent, bool Autostart)
+internal sealed record SetupPlan(IReadOnlyList<McpPlan> Mcp, bool Agent, bool Autostart, bool Skills = false)
 {
-    public int StepCount => 1 + Mcp.Count(item => item.Action is not null) + (Agent ? 1 : 0);
+    public int StepCount => 1 + Mcp.Count(item => item.Action is not null) + (Skills ? 1 : 0) + (Agent ? 1 : 0);
 }
 
 /// <summary>照問好的計畫一步一步做：Claude Code、Codex 的 MCP 與本機代理。每一步失敗都只記下來、繼續下一步。</summary>
 internal sealed class SetupExecutor(CommandCall call, string server, TextWriter output, int totalSteps)
 {
     private const string LocalAgentName = "本機代理";
+    public const string SkillsName = "AI 代理的 skill";
     private int _step = 1;
 
     public async Task BeginStepAsync(string title) => await output.WriteLineAsync($"[{_step++}/{totalSteps}] {title}");
@@ -42,6 +44,28 @@ internal sealed class SetupExecutor(CommandCall call, string server, TextWriter 
 
         await output.WriteLineAsync($"  ✓ {engine.DisplayName} 可以使用 Kumi 了");
         return new SetupResult(engine.DisplayName, SetupStatus.Done, "已連上 Kumi");
+    }
+
+    /// <summary>
+    /// 把 skill 裝進偵測到的引擎（使用者層）。舊名稱的資料夾在這裡才問（只有真的有的時候）；
+    /// 同名但不是 kumi 裝的資料夾不覆蓋，總結裡提示用 kumi skill install --force。
+    /// </summary>
+    public async Task<SetupResult> RunSkillsAsync(IReadOnlyList<DetectedEngine> engines, SetupPrompt prompt)
+    {
+        await BeginStepAsync(SkillsName);
+        var locations = engines.Select(engine => SkillLocations.Global(call.Context, engine.Kind)).ToList();
+        var outcomes = await SkillService.Current().InstallAsync(
+            locations, force: false, LegacyPolicy.Ask,
+            directory => prompt.AskAsync($"  舊名稱的 skill {directory} 還在，同一份 skill 出現兩次會讓代理混淆。要移除嗎？"));
+        await SkillReport.WriteTextAsync(output, call.Error, outcomes);
+        if (outcomes.Any(outcome => outcome.Action == SkillAction.Failed))
+        {
+            return new SetupResult(SkillsName, SetupStatus.Failed, "沒有裝成功，之後執行 kumi skill install");
+        }
+
+        return outcomes.Any(outcome => outcome.Action is SkillAction.SkippedForeign or SkillAction.LegacyKept)
+            ? new SetupResult(SkillsName, SetupStatus.Done, "已安裝；有的資料夾不是 kumi 裝的或是舊名稱，沒有動（kumi skill status 看狀況）")
+            : new SetupResult(SkillsName, SetupStatus.Done, "已安裝（kumi skill status 看狀態，kumi update 會一起更新）");
     }
 
     /// <summary>要開機自動啟動就呼叫 <c>kumi agent enable</c>（它自己印訊息）；不要的話只確認權杖在，啟動留到總結之後問。</summary>

@@ -16,7 +16,8 @@ internal static partial class UpdateInstaller
     private const int BufferSize = 81920;
     private const long MaxPackageBytes = 256L * 1024 * 1024;
 
-    public static async Task InstallAsync(
+    /// <summary>回傳換掉的執行檔路徑（符號連結已經解開）。</summary>
+    public static async Task<string> InstallAsync(
         CommandCall call, UpdateEnvironment environment, string platform, JsonElement package, string version, CancellationToken cancellationToken)
     {
         var expected = ExpectedPackage.From(package);
@@ -34,6 +35,7 @@ internal static partial class UpdateInstaller
 
             await VerifyRunsAsync(environment, temp, version, cancellationToken);
             Replace(temp, target, environment);
+            return target;
         }
         finally
         {

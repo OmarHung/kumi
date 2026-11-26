@@ -21,5 +21,6 @@ internal static class CommandRegistry
         .. UpdateCommand.Specs,
         .. LicensesCommand.Specs,
         .. SetupCommands.Specs,
+        .. SkillCommands.Specs,
     ];
 }

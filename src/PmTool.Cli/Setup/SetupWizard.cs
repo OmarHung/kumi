@@ -30,7 +30,7 @@ internal sealed class SetupWizard(CommandCall call)
         var plan = await AskAsync(prompt, server, engines);
 
         var executor = new SetupExecutor(call, server, Out, plan.StepCount);
-        var results = await ExecuteAsync(executor, server, plan, engines);
+        var results = await ExecuteAsync(executor, server, plan, engines, prompt);
         await SetupSummary.WriteAsync(Out, results);
 
         var exit = results.Any(result => result.Status == SetupStatus.Failed) ? ExitCodes.Error : ExitCodes.Success;
@@ -85,6 +85,8 @@ internal sealed class SetupWizard(CommandCall call)
     {
         var present = engines.Where(item => item.Engine is not null).Select(item => item.Engine!).ToArray();
         await Out.WriteLineAsync("要設定哪些？（直接按 Enter 是「是」）");
+        var skills = present.Length > 0
+            && await prompt.AskAsync("  安裝給 AI 代理用的 skill（教它怎麼用 kumi）到 " + string.Join("、", present.Select(engine => engine.DisplayName)) + "？");
         var mcp = new McpConfigurator(Context, Out);
         List<McpPlan> plans = [];
         foreach (var engine in present)
@@ -100,7 +102,7 @@ internal sealed class SetupWizard(CommandCall call)
                 + "預設每小時最多 30 件、每天 200 件。（不設也可以，要用時自己執行 kumi agent start）",
                 defaultYes: false);
         await Out.WriteLineAsync();
-        return new SetupPlan(plans, agent, autostart);
+        return new SetupPlan(plans, agent, autostart, skills);
     }
 
     private async Task<McpPlan> AskEngineAsync(SetupPrompt prompt, McpConfigurator mcp, DetectedEngine engine, string server)
@@ -140,7 +142,7 @@ internal sealed class SetupWizard(CommandCall call)
     }
 
     private async Task<List<SetupResult>> ExecuteAsync(
-        SetupExecutor executor, string server, SetupPlan plan, IReadOnlyList<(string Kind, DetectedEngine? Engine)> engines)
+        SetupExecutor executor, string server, SetupPlan plan, IReadOnlyList<(string Kind, DetectedEngine? Engine)> engines, SetupPrompt prompt)
     {
         await executor.BeginStepAsync("登入 Kumi");
         var login = await new SetupLogin(call, server, Out).EnsureAsync(plan.Agent);
@@ -162,6 +164,10 @@ internal sealed class SetupWizard(CommandCall call)
                     : await executor.RunMcpAsync(mcpPlan));
         }
 
+        var present = engines.Where(item => item.Engine is not null).Select(item => item.Engine!).ToArray();
+        results.Add(plan.Skills
+            ? await executor.RunSkillsAsync(present, prompt)
+            : new SetupResult(SetupExecutor.SkillsName, SetupStatus.Skipped, present.Length > 0 ? DeclinedNote : "需要先安裝 Claude Code 或 Codex"));
         results.Add(plan.Agent
             ? await executor.RunAgentAsync(plan, login)
             : new SetupResult("本機代理", SetupStatus.Skipped, engines.Any(item => item.Engine is not null) ? DeclinedNote : "需要先安裝 Claude Code 或 Codex"));

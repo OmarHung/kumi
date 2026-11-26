@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using PmTool.Cli.Api;
 using PmTool.Cli.Output;
 using PmTool.Cli.Settings;
+using PmTool.Cli.Skills;
 
 namespace PmTool.Cli.Commands;
 
@@ -55,13 +56,53 @@ internal static class UpdateCommand
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(call.CancellationToken);
         // 第一次 Ctrl-C 讓安裝流程收尾（刪掉暫存檔）；第二次照預設直接結束。
         using var registration = call.Context.RegisterInterrupt(() => stop.Cancel());
-        await UpdateInstaller.InstallAsync(call, environment, platform, package, latest, stop.Token);
-        return await ReportAsync(call, current, latest, available: true, updated: true, $"已更新到 kumi {latest}（原本是 {current}）。");
+        var installed = await UpdateInstaller.InstallAsync(call, environment, platform, package, latest, stop.Token);
+        var skillsUpdated = await RefreshSkillsAsync(call, environment, installed, stop.Token);
+        return await ReportAsync(call, current, latest, available: true, updated: true, $"已更新到 kumi {latest}（原本是 {current}）。", skillsUpdated);
+    }
+
+    private static string Truncate(string text) => text.Length <= 300 ? text : text[..300] + "…";
+
+    /// <summary>
+    /// 之前裝過 skill（有標記）的話，用新的執行檔把使用者層（~/.claude、~/.codex）的它們也換成新版（用 --project 裝在專案裡的不管，要自己 kumi skill update --project 資料夾）：舊的程序內嵌的是舊版 skill，只有新的那份帶得到新版。
+    /// 失敗只警告，不讓已經成功的更新變成失敗。
+    /// </summary>
+    private static async Task<bool> RefreshSkillsAsync(CommandCall call, UpdateEnvironment environment, string installed, CancellationToken cancellationToken)
+    {
+        if (!SkillService.Current().HasInstalled(SkillLocations.AllGlobal(call.Context)))
+        {
+            return false;
+        }
+
+        var run = await environment.RunSkillUpdate(installed, cancellationToken);
+        if (run is not { ExitCode: 0 })
+        {
+            var reason = run is null ? "跑不起來" : Truncate(run.Error.Trim().ReplaceLineEndings(" "));
+            await call.Error.WriteLineAsync($"警告：kumi 已經更新，但 skill 沒有更新成功{(reason.Length > 0 ? $"（{reason}）" : string.Empty)}。請執行 kumi skill update。");
+            return false;
+        }
+
+        if (!call.Json && run.Output.Trim().Length > 0)
+        {
+            await call.Out.WriteLineAsync(run.Output.Trim());
+        }
+
+        // 沒有覆蓋的（改過、版本比較新）新的執行檔把警告印在標準錯誤，照樣轉出來。
+        if (run.Error.Trim().Length > 0)
+        {
+            await call.Error.WriteLineAsync(run.Error.Trim());
+        }
+
+        return true;
     }
 
     /// <summary>照版本的數字比，不是照字串（0.10.0 比 0.9.0 新）；預備版的後綴不參與比較。</summary>
     private static int Compare(string latest, string current) =>
         Parse(latest, strict: true).CompareTo(Parse(current, strict: false));
+
+    /// <summary>兩邊都照版本的數字比；讀不懂的當成 0.0（skill 標記的版本比較用，不丟錯）。</summary>
+    internal static int CompareLenient(string left, string right) =>
+        Parse(left, strict: false).CompareTo(Parse(right, strict: false));
 
     private static Version Parse(string text, bool strict)
     {
@@ -94,7 +135,7 @@ internal static class UpdateCommand
         throw new CliException(ExitCodes.Error, "這個伺服器沒有提供適合這台電腦的 kumi。");
     }
 
-    private static async Task<int> ReportAsync(CommandCall call, string current, string latest, bool available, bool updated, string message)
+    private static async Task<int> ReportAsync(CommandCall call, string current, string latest, bool available, bool updated, string message, bool skillsUpdated = false)
     {
         if (call.Json)
         {
@@ -105,6 +146,7 @@ internal static class UpdateCommand
                 ["updateAvailable"] = available,
                 ["updated"] = updated,
                 ["standalone"] = call.Context.Update.IsStandalone,
+                ["skillsUpdated"] = skillsUpdated,
             });
         }
         else

@@ -505,4 +505,119 @@ public sealed class UpdateCommandTests
         // Assert
         Assert.That(result.Out, Does.Contain("update").And.Contain("下載新版的 kumi"));
     }
+
+    // ---- skill 跟著更新 ----
+
+    [Test]
+    public async Task Update_WhenSkillsWereInstalled_RunsSkillUpdateWithTheNewExecutable()
+    {
+        // Arrange
+        using var cli = ServerWithUpdate();
+        var path = Install(cli);
+        UseSmokeVersion(cli);
+        string? ranWith = null;
+        cli.Update = cli.Update with
+        {
+            RunSkillUpdate = (executable, _) =>
+            {
+                ranWith = File.ReadAllText(executable);
+                return Task.FromResult<ProcessOutput?>(new ProcessOutput(0, "✓ Claude Code：kumi　已更新到 99.0.0\n", string.Empty));
+            },
+        };
+        Directory.CreateDirectory(Path.Combine(cli.Environment["HOME"]!, ".claude"));
+        await cli.RunAsync("skill", "install", "--agent", "claude-code");
+
+        // Act
+        var result = await cli.RunAsync("update");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(ranWith, Is.EqualTo(NewBody), "跑的是換好的新執行檔，不是舊的");
+            Assert.That(File.ReadAllText(path), Is.EqualTo(NewBody));
+            Assert.That(result.Out, Does.Contain("已更新到 kumi 99.0.0").And.Contain("✓ Claude Code：kumi　已更新到 99.0.0"));
+        }
+    }
+
+    [Test]
+    public async Task Update_WhenNoSkillWasInstalled_DoesNotRunSkillUpdate()
+    {
+        // Arrange
+        using var cli = ServerWithUpdate();
+        Install(cli);
+        UseSmokeVersion(cli);
+        var calls = 0;
+        cli.Update = cli.Update with { RunSkillUpdate = (_, _) => { calls++; return Task.FromResult<ProcessOutput?>(new ProcessOutput(0, string.Empty, string.Empty)); } };
+
+        // Act
+        var result = await cli.RunAsync("update");
+
+        // Assert
+        Assert.That((result.ExitCode, calls), Is.EqualTo((ExitCodes.Success, 0)), result.Error);
+    }
+
+    [Test]
+    public async Task Update_WhenSkillUpdateFails_WarnsButTheUpdateStillSucceeds()
+    {
+        // Arrange
+        using var cli = ServerWithUpdate();
+        var path = Install(cli);
+        UseSmokeVersion(cli);
+        cli.Update = cli.Update with { RunSkillUpdate = (_, _) => Task.FromResult<ProcessOutput?>(new ProcessOutput(1, string.Empty, "錯誤：沒有權限寫入 /somewhere\n第二行")) };
+        Directory.CreateDirectory(Path.Combine(cli.Environment["HOME"]!, ".codex"));
+        await cli.RunAsync("skill", "install", "--agent", "codex");
+
+        // Act
+        var result = await cli.RunAsync("update", "--json");
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success));
+            Assert.That(File.ReadAllText(path), Is.EqualTo(NewBody));
+            Assert.That(result.Error, Does.Contain("skill 沒有更新成功").And.Contain("沒有權限寫入 /somewhere 第二行").And.Contain("kumi skill update"));
+            Assert.That(JsonNode.Parse(result.Out)!["skillsUpdated"]!.GetValue<bool>(), Is.False);
+        }
+    }
+
+    [Test]
+    public async Task Update_WhenSkillUpdateSkipsModifiedFolders_RelaysItsWarningAndStillSucceeds()
+    {
+        // Arrange
+        using var cli = ServerWithUpdate();
+        Install(cli);
+        UseSmokeVersion(cli);
+        cli.Update = cli.Update with
+        {
+            RunSkillUpdate = (_, _) => Task.FromResult<ProcessOutput?>(new ProcessOutput(0, string.Empty, "– Claude Code：kumi　裡的檔案被改過，沒有覆蓋。")),
+        };
+        Directory.CreateDirectory(Path.Combine(cli.Environment["HOME"]!, ".claude"));
+        await cli.RunAsync("skill", "install", "--agent", "claude-code");
+
+        // Act
+        var result = await cli.RunAsync("update");
+
+        // Assert
+        Assert.That((result.ExitCode, result.Error), Is.EqualTo((ExitCodes.Success, "– Claude Code：kumi　裡的檔案被改過，沒有覆蓋。" + Environment.NewLine)));
+    }
+
+    [Test]
+    public async Task Update_SkillsInstalledInAProjectFolder_AreNotTouchedAutomatically()
+    {
+        // Arrange（只有 --project 裝的：使用者層沒有標記，所以不呼叫）
+        using var cli = ServerWithUpdate();
+        Install(cli);
+        UseSmokeVersion(cli);
+        var calls = 0;
+        cli.Update = cli.Update with { RunSkillUpdate = (_, _) => { calls++; return Task.FromResult<ProcessOutput?>(new ProcessOutput(0, string.Empty, string.Empty)); } };
+        var project = Directory.CreateDirectory(cli.PathOf("repo")).FullName;
+        await cli.RunAsync("skill", "install", "--project", project);
+
+        // Act
+        await cli.RunAsync("update");
+
+        // Assert
+        Assert.That(calls, Is.EqualTo(0));
+    }
 }

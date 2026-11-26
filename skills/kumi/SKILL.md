@@ -1,5 +1,5 @@
 ---
-name: pm-tool
+name: kumi
 description: 用命令列工具 kumi 操作 Kumi 這套專案管理系統（改名前叫 pm-tool，指令是 pm）：查詢與搜尋工作項目、整理「我的工作」、建立任務、改狀態、指派、留言與提及、附加檔案，以及匯出、預覽、套用專案的藍圖（流程、狀態、欄位、項目類型）。使用者提到 Kumi、kumi、pm-tool、pm、專案管理系統裡的項目或任務、像 WEB-12 這樣的項目編號，或說「我今天有哪些工作」「幫我開一張任務」「把它改成完成」「在那張單留言」「這個專案加一個狀態／欄位」時都用這份 skill，即使沒有明講要用 CLI。monday.com、Jira、Linear、GitHub Issues 這些別的系統不適用；開發 Kumi（pm-tool）本身的程式碼也不適用。
 ---
 
@@ -9,7 +9,7 @@ description: 用命令列工具 kumi 操作 Kumi 這套專案管理系統（改�
 
 指令的選項以 `kumi <群組> <指令> --help` 為準，這份文件只講流程與容易踩到的地方。完整說明在 pm-tool repo 的 `docs/CLI.md`。
 
-要決定一件事放在哪個專案、怎麼拆、專案的流程與欄位怎麼設，或要做進度的檢視，再搭配 `pm-tool-planning` skill（`skills/pm-tool-planning/`）。
+要決定一件事放在哪個專案、怎麼拆、專案的流程與欄位怎麼設，或要做進度的檢視，再搭配 `kumi-planning` skill（`skills/kumi-planning/`）。
 
 **你的工具清單裡已經有 Kumi 的 MCP 工具時**（`list_projects`、`list_items`、`get_item`、`create_item`、`propose_changeset` 這些，伺服器名稱通常是 `kumi`，改名前接的是 `pm-tool`），直接用它們，不必裝 `kumi`：權限、範圍與「寫要照使用者說的寫」的規矩都一樣，下面講流程與容易踩到的地方的段落照樣適用（把指令換成對應的工具）。MCP 工具沒有的（附件、刪除與復原、批次修改、套用變更集、匯入）才用 `kumi`。MCP 的連線方式見 pm-tool repo 的 `docs/MCP.md`；工具回「找不到」或「沒有權限」時照實告訴使用者，不要換別的方法繞過去。
 
@@ -180,6 +180,7 @@ kumi blueprint apply -f web.yaml --summary "加上法務審查"
 
 ## 不在這份 skill 裡的
 
+- `kumi skill install`／`update`／`status`／`uninstall` 管這兩份 skill 自己（裝到 Claude Code 的 `~/.claude/skills`、Codex 的 `~/.codex/skills`，或專案的 `.claude/skills`、`.agents/skills`），不碰 Kumi 的資料；使用者說「這份 skill 過期了」「幫我更新 skill」時請他執行 `kumi skill update`（`kumi update` 換新版 kumi 時也會順便更新）。這份 skill 是不是最新用 `kumi skill status` 看。
 - `kumi agent start` 是給人開著的長駐指令（讓網頁的 AI 助理用使用者電腦上的 Claude Code／Codex），會一直跑到按 Ctrl-C。**代理不要自己執行它**（`kumi agent login`、`kumi agent enable`、`kumi setup` 也一樣，都要使用者在終端機自己操作瀏覽器），也不要替使用者建立它要的 `agent:run` 權杖；使用者問起時，指給 `docs/CLI.md` 的「本機代理（kumi agent）」。網頁訊息附的圖片與 PDF 會交給引擎（kumi 0.10.0 起；Codex 只有圖片）。
 - `kumi host …`（pair、run、login、status、logout）是 Kumi 主機上的 worker 服務與擁有者在主機上用的指令，**代理不要自己跑**；使用者問起時，指給 `docs/CLI.md` 的「主機 worker（kumi host）」。
 - 從 monday 搬資料（`kumi import monday …`）是管理員一次性的作業，dump 與對應檔裡有真實的人名、Email 與留言。照 `docs/CLI.md` 的「從 monday 匯入」一步一步做，產生的檔案不要提交到任何 repo。

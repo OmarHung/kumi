@@ -44,7 +44,7 @@ RUN dotnet restore src/PmTool.Api/PmTool.Api.csproj
 # schemas/ 要放在和 repo 相同的相對位置：藍圖模組用萬用字元內嵌 Schema，路徑對不到時建置不會失敗，只會內嵌零個檔案。
 COPY schemas/ schemas/
 # AI 助理的系統提示內嵌「結構怎麼決定」的建議，和 CLI 的代理共用同一份原文（PmTool.Ai.csproj）。
-COPY skills/pm-tool-planning/references/structure.md skills/pm-tool-planning/references/
+COPY skills/kumi-planning/references/structure.md skills/kumi-planning/references/
 COPY src/ src/
 RUN dotnet publish src/PmTool.Api/PmTool.Api.csproj -c Release --no-restore -o /app/publish -p:UseAppHost=false
 
@@ -64,6 +64,8 @@ RUN for rid in osx-arm64 osx-x64 win-x64; do \
 COPY schemas/ schemas/
 # kumi licenses 把這三份內嵌進執行檔（PmTool.Cli.csproj）；少了建置會失敗。
 COPY LICENSE NOTICE THIRD-PARTY-NOTICES.txt ./
+# kumi skill install 把 skills/ 內嵌進執行檔（PmTool.Cli.csproj）；少了建置會失敗。
+COPY skills/ skills/
 COPY scripts/cli/build-packages.sh scripts/cli/
 COPY src/PmTool.Cli/ src/PmTool.Cli/
 COPY src/Modules/PmTool.Blueprint/ src/Modules/PmTool.Blueprint/

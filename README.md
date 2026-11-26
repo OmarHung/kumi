@@ -156,7 +156,7 @@ itemTypes:
 - **下載即用** — 伺服器內含 macOS（Apple 晶片、Intel）與 Windows 的單一執行檔，不用裝 .NET；`kumi update` 自己更新。
 - **個人存取權杖** — 給腳本用，可以限定範圍（`items:read`、`items:write`、`blueprint:read`、`blueprint:write`）與期限，隨時撤銷。
 - **從 monday 搬過來** — `kumi import monday fetch|plan|run`，保留作者與時間、留言與附件，可以重跑。
-- **給 AI 代理的 skill** — [`skills/`](skills/) 教 Claude Code 這類代理怎麼用 `kumi` 與怎麼規劃專案。
+- **給 AI 代理的 skill** — [`skills/`](skills/) 教 Claude Code、Codex 這類代理怎麼用 `kumi` 與怎麼規劃專案；`kumi skill install` 一行裝好，跟著 `kumi update` 更新。
 
 ### 自己架、自己管
 

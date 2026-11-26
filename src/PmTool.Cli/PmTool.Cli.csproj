@@ -26,6 +26,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- kumi skill install 裝的 skill 內嵌在執行檔裡（單一執行檔只有一個檔案，沒辦法另外附資料夾）。
+         資源名稱是 Kumi.Skills/<skill 名稱>/<相對路徑>。萬用字元找不到檔案時不會報錯，所以下面另外檢查兩份 SKILL.md 在不在；
+         兩個 Dockerfile 建 CLI 的階段都要先複製 skills/。 -->
+    <EmbeddedResource Include="..\..\skills\**\*" Exclude="..\..\skills\**\.DS_Store"
+                      LogicalName="Kumi.Skills/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <Target Name="RequireSkills" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\skills\kumi\SKILL.md') Or !Exists('$(MSBuildThisFileDirectory)..\..\skills\kumi-planning\SKILL.md')"
+           Text="找不到 skills/kumi 或 skills/kumi-planning（kumi skill install 要內嵌它們；建置映像檔時要一起複製）。" />
+  </Target>
+
+  <ItemGroup>
     <PackageReference Include="AngleSharp" />
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>

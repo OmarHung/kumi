@@ -26,14 +26,14 @@
   <ItemGroup>
     <EmbeddedResource Include="Assistant\Prompts\*.md" LogicalName="PmTool.Ai.Prompts.%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\..\..\schemas\blueprint\v0\*.schema.json" LogicalName="PmTool.Ai.Prompts.%(Filename)%(Extension)" />
-    <EmbeddedResource Include="..\..\..\skills\pm-tool-planning\references\structure.md" LogicalName="PmTool.Ai.Prompts.planning-structure.md" />
+    <EmbeddedResource Include="..\..\..\skills\kumi-planning\references\structure.md" LogicalName="PmTool.Ai.Prompts.planning-structure.md" />
   </ItemGroup>
 
   <!-- 內嵌的參考資料不在時，EmbeddedResource 不會讓建置失敗，助理要到第一次回覆才出錯（例如映像檔沒有複製 skills/）。
        在建置時就擋下來。 -->
   <Target Name="RequireAssistantPromptReferences" BeforeTargets="PrepareForBuild">
-    <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\skills\pm-tool-planning\references\structure.md')"
-           Text="找不到 AI 助理的參考資料 skills/pm-tool-planning/references/structure.md（建置映像檔時要一起複製）。" />
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\skills\kumi-planning\references\structure.md')"
+           Text="找不到 AI 助理的參考資料 skills/kumi-planning/references/structure.md（建置映像檔時要一起複製）。" />
     <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\schemas\blueprint\v0\project-blueprint.schema.json')"
            Text="找不到 AI 助理的參考資料 schemas/blueprint/v0/project-blueprint.schema.json。" />
   </Target>

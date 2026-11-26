@@ -17,6 +17,9 @@ internal enum UpdateOs
 /// kumi update 碰得到的外部環境：自己的執行檔在哪、是不是從伺服器下載的單一執行檔、作業系統與架構、試跑新檔的方式。
 /// 全部由外面交進來，測試才不必真的換掉測試程式自己，也能在 macOS 上跑 Windows 的改名流程。
 /// </summary>
+/// <summary>子程序的結果：結束代碼與標準輸出、標準錯誤。</summary>
+internal sealed record ProcessOutput(int ExitCode, string Output, string Error);
+
 internal sealed record UpdateEnvironment(
     string? ExecutablePath,
     bool IsStandalone,
@@ -37,6 +40,12 @@ internal sealed record UpdateEnvironment(
     /// <summary>Windows 上改名被佔住（防毒軟體剛掃完新檔）時，重試之間的等待；測試換成零。</summary>
     public TimeSpan MoveRetryDelay { get; init; } = TimeSpan.FromMilliseconds(200);
 
+    /// <summary>
+    /// 換好執行檔之後，用<b>新的</b>執行檔跑 <c>skill update</c>（舊的程序內嵌的是舊版 skill）；回傳結束代碼與它印的文字；跑不起來回 null。
+    /// 測試換成假的，不真的啟動程序。
+    /// </summary>
+    public Func<string, CancellationToken, Task<ProcessOutput?>> RunSkillUpdate { get; init; } = static (_, _) => Task.FromResult<ProcessOutput?>(null);
+
     public bool IsWindows => Os == UpdateOs.Windows;
 
     public static UpdateEnvironment Current() => new(
@@ -45,7 +54,11 @@ internal sealed record UpdateEnvironment(
         OperatingSystem.IsMacOS() ? UpdateOs.MacOS : OperatingSystem.IsWindows() ? UpdateOs.Windows : UpdateOs.Other,
         RuntimeInformation.OSArchitecture,
         RuntimeInformation.ProcessArchitecture,
-        RunVersionAsync);
+        static async (path, cancellation) =>
+            await RunAsync(path, ["--version"], cancellation) is { ExitCode: 0 } run ? run.Output.Trim() : null)
+    {
+        RunSkillUpdate = static (path, cancellation) => RunAsync(path, ["skill", "update"], cancellation),
+    };
 
     /// <summary>
     /// 依序試的平台代碼：先看電腦本身的架構，再看這個程序的架構。
@@ -66,8 +79,8 @@ internal sealed record UpdateEnvironment(
         typeof(UpdateEnvironment).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .Any(attribute => attribute.Key == "KumiDistribution" && attribute.Value == "standalone");
 
-    /// <summary>執行 &lt;檔案&gt; --version，回傳輸出；跑不起來、結束代碼不是 0 或逾時回 null。參數不經過 shell。</summary>
-    private static async Task<string?> RunVersionAsync(string path, CancellationToken cancellationToken)
+    /// <summary>執行 &lt;檔案&gt; 加參數，回傳結束代碼與輸出；跑不起來或逾時回 null。參數不經過 shell。</summary>
+    private static async Task<ProcessOutput?> RunAsync(string path, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         var info = new ProcessStartInfo(path)
         {
@@ -81,7 +94,11 @@ internal sealed record UpdateEnvironment(
             info.Environment.Remove(name);
         }
 
-        info.ArgumentList.Add("--version");
+        foreach (var argument in arguments)
+        {
+            info.ArgumentList.Add(argument);
+        }
+
         Process? process;
         try
         {
@@ -106,8 +123,7 @@ internal sealed record UpdateEnvironment(
             var error = process.StandardError.ReadToEndAsync(timeout.Token);
             var output = await process.StandardOutput.ReadToEndAsync(timeout.Token);
             await process.WaitForExitAsync(timeout.Token);
-            await error;
-            return process.ExitCode == 0 ? output.Trim() : null;
+            return new ProcessOutput(process.ExitCode, output, await error);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

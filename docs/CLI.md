@@ -45,7 +45,8 @@ kumi update --check    # 只看有沒有新版
 - 伺服器是遠端的 http（不是 https、也不是 localhost、127.0.0.1、::1）時不更新，結束代碼 1，就算加了 `--insecure` 或 `KUMI_ALLOW_INSECURE=1`：路上的人可以同時換掉檔案與它的 SHA-256。`--check` 照常可以用。
 - 用 dotnet tool 裝的不能用 `kumi update` 更新（結束代碼 1，說明會寫怎麼更新）；`--check` 照樣能看有沒有新版。
 - kumi 放在自己沒有寫入權限的資料夾時（例如 `/usr/local/bin`）會失敗並說明；請放在 `~/.local/bin` 這類自己的資料夾。
-- `--json`：`{ "current", "latest", "updateAvailable", "updated", "standalone" }`（伺服器沒有提供下載時 `latest` 是 `null`）。
+- 換好之後，如果這台電腦的**使用者層**（`~/.claude`、`~/.codex`）裝過 skill（`kumi skill install`，有標記的），會用**新的**執行檔跑一次 `kumi skill update`（舊的程序內嵌的是舊版 skill），把印出的結果接在後面；用 `--project` 裝在專案資料夾裡的不會動，要自己執行 `kumi skill update --project <資料夾>`。改過的資料夾照樣跳過並警告；失敗只警告（附上新執行檔印的錯誤，建議執行 `kumi skill update`），不讓更新失敗。
+- `--json`：`{ "current", "latest", "updateAvailable", "updated", "standalone", "skillsUpdated" }`（伺服器沒有提供下載時 `latest` 是 `null`；`skillsUpdated` 是這次有沒有順便更新 skill）。
 
 **從舊版的 `pm` 升級**（2026-11-23 產品定名 Kumi，指令從 `pm` 改成 `kumi`）：套件名稱還是 `PmTool.Cli`，照上面 `update` 一次，`pm` 就換成 `kumi`。不用重新登入：設定檔還在舊的 `~/.config/pm-tool/` 時照樣讀；環境變數的舊名 `PM_SERVER`、`PM_TOKEN`、`PM_ALLOW_INSECURE` 也照樣認得，新舊都有時用 `KUMI_*`。
 
@@ -137,7 +138,7 @@ kumi auth logout --revoke   # 不問：一併撤銷伺服器上的權杖，並�
 
 ## 設定精靈（kumi setup）
 
-一次設定好：命令列登入、Claude Code／Codex 使用 Kumi（MCP）、本機代理（含登入電腦時自動啟動）。網頁「設定 → 命令列與整合」最上方的步驟卡下載 `kumi` 之後，只要貼一行就會接著執行它。
+一次設定好：命令列登入、Claude Code／Codex 使用 Kumi（MCP）、給 AI 代理用的 skill、本機代理（含登入電腦時自動啟動）。網頁「設定 → 命令列與整合」最上方的步驟卡下載 `kumi` 之後，只要貼一行就會接著執行它。
 
 ```bash
 kumi setup [--server 網址] [--no-browser]
@@ -146,7 +147,7 @@ kumi setup [--server 網址] [--no-browser]
 必須在終端機裡（它會問問題、開瀏覽器）；不支援 `--json`。流程：
 
 1. **偵測**：找 `claude`、`codex`（環境變數 `KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH` 優先，再看 PATH），各跑一次 `--version`。都沒有時只設定命令列，並附安裝網址，之後裝好再跑一次 `kumi setup`。
-2. **問題全部先問完才動手**（Enter、`y`、`是` 是「是」；`n`、`否` 是「否」；其他重問）：讓 Claude Code 使用 Kumi？讓 Codex 使用 Kumi？讓網頁的 AI 助理用這台電腦的引擎（本機代理）？（macOS、Windows 才問）登入電腦時自動在背景啟動？引擎裡已經有一個叫 `kumi` 的 MCP 伺服器、卻指到別的網址時，多問一題「要換成這個伺服器嗎？」（預設否）。
+2. **問題全部先問完才動手**（Enter、`y`、`是` 是「是」；`n`、`否` 是「否」；其他重問）：安裝給 AI 代理用的 skill 到偵測到的 Claude Code／Codex（預設是；等於執行 `kumi skill install`，舊名稱的資料夾要移除時到那一步才問）？讓 Claude Code 使用 Kumi？讓 Codex 使用 Kumi？讓網頁的 AI 助理用這台電腦的引擎（本機代理）？（macOS、Windows 才問）登入電腦時自動在背景啟動？引擎裡已經有一個叫 `kumi` 的 MCP 伺服器、卻指到別的網址時，多問一題「要換成這個伺服器嗎？」（預設否）。
 3. **登入**：設定檔裡已經有這個伺服器的權杖、伺服器認得、範圍也對（命令列的不能有 `agent:run`、本機代理的要恰好是固定的那一組）就不再登入；缺的才**一次**開瀏覽器，同一頁核准命令列與本機代理兩把。登入沒有成功（拒絕、逾時）不中止精靈：MCP 的授權是 Claude Code／Codex 自己的流程。
 4. **Claude Code**：寫進引擎設定的 MCP 網址只收 `https`，或本機（`127.0.0.1`、`localhost`、`::1`）的 `http`，就算加了 `--insecure` 也一樣（引擎之後每一次都會帶著授權連這個網址，它寫在引擎的設定檔裡、不再經過 `kumi`）：不合格就不寫、說明原因，請改用 https 的網址或自己設定。`claude mcp add --scope user --transport http kumi <伺服器>/mcp`（user 範圍，所有資料夾都能用），再用繼承終端機的方式跑 `claude mcp login kumi`（瀏覽器開 Kumi 的授權頁，按「允許」）。**Codex**：`codex mcp add kumi --url <伺服器>/mcp`——Codex 遇到支援 OAuth 的伺服器會在 `add` 裡**馬上**請你授權（印出網址、開瀏覽器，沒有關掉的選項），所以它也是繼承終端機跑；跑完讀 `codex mcp list --json` 的 `auth_status`，還沒授權才補跑 `codex mcp login kumi`，已經授權過就略過。加了 `--no-browser` 時兩個 `mcp login` 都加上 `--no-browser`（只印網址）；Codex 的 `add` 沒有這個選項，照樣會試著開瀏覽器，但也會印出網址。每個指令執行前都先印出整行；網址只准英數字與 `. : / - [ ]`，不合就不執行。`mcp login` 沒完成不擋後面的步驟，之後在引擎裡輸入 `/mcp` 選 kumi 登入。
 5. **本機代理**：問「登入電腦時自動在背景啟動本機代理？」**預設是「否」**（題目寫明它會在你沒看著的時候用你的 AI 訂閱執行網頁送來的對話，每小時最多 30 件、每天 200 件），要明講 y 才執行 `kumi agent enable --server …`；不要的話，總結印完後問「現在在這個視窗啟動本機代理嗎？」，是就執行 `kumi agent start`（視窗要一直開著）。組織沒有開放成員使用自己的 AI 帳號時這一步標「略過」。
@@ -485,18 +486,46 @@ steps:
 
 ## 給 AI 代理用
 
-`skills/` 底下有兩份 Agent Skill，給 AI 代理（Claude Code 等）用：
+`skills/` 底下有兩份 Agent Skill，給 AI 代理（Claude Code、Codex）用，內嵌在 `kumi` 裡（單一執行檔也帶得到）：
 
-- `pm-tool`：怎麼用 `kumi` 查項目、建立與修改、留言與提及、改藍圖，以及哪些事要先問人（自己寫的留言、刪除、批次修改、套用會動到資料的藍圖）。
-- `pm-tool-planning`：東西放在哪裡、用什麼結構。透過問答了解團隊、案子與需求：從資料與系統查得到的，列出來請使用者確認；查不到的，附上建議的答案再問，一輪最多五題。導入時決定專案怎麼分、選哪個模板、類型／狀態／欄位怎麼設；把客戶來信、會議結論、需求文件拆成有負責人、到期日與完成條件的項目；定期檢視過期、卡在等客戶、沒人負責的工作。下指令的部分靠 `pm-tool`，所以兩份一起裝。
+- `kumi`：怎麼用 `kumi` 查項目、建立與修改、留言與提及、改藍圖，以及哪些事要先問人（自己寫的留言、刪除、批次修改、套用會動到資料的藍圖）。
+- `kumi-planning`：東西放在哪裡、用什麼結構。透過問答了解團隊、案子與需求：從資料與系統查得到的，列出來請使用者確認；查不到的，附上建議的答案再問，一輪最多五題。導入時決定專案怎麼分、選哪個模板、類型／狀態／欄位怎麼設；把客戶來信、會議結論、需求文件拆成有負責人、到期日與完成條件的項目；定期檢視過期、卡在等客戶、沒人負責的工作。下指令的部分靠 `kumi`，所以兩份一起裝。
+
+（改名前叫 `pm-tool`、`pm-tool-planning`；`kumi skill install` 會處理舊名稱的資料夾，見下面。）
 
 ```bash
-# Claude Code：裝給自己用（所有專案都看得到）
-cp -R skills/pm-tool skills/pm-tool-planning ~/.claude/skills/
-# 或只給某個專案用
-cp -R skills/pm-tool skills/pm-tool-planning <專案>/.claude/skills/
+kumi skill install                       # 裝給偵測得到的 Claude Code／Codex（使用者層，所有專案都看得到）
+kumi skill install --project <資料夾>     # 只裝給某個專案（<資料夾>/.claude/skills 與 <資料夾>/.agents/skills）
+kumi skill status                        # 每個位置裝了哪些、版本、是不是最新
+kumi skill update                        # 換成這份 kumi 內含的版本
+kumi skill uninstall
 ```
 
-其他代理沒有 skill 機制時，在它的說明檔（例如 `AGENTS.md`）寫「操作 Kumi 時先讀 `skills/pm-tool/SKILL.md`；要規劃結構、記需求、看進度時再讀 `skills/pm-tool-planning/SKILL.md`」。
+`kumi setup` 也會問要不要裝；`kumi update` 換好新執行檔之後，會用新的執行檔跑 `kumi skill update`，所以 skill 永遠和 kumi 同一版。
+
+### kumi skill
+
+- `install [--agent claude-code|codex|all] [--project 資料夾] [--force] [--yes]`：
+  - 位置：Claude Code 是 `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/<名稱>/`，Codex 是 `${CODEX_HOME:-~/.codex}/skills/<名稱>/`（兩個環境變數是相對路徑時，依目前所在的資料夾解析；家目錄在 Windows 先看 `USERPROFILE`，其他系統先看 `HOME`）。`--agent` 沒給時裝到**偵測得到**的引擎（PATH 上有 `claude`／`codex`——`KUMI_AGENT_CLAUDE_PATH`、`KUMI_AGENT_CODEX_PATH` 優先——或它的設定資料夾存在）；一個都偵測不到時說明原因、不寫任何東西、結束代碼 0。
+  - `--project <資料夾>`：改裝到 `<資料夾>/.claude/skills/`（Claude Code）與 `<資料夾>/.agents/skills/`（Codex 在 repo 裡讀這裡）；沒給 `--agent` 就兩個都裝（不偵測）。資料夾不存在是用法錯誤（2）。
+  - 每個裝好的資料夾有一個標記檔 `.kumi-skill.json`（名稱、kumi 版本、時間，以及裝的當下每個檔案的 SHA-256）。同名資料夾**有標記**、檔案也和標記記的一樣，就換成新版：先寫到旁邊的暫存資料夾、再用改名換掉，換到一半失敗不會留下半套（舊的放不回去時，舊的留在 `.kumi-skill-old-<名稱>-*` 並在錯誤訊息寫出位置；程序在兩次改名之間被中斷留下的備份，下一次 `install`／`update` 會先放回去）；版本一樣就說「已經是最新版」、不動。以下情況不覆蓋，說明要加 `--force`（結束代碼仍是 0）：**沒有標記**（使用者自己放的）；**檔案改過**（有檔案和標記的雜湊不一樣：改過、多了、少了，`.DS_Store` 不算；舊格式、沒有雜湊的標記當成沒改過）；**已安裝的版本比這份 kumi 內含的新**（不降級）。
+  - 舊名稱：位置裡有 `pm-tool`、`pm-tool-planning`（`SKILL.md` 開頭的 front matter，也就是第一行 `---` 到下一個 `---` 之間，`name` 是這個名稱才算；正文裡寫的不算）時，同一份 skill 出現兩次會讓代理混淆：互動模式問要不要移除；`--yes`（`-y`）直接**整個資料夾刪除**（裡面你改過的東西也一起沒了）；非互動又沒有 `--yes` 就留著、在標準錯誤警告。
+  - 結束代碼：全部成功、略過或有警告是 0；有任何一個寫入失敗是 1。
+- `update [--agent …] [--project 資料夾]`：只更新**有標記**的（改過的、版本比較新的跳過並警告）（沒給 `--project` 看兩個引擎的使用者層位置，不管有沒有偵測到）；一個都沒有就說明並以 0 結束。
+- `status [--agent …] [--project 資料夾]`：列出每個位置的 `kumi`、`kumi-planning` 是未安裝、有標記的版本（最新或不是最新）、檔案改過、版本比這份 kumi 新、有同名資料夾但沒有標記，以及舊名稱的殘留。
+- `uninstall [--agent …] [--project 資料夾] [--force]`：只刪有標記的；沒有標記的說明並留著。檔案改過（雜湊和標記不符）的也留著，提示「檔案改過，要移除請加 --force」（結束代碼 0，`--json` 的 `result` 是 `skipped_modified`）；`--force` 才連同你改的內容一起刪。
+- `--json`（四個都有）：`{ "version", "results": [ { "agent", "directory", "skill", "path", "result", "version", "error" } ] }`。`agent` 是 `claude-code` 或 `codex`；`version` 是裝好的版本（沒有時 `null`）；`error` 只有失敗時有值。`result`：install、update、uninstall 是 `installed`、`updated`、`up_to_date`、`skipped_foreign`（沒標記、沒加 `--force`）、`skipped_modified`（檔案改過）、`skipped_newer`（已安裝的版本比較新，`version` 是已安裝的版本）、`removed`、`not_ours`（uninstall 遇到沒標記的）、`legacy_removed`、`legacy_kept`、`failed`；status 是 `current`、`outdated`、`foreign`（同名但沒標記）、`modified`（檔案改過）、`newer`（已安裝的版本比較新）、`legacy`、`not_installed`。`--json` 一律不問問題，舊名稱沒有 `--yes` 就留著（`legacy_kept`）。
+
+手動安裝（備案，例如拿不到 `kumi` 的時候）：把 repo 的 `skills/kumi`、`skills/kumi-planning` 兩個資料夾複製到上面的位置，但這樣沒有標記，之後 `kumi skill update` 不會更新它們。
+
+```bash
+cp -R skills/kumi skills/kumi-planning ~/.claude/skills/
+# 或只給某個專案用
+cp -R skills/kumi skills/kumi-planning <專案>/.claude/skills/
+```
+
+其他代理沒有 skill 機制時，在它的說明檔（例如 `AGENTS.md`）寫「操作 Kumi 時先讀 `skills/kumi/SKILL.md`；要規劃結構、記需求、看進度時再讀 `skills/kumi-planning/SKILL.md`」。
 
 權杖由使用者自己用 `kumi auth login` 登入，不要貼給代理；範圍只勾要用的，例如只要它看進度就給 `items:read`。這個 repo 自己不會載入這兩份 skill（不在 `.claude/skills/` 底下），在這裡開發 pm-tool 時不會被它們干擾。
+
+裝了 skill 不影響本機代理（`kumi agent start`）：它跑引擎時不載入使用者與專案的 skill（Claude Code 只讀 `project` 設定、啟動事件的 skills 要是空的；Codex 關掉 `skills.include_instructions`），工作目錄也是空的暫存資料夾。

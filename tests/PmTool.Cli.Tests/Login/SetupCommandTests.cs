@@ -16,9 +16,13 @@ public sealed class SetupCommandTests
     [TearDown]
     public void TearDown() => _engines.Dispose();
 
-    private LoginKit Kit(string answers, bool withClaude = true, bool withCodex = true)
+    /// <summary>
+    /// <paramref name="answers"/> 是 skill 那一題之後的回答：精靈在有引擎時第一題問要不要裝 skill，這裡替各測試先答好（預設「否」，不碰檔案）。
+    /// </summary>
+    private LoginKit Kit(string answers, bool withClaude = true, bool withCodex = true, bool installSkills = false, bool skillAnswerFirst = true)
     {
-        var kit = new LoginKit { Cli = { IsInteractive = true, StandardInput = answers } }.WithRedeemEndpoint();
+        var skillAnswer = skillAnswerFirst && (withClaude || withCodex) ? (installSkills ? "y\n" : "n\n") : string.Empty;
+        var kit = new LoginKit { Cli = { IsInteractive = true, StandardInput = skillAnswer + answers } }.WithRedeemEndpoint();
         kit.Cli.Environment["KUMI_AGENT_CLAUDE_PATH"] = withClaude ? _engines.ClaudePath : Path.Combine(Path.GetTempPath(), "no-such-claude");
         kit.Cli.Environment["KUMI_AGENT_CODEX_PATH"] = withCodex ? _engines.CodexPath : Path.Combine(Path.GetTempPath(), "no-such-codex");
         return kit;
@@ -493,7 +497,8 @@ public sealed class SetupCommandTests
     public async Task Setup_NoServerGiven_AsksForIt()
     {
         // Arrange
-        using var kit = Kit($"{CliHarness.ServerUrl}\nn\nn\nn\n");
+        // 沒給伺服器時先問伺服器，skill 那一題排在它後面，所以這個測試自己寫全部的回答。
+        using var kit = Kit($"{CliHarness.ServerUrl}\nn\nn\nn\nn\n", skillAnswerFirst: false);
 
         // Act
         var result = await kit.RunAsync("setup");
@@ -618,5 +623,58 @@ public sealed class SetupCommandTests
             Assert.That(_engines.Calls("claude"), Has.None.Contains("mcp add"));
             Assert.That(_engines.ExistingUrl("claude"), Is.Null);
         }
+    }
+
+    [Test]
+    public async Task Setup_AnsweringYesToSkills_InstallsThemForTheDetectedEnginesOnly()
+    {
+        // Arrange（只有 Claude Code；其餘的問題都答否）
+        using var kit = Kit("n\nn\n", withCodex: false, installSkills: true);
+        var home = kit.Cli.Environment["HOME"]!;
+
+        // Act
+        var result = await kit.RunAsync("setup", "--server", CliHarness.ServerUrl);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error + result.Out);
+            Assert.That(File.Exists(Path.Combine(home, ".claude", "skills", "kumi", ".kumi-skill.json")), Is.True);
+            Assert.That(File.Exists(Path.Combine(home, ".claude", "skills", "kumi-planning", "SKILL.md")), Is.True);
+            Assert.That(Directory.Exists(Path.Combine(home, ".codex")), Is.False);
+            Assert.That(result.Out, Does.Contain("[2/2] AI 代理的 skill").And.Contain("✓ AI 代理的 skill"));
+        }
+    }
+
+    [Test]
+    public async Task Setup_AnsweringNoToSkills_LeavesTheSkillFoldersAlone()
+    {
+        // Arrange
+        using var kit = Kit("n\nn\nn\n");
+        var home = kit.Cli.Environment["HOME"]!;
+
+        // Act
+        var result = await kit.RunAsync("setup", "--server", CliHarness.ServerUrl);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(ExitCodes.Success), result.Error);
+            Assert.That(Directory.Exists(Path.Combine(home, ".claude")), Is.False);
+            Assert.That(result.Out, Does.Contain("– AI 代理的 skill　略過"));
+        }
+    }
+
+    [Test]
+    public async Task Setup_WithoutAnyEngine_DoesNotAskAboutSkills()
+    {
+        // Arrange
+        using var kit = Kit(string.Empty, withClaude: false, withCodex: false);
+
+        // Act
+        var result = await kit.RunAsync("setup", "--server", CliHarness.ServerUrl);
+
+        // Assert
+        Assert.That(result.Out, Does.Not.Contain("要不要").And.Not.Contain("安裝給 AI 代理用的 skill").And.Contain("– AI 代理的 skill　需要先安裝"));
     }
 }
