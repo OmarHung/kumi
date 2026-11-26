@@ -2,12 +2,13 @@
 
 跨平台專案管理工具的後端與相關程式碼。產品名稱是 **Kumi**（2026-11-23 定名）：畫面、CLI 的指令 `kumi`、MCP 伺服器的名稱 `kumi`、信件、AI 助理，凡是使用者看得到的都叫 Kumi（網頁從 `web/src/config/product.ts` 的 `PRODUCT_NAME`、`COMMAND_NAME` 拿）。repo、命名空間（`PmTool.*`）、資料庫的 schema 與角色、compose 的專案、權杖前綴 `pmt_` 這些內部代號照舊叫 pm-tool／PmTool，不改；Data Protection 的應用程式名稱（`SessionAuthentication` 的 `pm-tool`）一改所有 Cookie 與加密的金鑰都會失效，絕對不能動。
 
-這個 repo 是公開的。不公開的開發紀錄在另一個私人的 repo `kumi-internal`，clone 在 `internal/`（`.gitignore` 忽略它，要自己 `git clone https://github.com/OmarHung/kumi-internal.git internal`；沒有權限的人沒有這個資料夾，程式註解裡指到 `internal/` 的連結打不開）：
+這個 repo 是公開的。不公開的開發紀錄（交接文件、設計規劃書、安全性審查的報告）在另一個私人的 repo `kumi-internal`，clone 在 `internal/`（`.gitignore` 忽略它）。怎麼用它寫在下面匯入的 `internal/CLAUDE.md`。
 
-- 進行中的工作與分工寫在 `internal/HANDOFF-*.md`，開工前先讀最新的那一份。
-- 設計規劃書在 `internal/planning/`，索引見該目錄的 `README.md`；安全性審查的報告在 `internal/review-report/`。
-- 交接文件寫好之後**在 `internal/` 裡另外提交**：它是另一個 repo，這裡的 `git status` 看不到它的修改。
-- worktree 裡沒有 `internal/`（被忽略的資料夾不會跟過去）：開了 worktree 先 `ln -s <主目錄>/internal internal`，交接文件一律在主目錄的 `internal/` 提交。
+**沒有 `internal/` 的人（包括外部的貢獻者）略過這一段**：不要自己建立這個資料夾，也不用找它；程式註解裡指到 `internal/` 的連結打不開是正常的，照程式碼與 `docs/` 做就好。
+
+- worktree 裡沒有 `internal/`（被忽略的資料夾不會跟過去）：開了 worktree 先 `ln -s <主目錄>/internal internal`，交接文件一律在主目錄的 `internal/` 提交。連結指到 worktree 外面，下面的匯入可能被擋（要允許外部匯入），讀不到時自己讀 `internal/CLAUDE.md`。
+
+@internal/CLAUDE.md
 
 ## 指令
 
