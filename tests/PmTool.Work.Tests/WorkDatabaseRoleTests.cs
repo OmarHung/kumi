@@ -169,6 +169,30 @@ public sealed class WorkDatabaseRoleTests
     }
 
     [Test]
+    public async Task Initialize_AfterARestoreOntoANewServer_NormalizesTheEventHistorySoTheRuntimeRoleCanRead()
+    {
+        // Arrange：還原到新的資料庫伺服器之後，事件的交易編號比新伺服器的大。執行的角色對 events 只能新增與讀（只能追加），
+        // 歸一要在遷移那一步用擁有者做；不然讀的人每一輪都撞到 permission denied，通知與即時更新整個停掉。
+        var (host, _, owner) = await StartWithRuntimeRoleAsync();
+        await using var _ = host;
+        var scenario = new Scenario(host);
+        await scenario.CreateProjectAsync("OPS");
+        await scenario.CreateItemAsync("OPS", new NewWorkItem { Type = "task", Title = "還原前的項目" });
+        Assert.That(await TryExecuteAsync(owner, "UPDATE work.events SET transaction_id = ((transaction_id::text::bigint) + 5000000000000)::text::xid8"), Is.Null);
+
+        // Act：還原之後一定跑一次 migrate（scripts/ops/restore.sh）。
+        foreach (var initializer in host.Root.GetServices<IModuleInitializer>())
+        {
+            await initializer.InitializeAsync(CancellationToken.None);
+        }
+
+        var events = await host.Events.ReadAfterAsync(new WorkEventPosition(0, 0), 100, CancellationToken.None);
+
+        // Assert
+        Assert.That(events, Is.Not.Empty, "執行的角色讀得到還原前的事件，沒有撞到權限");
+    }
+
+    [Test]
     public async Task IsReadyAsync_AsTheRuntimeRole_IsTrue()
     {
         // Arrange：就緒檢查用執行的角色讀遷移紀錄表，它只能讀不能改。

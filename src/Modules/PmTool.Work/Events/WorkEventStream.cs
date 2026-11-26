@@ -22,14 +22,14 @@ namespace PmTool.Work.Events;
 internal sealed class WorkEventStream(IDbContextFactory<WorkDbContext> contexts, ILogger<WorkEventStream> logger) : IWorkEventStream
 {
     // 兩個程序同時發現要歸一時，只讓一個做（另一個等鎖，之後的 UPDATE 讀到新的快照、找不到要改的）。鍵是隨意選的固定值。
-    private const long NormalizeLockKey = 0x504D_4556_0001;
+    internal const long NormalizeLockKey = 0x504D_4556_0001;
 
     // 快照的 xmax 是「下一個會發的交易編號」，已提交的事件一定比它小。用快照而不用 pg_current_xact_id()，因為後者會替這個唯讀的查詢配發交易編號。
-    private const string NeedsNormalizingSql = """
+    internal const string NeedsNormalizingSql = """
         SELECT EXISTS (SELECT 1 FROM work.events WHERE transaction_id >= pg_snapshot_xmax(pg_current_snapshot())) AS "Value"
         """;
 
-    private const string NormalizeSql = """
+    internal const string NormalizeSql = """
         UPDATE work.events SET transaction_id = '1'::xid8 WHERE transaction_id >= pg_snapshot_xmax(pg_current_snapshot())
         """;
 
