@@ -53,6 +53,18 @@ public sealed class AssistantPromptRulesTests
     }
 
     [TestCaseSource(nameof(Prompts))]
+    public void SystemPrompt_TellsTheModelTheEngineAccountIsNotTheKumiUser(string prompt)
+    {
+        // Act & Assert：Claude Code 會把它自己登入的帳號 Email 附進上下文（關不掉），模型問「我是誰」時就拿它來回答，
+        // 答錯人、也把引擎帳號的 Email 洩漏給發問的人（主機代理是組織擁有者的帳號）。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompt, Does.Contain("不是正在 Kumi 發問的使用者"));
+            Assert.That(prompt, Does.Contain("不要在回覆裡提到它們"));
+        }
+    }
+
+    [TestCaseSource(nameof(Prompts))]
     public void SystemPrompt_TellsTheModelNotToWriteItsReasoningIntoTheReply(string prompt)
     {
         // Act & Assert：模型偶爾把思考寫進回覆的文字（英文、半截），使用者看到的回覆裡不該有它。
