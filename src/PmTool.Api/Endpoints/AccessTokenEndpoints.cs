@@ -41,6 +41,10 @@ internal static class AccessTokenEndpoints
 
         // 路徑參數用字串收，自己解析：不是 GUID 時和「沒有這把權杖」一樣回 access_token.not_found，網頁只認一種 404。
         v1.MapDelete("/account/tokens/{tokenId}", RevokeAsync).WithName("RevokeAccessToken");
+
+        // 一把權杖撤銷它自己（kumi auth logout --revoke）：CLI 手上只有權杖本身，清單與上面的撤銷只能用 Cookie。
+        // 只會讓這一把失效，所以任何範圍都可以打（本機代理的 agent:run 也是）；字面的路徑比上面的參數優先。
+        v1.MapDelete("/account/tokens/current", RevokeCurrentAsync).WithName("RevokeCurrentAccessToken").AllowAnyAccessToken();
         return v1;
     }
 
@@ -87,6 +91,19 @@ internal static class AccessTokenEndpoints
             { Code: IdentityErrorCodes.SessionEnded } => ApiFailure.AuthRequired.ToResult(),
             var failure => EndpointResults.Fail(failure),
         };
+    }
+
+    private static async Task<IResult> RevokeCurrentAsync(
+        ClaimsPrincipal principal, [FromServices] IAccessTokenService tokens, CancellationToken cancellationToken)
+    {
+        var actor = SessionPrincipal.Read(principal).ToActor();
+
+        // 用 Cookie 登入的請求沒有「這一把」：和不存在的權杖一樣回 not_found，不撤銷任何東西。
+        var tokenId = SessionPrincipal.TryReadAccessToken(principal)?.TokenId ?? Guid.Empty;
+        var result = await tokens.RevokeAsync(actor, tokenId, cancellationToken);
+        return result.Failure is { } failure
+            ? EndpointResults.Fail(failure)
+            : EndpointResults.Ok(AccessTokenData.From(result.Value));
     }
 
     private static async Task<IResult> RevokeAsync(

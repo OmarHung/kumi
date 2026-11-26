@@ -12,7 +12,7 @@ namespace PmTool.Api.Tests;
 
 /// <summary>
 /// 本機代理的權杖（agent:run）會交給成員電腦上的引擎，能打的端點要是一份看得見的清單：
-/// 走遍主機所有的端點，宣告了 agent:run 或「任何權杖都可以」的就只有這六個。
+/// 走遍主機所有的端點，宣告了 agent:run 或「任何權杖都可以」的就只有這八個。
 /// </summary>
 [TestFixture]
 [Parallelizable(ParallelScope.All)]
@@ -22,6 +22,7 @@ public sealed class AgentTokenEndpointListTests
 
     private static readonly string[] Expected =
     [
+        "DELETE /v1/account/tokens/current",
         "GET /v1/agent/jobs/{jobId:guid}/attachments/{attachmentId:guid}",
         "GET /v1/cli",
         "GET /v1/cli/download/{platform}",
