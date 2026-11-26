@@ -2,7 +2,7 @@
 
 跨平台專案管理工具的後端與相關程式碼。產品名稱是 **Kumi**（2026-11-23 定名）：畫面、CLI 的指令 `kumi`、MCP 伺服器的名稱 `kumi`、信件、AI 助理，凡是使用者看得到的都叫 Kumi（網頁從 `web/src/config/product.ts` 的 `PRODUCT_NAME`、`COMMAND_NAME` 拿）。repo、命名空間（`PmTool.*`）、資料庫的 schema 與角色、compose 的專案、權杖前綴 `pmt_` 這些內部代號照舊叫 pm-tool／PmTool，不改；Data Protection 的應用程式名稱（`SessionAuthentication` 的 `pm-tool`）一改所有 Cookie 與加密的金鑰都會失效，絕對不能動。
 
-這個 repo 是公開的。不公開的開發紀錄（交接文件、設計規劃書、安全性審查的報告）在另一個私人的 repo `kumi-internal`，clone 在 `internal/`（`.gitignore` 忽略它）。怎麼用它寫在下面匯入的 `internal/CLAUDE.md`。
+這個 repo 是公開的。不公開的開發紀錄（交接文件、設計規劃書、安全性審查的報告）在另一個私人的 repo，clone 在 `internal/`（`.gitignore` 忽略它）。怎麼用它寫在下面匯入的 `internal/CLAUDE.md`。
 
 **沒有 `internal/` 的人（包括外部的貢獻者）略過這一段**：不要自己建立這個資料夾，也不用找它；程式註解裡指到 `internal/` 的連結打不開是正常的，照程式碼與 `docs/` 做就好。
 

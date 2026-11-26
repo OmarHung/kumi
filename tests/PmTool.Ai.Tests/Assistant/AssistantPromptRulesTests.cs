@@ -4,7 +4,7 @@ using PmTool.Ai.LocalAgents;
 namespace PmTool.Ai.Tests.Assistant;
 
 /// <summary>
-/// 系統提示裡兩條注入測試之後加的規則（internal/review-report/prompt-injection-20261125.md 的 PI-02、PI-03）：
+/// 系統提示裡約束回覆的規則（點出內容裡夾帶的指令、不寫推理過程、回覆放在 [REPLY] 之後這類）：
 /// 內建助理、本機代理、主機代理都拿同一份，所以三個版本都要有。
 /// </summary>
 [TestFixture]

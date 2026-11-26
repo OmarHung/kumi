@@ -9,7 +9,7 @@ namespace PmTool.Ai.Assistant.Transcript;
 /// 模型下一則又讀到自己吐過這種東西。提示管不到這種生成時的格式錯亂，只能在收文字的地方濾掉。
 /// 只認 Kumi 自己的工具（<see cref="LocalAgentTools.Allowed"/>，可以帶 <c>mcp__kumi__</c> 前綴、名稱用單或雙引號），加上
 /// <c>function_calls</c> 的外框與零散的 <c>&lt;/invoke&gt;</c>：使用者貼的、或模型拿來解釋的其他 XML 不動。
-/// 思考寫進回覆那一類（PI-03）分不出正常的句子，照舊只靠提示。
+/// 推理寫進回覆那一類分不出正常的句子，不在這裡處理（見 <see cref="ReplyMarkerFilter"/>）。
 /// 串流時文字一小段一小段來，可能是標記開頭的 <c>&lt;</c> 先留著，確定了才交出去或丟掉；一段文字結束（接著是工具或整則結束）時呼叫
 /// <see cref="Flush"/>。一則回覆用一個，不是執行緒安全的。
 /// </summary>
