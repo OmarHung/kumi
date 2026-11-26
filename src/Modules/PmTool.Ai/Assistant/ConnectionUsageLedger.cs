@@ -55,6 +55,28 @@ internal sealed class ConnectionUsageLedger(IDbContextFactory<AiDbContext> conte
             .ExecuteUpdateAsync(set => set.SetProperty(u => u.State, HostUsageStates.Released), CancellationToken.None);
     }
 
+    /// <summary>
+    /// 供應商退回了請求、拿掉歷史的圖片與 PDF 重試：被退回的那一次也是一次實際的呼叫，補記一筆（已結算、失敗、沒有 token），
+    /// 則數才照實際呼叫的次數算。不檢查上限：這一則已經預留過了，不能在重試的半途才拒絕。
+    /// </summary>
+    public static async Task RecordRejectedCallAsync(
+        AiDbContext db, Guid organizationId, Guid connectionId, Guid personId, string projectKey, DateTimeOffset now)
+    {
+        db.ConnectionUsage.Add(new AiConnectionUsageRow
+        {
+            Id = Guid.CreateVersion7(),
+            OrganizationId = organizationId,
+            ConnectionId = connectionId,
+            PersonId = personId,
+            ProjectKey = projectKey,
+            State = HostUsageStates.Settled,
+            FinishStatus = AssistantMessageMapper.StatusName(AssistantMessageStatus.Failed),
+            CreatedAt = now,
+            SettledAt = now,
+        });
+        await db.SaveChangesAsync(CancellationToken.None);
+    }
+
     /// <summary>回覆結束（完成、停止、失敗都要）：記下結果與 token。回覆的執行器是單例、不能拿這個 scoped 的服務，所以是靜態的。</summary>
     public static async Task SettleAsync(
         AiDbContext db, Guid usageId, AssistantMessageStatus status, long? inputTokens, long? outputTokens, DateTimeOffset now)

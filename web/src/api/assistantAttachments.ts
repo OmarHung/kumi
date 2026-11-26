@@ -1,6 +1,6 @@
 import type { AssistantAttachment } from './aiTypes';
 import { uploadFile, type UploadOptions } from './attachments';
-import { apiRequest } from './http';
+import { apiRequest, CSRF_HEADER } from './http';
 
 const MIB = 1024 * 1024;
 const KIB = 1024;
@@ -36,4 +36,21 @@ export function deleteAssistantAttachment(projectKey: string, attachmentId: stri
 /** 下載的網址（同網域，Cookie 照常帶）：四種點陣圖直接顯示，其他由伺服器標成下載。 */
 export function assistantAttachmentUrl(projectKey: string, attachmentId: string): string {
   return `${attachmentsPath(projectKey)}/${encodeURIComponent(attachmentId)}/content`;
+}
+
+/**
+ * 離開輸入框時盡力刪掉還沒送出的附件：keepalive 讓請求在頁面卸載之後也送得出去。
+ * 失敗不回報、不重試（伺服器上待送的附件 24 小時後自己清掉）。
+ */
+export function releaseAssistantAttachment(projectKey: string, attachmentId: string): void {
+  try {
+    fetch(`${attachmentsPath(projectKey)}/${encodeURIComponent(attachmentId)}`, {
+      method: 'DELETE',
+      keepalive: true,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', [CSRF_HEADER]: '1' },
+    }).catch(() => undefined);
+  } catch {
+    // 同步丟出（環境不支援 fetch）：同樣當作沒送成。
+  }
 }

@@ -9,7 +9,8 @@ import { FILE_ACCEPT, isBinaryKind, isLocalEngine, PASTED_IMAGE_NAME } from './a
 import { ModelPicker } from './ModelPicker';
 import { SendKeyPicker } from './SendKeyPicker';
 import { isSendKeystroke, sendKeyHint, useSendKey, type SendKey } from './sendKey';
-import { useComposerAttachments, type AttachmentEntry } from './useComposerAttachments';
+import { useAttachmentAnnouncement } from './useAttachmentAnnouncement';
+import { useComposerAttachments, type AttachmentEntry, type ComposerAttachments } from './useComposerAttachments';
 import { useDrafts, useRestoreFocus, type DraftFill } from './useComposerDrafts';
 import styles from './Assistant.module.css';
 
@@ -104,12 +105,12 @@ function ComposerBar({ options, selection, onSelectionChange, isStreaming, canSe
       </div>
       <SendKeyPicker sendKey={sendKey} isCompact={isCompact} />
       {isStreaming ? (
-        <Button onClick={onStop}>
+        <Button className={styles.sendButton} onClick={onStop}>
           <Icon name="stop" />
           停止
         </Button>
       ) : (
-        <Button type="submit" variant="primary" disabled={!canSend} title={sendHint}>
+        <Button type="submit" variant="primary" className={styles.sendButton} disabled={!canSend} title={sendHint}>
           送出
         </Button>
       )}
@@ -163,7 +164,11 @@ function hasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer.types).includes('Files');
 }
 
-/** 剪貼簿裡的圖片（例如截圖）：沒有檔名的叫「貼上的圖片.png」。文字與檔案一起貼時照文字貼。 */
+/**
+ * 剪貼簿裡的圖片（例如截圖）：沒有檔名的叫「貼上的圖片.png」。文字與檔案一起貼時照文字貼。
+ * 取捨：從 Finder 複製檔案再貼上，瀏覽器會同時給檔案與檔名的 text/plain，這裡一律照文字貼（不上傳那個檔案）；
+ * 要附檔案請用迴紋針或拖進來。不為了它去猜 text/plain 是不是檔名（網頁複製的圖片也常帶文字，猜錯會吃掉使用者要貼的字）。
+ */
 function pastedFiles(event: ClipboardEvent): readonly File[] {
   const { clipboardData } = event;
   if (Array.from(clipboardData.types).includes('text/plain')) return [];
@@ -192,13 +197,22 @@ function attachmentState(entries: readonly AttachmentEntry[], isLocalSource: boo
   };
 }
 
-/** 檔案拖進輸入框：外框換成虛線，放開就附加；沒有檔案的拖曳（選取的文字）照舊。 */
+/**
+ * 檔案拖進輸入框：外框換成虛線，放開就附加；沒有檔案的拖曳（選取的文字）照舊。
+ * 用 dragenter／dragleave 計數（進到裡面的子元素會先 enter 再 leave）：Safari 的 dragleave 常沒有 relatedTarget，不能靠它判斷離開。
+ */
 function useFileDrop(onFiles: (files: readonly File[]) => void) {
   const [isDragging, setIsDragging] = useState(false);
+  const depth = useRef(0);
+  const reset = () => {
+    depth.current = 0;
+    setIsDragging(false);
+  };
   const dropProps = {
     onDragEnter: (event: DragEvent<HTMLFormElement>) => {
       if (!hasFiles(event)) return;
       event.preventDefault();
+      depth.current += 1;
       setIsDragging(true);
     },
     onDragOver: (event: DragEvent<HTMLFormElement>) => {
@@ -207,16 +221,41 @@ function useFileDrop(onFiles: (files: readonly File[]) => void) {
       event.dataTransfer.dropEffect = 'copy';
     },
     onDragLeave: (event: DragEvent<HTMLFormElement>) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false);
+      if (!hasFiles(event)) return;
+      depth.current = Math.max(0, depth.current - 1);
+      if (depth.current === 0) setIsDragging(false);
     },
     onDrop: (event: DragEvent<HTMLFormElement>) => {
       if (!hasFiles(event)) return;
       event.preventDefault();
-      setIsDragging(false);
+      reset();
       onFiles(Array.from(event.dataTransfer.files));
     },
   };
   return { isDragging, dropProps };
+}
+
+interface AttachmentAreaProps {
+  readonly projectKey: string;
+  readonly attachments: ComposerAttachments;
+  readonly isLocalSource: boolean;
+  readonly hasUnsupported: boolean;
+  readonly isLocked: boolean;
+  readonly inputRef: RefObject<HTMLTextAreaElement | null>;
+}
+
+/** 文字框上方：來源讀不到圖片與 PDF 的說明、附件小卡與失敗的原因，加上一個共用的報讀區（上傳完成、失敗都由它唸）。 */
+function AttachmentArea({ projectKey, attachments, isLocalSource, hasUnsupported, isLocked, inputRef }: AttachmentAreaProps) {
+  const announcement = useAttachmentAnnouncement(attachments.entries, hasUnsupported);
+  return (
+    <>
+      <span className="visually-hidden" role="status">
+        {announcement}
+      </span>
+      {hasUnsupported && <p className={styles.attachNote}>這個來源讀不到圖片與 PDF，請移除這些附件，或改選 API 的模型。</p>}
+      <AttachmentChips projectKey={projectKey} entries={attachments.entries} isLocalSource={isLocalSource} isLocked={isLocked} inputRef={inputRef} onRemove={attachments.remove} onRetry={attachments.retry} />
+    </>
+  );
 }
 
 /**
@@ -226,7 +265,7 @@ function useFileDrop(onFiles: (files: readonly File[]) => void) {
  */
 export function Composer({ projectKey, options, selection, onSelectionChange, isStreaming, isSending, createdConversationId, isLoading, conversationId, error, onDismissError, onSend, onStop, fill, inputRef, hasItem, isCompact = false }: ComposerProps) {
   const { text, setText, clearSent, key } = useDrafts(conversationId, fill, createdConversationId);
-  const attachments = useComposerAttachments(projectKey, conversationId, createdConversationId);
+  const attachments = useComposerAttachments(projectKey, conversationId, createdConversationId, isSending);
   const formRef = useRef<HTMLFormElement>(null);
   const { isDragging, dropProps } = useFileDrop(attachments.add);
   const sendKey = useSendKey();
@@ -257,8 +296,7 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
           {error}
         </Notice>
       )}
-      {hasUnsupported && <p className={styles.attachNote}>這個來源讀不到圖片與 PDF，請移除這些附件，或改選 API 的模型。</p>}
-      <AttachmentChips entries={attachments.entries} isLocalSource={isLocalSource} onRemove={attachments.remove} onRetry={attachments.retry} />
+      <AttachmentArea projectKey={projectKey} attachments={attachments} isLocalSource={isLocalSource} hasUnsupported={hasUnsupported} isLocked={isSending} inputRef={inputRef} />
       <ComposerInput
         text={text}
         onChange={setText}

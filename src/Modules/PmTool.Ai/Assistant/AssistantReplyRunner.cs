@@ -65,7 +65,7 @@ internal sealed class AssistantReplyRunner(
             try
             {
                 outcome = isHosted
-                    ? await hostRelay.RunAsync(await ResolveAttachmentsAsync(request, linked.Token), localRecorder, session, linked.Token)
+                    ? await hostRelay.RunAsync(await ResolveForHostAsync(request, localRecorder, linked.Token), localRecorder, session, linked.Token)
                     : isLocal
                         ? await relay.RunAsync(await ResolveAttachmentsAsync(request, linked.Token), localRecorder, session, linked.Token)
                         : await StreamAsync(request, accumulator, session, linked.Token);
@@ -131,16 +131,92 @@ internal sealed class AssistantReplyRunner(
             .Build(provider);
 
         // 交易已經提交了：這時才讀附件的檔案（不佔著資料庫的交易），依預算換成圖片、PDF 與文字。
-        var messages = await attachmentReplay.ResolveAsync(Compose(request), AttachmentTarget.ApiModel, cancellationToken);
+        var composed = Compose(request);
+        var replay = new ReplayOptions { SkippedIds = request.SkippedAttachmentIds };
+        var first = await attachmentReplay.ResolveAsync(composed, AttachmentTarget.ApiModel, replay, cancellationToken);
+        var progress = new StreamProgress();
+        try
+        {
+            await ForwardAsync(client, first.Messages, options, accumulator, session, progress, cancellationToken);
+        }
+        catch (Exception exception) when (ShouldRetryWithoutHistoryBinary(exception, first, progress))
+        {
+            // 供應商退回了請求，而請求帶著歷史的圖片或 PDF（加密、太多頁、損毀、尺寸太大）：拿掉重試一次，
+            // 不然這則對話每一輪重送都被退回，永遠送不出去。退回的是這一則自己的附件時，重試也會失敗，照舊顯示原因。
+            logger.LogWarning("供應商退回了請求，拿掉歷史的圖片與 PDF 重試一次：{ExceptionType}", exception.GetType().Name);
+            await RecordRejectedCallQuietlyAsync(request);
+            var retry = await attachmentReplay.ResolveAsync(
+                composed, AttachmentTarget.ApiModel, replay with { OmitHistoryBinary = true }, cancellationToken);
+            await ForwardAsync(client, retry.Messages, options, accumulator, session, progress, cancellationToken);
+            await MarkReplaySkippedQuietlyAsync(request, first.HistoryBinaryIds);
+        }
+
+        return Conclude(accumulator, session);
+    }
+
+    private static async Task ForwardAsync(
+        IChatClient client,
+        IReadOnlyList<ChatMessage> messages,
+        ChatOptions options,
+        ReplyAccumulator accumulator,
+        AssistantRunSession session,
+        StreamProgress progress,
+        CancellationToken cancellationToken)
+    {
         await foreach (var update in client.GetStreamingResponseAsync(messages, options, cancellationToken))
         {
+            progress.HasOutput = true;
             foreach (var runEvent in accumulator.Apply(update))
             {
                 session.Writer.TryWrite(runEvent);
             }
         }
+    }
 
-        return Conclude(accumulator, session);
+    // 已經有輸出（文字、工具呼叫）送給使用者之後不重試：重送會讓同一段文字重複出現。
+    private static bool ShouldRetryWithoutHistoryBinary(Exception exception, ReplayResult first, StreamProgress progress) =>
+        first.HistoryBinaryIds.Count > 0 && !progress.HasOutput && AiProviderFailures.IsInvalidRequest(exception);
+
+    /// <summary>重試成功：不知道是歷史裡的哪一個被拒，那一次請求裡的歷史圖片與 PDF 一起記，之後不再重送。</summary>
+    private async Task MarkReplaySkippedQuietlyAsync(ReplyRequest request, IReadOnlyList<Guid> attachmentIds)
+    {
+        try
+        {
+            var now = time.GetUtcNow();
+            await using var db = await contexts.CreateDbContextAsync(CancellationToken.None);
+            await db.Attachments
+                .Where(a => a.OrganizationId == request.Actor.OrganizationId && attachmentIds.Contains(a.Id))
+                .ExecuteUpdateAsync(set => set.SetProperty(a => a.ReplaySkippedAt, now), CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // 記不下來只是下一輪再被退回、再重試一次；回覆本身已經成功了。
+            logger.LogError("助理附件的重送標記記不下來：{ExceptionType}", exception.GetType().Name);
+        }
+    }
+
+    private async Task RecordRejectedCallQuietlyAsync(ReplyRequest request)
+    {
+        if (!request.CountsUsage)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var db = await contexts.CreateDbContextAsync(CancellationToken.None);
+            await ConnectionUsageLedger.RecordRejectedCallAsync(
+                db,
+                request.Actor.OrganizationId,
+                request.Selection.Selection.ConnectionId,
+                request.Actor.PersonId,
+                request.ProjectKey,
+                time.GetUtcNow());
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            logger.LogError("助理被退回的那一次呼叫記不了用量：{ExceptionType}", exception.GetType().Name);
+        }
     }
 
     private static ReplyOutcome Conclude(ReplyAccumulator accumulator, AssistantRunSession session)
@@ -180,6 +256,25 @@ internal sealed class AssistantReplyRunner(
         var resolved = await attachmentReplay.ResolveAsync(all, AttachmentTarget.TextOnly, cancellationToken);
         var userText = string.Join("\n\n", resolved[^1].Contents.OfType<TextContent>().Select(t => t.Text));
         return request with { History = [.. resolved.Take(resolved.Count - 1)], UserText = userText };
+    }
+
+    /// <summary>
+    /// 主機來源在送出時就預留了一件工作（名額、用量）。讀附件失敗或被取消時要馬上退還，不要等預留過期：
+    /// 不然那段時間同一個人被「已經有一則在排隊」擋著，用量也一直算在身上。
+    /// </summary>
+    private async Task<ReplyRequest> ResolveForHostAsync(ReplyRequest request, LocalReplyAccumulator recorder, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ResolveAttachmentsAsync(request, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException && request.HostJobId is not null)
+        {
+            // 設了編號，結尾的清理才會把這件已經結束的工作刪掉。
+            recorder.JobId = request.HostJobId;
+            await hostRelay.AbandonReservationQuietlyAsync(request.HostJobId.Value);
+            throw;
+        }
     }
 
     private static ChatMessage UserMessage(ReplyRequest request)
@@ -340,5 +435,11 @@ internal sealed class AssistantReplyRunner(
         {
             session.Writer.TryWrite(runEvent);
         }
+    }
+
+    /// <summary>這一則回覆有沒有已經送出任何輸出給使用者（有了就不能重送請求）。</summary>
+    private sealed class StreamProgress
+    {
+        public bool HasOutput { get; set; }
     }
 }

@@ -69,6 +69,14 @@ internal sealed partial class AssistantService
             return badAttachments;
         }
 
+        // 文字附件放不進去（API 的模型每一輪的重送預算、本機與主機引擎的提示長度）就在這裡擋下來：
+        // 不擋的話超過的部分會被悄悄丟掉，模型沒讀到卻照樣回答。在預留名額與用量之前，什麼都不存。
+        if (await textLimits.CheckAsync(
+            attachments.Value, text.Value.Length, hostSourceId is not null || isLocal, cancellationToken) is { } tooLong)
+        {
+            return tooLong;
+        }
+
         if (conversation.MessageCount + 2 > AiRules.MaxMessagesPerConversation)
         {
             return AssistantFailures.TooLong();
@@ -141,6 +149,7 @@ internal sealed partial class AssistantService
             HostJobId = hostJobId,
             CountsUsage = countsUsage,
             UserAttachments = AttachmentSelection.ToReferences(attachments.Value),
+            SkippedAttachmentIds = started.SkippedAttachmentIds,
         });
         return new AssistantRun(
             AssistantMessageMapper.ToMessage(started.User, AttachmentSelection.ToContracts(attachments.Value)), assistantMessageId, session);
@@ -217,6 +226,12 @@ internal sealed partial class AssistantService
             return AssistantFailures.Unreadable();
         }
 
+        // 供應商拒絕過、之後不再重送的附件（在這則對話裡）：交易裡只讀編號，檔案要到交易之後才讀。
+        var skipped = await db.Attachments.AsNoTracking()
+            .Where(a => a.ConversationId == conversation.Id && a.ReplaySkippedAt != null)
+            .Select(a => a.Id)
+            .ToListAsync(cancellationToken);
+
         var user = NewUserRow(actor, conversation.Id, current.MessageCount + 1, turn, now);
         db.Messages.Add(user);
         await db.SaveChangesAsync(cancellationToken);
@@ -239,7 +254,7 @@ internal sealed partial class AssistantService
                     .SetProperty(c => c.SawAllItems, c => c.SawAllItems || seesAllItems),
                 cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new BegunRun(user, replay, until);
+        return new BegunRun(user, replay, until, skipped.ToHashSet());
     }
 
     private static async Task<Failure?> TakeLeaseAsync(
@@ -318,5 +333,5 @@ internal sealed partial class AssistantService
     private sealed record UserTurn(string Text, string? ItemKey, IReadOnlyList<AiAttachmentRow> Attachments);
 
     private sealed record BegunRun(
-        AiMessageRow User, IReadOnlyList<ChatMessage> History, DateTimeOffset LeaseUntil);
+        AiMessageRow User, IReadOnlyList<ChatMessage> History, DateTimeOffset LeaseUntil, IReadOnlySet<Guid> SkippedAttachmentIds);
 }

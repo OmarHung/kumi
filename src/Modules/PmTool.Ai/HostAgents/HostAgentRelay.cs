@@ -57,6 +57,24 @@ internal sealed class HostAgentRelay(
         }
     }
 
+    /// <summary>
+    /// 預留之後、排進隊伍之前就失敗了（讀附件的檔案失敗、被取消）：馬上退還預留的名額，不要等預留過期；
+    /// 不然同一個人在那之前會一直被「已經有一則在排隊」擋著。盡力而為，退不掉也只是等過期。
+    /// </summary>
+    public async Task AbandonReservationQuietlyAsync(Guid jobId)
+    {
+        try
+        {
+            await using var db = await contexts.CreateDbContextAsync(CancellationToken.None);
+            await HostJobFinisher.FinishAsync(
+                db, jobId, new HostFinish(AssistantMessageStatus.Failed, "送出失敗，沒有執行。"), time.GetUtcNow(), CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            logger.LogWarning("主機代理預留的工作退不掉：{ExceptionType}", exception.GetType().Name);
+        }
+    }
+
     /// <summary>預留的工作填上內容、排進隊伍。預留已經被退還（來源被關、逾時清掉）時回 false。</summary>
     private async Task<bool> EnqueueAsync(ReplyRequest request, Guid jobId, CancellationToken cancellationToken)
     {

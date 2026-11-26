@@ -3,7 +3,11 @@ using System.Text.Unicode;
 namespace PmTool.Ai.Attachments;
 
 /// <summary>看內容判斷出來的種類與類型。</summary>
-internal sealed record SniffedFile(AssistantAttachmentKind Kind, string ContentType);
+/// <param name="Problem">
+/// 類型認得、但供應商一定會拒絕的原因（圖片的寬或高太大、PDF 加密），給使用者看的繁體中文；沒有問題是 null。
+/// 上傳時擋下來，不然壞檔案存進歷史之後，每一輪重送都會被供應商退回。
+/// </param>
+internal sealed record SniffedFile(AssistantAttachmentKind Kind, string ContentType, string? Problem = null);
 
 /// <summary>
 /// 看內容判斷附件的種類，不信任檔名與瀏覽器報的類型：四種點陣圖與 PDF 看開頭的位元組；
@@ -25,6 +29,11 @@ internal static class AttachmentSniffer
     public const string TextType = "text/plain";
 
     private const int HeaderLength = 12;
+
+    /// <summary>圖片的寬或高上限（像素）：Anthropic 單張超過 8000 就拒絕，其他供應商的上限更寬，取最嚴的。</summary>
+    internal const int MaxImageDimension = 8000;
+
+    private static readonly byte[] EncryptMark = "/Encrypt"u8.ToArray();
 
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -53,17 +62,28 @@ internal static class AttachmentSniffer
             return null;
         }
 
-        if (SniffBinary(header.AsSpan(0, read)) is { } binary)
-        {
-            return binary;
-        }
-
-        // 文字檔要整份看過才知道：最大 10 MiB（上傳的上限），只有不是圖片也不是 PDF 的才會走到這裡。
+        // 圖片的尺寸（JPEG 的 SOF 可能在很後面）、PDF 的加密標記、文字檔的內容，都要整份看過才知道：最大 10 MiB（上傳的上限）。
         using var rest = new MemoryStream();
         rest.Write(header, 0, read);
         await content.CopyToAsync(rest, cancellationToken);
-        return IsText(rest.GetBuffer().AsSpan(0, (int)rest.Length)) ? new SniffedFile(AssistantAttachmentKind.Text, TextType) : null;
+        var all = rest.GetBuffer().AsSpan(0, (int)rest.Length);
+        if (SniffBinary(all) is { } binary)
+        {
+            return binary with { Problem = ProblemOf(binary, all) };
+        }
+
+        return IsText(all) ? new SniffedFile(AssistantAttachmentKind.Text, TextType) : null;
     }
+
+    private static string? ProblemOf(SniffedFile file, ReadOnlySpan<byte> all) => file.Kind switch
+    {
+        AssistantAttachmentKind.Image when ImageDimensions.TryRead(file.ContentType, all, out var width, out var height)
+            && (width > MaxImageDimension || height > MaxImageDimension) =>
+            $"圖片的寬或高不能超過 {MaxImageDimension} 像素（這張是 {width}×{height}），模型不收；請縮小後再上傳。",
+        AssistantAttachmentKind.Pdf when all.IndexOf(EncryptMark) >= 0 =>
+            "這個 PDF 有加密（需要密碼才能讀），模型讀不了；請先解除加密再上傳。",
+        _ => null,
+    };
 
     public static SniffedFile? SniffBinary(ReadOnlySpan<byte> header)
     {

@@ -62,6 +62,7 @@ public static class AiModule
         services.TryAddSingleton<IStorageQuota, StorageQuota>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IStorageUsageSource, AssistantAttachmentUsage>());
         services.TryAddSingleton<AttachmentReplay>();
+        services.TryAddSingleton<AttachmentTextLimits>();
         services.TryAddScoped<IAssistantAttachmentService, AssistantAttachmentService>();
 
         // 工作包 A1（供應商、設定）。gateway 與 protector 用 TryAdd：測試先放假的，就不會真的連出去。

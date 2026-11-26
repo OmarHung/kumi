@@ -1,3 +1,4 @@
+using System.Globalization;
 using PmTool.Abstractions;
 using PmTool.Storage;
 
@@ -17,6 +18,10 @@ internal static class AttachmentFailures
         new(FailureKind.Invalid, AiErrorCodes.AttachmentTypeNotAllowed,
             "只收圖片（PNG、JPEG、GIF、WebP）、PDF 與 UTF-8 的文字檔；Word、Excel、壓縮檔這類請先轉成 PDF 或文字檔。");
 
+    /// <summary>類型收，但這個檔案供應商一定會拒絕（圖片太大張、PDF 加密）：同一個代碼，訊息說明是哪裡不行。</summary>
+    public static Failure Unreadable(string reason) =>
+        new(FailureKind.Invalid, AiErrorCodes.AttachmentTypeNotAllowed, reason);
+
     public static Failure TooLarge(AssistantAttachmentKind kind) =>
         new(FailureKind.Invalid, AiErrorCodes.AttachmentTooLarge, TooLargeMessage(kind));
 
@@ -35,6 +40,17 @@ internal static class AttachmentFailures
     public static Failure TooLargeInTotal() =>
         new(FailureKind.Invalid, AiErrorCodes.AttachmentTooLarge,
             $"一則訊息的附件合計不能超過 {AssistantAttachmentRules.MaxBytesPerMessage / (1024 * 1024)} MB。");
+
+    /// <summary>API 的模型：這一則的文字附件合計超過每一輪重送的預算。</summary>
+    public static Failure TextTooLong() =>
+        new(FailureKind.Invalid, AiErrorCodes.AttachmentTooLarge,
+            $"這一則的文字附件合計不能超過 {AssistantAttachmentRules.MaxReplayTextCharacters.ToString("N0", CultureInfo.InvariantCulture)} 字；請少附一些檔案，或把檔案拆小。");
+
+    /// <summary>本機與主機上的引擎：這一則（打的字加文字附件）放不進提示的長度上限。</summary>
+    public static Failure PromptTooLong() =>
+        new(FailureKind.Invalid, AiErrorCodes.AttachmentTooLarge,
+            $"本機與主機上的引擎一次最多讀 {AiRules.MaxLocalPromptLength.ToString("N0", CultureInfo.InvariantCulture)} 字（含附件）；" +
+            "這則訊息加上文字附件超過了，請縮短訊息、少附一些檔案，或換成 API 的模型。");
 
     public static Failure TooManyPending() =>
         new(FailureKind.Conflict, AiErrorCodes.TooManyAttachments,

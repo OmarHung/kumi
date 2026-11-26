@@ -17,6 +17,8 @@ export function SendKeyPicker({ sendKey, isCompact }: SendKeyPickerProps) {
       size="sm"
       width="content"
       align="end"
+      showChevron
+      className={isCompact ? styles.sendKeyCompact : undefined}
       value={sendKey}
       options={options}
       display={

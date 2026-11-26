@@ -38,4 +38,15 @@ internal sealed record AiAttachmentRow
     public required DateTimeOffset UploadedAt { get; init; }
 
     public DateTimeOffset? BoundAt { get; init; }
+
+    /// <summary>
+    /// 供應商不收這個檔案（重送歷史時請求被判不合法、拿掉歷史裡的圖片與 PDF 重試才成功）：有值就不再重送，直接用一行說明。
+    /// 不知道是哪一個壞，所以那一次請求裡的歷史圖片與 PDF 一起記。
+    /// </summary>
+    public DateTimeOffset? ReplaySkippedAt { get; init; }
+
+    /// <summary>
+    /// 維護清檔案失敗的時間：每批 500 筆依這個排序，刪不掉的排到最後，不會一直佔著前面的位置、卡住後面刪得掉的。
+    /// </summary>
+    public DateTimeOffset? SweepFailedAt { get; init; }
 }

@@ -147,6 +147,12 @@ public static class AiRules
     /// <summary>工具的結果存進對話、之後再送給模型時最長幾個字元，超過的截斷並註明。</summary>
     public const int MaxToolResultLength = 60_000;
 
+    /// <summary>
+    /// 本機與主機上的引擎一次最多讀幾個字元（整段對話加這一則，含文字附件）。提示是排成一整段文字交給引擎的命令列，
+    /// 不能無限長：超過時從最舊的對話開始省略；這一則自己放不進去的，送出時就擋下來（<see cref="AiErrorCodes.AttachmentTooLarge"/>）。
+    /// </summary>
+    public const int MaxLocalPromptLength = 60_000;
+
     /// <summary>錯誤原因（我們的說明加上供應商回的一小段話）最多存這麼長。</summary>
     public const int MaxErrorLength = 500;
 

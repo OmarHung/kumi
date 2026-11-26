@@ -23,6 +23,7 @@ internal sealed partial class AssistantService(
     HostSourceOptions hostSources,
     HostReservations hostReservations,
     ConnectionUsageLedger usageLedger,
+    AttachmentTextLimits textLimits,
     TimeProvider time,
     AssistantTimings timings,
     HostTimings hostTimings) : IAssistantService

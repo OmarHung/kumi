@@ -63,6 +63,8 @@ interface SelectOwnProps {
    * 內容的文字要說得出目前的值：報讀軟體把按鈕的內容當成 combobox 的值。
    */
   readonly display?: ReactNode;
+  /** 給了 display 時仍畫下拉箭頭（獨立的工具列選單，和沒有 display 的選單看起來一致）；就地編輯的格子不要。 */
+  readonly showChevron?: boolean;
   /** value 對不到任何選項時顯示的灰字。 */
   readonly placeholder?: string;
   /** 掛上就打開（格子進入編輯時）。 */
@@ -183,11 +185,19 @@ interface SelectValueProps {
   readonly selected: SelectOption | undefined;
   readonly placeholder: string | undefined;
   readonly display: ReactNode;
+  readonly showChevron: boolean;
 }
 
-/** 按鈕上的值：目前的值（前面帶同一個小圖），對不到選項時是灰字的 placeholder；給了 display 就只放它（不畫箭頭）。 */
-function SelectValue({ selected, placeholder, display }: SelectValueProps) {
-  if (display !== undefined) return <span className={styles.value}>{display}</span>;
+/** 按鈕上的值：目前的值（前面帶同一個小圖），對不到選項時是灰字的 placeholder；給了 display 就只放它（預設不畫箭頭，showChevron 才畫）。 */
+function SelectValue({ selected, placeholder, display, showChevron }: SelectValueProps) {
+  if (display !== undefined) {
+    return (
+      <>
+        <span className={styles.value}>{display}</span>
+        {showChevron && <Icon name="chevronDown" className={styles.chevron} />}
+      </>
+    );
+  }
   return (
     <>
       {selected?.leading !== undefined && (
@@ -220,7 +230,7 @@ function buttonActiveDescendant(listId: string, activeId: string | undefined, ha
  * 值是按鈕裡的文字。外層和 Menu 一樣是 display: contents 的容器（給「點在外面」與焦點離開的判斷），className 加在按鈕上。
  * 選項 10 個以上時清單最上面有篩選框（selectFilter.ts）。
  */
-export function Select({ ref, value, options, size = 'md', width = 'fill', variant = 'default', display, placeholder, isOpenInitially = false, disabled = false, ...rest }: SelectProps) {
+export function Select({ ref, value, options, size = 'md', width = 'fill', variant = 'default', display, showChevron = false, placeholder, isOpenInitially = false, disabled = false, ...rest }: SelectProps) {
   const { align = 'start', id, className, onChange, onPick, onDismiss, onBlur, onKeyDown, ...aria } = rest;
   const { buttonRef, setButton } = useButtonRef(ref);
   const listId = useId();
@@ -250,7 +260,7 @@ export function Select({ ref, value, options, size = 'md', width = 'fill', varia
         onKeyDown={handleKeyDown}
         onKeyUp={preventSpaceClick}
       >
-        <SelectValue selected={options.find((option) => option.value === value)} placeholder={placeholder} display={display} />
+        <SelectValue selected={options.find((option) => option.value === value)} placeholder={placeholder} display={display} showChevron={showChevron} />
       </button>
       {isOpen && (
         <SelectList

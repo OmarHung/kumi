@@ -61,6 +61,11 @@ internal sealed partial class AssistantAttachmentService(
                 return AttachmentFailures.TooLarge(sniffed.Kind);
             }
 
+            if (sniffed.Problem is { } problem)
+            {
+                return AttachmentFailures.Unreadable(problem);
+            }
+
             // 第三步：交易裡重新確認並寫資料列。數量與容量在寫檔的這段時間裡可能變了。
             var added = await RecordAsync(actor, project, id, name, sniffed, stored, cancellationToken);
             committed = added.Succeeded;
@@ -86,20 +91,29 @@ internal sealed partial class AssistantAttachmentService(
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
 
-        // 條件寫在刪除裡：檢查和刪除之間剛好被綁到訊息上的，不能刪（只有待送的刪得掉）。
-        var deleted = await db.Attachments
+        // 先把待送的標成孤兒（有綁定時間、沒有訊息）：條件寫在更新裡，檢查和更新之間剛好被綁到訊息上的不動；
+        // 標好之後送出的 UPDATE 綁不到它、下載與再刪都當作不存在，維護也認得它。這樣先刪檔、再刪資料列，
+        // 刪檔失敗時資料列還在（容量的依據不能在檔案還在的時候放掉），留給維護下一輪清。
+        var claimed = await db.Attachments
             .Where(a => a.Id == attachmentId
                 && a.OrganizationId == actor.OrganizationId
                 && a.PersonId == actor.PersonId
                 && a.ProjectKey == project.Value.Project.Key
                 && a.BoundAt == null)
-            .ExecuteDeleteAsync(cancellationToken);
-        if (deleted == 0)
+            .ExecuteUpdateAsync(set => set.SetProperty(a => a.BoundAt, clock.GetUtcNow()), cancellationToken);
+        if (claimed == 0)
         {
             return AttachmentFailures.NotFound();
         }
 
-        await DeleteFileQuietlyAsync(AttachmentMapper.KeyOf(attachmentId), attachmentId);
+        if (await DeleteFileQuietlyAsync(AttachmentMapper.KeyOf(attachmentId), attachmentId))
+        {
+            // 請求取消了也要把資料列刪掉：檔案已經不在，留著只會等維護來清。
+            await db.Attachments
+                .Where(a => a.Id == attachmentId && a.BoundAt != null && a.MessageId == null)
+                .ExecuteDeleteAsync(CancellationToken.None);
+        }
+
         return Unit.Value;
     }
 
@@ -128,6 +142,12 @@ internal sealed partial class AssistantAttachmentService(
         var content = await store.OpenReadAsync(AttachmentMapper.KeyOf(row.Id), cancellationToken);
         if (content is null)
         {
+            // 資料列剛好被刪（使用者刪了、維護清了）、檔案隨後也不見：已經清掉了，不是資料不一致，不必驚動人。
+            if (!await db.Attachments.AsNoTracking().AnyAsync(a => a.Id == row.Id, cancellationToken))
+            {
+                return AttachmentFailures.NotFound();
+            }
+
             // 資料庫有資料列、儲存空間沒有檔案：備份沒還原到位、或有人手動刪了檔案。使用者能做的只有回報，所以記錯誤。
             LogMissingFile(logger, row.Id, row.FileName);
             return AttachmentFailures.NotFound();
@@ -259,16 +279,18 @@ internal sealed partial class AssistantAttachmentService(
             cancellationToken);
     }
 
-    /// <summary>盡力而為：取消的請求也要清掉，所以不用呼叫端的取消權杖；失敗只記 Warning，留下的檔案不會造成錯。</summary>
-    private async Task DeleteFileQuietlyAsync(string key, Guid attachmentId)
+    /// <summary>盡力而為：取消的請求也要清掉，所以不用呼叫端的取消權杖；失敗只記 Warning（回傳 false），留下的檔案不會造成錯。</summary>
+    private async Task<bool> DeleteFileQuietlyAsync(string key, Guid attachmentId)
     {
         try
         {
             await store.DeleteAsync(key, CancellationToken.None);
+            return true;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             LogDeleteFailed(logger, exception, attachmentId);
+            return false;
         }
     }
 

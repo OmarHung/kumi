@@ -70,7 +70,8 @@ internal static class AssistantAttachmentEndpoints
         {
             return TooLarge.ToResult();
         }
-        catch (Exception exception) when (exception is InvalidDataException or BadHttpRequestException)
+        // 客戶端中途斷線時，讀內容的 IOException 是在模組裡丟出來的（內容一路串流進去）：是壞請求，不是伺服器出錯。
+        catch (Exception exception) when (exception is InvalidDataException or IOException or BadHttpRequestException)
         {
             return ApiFailure.BadRequest.ToResult();
         }

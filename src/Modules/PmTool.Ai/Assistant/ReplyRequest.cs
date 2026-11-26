@@ -36,4 +36,10 @@ internal sealed record ReplyRequest(
 
     /// <summary>這則訊息帶的附件（還只是參照，要送給模型前由 <c>AttachmentReplay</c> 讀檔）；沒有是空的。</summary>
     public IReadOnlyList<AttachmentReference> UserAttachments { get; init; } = [];
+
+    /// <summary>
+    /// 這則對話裡供應商拒絕過、之後不再重送的附件編號（<c>ai.attachments.replay_skipped_at</c> 有值的）；
+    /// 重送歷史時直接用一行說明，不再讀檔、也不再送給供應商。
+    /// </summary>
+    public IReadOnlySet<Guid> SkippedAttachmentIds { get; init; } = new HashSet<Guid>();
 }

@@ -87,4 +87,55 @@ public sealed class AttachmentSnifferTests
     [Test]
     public async Task Sniff_Zip_IsNotAllowed() =>
         Assert.That(await SniffAsync([0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00]), Is.Null);
+
+    [Test]
+    public async Task Sniff_Utf8ByteOrderMarkBeforeText_IsText()
+    {
+        // Arrange：Excel 匯出的 CSV 常帶 BOM（EF BB BF），它不是控制字元。
+        byte[] bytes = [0xEF, 0xBB, 0xBF, .. "a,b\n1,2"u8];
+
+        // Act
+        var result = await SniffAsync(bytes);
+
+        // Assert
+        Assert.That(result?.Kind, Is.EqualTo(AssistantAttachmentKind.Text));
+    }
+
+    [Test]
+    public async Task Sniff_LineSeparatorU2028_IsText()
+    {
+        // Arrange：U+2028 是格式字元（E2 80 A8），不在 C0／C1 控制字元的範圍裡。
+        byte[] bytes = [.. "第一行"u8, 0xE2, 0x80, 0xA8, .. "第二行"u8];
+
+        // Act
+        var result = await SniffAsync(bytes);
+
+        // Assert
+        Assert.That(result?.Kind, Is.EqualTo(AssistantAttachmentKind.Text));
+    }
+
+    [TestCase(0x80)]
+    [TestCase(0x85)]
+    [TestCase(0x9F)]
+    public async Task Sniff_C1ControlCharacterAsUtf8_IsNotText(int second)
+    {
+        // Arrange：U+0080–U+009F 的 UTF-8 是 C2 80–C2 9F，夾在正常文字中間也一樣。
+        byte[] bytes = [.. "前"u8, 0xC2, (byte)second, .. "後"u8];
+
+        // Act / Assert
+        Assert.That(await SniffAsync(bytes), Is.Null);
+    }
+
+    [Test]
+    public async Task Sniff_NoBreakSpaceRightAfterTheC1Range_IsText()
+    {
+        // Arrange：U+00A0（C2 A0）是不換行空白，不是控制字元。
+        byte[] bytes = [.. "a"u8, 0xC2, 0xA0, .. "b"u8];
+
+        // Act
+        var result = await SniffAsync(bytes);
+
+        // Assert
+        Assert.That(result?.Kind, Is.EqualTo(AssistantAttachmentKind.Text));
+    }
 }

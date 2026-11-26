@@ -76,6 +76,10 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("project_key");
 
+                    b.Property<DateTimeOffset?>("ReplaySkippedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("replay_skipped_at");
+
                     b.Property<string>("Sha256")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -85,6 +89,10 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint")
                         .HasColumnName("size_bytes");
+
+                    b.Property<DateTimeOffset?>("SweepFailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sweep_failed_at");
 
                     b.Property<DateTimeOffset>("UploadedAt")
                         .HasColumnType("timestamp with time zone")

@@ -36,6 +36,24 @@ internal static partial class AiProviderFailures
         return AiText.Ellipsize(text, AiRules.MaxErrorLength);
     }
 
+    /// <summary>
+    /// 供應商判定「這個請求本身不合法」（400、413、422）：送出去的內容有問題（加密或太多頁的 PDF、損毀或尺寸太大的圖片…），
+    /// 原樣再送一次還是同樣的結果。逾時、5xx、金鑰（401、403）、額度與頻率（402、429）、找不到（404）都不是。
+    /// </summary>
+    public static bool IsInvalidRequest(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        foreach (var inner in Flatten(exception))
+        {
+            if (StatusOf(inner) is { } status)
+            {
+                return status is 400 or 413 or 422;
+            }
+        }
+
+        return false;
+    }
+
     private static string Redact(string text, string? secret) =>
         string.IsNullOrEmpty(secret) ? text : text.Replace(secret, "***", StringComparison.Ordinal);
 

@@ -9,7 +9,7 @@ namespace PmTool.Ai.Maintenance;
 /// <summary>
 /// 助理附件的清理（internal/HANDOFF-ai-attachments.md 第 4 節）：孤兒（對話刪掉了，訊息不在，資料列還留著）與過了
 /// <see cref="AssistantAttachmentRules.PendingLifetime"/> 還沒送出的待送。先刪檔案再刪資料列：
-/// 資料列是容量的依據，檔案還在的時候不能先把容量放掉；刪檔失敗只記 Warning，那一筆留著下一輪再試。
+/// 資料列是容量的依據，檔案還在的時候不能先把容量放掉；刪檔失敗只記 Warning 並記下時間（<c>SweepFailedAt</c>），那一筆排到最後、下一輪再試。
 /// </summary>
 internal static class AttachmentRetention
 {
@@ -31,18 +31,26 @@ internal static class AttachmentRetention
         var batch = await db.Attachments
             .AsNoTracking()
             .Where(a => (a.BoundAt != null && a.MessageId == null) || (a.BoundAt == null && a.UploadedAt < stale))
-            .OrderBy(a => a.UploadedAt)
+            .OrderBy(a => a.SweepFailedAt != null)
+            .ThenBy(a => a.SweepFailedAt)
+            .ThenBy(a => a.UploadedAt)
             .Select(a => a.Id)
             .Take(batchSize)
             .ToListAsync(cancellationToken);
 
         var removed = new List<Guid>(batch.Count);
+        var failed = new List<Guid>();
         foreach (var id in batch)
         {
-            if (await TryDeleteFileAsync(store, id, logger, cancellationToken))
-            {
-                removed.Add(id);
-            }
+            (await TryDeleteFileAsync(store, id, logger, cancellationToken) ? removed : failed).Add(id);
+        }
+
+        // 刪不掉的記下時間：每批只取一部分、依這個時間排序，一直刪不掉的排到最後，不會永遠佔著前面的位置、卡住後面刪得掉的。
+        if (failed.Count > 0)
+        {
+            await db.Attachments
+                .Where(a => failed.Contains(a.Id))
+                .ExecuteUpdateAsync(set => set.SetProperty(a => a.SweepFailedAt, now), cancellationToken);
         }
 
         // 條件再寫一次：挑出來之後才被送出的待送不能刪（送出的 UPDATE 只綁得到沒過期的，過了寬限的不會被綁）。

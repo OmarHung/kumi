@@ -156,6 +156,21 @@ public sealed class AssistantAttachmentEndpointTests
     }
 
     [Test]
+    public async Task Upload_TheConnectionDropsWhileTheServiceReadsTheBody_Returns400NotA500()
+    {
+        // Arrange：內容是一路串流進模組的，客戶端中途斷線時讀取的 IOException 是在模組裡丟出來的。
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.AssistantAttachments.OnUpload = _ => throw new IOException("客戶端斷線了。");
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.PostAsync(Collection, AttachmentEndpointTests.Multipart("a.png", [1, 2, 3], "image/png"));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.BadRequest, ApiErrorCodes.BadRequest);
+    }
+
+    [Test]
     public async Task Upload_NameInvalid_KeepsTheDetailPath()
     {
         // Arrange

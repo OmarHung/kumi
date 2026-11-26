@@ -137,7 +137,7 @@ describe('助理：附加檔案', () => {
     expect(screen.getByText('筆記.md')).toBeInTheDocument();
   });
 
-  it('上傳失敗：小卡寫原因與重試，不能送出；重試成功後可以', async () => {
+  it('上傳失敗（伺服器暫時出錯）：原因完整列在小卡列下面、有重試，不能送出；重試成功後可以', async () => {
     // Arrange
     const { user } = view();
     await typeMessage(user, '看一下');
@@ -147,10 +147,10 @@ describe('助理：附加檔案', () => {
     });
 
     // Act
-    uploads[0]?.respondFailure(422, 'ai.attachment_type_not_allowed', '這種檔案不收。');
+    uploads[0]?.respondFailure(503, 'server.unavailable', '暫時不能用。');
 
     // Assert
-    expect(await screen.findByText('這種檔案不收。')).toBeInTheDocument();
+    expect(await screen.findByText('報告.pdf：伺服器暫時無法處理，請稍後再試。')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '送出' })).toBeDisabled();
 
     // Act
@@ -206,7 +206,8 @@ describe('助理：附加檔案', () => {
     await pick(user, [...files, aFile('第六個.txt', 100, 'text/plain'), aFile('大圖.png', 6 * MIB, 'image/png')]);
 
     // Assert
-    expect(await screen.findAllByText('一則訊息最多 5 個附件。')).toHaveLength(2);
+    const problems = await screen.findByRole('list', { name: '附件的問題' });
+    expect(within(problems).getAllByRole('listitem').map((row) => row.textContent)).toEqual(['第六個.txt：一則訊息最多 5 個附件。', '大圖.png：一則訊息最多 5 個附件。']);
     expect(uploads).toHaveLength(5);
     expect(screen.getByRole('button', { name: '送出' })).toBeDisabled();
   });
@@ -219,7 +220,7 @@ describe('助理：附加檔案', () => {
     await pick(user, [aFile('大圖.png', 6 * MIB, 'image/png')]);
 
     // Assert
-    expect(await screen.findByText('檔案超過 5.0 MB。')).toBeInTheDocument();
+    expect(await screen.findByText('大圖.png：檔案超過 5.0 MB。')).toBeInTheDocument();
     expect(uploads).toHaveLength(0);
   });
 

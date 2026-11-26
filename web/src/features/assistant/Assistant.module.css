@@ -286,15 +286,10 @@
 
 /* ---- 複製訊息 ---- */
 
-/* 使用者的複製鈕在泡泡下方右側；高度固定，按鈕出現不推動後面的訊息（多出來的部分疊在訊息之間的間距上）。 */
+/* 使用者的複製鈕在泡泡下方右側；一直佔著自己的高度（觸控時鈕是 44px），不疊到下一則訊息，顯示與隱藏也不推動版面。 */
 .userActions {
   display: flex;
   justify-content: flex-end;
-  height: var(--space-3);
-}
-
-.userActions .copyGroup {
-  align-self: flex-start;
 }
 
 .copyGroup {
@@ -445,6 +440,25 @@
   border-radius: var(--radius-md);
 }
 
+/* 回覆中的「停止」比「送出」寬：兩顆鈕給同一個最小寬度，窄面板切換時不換行、不推動文字框。 */
+.sendButton {
+  min-width: 5rem;
+  white-space: nowrap;
+}
+
+/* 失敗與沒有上傳的完整原因：小卡列下面、文字框上面，可以換行。 */
+.attachProblems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
+}
+
 .attachNote {
   margin: 0;
   font-size: var(--text-sm);
@@ -590,4 +604,9 @@
 
 .sendKeyLabel {
   white-space: nowrap;
+}
+
+/* 窄的地方（浮動面板）：選單鈕只留按鍵加箭頭，不撐到 8rem 的下限（比 Select 的選擇器多一個元素名，權重較高）。 */
+button.sendKeyCompact[data-width='content'] {
+  --select-content-min: 0;
 }
