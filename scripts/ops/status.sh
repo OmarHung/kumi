@@ -59,7 +59,7 @@ show_ready() {
 }
 
 show_backups() {
-  local dir interval newest mtime name age_hours all count total=0 path owner
+  local dir interval newest mtime name age_hours all count total=0 path owner plain
   dir="$(backup_dir)"
   interval="$(env_get BACKUP_INTERVAL_HOURS 24)"
   [[ "$interval" =~ ^[1-9][0-9]*$ ]] || { problem "env 檔的 BACKUP_INTERVAL_HOURS 不是正整數（${interval}）。"; interval=24; }
@@ -97,7 +97,19 @@ show_backups() {
     total=$((total + $(file_size "$path")))
   done <<<"$all"
   row "備份" "${count} 份，共 $(human_size "$total")（${dir}）"
+  if [[ -n "$(env_get BACKUP_AGE_RECIPIENT)" ]]; then
+    row "備份加密" "開著（age，檔名 .dump.age；還原要用私鑰：BACKUP_AGE_IDENTITY_FILE）"
+  else
+    row "備份加密" "沒開（BACKUP_AGE_RECIPIENT 沒設，備份是明文的 .dump，docs/OPERATIONS.md 第 3 節）"
+  fi
   row "磁碟剩餘" "$(df -Ph "$dir" | awk 'NR == 2 { print $4 }')"
+  # 開了加密之後，以前的明文備份不會自己消失：留著就等於加密沒有保護到那幾份（docs/OPERATIONS.md 第 3 節）。
+  if [[ -n "$(env_get BACKUP_AGE_RECIPIENT)" ]]; then
+    plain="$(find "$dir" -maxdepth 1 -type f -name '*.dump' 2>/dev/null | wc -l | tr -d ' ')"
+    if ((plain > 0)); then
+      row "提醒" "備份加密已經開了，但 ${dir} 裡還有 ${plain} 份明文的 .dump：加密開了之後不會回頭加密它們，照 docs/OPERATIONS.md 第 3 節「開了加密之後，舊的明文備份」處理"
+    fi
+  fi
 }
 
 # 附件資料夾裡的檔案數與大小（KB，du 的值）。資料夾不存在就是 0 0。

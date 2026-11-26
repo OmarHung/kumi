@@ -30,18 +30,16 @@ updates:
         patterns: ["*"]
 
   # 基底映像檔固定在 digest：Dependabot 會開 PR 更新 digest（docs/DEPLOYMENT.md 第 7 節的流程照舊）。
+  # 每個有 Dockerfile 的資料夾都要列：根目錄、ai-worker、它的出口代理（Alpine）、備份用的 pg-tools。
+  # compose.yaml 的 x-postgres-image（資料庫與 pg-tools 的基底）不在 Dependabot 看得到的範圍：要手動更新，見 docs/DEPLOYMENT.md 第 7 節。
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /deploy/ai-worker
+      - /deploy/ai-worker/egress-proxy
+      - /deploy/pg-tools
     schedule:
       interval: weekly
     groups:
       docker:
-        patterns: ["*"]
-
-  - package-ecosystem: docker
-    directory: /deploy/ai-worker
-    schedule:
-      interval: weekly
-    groups:
-      ai-worker-images:
         patterns: ["*"]

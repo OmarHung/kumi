@@ -45,8 +45,9 @@ if (args[0] === 'features' && args[1] === 'list') {
     return entry ? entry.slice(key.length + 1) : null;
   };
   const url = JSON.parse(config('mcp_servers.kumi.url'));
+  // 專案代號：真的 Codex 靠 env_http_headers 從環境變數 KUMI_MCP_PROJECT 帶進 MCP 標頭，假引擎直接讀同一個變數。
   const headers = config('mcp_servers.kumi.http_headers') || '';
-  const project = (headers.match(/"X-Kumi-Project" = "([^"]+)"/) || [])[1] || process.env.FAKE_PROJECT_KEY || 'DEMO';
+  const project = process.env.KUMI_MCP_PROJECT || (headers.match(/"X-Kumi-Project" = "([^"]+)"/) || [])[1] || process.env.FAKE_PROJECT_KEY || 'DEMO';
   const token = process.env.KUMI_MCP_TOKEN;
   if (!token) { console.error('缺少 KUMI_MCP_TOKEN'); process.exit(2); }
   const out = (value) => console.log(JSON.stringify(value));

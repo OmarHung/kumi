@@ -133,6 +133,7 @@ my ($allow_path, $self_allow) = @ARGV;
 my @pat = (
   ["kumi-token",     qr/\b(?:pmt|pmr|kha|kjt)_[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/],
   ["private-key",    qr/-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----/],
+  ["age-secret-key", qr/AGE-SECRET-KEY-1[0-9A-Z]{58}/],
   ["anthropic-key",  qr/sk-ant-(?:api|admin)\d\d-[A-Za-z0-9_-]{80,}/],
   ["openrouter-key", qr/sk-or-v1-[0-9a-f]{64}/],
   ["openai-key",     qr/sk-proj-[A-Za-z0-9_-]{40,}|(?<![A-Za-z0-9_-])sk-(?!ant-|or-|proj-)[A-Za-z0-9]{40,}/],

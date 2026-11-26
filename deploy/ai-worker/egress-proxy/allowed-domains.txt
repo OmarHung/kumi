@@ -1,0 +1,10 @@
+# 引擎允許連的網域（一行一個；開頭的點代表連子網域一起放行）。改了之後：docker compose restart ai-egress。
+# 增加之前先確認真的需要：這份清單就是 AI 引擎能把資料送去的地方。見 docs/OPERATIONS.md 第 17 節。
+
+# Claude Code：模型的呼叫，以及 Console（API 用量計費）登入的授權與換權杖
+api.anthropic.com
+console.anthropic.com
+platform.claude.com
+
+# Codex：模型的呼叫（OpenAI API 金鑰）
+api.openai.com

@@ -10,10 +10,14 @@
 services:
   ai-worker:
     environment:
-      KUMI_AGENT_CLAUDE_PATH: /fake-engines/claude
-      KUMI_AGENT_CODEX_PATH: /fake-engines/codex
-      FAKE_ENGINE_STATE_DIR: /home/kumi/.fake-engines
+      # 假引擎照樣經過 /usr/local/libexec/kumi 的包裝檔（切換成引擎帳號、出口代理），只是把真正執行的檔案換成假的。
+      KUMI_ENGINE_CLAUDE_BIN: /fake-engines/claude
+      KUMI_ENGINE_CODEX_BIN: /fake-engines/codex
+      FAKE_CLAUDE_AUTH: ${FAKE_CLAUDE_AUTH:-none}
+      FAKE_CODEX_AUTH: ${FAKE_CODEX_AUTH:-none}
       FAKE_CLAUDE_LOGIN_AS: ${FAKE_CLAUDE_LOGIN_AS:-api}
       FAKE_CODEX_LOGIN_AS: ${FAKE_CODEX_LOGIN_AS:-api}
+      # kumi 給引擎的環境是白名單：包裝檔與假引擎要的變數得明確放行。
+      KUMI_ENGINE_PASSTHROUGH_ENV: KUMI_ENGINE_CLAUDE_BIN,KUMI_ENGINE_CODEX_BIN,FAKE_CLAUDE_LOGIN_AS,FAKE_CODEX_LOGIN_AS,FAKE_CLAUDE_AUTH,FAKE_CODEX_AUTH
     volumes:
       - ./deploy/ai-worker/fake-engines:/fake-engines:ro

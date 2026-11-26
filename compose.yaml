@@ -15,6 +15,40 @@ x-logging: &logging
 # 目前是 PostgreSQL 18.7（2026-11-17 查的）。怎麼更新見 docs/DEPLOYMENT.md 第 7 節；只能換 18 的小版本，換大版本要另外搬資料。
 x-postgres-image: &postgres-image postgres:18@sha256:2ea8630df176ad090ec92136dee850397c5af8781e4bcf2e4162593691c61bbc
 
+# api 與 migrate 共用的設定：同一個映像檔、同一組執行用的連線、同一份 Data Protection 憑證、同樣的附件設定。
+# 擁有者的連線字串與第一個擁有者的帳密只在 migrate（只跑一次）：api 的環境變數裡沒有它們（docs/OPERATIONS.md 第 2 節）。
+x-api-shared-env: &api-shared-env
+  ASPNETCORE_ENVIRONMENT: Production
+  # 平常用執行用的角色：只能讀寫資料，改不了資料表結構。
+  # 執行用的角色 pmtool_app 由 scripts/ops/deploy-local.sh 在遷移之前建立（deploy/postgres/app-role.psql）。
+  ConnectionStrings__Database: Host=db;Port=5432;Database=pmtool;Username=pmtool_app;Password=${POSTGRES_APP_PASSWORD:?請在 .env 加上 POSTGRES_APP_PASSWORD（產生：openssl rand -hex 24），再執行 bash scripts/ops/deploy-local.sh，見 docs/OPERATIONS.md}
+  # 遷移完把每個模組的 schema 的讀寫權限授予這個角色。
+  Database__RuntimeRole: pmtool_app
+  # 工作階段 Cookie 的金鑰存在資料庫裡（identity.data_protection_keys）。.env 設了 DATAPROTECTION_CERT_FILE 才用憑證加密它們；
+  # 沒設時金鑰是明文，啟動時記一筆 Warning（本機自用可以接受）。步驟見 docs/OPERATIONS.md 第 20 節。
+  DataProtection__CertificatePath: ${DATAPROTECTION_CERT_FILE:+/run/secrets/dp/}${DATAPROTECTION_CERT_FILE:-}
+  DataProtection__CertificatePassword: ${DATAPROTECTION_CERT_PASSWORD:-}
+  DataProtection__PreviousCertificatePaths__0: ${DATAPROTECTION_PREVIOUS_CERT_FILE:+/run/secrets/dp/}${DATAPROTECTION_PREVIOUS_CERT_FILE:-}
+  DataProtection__RequireCertificate: ${DATAPROTECTION_REQUIRE_CERTIFICATE:-false}
+  # 記錄是一行一筆的 JSON（正式環境的預設，寫在 appsettings.Production.json）：scripts/ops/status.sh 與 errors.sh 靠它。
+  # 只影響記錄的時間：程式裡的時間一律用 UTC。
+  TZ: ${TZ:-Asia/Taipei}
+  # 附件的檔案放在主機的資料夾（本機用 local）。容器以 UID 1654 執行，資料夾要寫得進去：
+  # scripts/ops/deploy-local.sh 會先建立並確認（見 docs/OPERATIONS.md 第 3 節）。
+  Attachments__Provider: local
+  Attachments__Directory: /data/attachments
+
+# api 與 migrate 掛的 Data Protection 憑證資料夾（唯讀）。沒設 DATAPROTECTION_DIR 時掛一個空的資料夾，掛載點才永遠存在。
+x-dp-volume: &dp-volume ${DATAPROTECTION_DIR:-./deploy/no-secrets}:/run/secrets/dp:ro
+
+# api 與 backup 的容器硬化（docs/OPERATIONS.md 第 2 節）：唯讀的根檔案系統、拿掉所有 capability、不能取得新的權限。
+# 需要寫的地方（/tmp、附件、備份目錄）各自明確掛上。
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+
 services:
   db:
     image: *postgres-image
@@ -32,11 +66,16 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    # 只加 no-new-privileges：資料庫的映像檔要用 root 起來再降權（gosu）、設資料夾的擁有者，拿掉 capability 會起不來。
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     logging: *logging
     # 不對主機開連接埠：只有 api 與 backup 需要連它。
 
   api:
+    # image 與 migrate 共用：先建置 api（compose build api），migrate 再用同一個映像檔。
+    image: ${COMPOSE_PROJECT_NAME:-pm-tool}-api
     build:
       context: .
       dockerfile: Dockerfile
@@ -46,34 +85,20 @@ services:
     # 讓一個小的 init 程序當 PID 1：程式碼處理不到的崩潰（例如堆疊溢位）會讓程序結束，
     # Docker 才看得到並依 restart 重啟；沒有它，PID 1 是 .NET 本身，行為比較難預期。
     init: true
+    <<: *hardening
+    tmpfs:
+      - /tmp:size=256m
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    pids_limit: ${API_PIDS_LIMIT:-512}
     ports:
       # 只綁本機：這是測試用的設定，沒有 HTTPS，不該讓同一個網路上的其他機器連進來。
       # 連接埠可以換，同一份設定才能另外起一套隔離的環境（測試、演練），不碰到 8080 那一套。
       - "127.0.0.1:${PMTOOL_PORT:-8080}:8080"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      # 平常用執行用的角色：只能讀寫資料，改不了資料表結構。
-      # 執行用的角色 pmtool_app 由 scripts/ops/deploy-local.sh 在啟動 api 之前建立（deploy/postgres/app-role.psql）。
-      ConnectionStrings__Database: Host=db;Port=5432;Database=pmtool;Username=pmtool_app;Password=${POSTGRES_APP_PASSWORD:?請在 .env 加上 POSTGRES_APP_PASSWORD（產生：openssl rand -hex 24），再執行 bash scripts/ops/deploy-local.sh，見 docs/OPERATIONS.md}
-      # 遷移用資料表的擁有者。遷移完把每個模組的 schema 的讀寫權限授予 RuntimeRole。
-      ConnectionStrings__Migrations: Host=db;Port=5432;Database=pmtool;Username=pmtool;Password=${POSTGRES_PASSWORD}
-      Database__RuntimeRole: pmtool_app
-      # 本機只有一個 api 容器，啟動時遷移就好。雲端關掉它，另外跑 migrate（docs/DEPLOYMENT.md）。
-      Database__MigrateOnStartup: "true"
-      # 資料庫裡還沒有任何帳號時，用這組資料建立第一個組織與它的擁有者；之後這些設定就不再有作用。
-      Bootstrap__OrganizationName: ${BOOTSTRAP_ORGANIZATION_NAME:-範例組織}
-      Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-管理員}
-      Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
-      Bootstrap__AdminPassword: ${BOOTSTRAP_ADMIN_PASSWORD:?請先在 .env 填上 BOOTSTRAP_ADMIN_PASSWORD（至少 10 個字元）}
-      # 工作階段 Cookie 的加密金鑰存在資料庫裡（不再用資料卷）。本機沒有設憑證（DataProtection__CertificatePath），
-      # 金鑰沒有另外加密，啟動時會記一筆 Warning，本機自用可以接受。
-      # 記錄是一行一筆的 JSON（正式環境的預設，寫在 appsettings.Production.json）：scripts/ops/status.sh 與 errors.sh 靠它。
-      # 只影響記錄的時間：程式裡的時間一律用 UTC。
-      TZ: ${TZ:-Asia/Taipei}
-      # 附件的檔案放在主機的資料夾（本機用 local）。api 容器以 UID 1654 執行，資料夾要寫得進去：
-      # scripts/ops/deploy-local.sh 會先建立並確認（見 docs/OPERATIONS.md 第 3 節）。
-      Attachments__Provider: local
-      Attachments__Directory: /data/attachments
+      <<: *api-shared-env
+      # 遷移分開跑（migrate 服務，deploy-local.sh 會先跑它）：api 不帶擁有者的連線字串（ConnectionStrings__Migrations），
+      # 也不帶第一個擁有者的密碼（Bootstrap__*），被攻破的 api 拿不到能改資料表結構的密碼。
+      Database__MigrateOnStartup: "false"
       # AI 的 OpenAI 相容端點能不能連到私有網段與本機（主機上自架的 Ollama 要打開）。預設不行：見 docs/DEPLOYMENT.md 第 1.8 節。
       Ai__AllowPrivateEndpoints: ${AI_ALLOW_PRIVATE_ENDPOINTS:-false}
       # 寄信的主機能不能在私有網段與本機（公司內網的轉信主機要打開）。預設不行：見 docs/DEPLOYMENT.md 第 1.7 節。
@@ -84,30 +109,66 @@ services:
     volumes:
       # 和資料庫的資料卷一樣不放在 Docker 的資料卷裡：docker compose down -v 刪不到它。
       - ${ATTACHMENTS_DIR:-./data/attachments}:/data/attachments
-    # 縱深防禦：萬一程式有能執行程式碼的漏洞，進到容器裡也改不了程式、拿不到特權。
-    # api 只寫附件資料夾（上面掛的）與 /tmp（.NET 與上傳的暫存，放在記憶體裡、重啟就清空）；
-    # 工作階段的金鑰在資料庫、記錄寫到標準輸出，所以檔案系統其他地方一律唯讀。和 ai-worker 同一組設定。
-    read_only: true
-    tmpfs:
-      - /tmp
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
+      - *dp-volume
     # ai-worker 只在 ai-worker 這個網路上，連得到 api、連不到 db；api 兩邊都接。
     networks: [default, ai-worker]
     restart: unless-stopped
     logging: *logging
     # 沒有寫 healthcheck：執行階段的 aspnet 映像檔裡沒有 curl 或 wget。就緒檢查交給外部打 GET /health/ready。
 
+  # 遷移：資料表、授予執行用的角色讀寫權限、第一個組織與它的擁有者。只跑一次、做完就結束，不常駐。
+  # 用 profile 擋住，docker compose up 不會帶起它；scripts/ops/deploy-local.sh 在換 api 之前跑
+  # docker compose run --rm migrate，結束代碼不是 0 就停。擁有者的連線字串與第一個擁有者的帳密只放在這裡。
+  migrate:
+    profiles: ["migrate"]
+    image: ${COMPOSE_PROJECT_NAME:-pm-tool}-api
+    # 映像檔由 api 服務建置；沒建過時直接報錯，不要去遠端拉同名的映像檔。
+    pull_policy: never
+    command: ["migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    init: true
+    <<: *hardening
+    tmpfs:
+      - /tmp:size=256m
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    pids_limit: ${API_PIDS_LIMIT:-512}
+    environment:
+      <<: *api-shared-env
+      # 資料表的擁有者：建資料表、改結構、授權用它。
+      ConnectionStrings__Migrations: Host=db;Port=5432;Database=pmtool;Username=pmtool;Password=${POSTGRES_PASSWORD}
+      # 資料庫裡還沒有任何帳號時，用這組資料建立第一個組織與它的擁有者；之後這些設定就不再有作用。
+      Bootstrap__OrganizationName: ${BOOTSTRAP_ORGANIZATION_NAME:-範例組織}
+      Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-管理員}
+      Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      Bootstrap__AdminPassword: ${BOOTSTRAP_ADMIN_PASSWORD:?請先在 .env 填上 BOOTSTRAP_ADMIN_PASSWORD（至少 10 個字元）}
+    volumes:
+      - ${ATTACHMENTS_DIR:-./data/attachments}:/data/attachments
+      - *dp-volume
+    logging: *logging
+
   backup:
-    # 用和資料庫同一個映像檔：pg_dump 的版本和伺服器一致，也不用另外建置。
-    image: *postgres-image
+    # 資料庫的映像檔加上 age（deploy/pg-tools/Dockerfile）：pg_dump 的版本和伺服器一致，.env 填了 BACKUP_AGE_RECIPIENT 時備份先加密。
+    image: ${COMPOSE_PROJECT_NAME:-pm-tool}-backup
+    build:
+      context: ./deploy/pg-tools
+      args:
+        POSTGRES_IMAGE: *postgres-image
     depends_on:
       db:
         condition: service_healthy
     # 每小時看一次，最新的排程備份超過 BACKUP_INTERVAL_HOURS 就做一份，所以 Mac 睡著錯過時間也會補上。
     # 手動備份（scripts/ops/backup-now.sh）也是跑這支腳本，只是帶 --once。
     entrypoint: ["bash", "/ops/backup-loop.sh"]
+    <<: *hardening
+    # 容器以 root 執行，但拿掉了所有 capability：讀 api 的使用者（UID 1654）建的附件、改備份目錄的權限
+    # 在 Linux 上要 DAC_OVERRIDE 與 FOWNER（macOS 的 Docker Desktop 不看檔案的擁有者，用不到）。只加這兩個。
+    cap_add: [DAC_OVERRIDE, FOWNER]
+    tmpfs:
+      - /tmp:size=64m
+    mem_limit: ${BACKUP_MEM_LIMIT:-512m}
+    pids_limit: ${BACKUP_PIDS_LIMIT:-128}
     environment:
       PGHOST: db
       PGPORT: "5432"
@@ -119,6 +180,8 @@ services:
       # 兩套環境才不會共用同一個備份目錄（見 docs/OPERATIONS.md 第 9 節）。
       PMTOOL_PROJECT: ${COMPOSE_PROJECT_NAME}
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      # age 的公鑰（age1…）。有填就在寫進備份目錄之前加密成 .dump.age；沒填照舊存 .dump。見 docs/OPERATIONS.md 第 3 節。
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       # 只有測試要把檢查的間隔調短，平常不用設。
       BACKUP_CHECK_SECONDS: ${BACKUP_CHECK_SECONDS:-3600}
@@ -144,13 +207,18 @@ services:
       dockerfile: deploy/ai-worker/Dockerfile
     depends_on:
       - api
+      - ai-egress
     init: true
     restart: unless-stopped
     # 收到 SIGTERM 後，正在跑的回覆要以「中斷」結束、送出結果，給它時間。
     stop_grace_period: 40s
     logging: *logging
-    user: "10001:10001"
+    # 不寫 user：容器以 root 啟動，由 /usr/local/bin/kumi 整理資料卷後降成 kumi 帳號（10001），引擎再由 kumi 切換成那個引擎自己的帳號（Claude Code 10002、Codex 10003）。
+    # 能力只留這幾個（沒有 NET_*、SYS_*）：chown、略過讀寫權限（只在啟動時整理資料卷用）、setuid／setgid（kumi 切換成引擎帳號用）、
+    # kill（kumi 取消或逾時時停掉引擎的程序，它們是另一個 uid）、dac_read_search（kumi 讀引擎的 Codex 登入檔做帳號比對）。
+    # 降成 kumi 之後只留 setuid、setgid、kill、dac_read_search，引擎的程序一個都沒有。
     cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, DAC_READ_SEARCH, FOWNER, KILL, SETUID, SETGID]
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -159,16 +227,48 @@ services:
     # 引擎讀的是別人寫的項目內容（提示注入的入口）：隔離的旗標之外再加資源上限，失控的程序吃不光主機。
     mem_limit: 2g
     pids_limit: 512
-    # 自己的網路：連得到 api（和外網的供應商），連不到 db。
+    # 只接 ai-worker 這個內部網路（internal: true，沒有出口）：連得到 api 與出口代理 ai-egress，連不到 db，也連不到外網。
     networks: [ai-worker]
     environment:
+      # 對外的流量一律經過 ai-egress，它只放行 deploy/ai-worker/egress-proxy/allowed-domains.txt 裡的網域（AG-14）；api 直接連。
+      # 設了 Security:RequireHttps 的部署把 AI_WORKER_SERVER 換成對外的網址時，那個網域也要加進清單（docs/OPERATIONS.md 第 17 節）。
+      HTTPS_PROXY: http://ai-egress:3128
+      HTTP_PROXY: http://ai-egress:3128
+      NO_PROXY: api,localhost,127.0.0.1,::1
+      https_proxy: http://ai-egress:3128
+      http_proxy: http://ai-egress:3128
+      no_proxy: api,localhost,127.0.0.1,::1
       # worker 連的網址；工作的 MCP 網址也是它加 /mcp。設了 Security:RequireHttps 的部署要換成對外的 https 網址。
       KUMI_SERVER: ${AI_WORKER_SERVER:-http://api:8080}
       # compose 內部網路的 http 不是本機：明確放行（機器憑證只在這個內部網路上傳送）。換成 https 網址時用不到。
       KUMI_ALLOW_INSECURE: "1"
     volumes:
-      # CLI 的登入（~/.claude、~/.codex）與 kumi 的狀態檔（機器憑證）。docker compose down -v 會刪掉它，之後要重新配對、登入。
+      # kumi 的狀態檔（機器憑證，.kumi-host，只有 kumi 帳號讀得到）與引擎的登入（engine-claude/.claude、engine-codex/.codex，各屬於那個引擎的帳號）。
+      # docker compose down -v 會刪掉它，之後要重新配對、登入。
       - ai-worker-home:/home/kumi
+
+  # ai-worker 的出口代理（AG-14）：同時接內部網路與外網，只轉送允許的網域的 HTTPS。
+  # 要連新的網域：改 deploy/ai-worker/egress-proxy/allowed-domains.txt，docker compose restart ai-egress（docs/OPERATIONS.md 第 17 節）。
+  ai-egress:
+    profiles: ["ai-worker"]
+    build:
+      context: deploy/ai-worker/egress-proxy
+    init: true
+    restart: unless-stopped
+    logging: *logging
+    # 映像檔的 USER 是 squid；不需要任何能力，根目錄唯讀，只有 /tmp 能寫。
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    mem_limit: 256m
+    pids_limit: 64
+    networks: [ai-worker, ai-egress]
+    volumes:
+      - ./deploy/ai-worker/egress-proxy/squid.conf:/etc/kumi-egress/squid.conf:ro
+      - ./deploy/ai-worker/egress-proxy/allowed-domains.txt:/etc/kumi-egress/allowed-domains.txt:ro
 
 # 舊版的 api-keys 資料卷（工作階段的金鑰）不再用，不會自動刪除，見 docs/OPERATIONS.md。
 volumes:
@@ -177,4 +277,8 @@ volumes:
 
 networks:
   default:
+  # ai-worker 與出口代理之間的內部網路：internal 表示沒有通往外網的路，容器只能彼此連（api 也接這一張）。
   ai-worker:
+    internal: true
+  # 只有出口代理接：它是 ai-worker 通往外網的唯一出口。
+  ai-egress:

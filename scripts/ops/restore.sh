@@ -1,9 +1,10 @@
 #!/bin/bash
 # 把正在用的那一套換回某份備份。只是想確認備份讀得回來的話，用 restore-drill.sh，不要用這支。
 # 用法：bash scripts/ops/restore.sh <備份檔> [--yes]
+#   備份檔是 .dump.age（加密的）時，要設 BACKUP_AGE_IDENTITY_FILE=<私鑰檔的絕對路徑>；解密在一次性的容器裡，明文只走管線。
 #   --yes  不問，直接還原（給別的腳本用）。沒帶時要打出專案名稱確認。
 # 順序：備份檔先複製進資料庫的容器並讀過一遍 → 確認 → 替現況備份（標籤 pre-restore）→ 停 api 與 backup
-#       → 刪掉並重建資料庫 → 還原 → 作廢所有工作階段 → 把備份裡的附件補回附件資料夾（只補缺的）→ 啟動 api 與 backup → 等就緒。
+#       → 刪掉並重建資料庫 → 還原 → 跑 migrate（升到目前的版本、授權給執行用的角色）→ 作廢所有工作階段 → 把備份裡的附件補回附件資料夾（只補缺的）→ 啟動 api 與 backup → 等就緒。
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -70,6 +71,10 @@ explain_state() {
       printf '  - 還原前的資料在：%s\n' "${PRE_RESTORE_BACKUP:-（沒有）}" >&2
       printf '  - 換回還原前的樣子：%s\n' "$(how_back)" >&2
       ;;
+    migrating)
+      printf '  - 資料已經換成備份的內容，但 migrate（遷移到目前的版本、把權限授予 %s）沒有成功，api 與 backup 停著。\n' "$APP_DB_USER" >&2
+      printf '  - 看上面 migrate 的訊息；修好之後再跑一次同一個還原，或換回還原前的樣子：%s\n' "$(how_back)" >&2
+      ;;
     revoking)
       printf '  - 資料已經換成備份的內容，但工作階段沒有作廢：備份之後登出或被作廢的登入可能又能用。\n' >&2
       printf '  - api 與 backup 停著。不要先啟動 api：再跑一次同一個還原，或換回還原前的樣子：%s\n' "$(how_back)" >&2
@@ -109,10 +114,17 @@ on_exit() {
 # 先把備份檔複製進資料庫的容器，從頭到尾讀過一遍（輸出丟掉）：
 # 確認之後，就算這份檔案在主機上被清理刪掉或被改掉，還原的也是剛才讀過的這一份，而且在刪資料庫之前就知道它是好的。
 copy_and_check_dump() {
-  local file="$1"
+  local file="$1" identity
   DUMP_COPIED=true
-  compose cp "$file" "db:${DUMP_IN_CONTAINER}" >/dev/null 2>&1 ||
-    die "沒辦法把 $file 複製進資料庫的容器。什麼都沒動。"
+  if is_age_backup "$file"; then
+    # 解密的明文經管線直接寫進資料庫容器的 /tmp，不經過主機的磁碟。
+    identity="$(age_identity_file)"
+    { decrypt_backup "$file" "$identity" | compose exec -T db sh -c "cat > ${DUMP_IN_CONTAINER}"; } ||
+      die "解不開 ${file}（私鑰不對、檔案壞了，或資料庫的容器寫不進去）。確認 BACKUP_AGE_IDENTITY_FILE 是產生這份備份的公鑰對應的私鑰。什麼都沒動。"
+  else
+    compose cp "$file" "db:${DUMP_IN_CONTAINER}" >/dev/null 2>&1 ||
+      die "沒辦法把 $file 複製進資料庫的容器。什麼都沒動。"
+  fi
   compose exec -T db pg_restore --file=/dev/null "$DUMP_IN_CONTAINER" >/dev/null 2>&1 ||
     die "$file 不是讀得回來的備份檔（pg_restore 讀不完）。什麼都沒動。換一份；備份在 $(backup_dir)。"
 }
@@ -168,11 +180,22 @@ start_services() {
 }
 
 # 在一個交易裡還原：失敗的話整個撤銷，資料庫是空的，不會留下一半的資料。
-# --no-privileges：備份裡的權限（GRANT、預設權限）不還原。授予執行用的角色的權限由 api 啟動時的遷移重新給，
+# --no-privileges：備份裡的權限（GRANT、預設權限）不還原。授予執行用的角色的權限由下面的 migrate 重新給，
 # 和備份是哪一版做的、當時有沒有 pmtool_app 都無關；備份裡指名的角色不存在時，GRANT 還會讓整個還原失敗。
 restore_dump() {
   compose exec -T db pg_restore --exit-on-error --single-transaction --no-owner --no-privileges \
     -U "$DB_USER" -d "$DB_NAME" "$DUMP_IN_CONTAINER"
+}
+
+# 還原不帶權限（--no-privileges），而且備份可能是舊版做的：api 不再自己遷移，所以這裡跑一次 migrate，
+# 把資料表升到目前的版本、把讀寫權限授予執行用的角色，api 才讀寫得了剛還原的資料庫。
+run_migrate() {
+  local output
+  if ! output="$(compose run --rm --no-deps -T migrate 2>&1)"; then
+    printf '%s\n' "$output" | tail -n 40 >&2
+    die "migrate 失敗（結束代碼不是 0，上面是最後 40 行記錄）。"
+  fi
+  info "遷移完成，已把權限授予 ${APP_DB_USER}。"
 }
 
 psql_restored() {
@@ -221,6 +244,9 @@ main() {
   [[ -f "$file" && -r "$file" ]] || die "找不到備份檔，或沒有權限讀它：$file"
   file="$(cd "$(dirname "$file")" && pwd -P)/$(basename "$file")"
   require_setup
+  # 還原的最後要用 api 的映像檔跑 migrate：沒有它，資料庫刪了之後才發現就回不去。先確認，沒有就在刪任何東西之前停下來。
+  docker image inspect "${PROJECT}-api" >/dev/null 2>&1 ||
+    die "找不到 api 的映像檔 ${PROJECT}-api：還原最後要用它跑 migrate，沒有它資料庫換掉之後會停在一半。先 bash scripts/ops/deploy-local.sh（或 $(compose_hint) build api）把映像檔建起來。什麼都沒動。"
   claim_backup_dir
   service_running db || die "資料庫（專案 ${PROJECT} 的 db）沒有在跑。先把它叫起來：$(compose_hint) up -d --no-build db"
   trap on_exit EXIT
@@ -245,6 +271,10 @@ main() {
   step "還原"
   restore_dump
   remove_copied_dump
+
+  STAGE=migrating
+  step "遷移到目前的版本、授予執行用的角色權限（migrate）"
+  run_migrate
 
   STAGE=revoking
   step "作廢所有的工作階段"

@@ -1,0 +1,10 @@
+{
+  "name": "kumi-ai-worker-engines",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ai-worker 映像檔裡的兩個引擎 CLI。版本釘死、依 package-lock.json 用 npm ci 安裝；升級流程見 docs/OPERATIONS.md 第 17 節。",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.330",
+    "@openai/codex": "0.163.0"
+  }
+}

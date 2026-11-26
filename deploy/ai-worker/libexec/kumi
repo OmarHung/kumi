@@ -1,0 +1,69 @@
+#!/bin/sh
+# kumi 的啟動器（容器的 ENTRYPOINT 與 docker compose exec 都經過它）。
+#
+# 容器以 root 啟動、只帶少數幾個能力（compose 的 cap_add）；這裡把資料卷整理好，再降成 kumi 帳號（uid 10001）去跑真正的 kumi，
+# 並讓它保有「切換成引擎帳號」「停掉引擎的程序（取消、逾時）」與「讀引擎的登入檔」需要的最少能力（setuid、setgid、kill、dac_read_search）。
+# 兩個帳號的分工與理由見 docs/OPERATIONS.md 第 17 節。
+set -eu
+
+if [ "$(id -u)" -ne 0 ]; then
+  exec /opt/kumi/kumi "$@"
+fi
+
+kumi_id=10001
+claude_id=10002
+codex_id=10003
+home=/home/kumi
+claude_home=$home/engine-claude
+codex_home=$home/engine-codex
+
+mkdir -p "$claude_home" "$codex_home" "$home/.kumi-host"
+
+# 從舊版升上來，登入都不會掉：
+# - 最舊的（引擎與 kumi 同一個帳號）：登入直接放在 $home 底下；
+# - 上一版（兩個引擎共用一個帳號與 $home/engine）：全部放在 $home/engine 底下；
+# - 現在：Claude Code 在 engine-claude，Codex 在 engine-codex。
+# 目的地已經有東西就不覆蓋（可以重跑）；搬的是整個項目，不跟隨符號連結。
+move_login() {
+  src_dir=$1
+  name=$2
+  dest_dir=$3
+  if [ -e "$src_dir/$name" ] || [ -L "$src_dir/$name" ]; then
+    if [ ! -e "$dest_dir/$name" ] && [ ! -L "$dest_dir/$name" ]; then
+      mv "$src_dir/$name" "$dest_dir/$name"
+    fi
+  fi
+}
+for src in "$home" "$home/engine"; do
+  [ -d "$src" ] || continue
+  move_login "$src" .claude "$claude_home"
+  move_login "$src" .claude.json "$claude_home"
+  move_login "$src" .codex "$codex_home"
+done
+# 搬進來的東西裡不留符號連結（舊版的引擎帳號寫得進它的家目錄，連結可能指到別的帳號的檔案）。
+find "$claude_home" "$codex_home" -maxdepth 2 -type l -delete
+# 舊的共用家目錄剩下的東西（目的地已經有同名的、或登入以外的檔案）不再屬於任何引擎帳號：改成只有 root 看得到，不刪。
+if [ -d "$home/engine" ]; then
+  chown -hR 0:0 "$home/engine"
+  chmod 700 "$home/engine"
+fi
+
+# 每次都重設擁有者與權限（很小的資料夾）：資料卷可能來自舊版，也可能被人手動改過。
+# chown -R 不跟隨符號連結。狀態檔（機器憑證）只有 kumi 讀得到；每個引擎的家目錄只有那個引擎（與帶 dac_read_search 的 kumi）讀得到，
+# 引擎之間彼此讀不到（不同的 uid、700）。
+chown -hR "$claude_id:$claude_id" "$claude_home"
+chmod 700 "$claude_home"
+chown -hR "$codex_id:$codex_id" "$codex_home"
+chmod 700 "$codex_home"
+chown -hR "$kumi_id:$kumi_id" "$home/.kumi-host"
+chmod 700 "$home/.kumi-host"
+# $home 本身只給「穿過去」（711）：引擎走得到自己的家目錄，列不出也讀不到 kumi 的東西。
+chown "$kumi_id:$kumi_id" "$home"
+chmod 711 "$home"
+
+# 附加的群組 10002、10003：kumi 替每件工作的暫存資料夾（/tmp/kumi-agent-*）只開給那個引擎的帳號時要 chgrp（as-engine），
+# 不是群組的成員就改不了。這兩個群組沒有別的用途（引擎的家目錄是 700，群組讀不到）。
+exec setpriv --reuid="$kumi_id" --regid="$kumi_id" --groups="$claude_id,$codex_id" --no-new-privs \
+  --inh-caps=-all,+setuid,+setgid,+kill,+dac_read_search \
+  --ambient-caps=-all,+setuid,+setgid,+kill,+dac_read_search \
+  /opt/kumi/kumi "$@"

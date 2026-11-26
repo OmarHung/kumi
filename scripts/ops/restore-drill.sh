@@ -1,8 +1,9 @@
 #!/bin/bash
 # 還原演練：把一份備份還原到另外起的、用完就丟的 PostgreSQL，列出每張表的筆數。不碰正在用的那一套。
 # 用法：bash scripts/ops/restore-drill.sh [備份檔] [--with-api]    沒給備份檔時用最新的一份
+#       備份檔是 .dump.age（加密的）時，要設 BACKUP_AGE_IDENTITY_FILE=<私鑰檔的絕對路徑>（解密在一次性的容器裡，明文只走管線）。
 #       bash scripts/ops/restore-drill.sh --down                  清掉 --with-api 留著的演練
-#   --with-api  再用現有的 API 映像檔接上演練的資料庫，開在 http://127.0.0.1:${DRILL_PORT:-8081}，
+#   --with-api  再用現有的 API 映像檔接上演練的資料庫（先跑一次 migrate 再起 api，和部署的流程一樣），開在 http://127.0.0.1:${DRILL_PORT:-8081}，
 #               可以登入看資料，留著直到 --down。沒帶時跑完就清掉。
 #               演練的 api 用自己的一份附件資料夾（暫存目錄，從備份目錄的 attachments/ 複製來的，--down 時刪掉），
 #               不碰正在用的附件資料夾。
@@ -118,8 +119,14 @@ start_db() {
 # --no-privileges：演練的資料庫沒有執行用的角色 pmtool_app，備份裡授予它的權限（GRANT）會讓還原失敗。
 # 演練的 api 用超級使用者連線，用不到那些權限。
 restore_into_drill() {
-  local file="$1"
-  docker cp "$file" "${DRILL_DB}:${DUMP_IN_CONTAINER}" >/dev/null
+  local file="$1" identity
+  if is_age_backup "$file"; then
+    identity="$(age_identity_file)"
+    { decrypt_backup "$file" "$identity" | docker exec -i "$DRILL_DB" sh -c "cat > ${DUMP_IN_CONTAINER}"; } ||
+      die "解不開 ${file}（私鑰不對或檔案壞了）。確認 BACKUP_AGE_IDENTITY_FILE 是產生這份備份的公鑰對應的私鑰。"
+  else
+    docker cp "$file" "${DRILL_DB}:${DUMP_IN_CONTAINER}" >/dev/null
+  fi
   if ! docker exec "$DRILL_DB" pg_restore --exit-on-error --single-transaction --no-owner --no-privileges \
     -U "$DB_USER" -d "$DB_NAME" "$DUMP_IN_CONTAINER"; then
     die "這份備份還原失敗（上面是 pg_restore 的訊息）。它可能不完整或壞掉了：換一份備份再演練一次。"
@@ -167,6 +174,7 @@ start_api() {
   [[ "$allow_private_email" == "true" || "$allow_private_email" == "false" ]] || die "DRILL_EMAIL_ALLOW_PRIVATE_HOSTS 要是 true 或 false，現在是「${allow_private_email}」。"
   quota_organization="$(env_get ATTACHMENT_QUOTA_ORGANIZATION_GIB 20)"
   quota_person="$(env_get ATTACHMENT_QUOTA_PERSON_DAILY_GIB 2)"
+  # 和部署一樣先跑一次 migrate、再起 api（api 的環境裡沒有 Migrations 的連線字串）。
   # 連線字串裡有密碼，一樣在子 shell 裡用「-e 名稱」帶進去。
   # 兩個連線都用演練資料庫的超級使用者、不設 Database__RuntimeRole：演練的資料庫沒有 pmtool_app，也不需要。
   # 不設第一個擁有者（Bootstrap:*）：備份裡已經有帳號，用原本的帳號登入。
@@ -175,12 +183,24 @@ start_api() {
   (
     export ConnectionStrings__Database="Host=${DRILL_DB};Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DRILL_DB_PASSWORD}"
     export ConnectionStrings__Migrations="$ConnectionStrings__Database"
-    docker run -d --name "$DRILL_API" --network "$DRILL_NETWORK" --label "pmtool.drill=${PROJECT}" \
-      -p "127.0.0.1:${port}:8080" \
+    info "跑一次 migrate（和部署一樣）……"
+    if ! docker run --rm --network "$DRILL_NETWORK" --label "pmtool.drill=${PROJECT}" \
       -e ASPNETCORE_ENVIRONMENT=Production \
       -e ConnectionStrings__Database \
       -e ConnectionStrings__Migrations \
-      -e Database__MigrateOnStartup=true \
+      -e Attachments__Provider=local \
+      -e Attachments__Directory=/data/attachments \
+      -v "$(drill_attachments_dir):/data/attachments" \
+      -e "TZ=${tz}" \
+      "$API_IMAGE" migrate >/dev/null 2>&1; then
+      die "演練的 migrate 失敗（結束代碼不是 0）。演練的容器會清掉。"
+    fi
+    docker run -d --name "$DRILL_API" --network "$DRILL_NETWORK" --label "pmtool.drill=${PROJECT}" \
+      -p "127.0.0.1:${port}:8080" \
+      --read-only --tmpfs /tmp:size=256m --cap-drop ALL --security-opt no-new-privileges:true \
+      -e ASPNETCORE_ENVIRONMENT=Production \
+      -e ConnectionStrings__Database \
+      -e Database__MigrateOnStartup=false \
       -e Notifications__Email__Worker__Enabled=false \
       -e "Notifications__Email__AllowPrivateHosts=${allow_private_email}" \
       -e "Attachments__Quota__OrganizationGiB=${quota_organization}" \

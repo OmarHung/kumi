@@ -6,6 +6,8 @@
 #   backup-loop.sh --once 標籤  馬上做一份帶標籤的備份就結束，標準輸出只印檔名（給 backup-now.sh 用）。
 #
 # 檔名：pmtool-YYYYMMDD-HHMMSS.dump（排程）或 pmtool-YYYYMMDD-HHMMSS-標籤.dump（手動、部署前、還原前）。
+# 設了 BACKUP_AGE_RECIPIENT（age 的公鑰）時，檔名再加 .age（.dump.age）：資料在寫進備份目錄之前就加密，目錄裡不會出現明文的資料庫備份。
+# 附件不加密（見 docs/OPERATIONS.md 第 3 節）。私鑰不在這個容器裡：備份只需要公鑰，還原才要私鑰。
 # 連線用 PGHOST、PGUSER、PGDATABASE、PGPASSWORD 這幾個 PostgreSQL 的標準環境變數；
 # 附件：pg_dump 成功後，把唯讀掛進來的 /attachments 增量複製到 /backups/attachments/（copy-missing.sh：只補新的、永遠不刪），
 # 複製失敗這一份備份就算失敗。附件不算在 BACKUP_KEEP 的清理裡。
@@ -13,7 +15,7 @@
 set -euo pipefail
 
 readonly DIR=/backups
-readonly SCHEDULED_PATTERN='^pmtool-[0-9]{8}-[0-9]{6}[.]dump$'
+readonly SCHEDULED_PATTERN='^pmtool-[0-9]{8}-[0-9]{6}[.]dump([.]age)?$'
 readonly LABEL_PATTERN='^[a-z0-9][a-z0-9-]{0,31}$'
 # 暫存檔超過這麼久還在，就是之前被中斷的備份留下來的：手動備份可能正在寫，所以不能一看到就刪。
 readonly STALE_PARTIAL_MINUTES=180
@@ -26,6 +28,7 @@ readonly ATTACHMENTS_DST="$DIR/attachments"
 readonly ATTACHMENTS_STATE="$DIR/.pmtool-attachments-status"
 
 current_tmp=""
+verify_fifo=""
 
 log() {
   printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%:z')" "$*" >&2
@@ -57,7 +60,7 @@ human_size() {
 # 排程備份，新的在前：每行「修改時間（秒）<tab>檔名」。用修改時間而不是檔名排序，時區改過也不會排錯。
 list_scheduled() {
   local mtime name
-  find "$DIR" -maxdepth 1 -type f -name 'pmtool-*.dump' -printf '%T@\t%f\n' |
+  find "$DIR" -maxdepth 1 -type f \( -name 'pmtool-*.dump' -o -name 'pmtool-*.dump.age' \) -printf '%T@\t%f\n' |
     while IFS=$'\t' read -r mtime name; do
       if [[ "$name" =~ $SCHEDULED_PATTERN ]]; then
         printf '%s\t%s\n' "${mtime%%.*}" "$name"
@@ -97,30 +100,71 @@ backup_attachments() {
   log "附件：這次複製了 ${copied} 個新檔案到 ${ATTACHMENTS_DST}。"
 }
 
-# 做一份備份，成功時在標準輸出印出檔名。
-# 先寫暫存檔，用 pg_restore 從頭到尾讀過一遍（輸出丟掉）才改成正式的名字，所以目錄裡看得到的備份都是完整的。
-# 只讀目錄（--list）不夠：資料的部分壞了也看不出來。
-# 每一步都自己檢查結果：呼叫端用 || 接住失敗時，bash 會在函式裡關掉 set -e。
-make_backup() {
-  local label="$1" name errors size
-  name="pmtool-$(date '+%Y%m%d-%H%M%S')${label:+-$label}.dump"
-  # 同一秒做了兩份同標籤的（例如連按兩次）：等一秒換個名字，不蓋掉前一份。
-  while [[ -e "$DIR/$name" ]]; do
-    sleep 1
-    name="pmtool-$(date '+%Y%m%d-%H%M%S')${label:+-$label}.dump"
-  done
-  current_tmp="$DIR/.$name.partial"
-  errors="$(mktemp)" || { log "備份失敗：建不了暫存檔。"; return 1; }
-
+# 沒有加密：pg_dump 寫暫存檔，再用 pg_restore 從頭到尾讀過一遍（輸出丟掉）。
+dump_plain() {
+  local errors="$1"
   if ! pg_dump --format=custom --file="$current_tmp" 2>"$errors"; then
     log "備份失敗：pg_dump 沒有成功（$(head -n 3 "$errors" | tr '\n' ' ')）。"
-    discard_tmp "$errors"
     return 1
   fi
   if ! pg_restore --file=/dev/null "$current_tmp" 2>"$errors"; then
     log "備份失敗：剛做好的檔案讀不回來（$(head -n 3 "$errors" | tr '\n' ' ')），已經刪掉。"
-    discard_tmp "$errors"
     return 1
+  fi
+}
+
+# 加密：pg_dump 的輸出直接送進 age，備份目錄裡從頭到尾沒有明文。
+# 讀回來的檢查不能對加密的檔案做（容器裡沒有私鑰），所以把同一份串流分一條給 pg_restore 讀：
+# 它能讀完整份、不報錯，才算好。pg_dump、age、pg_restore 任何一個失敗都算失敗。
+dump_encrypted() {
+  local errors="$1" verify_errors dump_status age_status verify_status verify_pid pipe_status
+  verify_errors="$(mktemp)" || { log "備份失敗：建不了暫存檔。"; return 1; }
+  verify_fifo="$(mktemp -u)"
+  mkfifo "$verify_fifo" || { rm -f -- "$verify_errors"; log "備份失敗：建不了暫存的管線。"; return 1; }
+  pg_restore --file=/dev/null <"$verify_fifo" 2>"$verify_errors" &
+  verify_pid=$!
+  # 每個指令的結果自己看 PIPESTATUS：pg_restore 提早結束時，tee 寫不進管線，pg_dump 會跟著收到 SIGPIPE。
+  set +e
+  pg_dump --format=custom 2>"$errors" | tee -- "$verify_fifo" | age --recipient "$BACKUP_AGE_RECIPIENT" --output "$current_tmp" 2>>"$errors"
+  pipe_status=("${PIPESTATUS[@]}")
+  dump_status=${pipe_status[0]}
+  age_status=${pipe_status[2]}
+  wait "$verify_pid"
+  verify_status=$?
+  set -e
+  rm -f -- "$verify_fifo"
+  verify_fifo=""
+  if ((dump_status != 0)); then
+    log "備份失敗：pg_dump 沒有成功（$(head -n 3 "$errors" | tr '\n' ' ')）。"
+  elif ((age_status != 0)); then
+    log "備份失敗：age 加密沒有成功（$(head -n 3 "$errors" | tr '\n' ' ')）。確認 BACKUP_AGE_RECIPIENT 是 age 的公鑰（age1 開頭）。"
+  elif ((verify_status != 0)); then
+    log "備份失敗：剛做好的串流讀不回來（$(head -n 3 "$verify_errors" | tr '\n' ' ')），已經刪掉。"
+  fi
+  rm -f -- "$verify_errors"
+  ((dump_status == 0 && age_status == 0 && verify_status == 0))
+}
+
+# 做一份備份，成功時在標準輸出印出檔名。
+# 先寫暫存檔，讀過一遍才改成正式的名字，所以目錄裡看得到的備份都是完整的。
+# 只讀目錄（--list）不夠：資料的部分壞了也看不出來。
+# 每一步都自己檢查結果：呼叫端用 || 接住失敗時，bash 會在函式裡關掉 set -e。
+make_backup() {
+  local label="$1" name errors size extension=dump
+  [[ -z "${BACKUP_AGE_RECIPIENT:-}" ]] || extension=dump.age
+  name="pmtool-$(date '+%Y%m%d-%H%M%S')${label:+-$label}.$extension"
+  # 同一秒做了兩份同標籤的（例如連按兩次）：等一秒換個名字，不蓋掉前一份。
+  while [[ -e "$DIR/$name" ]]; do
+    sleep 1
+    name="pmtool-$(date '+%Y%m%d-%H%M%S')${label:+-$label}.$extension"
+  done
+  current_tmp="$DIR/.$name.partial"
+  errors="$(mktemp)" || { log "備份失敗：建不了暫存檔。"; return 1; }
+
+  if [[ -n "${BACKUP_AGE_RECIPIENT:-}" ]]; then
+    dump_encrypted "$errors" || { discard_tmp "$errors"; return 1; }
+  else
+    dump_plain "$errors" || { discard_tmp "$errors"; return 1; }
   fi
   rm -f -- "$errors"
   # 附件複製失敗時整份備份算失敗：只有資料庫、沒有檔案的備份，還原之後會有找不到檔案的附件。剛做好的 dump 刪掉，下一次檢查再做一份。
@@ -192,6 +236,9 @@ on_exit() {
   if [[ -n "$current_tmp" ]]; then
     rm -f -- "$current_tmp"
   fi
+  if [[ -n "$verify_fifo" ]]; then
+    rm -f -- "$verify_fifo"
+  fi
 }
 
 # 兩套環境（例如測試的那一套沿用預設的 BACKUP_DIR）共用同一個備份目錄時，備份會混在一起：
@@ -211,6 +258,15 @@ claim_dir() {
   log "備份目錄標記成專案 ${project} 的（.pmtool-project）。"
 }
 
+# 公鑰寫錯時，每一份備份都會失敗：啟動時就用它加密一小段資料試一次，錯了直接停下來，不要等到第一份備份。
+check_age_recipient() {
+  [[ -n "${BACKUP_AGE_RECIPIENT:-}" ]] || return 0
+  command -v age >/dev/null 2>&1 || fail_config "設了 BACKUP_AGE_RECIPIENT，但備份容器裡沒有 age。用 docker compose build backup 重建備份的映像檔。"
+  printf 'x' | age --recipient "$BACKUP_AGE_RECIPIENT" --output /dev/null 2>/dev/null ||
+    fail_config "BACKUP_AGE_RECIPIENT 不是有效的 age 公鑰（要 age1 開頭，用 age-keygen 產生）。改 .env 之後重新啟動 backup 服務。"
+  log "備份加密已開啟：寫進備份目錄之前先用 age 加密（檔名 .dump.age）。"
+}
+
 prepare_dir() {
   umask 077
   mkdir -p "$DIR"
@@ -221,6 +277,7 @@ prepare_dir() {
 run_once() {
   local label="${1:-}"
   [[ "$label" =~ $LABEL_PATTERN ]] || fail_config "標籤只能用小寫英文字母、數字與 -，最多 32 個字，現在是「${label}」。"
+  check_age_recipient
   prepare_dir
   make_backup "$label"
 }
@@ -230,6 +287,7 @@ run_loop() {
   check_number BACKUP_INTERVAL_HOURS "$interval_hours"
   check_number BACKUP_KEEP "$keep"
   check_number BACKUP_CHECK_SECONDS "$check_seconds"
+  check_age_recipient
   prepare_dir
   # bash 當 PID 1 時不理會沒設處理的 SIGTERM，docker stop 會等 10 秒才硬砍；sleep 放背景再 wait，才會馬上結束。
   trap 'log "收到停止的訊號，結束。"; exit 0' TERM INT

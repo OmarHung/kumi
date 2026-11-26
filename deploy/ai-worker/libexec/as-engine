@@ -1,0 +1,74 @@
+#!/bin/sh
+# 用「那個引擎自己的帳號」跑引擎的執行檔：kumi 把引擎的路徑設成 claude／codex 這兩個包裝檔，它們再呼叫這支。
+# 用法：as-engine <claude|codex> <執行檔> [參數…]
+#
+# 引擎讀的是別人寫的項目內容（提示注入的入口），所以它的程序：
+# - 讀不到 kumi 的狀態檔（機器憑證）、也碰不到 kumi 的程序（不同的 uid）；
+# - 也碰不到「另一個引擎」的登入與檔案：Claude Code 與 Codex 各用自己的帳號（10002、10003）與自己的家目錄。
+#   這樣即使兩件工作同時在跑（不同引擎），被注入的那一件讀不到、也改不到另一件的東西。
+#   同一個引擎同時最多一件工作（每個來源同時 1 件、一個引擎最多一個來源），所以同時跑的兩件工作一定是不同帳號（docs/OPERATIONS.md 第 17 節）。
+# 切換之後不帶任何能力（能力、可繼承的能力與環境能力都清掉，且不能再提權）。
+set -eu
+
+engine=$1
+bin=$2
+shift 2
+
+case "$engine" in
+  claude) engine_id=10002 ;;
+  codex) engine_id=10003 ;;
+  *) echo "as-engine: 不認得的引擎「$engine」" >&2; exit 64 ;;
+esac
+engine_home=/home/kumi/engine-$engine
+
+run_as_engine() {
+  setpriv --reuid="$engine_id" --regid="$engine_id" --clear-groups --no-new-privs \
+    --inh-caps=-all --ambient-caps=-all "$@"
+}
+
+# 清掉上一件工作留下來、下一件工作會自動載入的檔案（H3，跨工作的持續注入）：
+# 被提示注入的引擎可以在自己的家目錄寫一份全域記憶檔（Codex 的 AGENTS.md）或指令、技能、hook，之後每一件工作（包括別人的）都會載入它。
+# 引擎自己的帳號寫得進去，所以只能每次開始前（以同一個帳號）刪掉。登入檔（Claude 的 .credentials.json 與 .claude.json、Codex 的 auth.json）不碰。
+# 清單是會被引擎載入並影響行為的東西；kumi 的旗標（--setting-sources project、--ignore-user-config 等）本來就擋了大部分，這裡是第二道。
+# rm -rf 不跟隨符號連結（連結本身被刪、目標不動）。
+case "$engine" in
+  claude)
+    run_as_engine rm -rf -- \
+      "$engine_home/.claude/CLAUDE.md" "$engine_home/.claude/commands" "$engine_home/.claude/skills" \
+      "$engine_home/.claude/agents" "$engine_home/.claude/rules" "$engine_home/.claude/hooks" \
+      "$engine_home/.claude/output-styles" "$engine_home/.claude/plugins" \
+      "$engine_home/.claude/settings.json" "$engine_home/.claude/settings.local.json" \
+      "$engine_home/.claude/projects"
+    ;;
+  codex)
+    run_as_engine rm -rf -- \
+      "$engine_home/.codex/AGENTS.md" "$engine_home/.codex/AGENTS.override.md" "$engine_home/.codex/skills" \
+      "$engine_home/.codex/prompts" "$engine_home/.codex/rules" "$engine_home/.codex/memories" \
+      "$engine_home/.codex/agents" "$engine_home/.codex/hooks.json" "$engine_home/.codex/config.toml"
+    ;;
+esac
+
+# kumi 替每件工作建的暫存資料夾（/tmp/kumi-agent-*、只有 kumi 進得去，裡面是 mcp.json 與系統提示，沒有機密；權杖只在環境變數）：
+# 只開給「這個引擎的帳號」讀（群組讀取，其他帳號與另一個引擎都讀不到）。登入用的互動指令也是同一個辦法。
+# 開放之前檢查：是 /tmp 的直接子資料夾、名稱是 kumi-agent- 開頭、是真的資料夾（不是符號連結）、擁有者是 kumi 自己；
+# chgrp、chmod 都不跟隨符號連結，裡面就算有連結也只改連結本身。
+cwd=$(pwd -P)
+case "$cwd" in
+  /tmp/kumi-agent-*)
+    if [ "$(dirname "$cwd")" = /tmp ] && [ -d "$cwd" ] && [ ! -L "$cwd" ] && [ -O "$cwd" ]; then
+      chgrp -hR "$engine_id" "$cwd"
+      chmod -R g+rX,o-rwx "$cwd"
+    fi
+    ;;
+esac
+
+umask 077
+if [ "$engine" = codex ]; then
+  CODEX_HOME=$engine_home/.codex
+  exec setpriv --reuid="$engine_id" --regid="$engine_id" --clear-groups --no-new-privs \
+    --inh-caps=-all --ambient-caps=-all \
+    env HOME="$engine_home" CODEX_HOME="$CODEX_HOME" "$bin" "$@"
+fi
+exec setpriv --reuid="$engine_id" --regid="$engine_id" --clear-groups --no-new-privs \
+  --inh-caps=-all --ambient-caps=-all \
+  env -u CODEX_HOME HOME="$engine_home" "$bin" "$@"

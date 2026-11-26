@@ -1,0 +1,3 @@
+#!/bin/sh
+# kumi 的 KUMI_AGENT_CLAUDE_PATH 指到這裡。KUMI_ENGINE_CLAUDE_BIN 只給演練用（把假引擎接進同一條路，見 compose.fake-engines.yaml）。
+exec /usr/local/libexec/kumi/as-engine claude "${KUMI_ENGINE_CLAUDE_BIN:-/opt/engines/node_modules/.bin/claude}" "$@"

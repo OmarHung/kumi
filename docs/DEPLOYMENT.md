@@ -112,7 +112,8 @@ gcloud auth configure-docker <區域>-docker.pkg.dev
 工作階段 Cookie 用一組金鑰加密，那組金鑰存在資料庫裡（`identity.data_protection_keys`）。憑證用來把金鑰加密之後才存進去：資料庫的備份外流時，Cookie 的金鑰不會跟著外流。
 
 - 沒有憑證也能跑，只是金鑰是明文，正式環境啟動時會記一筆 Warning（「沒有設定 DataProtection:CertificatePath…」）。金鑰除了簽 Cookie，也用來加密 AI 供應商的金鑰與寄信的密碼：沒有憑證時，拿到資料庫或備份的人解得開這些。上線一定要設，並把 `DataProtection__RequireCertificate` 設成 `true`：設了它卻沒有 `DataProtection__CertificatePath`，啟動直接失敗，不會悄悄用明文上線（本機的 8080 不設它，照舊可以不用憑證）。
-- 弄丟憑證不會掉資料：金鑰解不開，舊的 Cookie 全部失效，所有人重新登入一次。
+- 弄丟憑證不會掉資料：金鑰解不開，舊的 Cookie 全部失效，所有人重新登入一次；用那把金鑰加密的 AI 供應商金鑰與寄信密碼也解不開，要重新輸入。
+- 本機的 `compose.yaml`（`docs/OPERATIONS.md` 第 20 節）從 `.env` 的 `DATAPROTECTION_DIR`、`DATAPROTECTION_CERT_FILE`、`DATAPROTECTION_CERT_PASSWORD` 把憑證唯讀掛進 `api` 與 `migrate`，設上 `DataProtection__*`；步驟、設了之後的後果與換憑證在那一節。
 
 **正式環境要在第一次上線之前就設好憑證。** 事後才補設的話，之前以明文存進資料庫的金鑰不會被重新加密，備份裡還是明文。補設之後要刪掉舊金鑰、讓所有人重新登入（做法見下面「憑證外流」那一段的 SQL）。
 
@@ -502,7 +503,7 @@ docker buildx build --platform linux/amd64 -t "$IMAGE" --push .
 
 ### 3.3 VM 加 docker compose 加反向代理
 
-寫在 `docs/deployment/vm.md` 的 3.3 節：compose 的範例（api、反向代理、連 Cloud SQL 的 Auth Proxy、遷移的 profile）、`migrate.env` 與 `service.env`、IPv6 的注意事項。
+本機的 `compose.yaml` 也是這個做法（`migrate` 服務用 profile 擋住、`api` 沒有擁有者的連線字串與第一個擁有者的密碼、`api` 與 `backup` 唯讀根目錄加 `cap_drop`），見 `docs/OPERATIONS.md` 第 2 節。VM 的範例寫在 `docs/deployment/vm.md` 的 3.3 節：compose 的範例（api、反向代理、連 Cloud SQL 的 Auth Proxy、遷移的 profile）、`migrate.env` 與 `service.env`、IPv6 的注意事項。
 
 ## 4. 第一次部署與每次更新
 
@@ -608,7 +609,7 @@ docker compose up -d
 - **附件也要匯出**：bucket 在同一個專案裡，專案被刪時它也跟著不見。定期把 bucket 同步到另一個帳號或另一家的儲存空間：`gcloud storage rsync --recursive gs://<bucket> gs://<另一個專案的 bucket>`（不加 `--delete-unmatched-destination-objects`，只增不刪，和本機備份的做法一樣）。檔案是使用者上傳的原始內容，沒有加密。
 
 - 用擁有者（`pmtool`）匯出：`pg_dump --format=custom --file=pmtool-$(date +%Y%m%d).dump`（Cloud SQL 經由 Cloud SQL Auth Proxy 連線）。
-- 加密之後放到另一個帳號或另一家的儲存空間（例如用 `age` 或 `gpg` 加密）。備份裡是真實資料。
+- 加密之後放到另一個帳號或另一家的儲存空間（例如用 `age` 或 `gpg` 加密）。備份裡是真實資料。（本機那一套的備份可以選用 age 加密，`.env` 的 `BACKUP_AGE_RECIPIENT`，見 `docs/OPERATIONS.md` 第 3 節；這裡的 VM 備份要自己加密。）
 - 從匯出的檔案還原到一個空的、屬於 `pmtool` 的資料庫：
 
   ```
@@ -647,7 +648,7 @@ Dockerfile 的四個 `FROM`（建置與 `cli` 兩個階段用同一個 SDK 的 d
 2. 換掉 digest：
    - `Dockerfile` 的四個 `FROM`（SDK 的兩個要一起換），以及每一行上面寫版本的註解。
    - `deploy/ai-worker/Dockerfile` 的三個 `FROM`（SDK 和上面同一個、`dotnet/runtime`、`node:24-bookworm-slim`）。
-   - `compose.yaml` 的 `x-postgres-image` 那一行（只有一個地方：db、backup 與 `scripts/ops/restore-drill.sh` 都讀它）。
+   - `compose.yaml` 的 `x-postgres-image` 那一行（只有一個地方：db、backup（`deploy/pg-tools/Dockerfile` 以它為基底，再裝 age）與 `scripts/ops/restore-drill.sh` 都讀它）。
    - VM 上的映像檔也一樣：代理（Caddy 或 nginx）與 `cloudsql-proxy`。查法：
 
      ```
@@ -668,7 +669,11 @@ Dockerfile 的四個 `FROM`（建置與 `cli` 兩個階段用同一個 SDK 的 d
 4. 驗證：`docker compose build`、`dotnet test`，再用 `bash scripts/ops/deploy-local.sh` 更新本機那一套（換了 PostgreSQL 的話，資料庫的容器會重建，它會先備份）。
 5. 提交：`chore: 更新基底映像檔`。
 
+**哪些會自己進來、哪些要手動**：Dependabot 每週看每個 Dockerfile 的 `FROM`（`Dockerfile`、`deploy/ai-worker/Dockerfile`、`deploy/ai-worker/egress-proxy/Dockerfile`、`deploy/pg-tools/Dockerfile`，設定在 `.github/dependabot.yml` 的 `directories`）。**`compose.yaml` 的 `x-postgres-image` 不在它的範圍內**（compose 檔裡的 `image:` 它看不到，`pg-tools` 的 `FROM` 是用建置參數帶進來的），資料庫的映像檔要照上面的步驟手動查 digest、手動換。新增 Dockerfile 時記得把資料夾加進 `directories`。
+
 PostgreSQL 只能換 18 的小版本（18.x）。換大版本（19）資料要另外搬，不能只改標籤。
+
+backup 的映像檔（`deploy/pg-tools/Dockerfile`）的 `age` 是用 `apt` 從 Debian 的套件庫裝的，版本跟著基底映像檔的 Debian（目前 age 1.2.1，BSD-3-Clause），不另外固定；換了基底的 digest 之後 `docker compose build backup` 會跟著換。它只存在你自己建的映像檔裡，不隨 repo 散布。
 
 ### 7.2 GitHub Actions
 

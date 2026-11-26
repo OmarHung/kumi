@@ -43,6 +43,8 @@ tests/**    url-credential   :\/\/(?:user:(?:pw|pass|secret)|admin:hunter2)@
 deploy/ai-worker/Dockerfile                 linux-home-path  [/]home[/]kumi[/]
 deploy/ai-worker/compose.fake-engines.yaml  linux-home-path  [/]home[/]kumi[/]
 docs/CLI.md                                 linux-home-path  [/]home[/]kumi[/]
+deploy/ai-worker/libexec/*                  linux-home-path  [/]home[/]kumi[/]
+docs/OPERATIONS.md                          linux-home-path  [/]home[/]kumi[/]
 
 # 位址檢查：雲端中繼資料服務的固定位址與共享位址網段（CGNAT）的邊界值，是「要擋下」的範例
 src/Shared/PmTool.Http/PublicAddressGuard.cs  link-local-ip  169\.254\.169\.254
@@ -56,3 +58,8 @@ tests/PmTool.Notifications.Tests/EmailPrivateHostSettingsTests.cs   private-ip  
 tests/PmTool.Notifications.Tests/EmailPrivateHostSettingsTests.cs   internal-host  (?:relay\.)?corp\.internal
 tests/PmTool.Notifications.Tests/MailKitFailureMessageTests.cs      private-ip     10\.9\.9\.9
 tests/PmTool.Notifications.Tests/MailKitFailureMessageTests.cs      internal-host  (?:gateway\.)?corp\.internal
+
+# 出口代理的設定：它要拒絕的私有網段（CIDR 的起點，不是真的主機位址）
+deploy/ai-worker/egress-proxy/squid.conf    private-ip       (?:10\.0\.0\.0|172\.16\.0\.0|192\.168\.0\.0)
+deploy/ai-worker/egress-proxy/squid.conf    cgnat-ip         100\.64\.0\.0
+deploy/ai-worker/egress-proxy/squid.conf    link-local-ip    169\.254\.0\.0

@@ -230,16 +230,16 @@ human_size() {
   fi
 }
 
-# 備份目錄裡的備份，新的在前：每行「修改時間（秒）<tab>檔名」。
+# 備份目錄裡的備份（.dump，開了加密是 .dump.age），新的在前：每行「修改時間（秒）<tab>檔名」。
 # 只看排程備份時帶 scheduled；暫存檔（.pmtool-*.partial）一律不算。
 list_backups() {
   local which="${1:-all}" dir path name
   dir="$(backup_dir)"
   [[ -d "$dir" ]] || return 0
-  for path in "$dir"/pmtool-*.dump; do
+  for path in "$dir"/pmtool-*.dump "$dir"/pmtool-*.dump.age; do
     [[ -f "$path" ]] || continue
     name="${path##*/}"
-    if [[ "$which" == scheduled && ! "$name" =~ ^pmtool-[0-9]{8}-[0-9]{6}[.]dump$ ]]; then
+    if [[ "$which" == scheduled && ! "$name" =~ ^pmtool-[0-9]{8}-[0-9]{6}[.]dump([.]age)?$ ]]; then
       continue
     fi
     printf '%s\t%s\n' "$(file_mtime "$path")" "$name"
@@ -479,4 +479,41 @@ api_log_report() {
 
 api_logs_since() {
   compose logs --no-color --no-log-prefix --since "$1" api 2>/dev/null
+}
+
+# ---- 備份加密（選用，BACKUP_AGE_RECIPIENT）----
+
+# 備份是不是 age 加密的（看檔名）。
+is_age_backup() {
+  [[ "$1" == *.age ]]
+}
+
+# backup 服務的映像檔（帶 age）。還原加密的備份時用它解密：主機上不用裝 age。沒建過就建。
+ensure_backup_image() {
+  local image
+  image="${PROJECT}-backup"
+  docker image inspect "$image" >/dev/null 2>&1 ||
+    compose --progress quiet build backup >/dev/null ||
+    die "建不了備份的映像檔（${image}，見上面的訊息）：加密的備份要用它裡面的 age 解密。"
+  BACKUP_IMAGE="$image"
+}
+
+# 解密用的私鑰檔（BACKUP_AGE_IDENTITY_FILE，age-keygen 產生的那個檔案）。私鑰不放在 .env 與 repo 裡，也不掛進備份容器。
+age_identity_file() {
+  local file
+  file="$(env_get BACKUP_AGE_IDENTITY_FILE)"
+  [[ -n "$file" ]] ||
+    die "這份備份是 age 加密的（.age），要用私鑰解密：在執行時設 BACKUP_AGE_IDENTITY_FILE=<私鑰檔的絕對路徑>（例如 BACKUP_AGE_IDENTITY_FILE=\$HOME/kumi-backup-key.txt bash scripts/ops/…）。私鑰不要寫進 .env 或放進 repo。見 docs/OPERATIONS.md 第 3 節。"
+  case "$file" in /*) ;; *) die "BACKUP_AGE_IDENTITY_FILE 要寫絕對路徑，現在是「${file}」。" ;; esac
+  [[ -f "$file" && -r "$file" ]] || die "讀不到私鑰檔 ${file}（BACKUP_AGE_IDENTITY_FILE）。"
+  printf '%s' "$file"
+}
+
+# 把加密的備份解開，標準輸出是明文：用一次性的容器跑 age，私鑰唯讀掛進去，用完就丟。
+# 明文只走管線，不寫到主機的磁碟。用法：decrypt_backup <.age 檔> <私鑰檔>
+decrypt_backup() {
+  local file="$1" identity="$2"
+  ensure_backup_image
+  docker run --rm -i --network none --read-only --cap-drop ALL --user "$(id -u):$(id -g)" --security-opt no-new-privileges:true \
+    --mount "type=bind,src=$identity,dst=/identity,readonly" --entrypoint age "$BACKUP_IMAGE" --decrypt --identity /identity <"$file"
 }
