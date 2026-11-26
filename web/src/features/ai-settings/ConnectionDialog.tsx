@@ -224,10 +224,9 @@ function PendingConfirmation({ confirming, onLogin, onClose, onDismiss }: {
   return null;
 }
 
-/** AI 帳號頁的按鈕叫「新增 AI 帳號」，對話框的標題照它；組織的照舊叫連線。 */
-function dialogTitle(scope: AiConnectionScope, connection: AiConnection | null): string {
-  const verb = connection === null ? '新增' : '編輯';
-  return scope === 'personal' ? `${verb} AI 帳號` : `${verb}連線`;
+/** 組織與自己的區塊都叫「…的 API 金鑰」，按鈕與對話框的標題照它（原本組織的叫「連線」，使用者分不出是金鑰還是訂閱）。 */
+function dialogTitle(connection: AiConnection | null): string {
+  return connection === null ? '新增 API 金鑰' : '編輯 API 金鑰';
 }
 
 /** 關閉與登入前的確認：打了還沒存的輸入會不見時先問（登入會整頁離開，回來是一個新的連線）。 */
@@ -277,7 +276,7 @@ export function ConnectionDialog({ scope, connection, onClose }: ConnectionDialo
 
   return (
     <>
-      <Dialog title={dialogTitle(scope, connection)} size="lg" onClose={isBusy ? () => undefined : requestClose}>
+      <Dialog title={dialogTitle(connection)} size="lg" onClose={isBusy ? () => undefined : requestClose}>
         <form ref={formRef} className={styles.dialogForm} noValidate aria-busy={isBusy} onSubmit={handleSubmit}>
           <KindPicker form={form} />
           {canLogin && <OpenRouterLogin form={form} isExpanded={isKeyExpanded} onExpand={() => { setIsKeyExpanded(true); }} onLogin={requestLogin} />}

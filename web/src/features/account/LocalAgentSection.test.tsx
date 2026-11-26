@@ -82,7 +82,7 @@ describe('AI 帳號：本機代理（出現的條件）', () => {
     renderApp('/account/ai');
 
     // Assert
-    const notice = await screen.findByRole('region', { name: 'AI 供應商' });
+    const notice = await screen.findByRole('region', { name: '我的 API 金鑰' });
     expect(await within(notice).findByText(/組織目前不允許使用自己的 AI 帳號/)).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: LOCAL_SECTION })).not.toBeInTheDocument();
   });

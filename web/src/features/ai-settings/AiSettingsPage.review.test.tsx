@@ -26,7 +26,7 @@ describe('M3：儲存的結果不推動版面', () => {
   it('「已儲存。」與失敗的原因都和「儲存」按鈕在同一列', async () => {
     // Arrange
     const { user, backend, save } = await openPage(SAVED);
-    await user.click(screen.getByRole('checkbox', { name: /啟用 AI 助理/ }));
+    await user.click(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ }));
 
     // Act
     await user.click(save);
@@ -37,7 +37,7 @@ describe('M3：儲存的結果不推動版面', () => {
 
     // Act
     backend.rejectNext('settings', { status: 422, code: 'ai.settings_invalid', message: '預設的模型沒有開放。' });
-    await user.click(screen.getByRole('checkbox', { name: /啟用 AI 助理/ }));
+    await user.click(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ }));
     await user.click(save);
 
     // Assert
@@ -74,7 +74,7 @@ describe('M4：連線列的動作', () => {
     await user.click(await screen.findByRole('menuitem', { name: '刪除' }));
 
     // Assert
-    const dialog = await screen.findByRole('dialog', { name: '刪除連線「Anthropic」？' });
+    const dialog = await screen.findByRole('dialog', { name: '刪除 API 金鑰「Anthropic」？' });
     expect(within(dialog).getByRole('button', { name: '刪除' }).className).toMatch(/danger/);
   });
 
@@ -110,10 +110,10 @@ describe('L5：新增連線的焦點', () => {
     const { user } = await openPage();
 
     // Act
-    await user.click(screen.getByRole('button', { name: '新增連線' }));
+    await user.click(screen.getByRole('button', { name: '新增 API 金鑰' }));
 
     // Assert
-    await screen.findByRole('dialog', { name: '新增連線' });
+    await screen.findByRole('dialog', { name: '新增 API 金鑰' });
     expect(screen.getByRole('textbox', { name: '名稱' })).toHaveFocus();
   });
 });
@@ -122,8 +122,8 @@ describe('L4：關閉有沒存的輸入的對話框', () => {
   it('填了金鑰按 Esc：先確認；留下來還在、放棄才關掉', async () => {
     // Arrange
     const { user } = await openPage();
-    await user.click(screen.getByRole('button', { name: '新增連線' }));
-    await screen.findByRole('dialog', { name: '新增連線' });
+    await user.click(screen.getByRole('button', { name: '新增 API 金鑰' }));
+    await screen.findByRole('dialog', { name: '新增 API 金鑰' });
     await user.type(screen.getByLabelText('API 金鑰'), 'sk-secret');
 
     // Act
@@ -132,7 +132,7 @@ describe('L4：關閉有沒存的輸入的對話框', () => {
     // Assert
     const confirm = await screen.findByRole('dialog', { name: '放棄還沒存的輸入？' });
     await user.click(within(confirm).getByRole('button', { name: '繼續編輯' }));
-    expect(screen.getByRole('dialog', { name: '新增連線' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '新增 API 金鑰' })).toBeInTheDocument();
     expect(screen.getByLabelText('API 金鑰')).toHaveValue('sk-secret');
 
     // Act
@@ -146,8 +146,8 @@ describe('L4：關閉有沒存的輸入的對話框', () => {
   it('什麼都沒改按 Esc：直接關掉', async () => {
     // Arrange
     const { user } = await openPage();
-    await user.click(screen.getByRole('button', { name: '新增連線' }));
-    await screen.findByRole('dialog', { name: '新增連線' });
+    await user.click(screen.getByRole('button', { name: '新增 API 金鑰' }));
+    await screen.findByRole('dialog', { name: '新增 API 金鑰' });
 
     // Act
     await user.keyboard('{Escape}');

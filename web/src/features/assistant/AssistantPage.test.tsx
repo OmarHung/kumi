@@ -48,7 +48,7 @@ describe('進入頁面', () => {
     renderApp('/projects/SMK/assistant');
 
     // Assert
-    expect(await screen.findByText(/組織還沒開啟 AI 助理/)).toBeInTheDocument();
+    expect(await screen.findByText(/組織還沒開放可以用的 AI/)).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: '訊息' })).not.toBeInTheDocument();
   });
 

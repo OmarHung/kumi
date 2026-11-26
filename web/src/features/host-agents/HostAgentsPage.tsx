@@ -7,6 +7,7 @@ import { SettingsSection } from '../../components/SettingsSection/SettingsSectio
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState, RefetchErrorNotice } from '../../components/StatusViews/StatusViews';
 import { NoPermission } from '../../components/StatusViews/NoPermission';
+import { AiSetupMap } from '../ai/AiSetupMap';
 import { AgentNameDialog } from './AgentDialogs';
 import { AgentList } from './AgentList';
 import { CodeDialog } from './CodeDialog';
@@ -40,7 +41,7 @@ function OverviewBody({ overview, onPaired, onAdd, addRef }: OverviewBodyProps) 
   }
   return (
     <>
-      <SettingsSection title="主機" description={<p>{HOST_AGENTS_NOTE}</p>} isContentStart>
+      <SettingsSection title="主機" description={<p>{HOST_AGENTS_NOTE}</p>}>
         <div className={styles.group}>
           <AgentList agents={data.agents} now={overview.dataUpdatedAt} onPaired={onPaired} />
           <div>
@@ -96,6 +97,8 @@ function HostAgentsContent() {
   }, [pairing]);
   return (
     <>
+      {/* 對照放在讀取狀態之外：載入中、讀不到時照樣在最上面，資料到了不換位置。 */}
+      <AiSetupMap page="host" />
       <OverviewBody
         overview={overview}
         onPaired={setPairing}

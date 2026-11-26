@@ -50,7 +50,7 @@ function blockedView(projectKey: string, project: ProjectDetail, options: Option
     );
     return (
       <EmptyState title="AI 助理還不能用" action={back}>
-        組織還沒開啟 AI 助理，請組織管理員到「AI 設定」開啟。
+        組織還沒開放可以用的 AI。請組織管理員到「AI 設定」開放組織的 API 金鑰，或允許成員使用自己的 AI 帳號；也可以請組織擁有者設定主機 AI 代理。
       </EmptyState>
     );
   }

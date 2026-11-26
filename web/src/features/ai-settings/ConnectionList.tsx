@@ -138,7 +138,7 @@ function DeleteConnectionDialog({ scope, connection, onClose }: { readonly scope
   const [error, setError] = useState<string | null>(null);
   return (
     <ConfirmDialog
-      title={`刪除連線「${connection.name}」？`}
+      title={`刪除 API 金鑰「${connection.name}」？`}
       description={scope === 'organization' ? '已經有的對話留著；它是預設時，AI 會一起關掉。' : '已經有的對話留著；之後不能再用這個帳號回覆。'}
       confirmLabel="刪除"
       pendingLabel="刪除中…"
@@ -230,17 +230,17 @@ export function ConnectionManager({ scope, connections, emptyText, openParam, is
   );
 }
 
-/** AI 設定頁的「連線」一塊（組織的）。 */
+/** AI 設定頁的「組織的 API 金鑰」一塊（組織的連線）。 */
 export function ConnectionList({ connections, description }: { readonly connections: readonly AiConnection[]; readonly description: string }) {
   return (
-    <SettingsSection title="連線" description={<p>{description}</p>}>
+    <SettingsSection title="組織的 API 金鑰" description={<p>{description}</p>}>
       <div className={styles.connectionsBody}>
         <ConnectionManager
           scope="organization"
           connections={connections}
-          emptyText="還沒有連線。新增一個供應商的連線，並開放至少一個模型。"
+          emptyText="還沒有 API 金鑰。新增一把供應商的金鑰，並開放至少一個模型。"
           openParam="edit"
-          addLabel="新增連線"
+          addLabel="新增 API 金鑰"
         />
       </div>
     </SettingsSection>

@@ -4,6 +4,7 @@ import { isOrganizationAdmin, useCurrentUser } from '../../auth/CurrentUser';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState, RefetchErrorNotice } from '../../components/StatusViews/StatusViews';
 import { NoPermission } from '../../components/StatusViews/NoPermission';
+import { AiSetupMap } from '../ai/AiSetupMap';
 import { AiSettingsForm } from './AiSettingsForm';
 
 const SKELETON_ROWS = 4;
@@ -42,5 +43,12 @@ function SettingsContent() {
  */
 export function AiSettingsPage() {
   const user = useCurrentUser();
-  return isOrganizationAdmin(user) ? <SettingsContent /> : <NoPermission message={NO_PERMISSION} />;
+  if (!isOrganizationAdmin(user)) return <NoPermission message={NO_PERMISSION} />;
+  // 對照放在讀取狀態之外：載入中、讀不到時照樣在最上面，資料到了不把內容往下推（和主機 AI 代理頁一樣）。
+  return (
+    <>
+      <AiSetupMap page="organization" />
+      <SettingsContent />
+    </>
+  );
 }

@@ -1,0 +1,66 @@
+import { Link } from 'react-router';
+import { useCurrentUser } from '../../auth/CurrentUser';
+import { SettingsSection } from '../../components/SettingsSection/SettingsSection';
+import { AI_SETUP_COLUMNS, AI_SETUP_ROWS, canOpenAiSetup, managedByText, type AiSetupCell, type AiSetupPage } from './aiSetupCells';
+import styles from './AiSetupMap.module.css';
+
+const TITLE = 'AI 的四種接法';
+const DESCRIPTION = '看兩件事：誰能用，和用什麼登入。費用一律算在登入的那個帳號。';
+
+function CellBody({ cell, page }: { readonly cell: AiSetupCell; readonly page: AiSetupPage }) {
+  const user = useCurrentUser();
+  const isCurrent = cell.page === page;
+  const managedBy = managedByText(cell);
+  return (
+    <td className={styles.cell} data-current={isCurrent || undefined}>
+      {canOpenAiSetup(cell, user) ? (
+        <Link className={styles.label} to={cell.href} aria-current={isCurrent ? 'page' : undefined}>
+          {cell.label}
+        </Link>
+      ) : (
+        <span className={styles.label}>{cell.label}</span>
+      )}
+      <span className={styles.detail}>{cell.detail}</span>
+      {!canOpenAiSetup(cell, user) && managedBy !== null && <span className={styles.detail}>{managedBy}</span>}
+    </td>
+  );
+}
+
+/**
+ * 三頁 AI 設定最上面的對照（docs/design/08-interaction.md 8.3「AI 的四種接法」）：兩列（全組織共用、只有自己）乘兩欄（API 金鑰、Claude Code／Codex）。
+ * 目前這一頁的格子用選取的底（和次導覽的目前所在同一套），其他格子是連到那一頁的連結；看不到的頁不給連結，寫由誰設定。
+ * 用真的表格：列與欄的標題是 th，報讀軟體唸得出「全組織共用、API 金鑰：組織的 API 金鑰」。
+ */
+export function AiSetupMap({ page }: { readonly page: AiSetupPage }) {
+  return (
+    <SettingsSection title={TITLE} description={<p>{DESCRIPTION}</p>} isContentStart>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            {/* 角落是列標題那一欄的欄標題：報讀軟體不會唸出一個沒有名稱的格子。 */}
+            <th scope="col" className={styles.corner}>
+              <span className="visually-hidden">誰能用</span>
+            </th>
+            {AI_SETUP_COLUMNS.map((column) => (
+              <th key={column} scope="col" className={styles.columnHeader}>
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {AI_SETUP_ROWS.map((row) => (
+            <tr key={row.label}>
+              <th scope="row" className={styles.rowHeader}>
+                {row.label}
+              </th>
+              {row.cells.map((cell) => (
+                <CellBody key={cell.kind} cell={cell} page={page} />
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SettingsSection>
+  );
+}

@@ -31,15 +31,15 @@ async function chooseConnectionAction(user: ReturnType<typeof renderApp>['user']
 
 async function openNewDialog(initial: Partial<AiSettings> = {}) {
   const page = await openPage(initial);
-  await page.user.click(screen.getByRole('button', { name: '新增連線' }));
-  const dialog = await screen.findByRole('dialog', { name: '新增連線' });
+  await page.user.click(screen.getByRole('button', { name: '新增 API 金鑰' }));
+  const dialog = await screen.findByRole('dialog', { name: '新增 API 金鑰' });
   return { ...page, dialog };
 }
 
 async function openEditDialog(initial: Partial<AiSettings> = SAVED) {
   const page = await openPage(initial);
   await page.user.click(screen.getByRole('button', { name: '編輯 Anthropic' }));
-  const dialog = await screen.findByRole('dialog', { name: '編輯連線' });
+  const dialog = await screen.findByRole('dialog', { name: '編輯 API 金鑰' });
   return { ...page, dialog };
 }
 
@@ -93,11 +93,11 @@ describe('AI 設定：載入', () => {
     await openPage();
 
     // Assert
-    expect(screen.getByRole('checkbox', { name: /啟用 AI 助理/ })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ })).not.toBeChecked();
     expect(screen.getByRole('combobox', { name: '模型' })).toBeDisabled();
     expect(screen.getByRole('combobox', { name: '思考深度' })).toBeDisabled();
-    expect(screen.getByText('先新增連線、開放至少一個模型')).toBeInTheDocument();
-    expect(screen.getByText(/還沒有連線/)).toBeInTheDocument();
+    expect(screen.getByText('先在上面新增 API 金鑰、開放至少一個模型')).toBeInTheDocument();
+    expect(screen.getByText(/還沒有 API 金鑰/)).toBeInTheDocument();
   });
 
   it('存著的設定：勾選、預設、連線的金鑰、開放幾個模型與本月的用量', async () => {
@@ -105,7 +105,7 @@ describe('AI 設定：載入', () => {
     await openPage(SAVED);
 
     // Assert
-    expect(screen.getByRole('checkbox', { name: /啟用 AI 助理/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ })).toBeChecked();
     expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent('Claude Opus 5.5');
     expect(screen.getByRole('combobox', { name: '思考深度' })).toHaveTextContent('高');
     expect(screen.getByText('金鑰 …a1b2 · 開放 1 個模型')).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('AI 設定：載入', () => {
   it('背景重抓失敗：表單與改到一半的內容留著，上面說明畫面可能是舊的', async () => {
     // Arrange
     const { user, queryClient } = await openPage(SAVED);
-    await user.click(screen.getByRole('checkbox', { name: /啟用 AI 助理/ }));
+    await user.click(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ }));
     server.use(http.get('/v1/ai/settings', () => failure(500, 'server.error', '伺服器暫時無法處理。')));
 
     // Act
@@ -132,7 +132,7 @@ describe('AI 設定：載入', () => {
 
     // Assert
     expect(await screen.findByText('無法更新 AI 設定，畫面上可能是舊的。')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /啟用 AI 助理/ })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ })).not.toBeChecked();
     expect(screen.queryByText('AI 設定載入失敗')).not.toBeInTheDocument();
   });
 });
@@ -140,7 +140,7 @@ describe('AI 設定：載入', () => {
 describe('AI 設定：用量上限', () => {
   const NO_CAPS = { dailyRequestsPerPerson: 200, monthlyRequests: null, monthlyTokens: null } as const;
 
-  it('顯示三項上限（預設每人每天 200、其餘不限）、這個月的用量與「只算組織連線」的說明', async () => {
+  it('顯示三項上限（預設每人每天 200、其餘不限）、這個月的用量與「只算組織的 API 金鑰」的說明', async () => {
     // Arrange / Act
     await openPage({ limits: { dailyRequestsPerPerson: 200, monthlyRequests: 1000, monthlyTokens: null }, monthUsage: { month: '2026-11', requests: 120, tokens: 4500000 } });
 
@@ -150,7 +150,7 @@ describe('AI 設定：用量上限', () => {
     expect(screen.getByRole('textbox', { name: '全組織每月 token 上限' })).toHaveValue('');
     expect(screen.getByText('這個月已用 120 則，上限 1,000 則')).toBeInTheDocument();
     expect(screen.getByText(/這個月已用 4,500,000 token（不限）/)).toBeInTheDocument();
-    expect(screen.getByText(/只算組織的連線；成員自己的 AI 帳號、本機代理、主機上的 AI 不算/)).toBeInTheDocument();
+    expect(screen.getByText(/只算組織的 API 金鑰。成員自己的 API 金鑰與本機代理不算，主機 AI 代理在各來源自己設上限/)).toBeInTheDocument();
   });
 
   it('改上限連同其他設定一起存；留白送 null（不限）', async () => {
@@ -221,7 +221,7 @@ describe('AI 設定：用量上限', () => {
 
     // Act
     await user.type(screen.getByRole('textbox', { name: '全組織每月最多（則）' }), '10');
-    await user.click(screen.getByRole('link', { name: '主機 AI 代理' }));
+    await user.click(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: '主機 AI 代理' }));
 
     // Assert
     expect(await screen.findByRole('dialog', { name: '還有沒儲存的修改' })).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe('AI 設定：儲存預設', () => {
   it('選模型與思考深度，連同勾選一起存', async () => {
     // Arrange
     const { user, backend, save } = await openPage({ connections: [exampleConnection()] });
-    await user.click(screen.getByRole('checkbox', { name: /啟用 AI 助理/ }));
+    await user.click(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ }));
     await chooseOption(user, screen.getByRole('combobox', { name: '模型' }), 'Claude Opus 5.5');
 
     // Act
@@ -311,7 +311,7 @@ describe('AI 設定：儲存預設', () => {
   it('儲存失敗（422）：原因顯示在按鈕下面；429 說太頻繁', async () => {
     // Arrange
     const { user, backend, save } = await openPage(SAVED);
-    await user.click(screen.getByRole('checkbox', { name: /啟用 AI 助理/ }));
+    await user.click(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ }));
     backend.rejectNext('settings', { status: 422, code: 'ai.settings_invalid', message: '預設的模型沒有開放。' });
 
     // Act
@@ -382,7 +382,7 @@ describe('AI 設定：新增連線', () => {
     // Assert
     expect(backend.discoveries).toEqual([{ kind: 'anthropic', baseUrl: null, apiKey: 'sk-ant-1234', connectionId: null }]);
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: '新增連線' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: '新增 API 金鑰' })).not.toBeInTheDocument();
     });
     expect(backend.savedConnections).toEqual([
       { id: null, input: { name: 'Anthropic', kind: 'anthropic', baseUrl: null, apiKey: 'sk-ant-1234', enabledModels: ['claude-sonnet-5-5'], customModels: [] } },
@@ -411,7 +411,7 @@ describe('AI 設定：新增連線', () => {
 
     // Assert
     expect(await within(dialog).findByText('金鑰不對，供應商拒絕了這個要求。')).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: '新增連線' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '新增 API 金鑰' })).toBeInTheDocument();
   });
 
   it('超過 12 個模型才有篩選框，篩選只留下符合的', async () => {
@@ -542,7 +542,7 @@ describe('AI 設定：編輯連線', () => {
 
     // Assert
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: '編輯連線' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: '編輯 API 金鑰' })).not.toBeInTheDocument();
     });
     expect(backend.savedConnections).toEqual([
       { id: 'c-1', input: { name: 'Anthropic', kind: 'anthropic', baseUrl: null, apiKey: null, enabledModels: ['claude-opus-5-5', 'claude-haiku-5'], customModels: [] } },
@@ -588,7 +588,7 @@ describe('AI 設定：編輯連線', () => {
     await user.click(within(dialog).getByRole('button', { name: '取消' }));
 
     // Assert
-    expect(screen.queryByRole('dialog', { name: '編輯連線' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '編輯 API 金鑰' })).not.toBeInTheDocument();
     expect(backend.savedConnections).toHaveLength(0);
   });
 });
@@ -622,7 +622,7 @@ describe('AI 設定：重新讀取與刪除', () => {
     await chooseConnectionAction(user, 'Anthropic', '刪除');
 
     // Assert
-    const dialog = await screen.findByRole('dialog', { name: '刪除連線「Anthropic」？' });
+    const dialog = await screen.findByRole('dialog', { name: '刪除 API 金鑰「Anthropic」？' });
     expect(within(dialog).getByText('已經有的對話留著；它是預設時，AI 會一起關掉。')).toBeInTheDocument();
     expect(backend.deleted).toHaveLength(0);
 
@@ -631,17 +631,17 @@ describe('AI 設定：重新讀取與刪除', () => {
 
     // Assert
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /刪除連線/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: /刪除 API 金鑰/ })).not.toBeInTheDocument();
     });
     expect(backend.deleted).toEqual(['c-1']);
-    expect(await screen.findByText(/還沒有連線/)).toBeInTheDocument();
+    expect(await screen.findByText(/還沒有 API 金鑰/)).toBeInTheDocument();
   });
 
   it('刪除確認按取消：什麼都不做；刪除失敗留在對話框並說明', async () => {
     // Arrange
     const { user, backend } = await openPage(SAVED);
     await chooseConnectionAction(user, 'Anthropic', '刪除');
-    const dialog = await screen.findByRole('dialog', { name: '刪除連線「Anthropic」？' });
+    const dialog = await screen.findByRole('dialog', { name: '刪除 API 金鑰「Anthropic」？' });
     await user.click(within(dialog).getByRole('button', { name: '取消' }));
     expect(backend.deleted).toHaveLength(0);
 
@@ -652,7 +652,7 @@ describe('AI 設定：重新讀取與刪除', () => {
 
     // Assert
     expect(await screen.findByText('沒有權限刪除連線。')).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: '刪除連線「Anthropic」？' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '刪除 API 金鑰「Anthropic」？' })).toBeInTheDocument();
   });
 
   it('預設用的連線刪掉之後，預設回到沒選', async () => {
@@ -667,7 +667,7 @@ describe('AI 設定：重新讀取與刪除', () => {
     await waitFor(() => {
       expect(screen.getByRole('combobox', { name: '模型' })).toBeDisabled();
     });
-    expect(screen.getByText('先新增連線、開放至少一個模型')).toBeInTheDocument();
+    expect(screen.getByText('先在上面新增 API 金鑰、開放至少一個模型')).toBeInTheDocument();
   });
 });
 
@@ -675,7 +675,7 @@ describe('AI 設定：沒存的修改', () => {
   it('改了就離開：先問；留下來還在，捨棄才離開', async () => {
     // Arrange
     const { user, router } = await openPage(SAVED);
-    await user.click(screen.getByRole('checkbox', { name: /啟用 AI 助理/ }));
+    await user.click(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ }));
 
     // Act
     await user.click(screen.getByRole('link', { name: '我的工作' }));
@@ -684,7 +684,7 @@ describe('AI 設定：沒存的修改', () => {
     const dialog = await screen.findByRole('dialog', { name: '還有沒儲存的修改' });
     expect(currentPath(router)).toBe('/ai-settings');
     await user.click(within(dialog).getByRole('button', { name: '留下來' }));
-    expect(screen.getByRole('checkbox', { name: /啟用 AI 助理/ })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ })).not.toBeChecked();
     await user.click(screen.getByRole('link', { name: '我的工作' }));
     await user.click(await screen.findByRole('button', { name: '捨棄修改並離開' }));
     await waitFor(() => {
@@ -695,7 +695,7 @@ describe('AI 設定：沒存的修改', () => {
   it('存完再離開、沒改就離開：都不問', async () => {
     // Arrange
     const { user, router, save } = await openPage(SAVED);
-    await user.click(screen.getByRole('checkbox', { name: /啟用 AI 助理/ }));
+    await user.click(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ }));
     await user.click(save);
     expect(await screen.findByText('已儲存。')).toBeInTheDocument();
 
@@ -714,7 +714,7 @@ describe('AI 設定：沒存的修改', () => {
     const { user, router, dialog } = await openNewDialog();
     await user.click(within(dialog).getByRole('button', { name: '儲存' }));
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: '新增連線' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: '新增 API 金鑰' })).not.toBeInTheDocument();
     });
 
     // Act
@@ -728,18 +728,42 @@ describe('AI 設定：沒存的修改', () => {
 });
 
 describe('AI 設定：版面', () => {
-  it('分成「AI 助理」（表單）與「連線」兩塊；表單不另外取名（區塊已經是同名的 region），個人的 AI 帳號指到設定的「AI 帳號」', async () => {
+  it('由上往下：四種接法的對照、組織的 API 金鑰、開放給成員、成員自己的 AI；表單不另外取名，個人的指到設定的「AI 帳號」', async () => {
     // Arrange / Act
     await openPage();
 
     // Assert
-    const assistant = screen.getByRole('region', { name: 'AI 助理' });
+    const titles = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(titles).toEqual(['AI 的四種接法', '組織的 API 金鑰', '開放給成員', '成員自己的 AI']);
+    const assistant = screen.getByRole('region', { name: '開放給成員' });
     expect(within(assistant).getByRole('button', { name: '儲存' }).closest('form')).not.toBeNull();
     expect(within(assistant).queryByRole('form')).not.toBeInTheDocument();
     expect(within(assistant).getByRole('heading', { level: 3, name: '預設' })).toBeInTheDocument();
-    expect(within(assistant).getByText(/設定的「AI 帳號」/)).toBeInTheDocument();
-    const connections = screen.getByRole('region', { name: '連線' });
-    expect(within(connections).getByRole('button', { name: '新增連線' })).toBeInTheDocument();
+    const policy = screen.getByRole('region', { name: '成員自己的 AI' });
+    expect(within(policy).getByText(/設定的「AI 帳號」/)).toBeInTheDocument();
+    expect(within(policy).getByRole('button', { name: '儲存（成員自己的 AI）' })).toBeInTheDocument();
+    const keys = screen.getByRole('region', { name: '組織的 API 金鑰' });
+    expect(within(keys).getByRole('button', { name: '新增 API 金鑰' })).toBeInTheDocument();
+  });
+
+  it('四種接法的對照：這一頁的格子標成目前所在，主機 AI 代理連到它的頁面', async () => {
+    // Arrange / Act
+    await openPage();
+
+    // Assert
+    const map = screen.getByRole('region', { name: 'AI 的四種接法' });
+    expect(within(map).getByRole('link', { name: '組織的 API 金鑰' })).toHaveAttribute('aria-current', 'page');
+    expect(within(map).getByRole('link', { name: '主機 AI 代理' })).toHaveAttribute('href', '/ai-settings/host');
+    expect(within(map).getByRole('link', { name: '本機代理' })).toHaveAttribute('href', '/account/ai#local-agent');
+  });
+
+  it('沒有開放任何模型時「開放組織的 API 金鑰」不能勾，並說先新增 API 金鑰', async () => {
+    // Arrange / Act
+    await openPage();
+
+    // Assert
+    expect(screen.getByRole('checkbox', { name: /開放組織的 API 金鑰給成員使用/ })).toBeDisabled();
+    expect(screen.getByText('先在上面新增 API 金鑰、開放至少一個模型才能打開。')).toBeInTheDocument();
   });
 
   it('擁有者的次導覽有「主機 AI 代理」連結，頁面上沒有主機代理的內容', async () => {
@@ -747,7 +771,7 @@ describe('AI 設定：版面', () => {
     await openPage();
 
     // Assert
-    expect(screen.getByRole('link', { name: '主機 AI 代理' })).toHaveAttribute('href', '/ai-settings/host');
+    expect(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: '主機 AI 代理' })).toHaveAttribute('href', '/ai-settings/host');
     expect(screen.queryByRole('button', { name: '新增主機代理' })).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,77 @@
+/*
+ * AI 的四種接法（docs/design/08-interaction.md 8.3）：兩列乘兩欄的小表格。格子之間是細線，沒有卡片、陰影與色條（第 1 節）；
+ * 目前這一頁的格子用選取的底（--color-selected），和次導覽的目前所在同一套。
+ */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-sm);
+}
+
+.corner {
+  width: 6rem;
+}
+
+.columnHeader,
+.rowHeader {
+  padding: var(--space-2) var(--space-3);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+  text-align: start;
+  vertical-align: top;
+}
+
+.rowHeader {
+  padding-inline-start: 0;
+}
+
+.cell {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.cell[data-current] {
+  background: var(--color-selected);
+}
+
+.label {
+  display: block;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+/* 連結自己一行，點擊範圍至少 --target-min（觸控時 44px，第 14 節）。 */
+a.label {
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+  color: var(--color-accent);
+}
+
+.detail {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* 窄的時候列標題縮窄，兩個格子照樣並排（只有兩欄，文字自己折行）。 */
+@container settings-hub (max-width: 30rem) {
+  .corner {
+    width: 4.5rem;
+  }
+
+  .cell,
+  .columnHeader {
+    padding-inline: var(--space-2);
+  }
+}
+
+@media (forced-colors: active) {
+  .cell[data-current] {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
+}

@@ -18,7 +18,7 @@ describe('用 OpenRouter 登入回來', () => {
     const { router } = renderApp('/ai/openrouter/callback?code=abc&state=xyz');
 
     // Assert
-    const dialog = await screen.findByRole('dialog', { name: '編輯 AI 帳號' });
+    const dialog = await screen.findByRole('dialog', { name: '編輯 API 金鑰' });
     expect(within(dialog).getByLabelText('名稱')).toHaveValue('我的 OpenRouter');
     expect(backend.completions).toEqual([{ code: 'abc', state: 'xyz' }]);
     await waitFor(() => {
@@ -36,7 +36,7 @@ describe('用 OpenRouter 登入回來', () => {
     const { router } = renderApp('/ai/openrouter/callback?code=abc&state=xyz');
 
     // Assert
-    expect(await screen.findByRole('dialog', { name: '編輯連線' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: '編輯 API 金鑰' })).toBeInTheDocument();
     await waitFor(() => {
       expect(currentPath(router)).toBe('/ai-settings');
     });
@@ -53,7 +53,7 @@ describe('用 OpenRouter 登入回來', () => {
     renderApp('/ai/openrouter/callback?code=abc&state=xyz', { strict: true });
 
     // Assert
-    await screen.findByRole('dialog', { name: '編輯 AI 帳號' });
+    await screen.findByRole('dialog', { name: '編輯 API 金鑰' });
     expect(backend.completions).toHaveLength(1);
   });
 

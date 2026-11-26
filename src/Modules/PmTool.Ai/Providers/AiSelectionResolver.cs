@@ -115,14 +115,14 @@ internal sealed class AiSelectionResolver(
         {
             return settings is { Enabled: true } or { AllowPersonalConnections: true }
                 ? Invalid("選的連線已經不存在，請換一個。")
-                : new Failure(FailureKind.Invalid, AiErrorCodes.Unavailable, "組織沒有開啟 AI 助理。");
+                : new Failure(FailureKind.Invalid, AiErrorCodes.Unavailable, "組織還沒有開放 API 金鑰給成員使用，請組織管理員到「AI 設定」開放。");
         }
 
         if (row.OwnerPersonId is null)
         {
             return settings is { Enabled: true }
                 ? null
-                : new Failure(FailureKind.Invalid, AiErrorCodes.Unavailable, "組織沒有開啟 AI 助理。");
+                : new Failure(FailureKind.Invalid, AiErrorCodes.Unavailable, "組織還沒有開放 API 金鑰給成員使用，請組織管理員到「AI 設定」開放。");
         }
 
         if (row.OwnerPersonId != actor.PersonId)

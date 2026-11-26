@@ -17,7 +17,7 @@ beforeEach(() => {
 
 const ALLOWED = makeAiOptions({ canAddPersonal: true });
 
-describe('AI 帳號：AI 供應商（出現的條件）', () => {
+describe('AI 帳號：我的 API 金鑰（出現的條件）', () => {
   it('組織不允許、自己也沒有連線與電腦：不是空白頁，只有一塊說明，沒有新增的按鈕', async () => {
     // Arrange
     signedInAs(exampleOwner);
@@ -28,9 +28,9 @@ describe('AI 帳號：AI 供應商（出現的條件）', () => {
     renderApp('/account/ai');
 
     // Assert
-    const section = await screen.findByRole('region', { name: 'AI 供應商' });
+    const section = await screen.findByRole('region', { name: '我的 API 金鑰' });
     expect(await within(section).findByText(/組織目前不允許使用自己的 AI 帳號。要用的話請組織的擁有者或管理員在「AI 設定」開啟。/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '新增 AI 帳號' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新增 API 金鑰' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '本機代理' })).not.toBeInTheDocument();
   });
 
@@ -40,7 +40,7 @@ describe('AI 帳號：AI 供應商（出現的條件）', () => {
     server.use(http.get('/v1/ai/options', () => failure(500, 'server.error', 'boom')));
     servePersonalAi();
     const { user } = renderApp('/account/ai');
-    const section = await screen.findByRole('region', { name: 'AI 供應商' });
+    const section = await screen.findByRole('region', { name: '我的 API 金鑰' });
     expect(await within(section).findByText('讀不到組織的 AI 設定')).toBeInTheDocument();
     expect(within(section).queryByText(/組織目前不允許/)).not.toBeInTheDocument();
     serveAiOptions(ALLOWED);
@@ -49,7 +49,7 @@ describe('AI 帳號：AI 供應商（出現的條件）', () => {
     await user.click(within(section).getByRole('button', { name: '重試' }));
 
     // Assert
-    expect(await screen.findByRole('button', { name: '新增 AI 帳號' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '新增 API 金鑰' })).toBeInTheDocument();
   });
 
   it('組織允許：出現，沒有連線時說明，有新增的按鈕', async () => {
@@ -62,9 +62,9 @@ describe('AI 帳號：AI 供應商（出現的條件）', () => {
     renderApp('/account/ai');
 
     // Assert
-    const section = await screen.findByRole('region', { name: 'AI 供應商' });
-    expect(await within(section).findByText('還沒有接任何 AI 帳號。')).toBeInTheDocument();
-    expect(within(section).getByRole('button', { name: '新增 AI 帳號' })).toBeInTheDocument();
+    const section = await screen.findByRole('region', { name: '我的 API 金鑰' });
+    expect(await within(section).findByText('還沒有接任何 API 金鑰。')).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: '新增 API 金鑰' })).toBeInTheDocument();
   });
 
   it('組織不允許但自己有連線：照樣列出，說明不允許，只能刪（沒有編輯、新增與重新讀取）', async () => {
@@ -75,13 +75,13 @@ describe('AI 帳號：AI 供應商（出現的條件）', () => {
     const { user } = renderApp('/account/ai');
 
     // Act
-    const section = await screen.findByRole('region', { name: 'AI 供應商' });
+    const section = await screen.findByRole('region', { name: '我的 API 金鑰' });
 
     // Assert
     expect(await within(section).findByText(/組織目前不允許使用自己的 AI 帳號。已經接的還在/)).toBeInTheDocument();
     expect(within(section).getByText('我的 OpenRouter')).toBeInTheDocument();
     expect(within(section).queryByRole('button', { name: /編輯/ })).not.toBeInTheDocument();
-    expect(within(section).queryByRole('button', { name: '新增 AI 帳號' })).not.toBeInTheDocument();
+    expect(within(section).queryByRole('button', { name: '新增 API 金鑰' })).not.toBeInTheDocument();
     expect(within(section).queryByRole('button', { name: /更多動作/ })).not.toBeInTheDocument();
 
     // Act
@@ -98,7 +98,7 @@ describe('AI 帳號：AI 供應商（出現的條件）', () => {
   });
 });
 
-describe('AI 帳號：AI 供應商（清單與動作）', () => {
+describe('AI 帳號：我的 API 金鑰（清單與動作）', () => {
   it('每個連線列出名稱、金鑰的最後四個字、開放幾個模型與本月用量', async () => {
     // Arrange
     signedInAs(exampleOwner);
@@ -109,7 +109,7 @@ describe('AI 帳號：AI 供應商（清單與動作）', () => {
     renderApp('/account/ai');
 
     // Assert
-    const section = await screen.findByRole('region', { name: 'AI 供應商' });
+    const section = await screen.findByRole('region', { name: '我的 API 金鑰' });
     expect(await within(section).findByText('金鑰 …f9e8 · 開放 1 個模型')).toBeInTheDocument();
     expect(within(section).getByText(/本月 12 則回覆/)).toBeInTheDocument();
   });
@@ -120,7 +120,7 @@ describe('AI 帳號：AI 供應商（清單與動作）', () => {
     serveAiOptions(ALLOWED);
     const backend = servePersonalAi({ connections: [examplePersonalConnection()] });
     const { user } = renderApp('/account/ai');
-    await screen.findByRole('region', { name: 'AI 供應商' });
+    await screen.findByRole('region', { name: '我的 API 金鑰' });
 
     // Act
     await user.click(await screen.findByRole('button', { name: '「我的 OpenRouter」的更多動作' }));
@@ -153,8 +153,8 @@ describe('AI 帳號：AI 供應商（清單與動作）', () => {
       }),
     );
     const { user } = renderApp('/account/ai');
-    await user.click(await screen.findByRole('button', { name: '新增 AI 帳號' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增 AI 帳號' });
+    await user.click(await screen.findByRole('button', { name: '新增 API 金鑰' }));
+    const dialog = await screen.findByRole('dialog', { name: '新增 API 金鑰' });
     await waitFor(() => {
       expect(optionsReads).toBeGreaterThan(0);
     });
@@ -183,8 +183,8 @@ describe('AI 帳號：AI 供應商（清單與動作）', () => {
     const backend = servePersonalAi();
     backend.rejectNext('connection', { status: 403, code: 'ai.personal_disabled', message: '組織目前不允許使用自己的 AI 帳號。' });
     const { user } = renderApp('/account/ai');
-    await user.click(await screen.findByRole('button', { name: '新增 AI 帳號' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增 AI 帳號' });
+    await user.click(await screen.findByRole('button', { name: '新增 API 金鑰' }));
+    const dialog = await screen.findByRole('dialog', { name: '新增 API 金鑰' });
 
     // Act
     await user.click(within(dialog).getByRole('button', { name: '儲存' }));
@@ -199,8 +199,8 @@ describe('AI 帳號：AI 供應商（清單與動作）', () => {
     serveAiOptions(ALLOWED);
     const backend = servePersonalAi();
     const { user } = renderApp('/account/ai');
-    await user.click(await screen.findByRole('button', { name: '新增 AI 帳號' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增 AI 帳號' });
+    await user.click(await screen.findByRole('button', { name: '新增 API 金鑰' }));
+    const dialog = await screen.findByRole('dialog', { name: '新增 API 金鑰' });
     await user.click(within(dialog).getByRole('button', { name: 'OpenRouter' }));
 
     // Act
@@ -215,7 +215,7 @@ describe('AI 帳號：AI 供應商（清單與動作）', () => {
 });
 
 describe('我的帳號：對話框標題', () => {
-  it('個人的對話框叫「新增 AI 帳號」，不叫連線', async () => {
+  it('個人的對話框叫「新增 API 金鑰」，不叫連線', async () => {
     // Arrange
     signedInAs(exampleOwner);
     serveAiOptions(ALLOWED);
@@ -223,10 +223,10 @@ describe('我的帳號：對話框標題', () => {
     const { user } = renderApp('/account/ai');
 
     // Act
-    await user.click(await screen.findByRole('button', { name: '新增 AI 帳號' }));
+    await user.click(await screen.findByRole('button', { name: '新增 API 金鑰' }));
 
     // Assert
-    expect(await screen.findByRole('dialog', { name: '新增 AI 帳號' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: '新增 API 金鑰' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: '新增連線' })).not.toBeInTheDocument();
   });
 });
@@ -242,7 +242,7 @@ describe('我的帳號：?aiConnection=<連線編號>', () => {
     const { router } = renderApp('/account/ai?aiConnection=pc-2');
 
     // Assert
-    const dialog = await screen.findByRole('dialog', { name: '編輯 AI 帳號' });
+    const dialog = await screen.findByRole('dialog', { name: '編輯 API 金鑰' });
     expect(within(dialog).getByLabelText('名稱')).toHaveValue('另一個');
     await waitFor(() => {
       expect(currentPath(router)).toBe('/account/ai');

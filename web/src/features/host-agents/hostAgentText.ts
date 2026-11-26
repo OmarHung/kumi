@@ -27,9 +27,9 @@ export function loginRule(engine: LocalEngineKind): string {
 }
 
 export const HOST_AGENTS_NOTE =
-  '把 Claude Code／Codex 放在主機的 ai-worker 上，全組織的成員都能在 AI 助理選它，不必各自登入或設金鑰。費用算在這裡登入的 API 帳號。';
+  '全組織共用。把 Claude Code／Codex 裝在 Kumi 主機的 ai-worker 上，成員不必自己登入或裝軟體。只能用 API 用量計費的帳號登入，費用算在那個帳號；Claude、ChatGPT 的訂閱依條款不能共用。';
 
-export const SOURCES_NOTE = '來源決定成員在 AI 助理選得到哪些模型與用量上限。';
+export const SOURCES_NOTE = '每個來源是一台主機上的一個引擎：成員在 AI 助理選得到哪些模型、用量上限都在這裡設。要打開「開放給成員使用」才選得到。';
 
 const AGENT_STATE_TEXT: Readonly<Record<HostAgentState, string>> = {
   awaiting_pairing: '等待配對',

@@ -1,3 +1,4 @@
+import { AiSetupMap } from '../ai/AiSetupMap';
 import { PersonalAiSections } from './PersonalAiSection';
 import styles from './AccountPage.module.css';
 
@@ -5,6 +6,7 @@ import styles from './AccountPage.module.css';
 export function AiAccountsPage() {
   return (
     <div className={styles.page}>
+      <AiSetupMap page="personal" />
       <PersonalAiSections />
     </div>
   );

@@ -31,7 +31,7 @@ describe('主機 AI 代理：誰看得到', () => {
     await settle();
 
     // Assert
-    expect(screen.getByRole('link', { name: '主機 AI 代理' })).toHaveAttribute('href', HOST_PATH);
+    expect(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: '主機 AI 代理' })).toHaveAttribute('href', HOST_PATH);
     expect(screen.queryByRole('button', { name: '新增主機代理' })).not.toBeInTheDocument();
     expect(reads).toHaveLength(0);
   });

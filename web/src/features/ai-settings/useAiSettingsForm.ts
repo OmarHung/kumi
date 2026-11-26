@@ -25,6 +25,8 @@ export interface AiSettingsFormState {
   readonly formError: string | null;
   readonly message: string | null;
   readonly isSaving: boolean;
+  /** 兩塊之中有一塊正在存：兩顆儲存鈕都先擋著（整份取代，同時送會互相蓋掉）。 */
+  readonly isAnySaving: boolean;
   readonly hasChanges: boolean;
   readonly guardDialog: ReturnType<typeof useUnsavedChangesGuard>['dialog'];
   readonly setEnabled: (enabled: boolean) => void;
@@ -33,6 +35,11 @@ export interface AiSettingsFormState {
   readonly chooseEffort: (effort: AiEffort | null) => void;
   readonly setLimit: (field: LimitField, value: string) => void;
   readonly save: () => void;
+  /** 「成員自己的 AI」一塊：自己的儲存鈕與結果，只送這一個勾選，其他照存著的設定。 */
+  readonly policyMessage: string | null;
+  readonly policyFormError: string | null;
+  readonly isPolicySaving: boolean;
+  readonly savePolicy: () => void;
 }
 
 /** 用量上限欄位的錯誤，以及每次出錯後加一的計數（畫面照它把焦點移到第一個有問題的欄位）。 */
@@ -129,22 +136,52 @@ function useLimitsDraft(settings: AiSettings, save: Pick<ReturnType<typeof useSe
   };
 }
 
-/** 兩個勾選的草稿：沒動過的照存著的設定。 */
-function useFlagDrafts(settings: AiSettings, touch: () => void) {
+/** 兩個勾選的草稿：沒動過的照存著的設定。兩個勾選在不同的區塊、各自儲存，改了只清自己那一塊的結果。 */
+function useFlagDrafts(settings: AiSettings, touchAssistant: () => void, touchPolicy: () => void) {
   const [draft, setDraft] = useState<{ readonly enabled?: boolean; readonly allowPersonal?: boolean }>({});
   return {
     enabled: draft.enabled ?? settings.enabled,
     allowPersonal: draft.allowPersonal ?? settings.allowPersonalConnections,
     setEnabled: (next: boolean) => {
-      touch();
+      touchAssistant();
       setDraft((current) => ({ ...current, enabled: next }));
     },
     setAllowPersonal: (next: boolean) => {
-      touch();
+      touchPolicy();
       setDraft((current) => ({ ...current, allowPersonal: next }));
     },
-    reset: () => {
-      setDraft({});
+    resetEnabled: () => {
+      setDraft(({ allowPersonal }) => (allowPersonal === undefined ? {} : { allowPersonal }));
+    },
+    resetAllowPersonal: () => {
+      setDraft(({ enabled }) => (enabled === undefined ? {} : { enabled }));
+    },
+  };
+}
+
+type SaveStatus = Pick<AiSettingsFormState, 'limitErrors' | 'focusCount' | 'formError' | 'message' | 'isSaving'>;
+
+/** 「開放給成員」那一塊的儲存結果與上限欄位的錯誤。 */
+function assistantSaveStatus(save: ReturnType<typeof useSettingsSave>): SaveStatus {
+  return { limitErrors: save.limitErrors, focusCount: save.focusCount, formError: save.formError, message: save.message, isSaving: save.isSaving };
+}
+
+type PolicyActions = Pick<AiSettingsFormState, 'policyMessage' | 'policyFormError' | 'isPolicySaving' | 'savePolicy'>;
+
+/** 「成員自己的 AI」那一塊的儲存：開放、預設照存著的送，上限不帶（伺服器沿用），不會把另一塊沒存的修改一起存掉。 */
+function policyActions(
+  settings: AiSettings,
+  policySave: ReturnType<typeof useSettingsSave>,
+  draft: { readonly allowPersonal: boolean; readonly limits: LimitsDraft; readonly isOtherSaving: boolean; readonly onSaved: () => void },
+): PolicyActions {
+  return {
+    policyMessage: policySave.message,
+    policyFormError: policySave.formError,
+    isPolicySaving: policySave.isSaving,
+    savePolicy: () => {
+      if (draft.isOtherSaving) return;
+      const saved = { enabled: settings.enabled, allowPersonalConnections: draft.allowPersonal, default: effectiveSelection(modelChoices(settings.connections), settings.default) };
+      policySave.run(saved, draft.limits, false, draft.onSaved);
     },
   };
 }
@@ -156,8 +193,9 @@ function useFlagDrafts(settings: AiSettings, touch: () => void) {
 export function useAiSettingsForm(settings: AiSettings): AiSettingsFormState {
   const [draftSelection, setDraftSelection] = useState<{ readonly value: AiSelection | null } | null>(null);
   const save = useSettingsSave();
+  const policySave = useSettingsSave();
   const limitsState = useLimitsDraft(settings, save);
-  const flags = useFlagDrafts(settings, save.touch);
+  const flags = useFlagDrafts(settings, save.touch, policySave.touch);
 
   const choices = modelChoices(settings.connections);
   const { enabled, allowPersonal } = flags;
@@ -173,11 +211,7 @@ export function useAiSettingsForm(settings: AiSettings): AiSettingsFormState {
     choices,
     choice: findChoice(choices, selection),
     limits,
-    limitErrors: save.limitErrors,
-    focusCount: save.focusCount,
-    formError: save.formError,
-    message: save.message,
-    isSaving: save.isSaving,
+    ...assistantSaveStatus(save),
     hasChanges,
     guardDialog: guard.dialog,
     setEnabled: flags.setEnabled,
@@ -194,13 +228,18 @@ export function useAiSettingsForm(settings: AiSettings): AiSettingsFormState {
       setDraftSelection({ value: { ...selection, effort } });
     },
     setLimit: limitsState.setLimit,
+    // 只送這一塊的修改：另一塊（成員自己的 AI）改了沒存的勾選照存著的值送，不會被這顆鈕一起存掉。
     save: () => {
+      // 另一塊正在存時不送：兩個請求都是整份取代，後到的會把先到的改回去。
+      if (policySave.isSaving) return;
       const limitsChanged = !sameLimits(limits, draftFromLimits(settings.limits));
-      save.run({ enabled, allowPersonalConnections: allowPersonal, default: selection }, limits, limitsChanged, () => {
-        flags.reset();
+      save.run({ enabled, allowPersonalConnections: settings.allowPersonalConnections, default: selection }, limits, limitsChanged, () => {
+        flags.resetEnabled();
         setDraftSelection(null);
         limitsState.reset();
       });
     },
+    isAnySaving: save.isSaving || policySave.isSaving,
+    ...policyActions(settings, policySave, { allowPersonal, limits, isOtherSaving: save.isSaving, onSaved: flags.resetAllowPersonal }),
   };
 }

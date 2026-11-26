@@ -10,9 +10,11 @@ import { LocalAgentSection } from './LocalAgentSection';
 
 const NOT_ALLOWED = '組織目前不允許使用自己的 AI 帳號。已經接的還在，但只能刪除。';
 const NOT_ALLOWED_EMPTY = '組織目前不允許使用自己的 AI 帳號。要用的話請組織的擁有者或管理員在「AI 設定」開啟。';
-const INTRO = '接上自己的 AI 帳號後，只有你能用，費用算在你自己的帳號；專案的設定會送到你選的供應商。';
-// 頁名已經是「AI 帳號」：這一塊叫「AI 供應商」，和下一塊「本機代理」並列，不重複頁名。
-const TITLE = 'AI 供應商';
+const INTRO = '只有你能用。接你自己的供應商 API 金鑰（或用 OpenRouter 登入），按用量計費、算在你自己的帳號；專案的設定會送到你選的供應商。';
+// 頁名已經是「AI 帳號」：這一塊叫「我的 API 金鑰」，和下一塊「本機代理」並列，說清楚是金鑰、不是訂閱。
+const TITLE = '我的 API 金鑰';
+/** 四種接法的對照連到這一塊（/account/ai#ai-keys）。 */
+const SECTION_ID = 'ai-keys';
 
 /**
  * AI 帳號頁的內容（internal/HANDOFF-ai-floating.md 第 5.2 節）：自己的 AI 供應商連線，浮動的 AI 助理選模型時會列出來；
@@ -26,7 +28,7 @@ const TITLE = 'AI 供應商';
  */
 function firstSection(children: ReactNode, description?: ReactNode) {
   return (
-    <SettingsSection title={TITLE} description={description} isContentStart>
+    <SettingsSection title={TITLE} description={description} id={SECTION_ID}>
       {children}
     </SettingsSection>
   );
@@ -60,10 +62,10 @@ export function PersonalAiSections() {
         <ConnectionManager
           scope="personal"
           connections={connections.data}
-          emptyText="還沒有接任何 AI 帳號。"
+          emptyText="還沒有接任何 API 金鑰。"
           openParam="aiConnection"
           isDeleteOnly={!isAllowed}
-          addLabel="新增 AI 帳號"
+          addLabel="新增 API 金鑰"
         />,
         isAllowed ? INTRO : NOT_ALLOWED,
       )}

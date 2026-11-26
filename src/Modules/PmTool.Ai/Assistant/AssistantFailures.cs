@@ -30,7 +30,7 @@ internal static class AssistantFailures
     public static Failure MessageInvalid(string message) => new(FailureKind.Invalid, AiErrorCodes.MessageInvalid, message);
 
     public static Failure Unavailable() =>
-        new(FailureKind.Invalid, AiErrorCodes.Unavailable, "組織還沒有開啟 AI 助理，請組織管理員到「AI 設定」開啟，或允許成員使用自己的 AI 帳號。");
+        new(FailureKind.Invalid, AiErrorCodes.Unavailable, "組織還沒有開放可以用的 AI。請組織管理員到「AI 設定」開放組織的 API 金鑰，或允許成員使用自己的 AI 帳號；也可以請組織擁有者設定主機 AI 代理。");
 
     public static Failure McpUrlMissing() =>
         new(FailureKind.Invalid, AiErrorCodes.SelectionInvalid, "這個部署還沒設定對外的網址，本機的引擎連不到 Kumi，請聯絡管理員（Security:PublicHost）。");

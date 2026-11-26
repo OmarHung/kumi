@@ -19,12 +19,12 @@ async function openNewDialog(path = '/ai-settings') {
   const backend = serveAiSettings();
   const personal = servePersonalAi();
   const view = renderApp(path);
-  await view.user.click(await screen.findByRole('button', { name: '新增連線' }));
-  const dialog = await screen.findByRole('dialog', { name: '新增連線' });
+  await view.user.click(await screen.findByRole('button', { name: '新增 API 金鑰' }));
+  const dialog = await screen.findByRole('dialog', { name: '新增 API 金鑰' });
   return { ...view, backend, personal, dialog };
 }
 
-describe('AI 設定：允許成員使用自己的 AI 帳號', () => {
+describe('AI 設定：成員自己的 AI', () => {
   it('說明也提到成員自己電腦上的 Claude Code／Codex', async () => {
     // Arrange
     signedInAs(exampleOwner);
@@ -35,10 +35,10 @@ describe('AI 設定：允許成員使用自己的 AI 帳號', () => {
 
     // Assert
     const checkbox = await screen.findByRole('checkbox', { name: /允許成員使用自己的 AI 帳號/ });
-    expect(checkbox).toHaveAccessibleDescription(/也包括成員自己電腦上的 Claude Code／Codex/);
+    expect(checkbox).toHaveAccessibleDescription(/自己電腦上的 Claude Code／Codex（本機代理，可以用自己的訂閱）/);
   });
 
-  it('預設沒勾；勾了之後和「啟用 AI 助理」一起存，存了之後再讀還是勾著', async () => {
+  it('預設沒勾；勾了之後用自己那一塊的儲存，存了之後再讀還是勾著', async () => {
     // Arrange
     signedInAs(exampleOwner);
     const backend = serveAiSettings();
@@ -48,12 +48,50 @@ describe('AI 設定：允許成員使用自己的 AI 帳號', () => {
 
     // Act
     await user.click(checkbox);
-    await user.click(screen.getByRole('button', { name: '儲存' }));
+    await user.click(screen.getByRole('button', { name: '儲存（成員自己的 AI）' }));
 
     // Assert
     expect(await screen.findByText('已儲存。')).toBeInTheDocument();
     expect(backend.savedSettings).toEqual([{ enabled: false, allowPersonalConnections: true, default: null }]);
     expect(backend.current().allowPersonalConnections).toBe(true);
+    expect(screen.getByRole('checkbox', { name: /允許成員使用自己的 AI 帳號/ })).toBeChecked();
+  });
+
+  it('另一塊改了上限沒存：這一塊的儲存只送勾選，上限不帶、留著沒存的修改', async () => {
+    // Arrange
+    signedInAs(exampleOwner);
+    const backend = serveAiSettings();
+    const { user, router } = renderApp('/ai-settings');
+    await user.type(await screen.findByRole('textbox', { name: '全組織每月最多（則）' }), '10');
+    await user.click(screen.getByRole('checkbox', { name: /允許成員使用自己的 AI 帳號/ }));
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '儲存（成員自己的 AI）' }));
+    await screen.findByText('已儲存。');
+    await user.click(screen.getByRole('link', { name: '我的工作' }));
+
+    // Assert
+    expect(backend.savedSettings).toEqual([{ enabled: false, allowPersonalConnections: true, default: null }]);
+    expect(screen.getByRole('textbox', { name: '全組織每月最多（則）' })).toHaveValue('10');
+    expect(await screen.findByRole('dialog', { name: '還有沒儲存的修改' })).toBeInTheDocument();
+    expect(currentPath(router)).toBe('/ai-settings');
+  });
+
+  it('勾了這一項沒存、按「開放給成員」的儲存：送存著的值（沒勾），這一項的修改還留著', async () => {
+    // Arrange
+    signedInAs(exampleOwner);
+    const backend = serveAiSettings();
+    const { user } = renderApp('/ai-settings');
+    await user.click(await screen.findByRole('checkbox', { name: /允許成員使用自己的 AI 帳號/ }));
+    await user.type(screen.getByRole('textbox', { name: '全組織每月最多（則）' }), '10');
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '儲存' }));
+    await screen.findByText('已儲存。');
+
+    // Assert
+    expect(backend.savedSettings).toHaveLength(1);
+    expect(backend.savedSettings[0]).toMatchObject({ allowPersonalConnections: false });
     expect(screen.getByRole('checkbox', { name: /允許成員使用自己的 AI 帳號/ })).toBeChecked();
   });
 
@@ -146,8 +184,8 @@ describe('連線對話框：OpenRouter', () => {
     serveAiSettings();
     servePersonalAi({ authorizeUrl: 'javascript:alert(1)' });
     const { user } = renderApp('/ai-settings');
-    await user.click(await screen.findByRole('button', { name: '新增連線' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增連線' });
+    await user.click(await screen.findByRole('button', { name: '新增 API 金鑰' }));
+    const dialog = await screen.findByRole('dialog', { name: '新增 API 金鑰' });
     await user.click(within(dialog).getByRole('button', { name: 'OpenRouter' }));
 
     // Act
@@ -164,8 +202,8 @@ describe('連線對話框：OpenRouter', () => {
     serveAiSettings();
     servePersonalAi({ authorizeUrl: 'https://openrouter.ai.example.com/auth' });
     const { user } = renderApp('/ai-settings');
-    await user.click(await screen.findByRole('button', { name: '新增連線' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增連線' });
+    await user.click(await screen.findByRole('button', { name: '新增 API 金鑰' }));
+    const dialog = await screen.findByRole('dialog', { name: '新增 API 金鑰' });
     await user.click(within(dialog).getByRole('button', { name: 'OpenRouter' }));
 
     // Act
@@ -237,7 +275,7 @@ describe('AI 設定：?edit=<連線編號>', () => {
     const { router } = renderApp('/ai-settings?edit=c-2');
 
     // Assert
-    const dialog = await screen.findByRole('dialog', { name: '編輯連線' });
+    const dialog = await screen.findByRole('dialog', { name: '編輯 API 金鑰' });
     expect(within(dialog).getByLabelText('名稱')).toHaveValue('公司的 OpenRouter');
     await waitFor(() => {
       expect(currentPath(router)).toBe('/ai-settings');

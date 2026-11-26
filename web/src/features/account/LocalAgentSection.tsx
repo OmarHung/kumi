@@ -87,7 +87,7 @@ export function LocalAgentSection({ isAllowed }: { readonly isAllowed: boolean }
   const [removing, setRemoving] = useState<LocalAgentMachine | null>(null);
   const list = machines.data ?? [];
   return (
-    <SettingsSection title="本機代理" headingId={headingId} description={<LocalAgentNote />}>
+    <SettingsSection title="本機代理" id="local-agent" headingId={headingId} description={<LocalAgentNote />}>
       {machines.isPending && <Skeleton label="正在載入電腦…" rows={1} />}
       {machines.isLoadingError && (
         <ErrorState
