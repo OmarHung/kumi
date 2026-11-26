@@ -40,7 +40,7 @@ public sealed class AgentLoopLimitsTests
         var error = new StringWriter();
         var loop = new AgentLoop(
             new ApiClient(http, "https://pm.example.com", CliHarness.Token), [engine.Engine], "machine-key-1234", "小明的 Mac", "0.1.0", Fast,
-            new AgentConsole(new StringWriter(), error, json: false), () => DateTimeOffset.Now, quota);
+            new AgentConsole(new StringWriter(), error, json: false), () => DateTimeOffset.Now, quota: quota);
         await loop.RunAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(20));
         return (error, server);
     }

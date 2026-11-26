@@ -315,7 +315,7 @@ public sealed class ServiceStartTests
             seen.Add(AgentLock.Peek(cli.ConfigPath)?.Connection);
             return Interlocked.Increment(ref calls) <= 2
                 ? Unavailable()
-                : FakeServer.Envelope(HttpStatusCode.OK, new { scopes = new[] { "agent:run", "blueprint:read", "blueprint:write" } });
+                : FakeServer.Envelope(HttpStatusCode.OK, new { scopes = new[] { "agent:run", "blueprint:read", "blueprint:write", "items:read" } });
         });
         cli.Server.On("POST", "/v1/agent/check-in", _ =>
         {
@@ -345,7 +345,7 @@ public sealed class ServiceStartTests
     {
         // Arrange
         using var cli = NewCli();
-        cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write"));
+        cli.Server.On("GET", "/v1/session", AutostartCommandTests.Session("agent:run", "blueprint:read", "blueprint:write", "items:read"));
         var seen = new List<AgentConnection?>();
         var calls = 0;
         cli.Server.On("POST", "/v1/agent/check-in", _ =>
