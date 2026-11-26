@@ -12,10 +12,15 @@ namespace PmTool.Ai.LocalAgents;
 /// </summary>
 internal sealed class AgentToolBudget(IDbContextFactory<AiDbContext> contexts, IProjectService projects) : IAgentToolBudget
 {
+    // TODO(org-assistant)：工作包 A 實作。
+    public Task<AgentJobScope?> FindJobScopeAsync(AgentJobKind kind, Actor? actor, Guid jobId, CancellationToken cancellationToken) =>
+        throw new NotImplementedException();
+
     public async Task<AgentToolBudgetOutcome> UseLocalAsync(
-        Actor actor, Guid jobId, string projectKey, bool isProposal, CancellationToken cancellationToken)
+        Actor actor, Guid jobId, string? projectKey, bool isProposal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(projectKey); // TODO(org-assistant)：工作包 A 接上不選專案的組織對話。
 
         // 工作列的內容在領走時就清了，專案代號不在裡面：用對話的專案編號比對，專案要是呼叫的人看得到的。
         var project = await projects.GetAsync(actor, projectKey, cancellationToken);

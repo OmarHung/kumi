@@ -10,20 +10,20 @@ namespace PmTool.Api.Tests.Support;
 /// </summary>
 internal sealed class FakeAgentToolBudget : IAgentToolBudget
 {
-    private readonly ConcurrentQueue<(Guid JobId, string ProjectKey, bool IsProposal)> _local = new();
+    private readonly ConcurrentQueue<(Guid JobId, string? ProjectKey, bool IsProposal)> _local = new();
     private readonly ConcurrentQueue<(Guid JobId, bool IsProposal)> _host = new();
     private readonly ConcurrentQueue<(AgentJobKind Kind, Guid JobId)> _refunds = new();
 
     public AgentToolBudgetOutcome Outcome { get; set; } = AgentToolBudgetOutcome.Allowed;
 
-    public IReadOnlyList<(Guid JobId, string ProjectKey, bool IsProposal)> LocalCalls => _local.ToArray();
+    public IReadOnlyList<(Guid JobId, string? ProjectKey, bool IsProposal)> LocalCalls => _local.ToArray();
 
     public IReadOnlyList<(Guid JobId, bool IsProposal)> HostCalls => _host.ToArray();
 
     public IReadOnlyList<(AgentJobKind Kind, Guid JobId)> Refunds => _refunds.ToArray();
 
     public Task<AgentToolBudgetOutcome> UseLocalAsync(
-        Actor actor, Guid jobId, string projectKey, bool isProposal, CancellationToken cancellationToken)
+        Actor actor, Guid jobId, string? projectKey, bool isProposal, CancellationToken cancellationToken)
     {
         _local.Enqueue((jobId, projectKey, isProposal));
         return Task.FromResult(Outcome);
@@ -34,6 +34,12 @@ internal sealed class FakeAgentToolBudget : IAgentToolBudget
         _host.Enqueue((jobId, isProposal));
         return Task.FromResult(Outcome);
     }
+
+    /// <summary>工作的範圍；預設 null（找不到）。工作包 B 依 MCP 的測試需要調整預設。</summary>
+    public Func<AgentJobKind, Guid, AgentJobScope?> OnFindJobScope { get; set; } = (_, _) => null;
+
+    public Task<AgentJobScope?> FindJobScopeAsync(AgentJobKind kind, Actor? actor, Guid jobId, CancellationToken cancellationToken) =>
+        Task.FromResult(OnFindJobScope(kind, jobId));
 
     public Task RefundProposalAsync(AgentJobKind kind, Guid jobId)
     {
