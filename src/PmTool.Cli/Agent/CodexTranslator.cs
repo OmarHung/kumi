@@ -112,7 +112,8 @@ internal sealed class CodexTranslator : IEngineTranslator
                 : new ToolEvent(id, name, ToolStatus.Done, name == TranslatorSupport.ProposeChangeSet ? ChangeSetNumberOf(item) : null,
                     ItemProposalId: name == TranslatorSupport.ProposeItemChanges ? TranslatorSupport.ItemProposalId(resultText) : null,
                     ProjectProposalId: name == TranslatorSupport.ProposeProject ? TranslatorSupport.ProjectProposalId(resultText) : null,
-                    NewItemProposalId: name == TranslatorSupport.ProposeNewItems ? TranslatorSupport.NewItemProposalId(resultText) : null));
+                    NewItemProposalId: name == TranslatorSupport.ProposeNewItems ? TranslatorSupport.NewItemProposalId(resultText) : null,
+                    MemberProposalId: name == TranslatorSupport.ProposeMemberChanges ? TranslatorSupport.MemberProposalId(resultText) : null));
         }
 
         return TranslatorStep.Emit([.. events]);

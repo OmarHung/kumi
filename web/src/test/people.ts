@@ -12,6 +12,8 @@ export function personOf(user: SessionUser, overrides: Partial<Person> = {}): Pe
     email: user.email,
     role: user.role,
     disabled: false,
+    jobTitle: null,
+    responsibilities: null,
     ...overrides,
   };
 }
@@ -24,6 +26,8 @@ export const adminPerson: Person = {
   email: 'admin@example.com',
   role: 'admin',
   disabled: false,
+  jobTitle: null,
+  responsibilities: null,
 };
 export const guestPerson: Person = {
   personId: '0190a000-0000-7000-8000-000000000005',
@@ -31,6 +35,8 @@ export const guestPerson: Person = {
   email: 'guest@example.com',
   role: 'guest',
   disabled: false,
+  jobTitle: null,
+  responsibilities: null,
 };
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,7 +44,7 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MIN_PASSWORD = 10;
 export const MAX_PASSWORD = 128;
 
-type Action = 'disable' | 'enable' | 'password' | 'role';
+type Action = 'disable' | 'enable' | 'password' | 'role' | 'profile';
 
 /** 訊息照後端（src/Modules/PmTool.Identity/AccountAdministration.cs）：停用、重新啟用、重設密碼各自一套。 */
 const MESSAGES: Readonly<Record<Action, { readonly notAdmin: string; readonly ownerOnly: string; readonly self: string }>> = {
@@ -57,12 +63,20 @@ const MESSAGES: Readonly<Record<Action, { readonly notAdmin: string; readonly ow
     ownerOnly: '只有擁有者可以重設擁有者或管理員的密碼。',
     self: '要改自己的密碼，請到「我的帳號」。',
   },
+  profile: {
+    notAdmin: '只有組織的擁有者或管理員可以設定職稱與負責範圍。',
+    ownerOnly: '',
+    self: '',
+  },
   role: {
     notAdmin: '只有組織的擁有者或管理員可以變更角色。',
     ownerOnly: '只有擁有者可以設定或變更擁有者、管理員的角色。',
     self: '不能變更自己的角色。',
   },
 };
+
+/** 職稱與負責範圍的上限，照後端 IdentityRules。 */
+const PROFILE_MAX = { jobTitle: 60, responsibilities: 200 } as const;
 
 const ORGANIZATION_ROLES: readonly string[] = ['owner', 'admin', 'member', 'guest'];
 
@@ -151,9 +165,33 @@ export function servePeopleAdmin(options: PeopleBackendOptions): PeopleBackend {
     return ok(people.find((person) => person.personId === personId) ?? null);
   }
 
+  /**
+   * 設定職稱與負責範圍：和別的動作不同，自己、擁有者與管理員都能改（不是安全性的設定）。照後端：去掉前後空白、
+   * 空字串是 null、太長是 422 person.profile_invalid（細項路徑 jobTitle、responsibilities）。
+   */
+  function setProfile(personId: string, body: unknown) {
+    if (options.actor.role !== 'owner' && options.actor.role !== 'admin') {
+      return failure(403, 'person.forbidden', MESSAGES.profile.notAdmin);
+    }
+    if (!GUID.test(personId) || !people.some((person) => person.personId === personId)) {
+      return failure(404, 'person.not_found', '組織裡找不到這個人。');
+    }
+    const input = (body ?? {}) as { jobTitle?: unknown; responsibilities?: unknown };
+    const clean = (value: unknown) => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null);
+    const jobTitle = clean(input.jobTitle);
+    const responsibilities = clean(input.responsibilities);
+    const details = (['jobTitle', 'responsibilities'] as const)
+      .filter((field) => ((field === 'jobTitle' ? jobTitle : responsibilities)?.length ?? 0) > PROFILE_MAX[field])
+      .map((field) => ({ code: 'person.profile_invalid', path: field, message: `${field === 'jobTitle' ? '職稱' : '負責範圍'}太長了。` }));
+    if (details.length > 0) return failure(422, 'person.profile_invalid', details[0]?.message ?? '', details);
+    people = people.map((person) => (person.personId === personId ? { ...person, jobTitle, responsibilities } : person));
+    return ok(people.find((person) => person.personId === personId) ?? null);
+  }
+
   async function handle(action: Action, personId: string, request: Request) {
     const body = await bodyOf(request);
     requests.push({ action, personId, body });
+    if (action === 'profile') return setProfile(personId, body);
     const blocked = checkRules(options, people, personId, action);
     if (blocked !== null) return blocked;
     if (action === 'role') return changeRole(personId, body);
@@ -168,6 +206,7 @@ export function servePeopleAdmin(options: PeopleBackendOptions): PeopleBackend {
     http.post('/v1/people/:personId/disable', ({ params, request }) => handle('disable', String(params.personId), request)),
     http.post('/v1/people/:personId/enable', ({ params, request }) => handle('enable', String(params.personId), request)),
     http.put('/v1/people/:personId/password', ({ params, request }) => handle('password', String(params.personId), request)),
+    http.put('/v1/people/:personId/profile', ({ params, request }) => handle('profile', String(params.personId), request)),
     http.put('/v1/people/:personId/role', ({ params, request }) => handle('role', String(params.personId), request)),
   );
   return { requests, people: () => people };

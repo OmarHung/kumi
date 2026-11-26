@@ -19,19 +19,19 @@ import { chooseOption, openOptions } from '../../test/select';
 import { server } from '../../test/server';
 
 const designer: Member = { personId: '0190a000-0000-7000-8000-000000000003', displayName: '範例設計師', role: 'project_manager' };
-const newcomer: Person = { personId: '0190a000-0000-7000-8000-000000000004', displayName: '範例新人', email: 'new@example.com', role: 'member', disabled: false };
+const newcomer: Person = { personId: '0190a000-0000-7000-8000-000000000004', displayName: '範例新人', email: 'new@example.com', role: 'member', disabled: false, jobTitle: null, responsibilities: null };
 
 const people: Person[] = [
-  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false },
-  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false },
-  { ...designer, email: 'designer@example.com', role: 'member', disabled: false },
+  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false, jobTitle: null, responsibilities: null },
+  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false, jobTitle: null, responsibilities: null },
+  { ...designer, email: 'designer@example.com', role: 'member', disabled: false, jobTitle: null, responsibilities: null },
   newcomer,
 ];
 
-async function openDialog(detail: ProjectDetail = agyDetail({ members: [ownerAsAdmin, memberAsEditor, designer] })) {
+async function openDialog(detail: ProjectDetail = agyDetail({ members: [ownerAsAdmin, memberAsEditor, designer] }), roster: readonly Person[] = people) {
   signedInAs(exampleOwner, { details: [detail] });
   serveItems('AGY', []);
-  const backend = serveMembers(detail, { people });
+  const backend = serveMembers(detail, { people: roster });
   const view = renderApp('/projects/AGY');
   await view.user.click(await screen.findByRole('button', { name: '成員' }));
   const dialog = await screen.findByRole('dialog', { name: '成員' });
@@ -43,6 +43,26 @@ function roleOf(dialog: HTMLElement, name: string): HTMLElement {
 }
 
 describe('成員對話框', () => {
+  it('名稱後面接職稱，整列一行：職稱放在可截斷的名稱格裡，完整文字在 title', async () => {
+    // Arrange
+    const longTitle = '前端工程師兼設計系統維護者'.repeat(4);
+    const roster = people.map((person) => (person.personId === designer.personId ? { ...person, jobTitle: longTitle } : person));
+
+    // Act
+    const { dialog } = await openDialog(undefined, roster);
+
+    // Assert
+    const row = roleOf(dialog, '範例設計師');
+    const nameText = await waitFor(() => {
+      const found = within(row).getByText(longTitle).closest('[title]');
+      if (found === null) throw new Error('名稱格還沒有 title');
+      return found;
+    });
+    expect(nameText).toHaveAttribute('title', `範例設計師 · ${longTitle}`);
+    expect(nameText).toHaveTextContent(`範例設計師 ${longTitle}`);
+    expect(within(roleOf(dialog, '範例使用者')).queryByText(/·/)).not.toBeInTheDocument();
+  });
+
   it('能管理成員的人看得到最高權限的說明，只能看的人沒有', async () => {
     // Arrange & Act
     const { dialog } = await openDialog();

@@ -31,6 +31,9 @@ public sealed class McpToolCatalogTests
             ["propose_changeset"] = (AccessTokenScope.BlueprintWrite, false),
             ["propose_item_changes"] = (AccessTokenScope.AgentRun, false),
             ["propose_project"] = (AccessTokenScope.AgentRun, false),
+            ["get_project"] = (AccessTokenScope.ItemsRead, true),
+            ["list_people"] = (AccessTokenScope.ItemsRead, true),
+            ["propose_member_changes"] = (AccessTokenScope.AgentRun, false),
         };
 
     // CLAUDE.md：JSON Schema 只能用這幾個關鍵字（同一份 Schema 要能直接拿去約束語言模型的輸出），description 是說明，不算約束。
@@ -38,7 +41,7 @@ public sealed class McpToolCatalogTests
         ["type", "properties", "required", "additionalProperties", "items", "enum", "const", "$ref", "description"];
 
     [Test]
-    public async Task ListTools_ReturnsTheSixteenToolsForAnOAuthGrant_WithoutTheAgentOnlyOnes()
+    public async Task ListTools_ReturnsTheEighteenToolsForAnOAuthGrant_WithoutTheAgentOnlyOnes()
     {
         // Arrange
         await using var mcp = await McpHarness.StartAsync();
@@ -47,7 +50,7 @@ public sealed class McpToolCatalogTests
         var tools = await mcp.Client.ListToolsAsync();
 
         // Assert
-        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(Expected.Keys.Where(name => name is not ("propose_item_changes" or "propose_project"))));
+        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(Expected.Keys.Where(name => name is not ("propose_item_changes" or "propose_project" or "propose_member_changes"))));
     }
 
     [Test]
@@ -90,8 +93,8 @@ public sealed class McpToolCatalogTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(tools.Select(tool => tool.Name), Does.Not.Contain("propose_item_changes").And.Not.Contain("propose_project"));
-            Assert.That(tools, Has.Count.EqualTo(Expected.Count - 2));
+            Assert.That(tools.Select(tool => tool.Name), Does.Not.Contain("propose_item_changes").And.Not.Contain("propose_project").And.Not.Contain("propose_member_changes"));
+            Assert.That(tools, Has.Count.EqualTo(Expected.Count - 3));
         }
     }
 

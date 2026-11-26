@@ -235,25 +235,22 @@ public sealed class MigrationTests
     {
         await using var db = NewContext(connectionString);
         var organization = new OrganizationRow { Id = Guid.CreateVersion7(), Name = "範例組織", CreatedAt = DateTimeOffset.UtcNow };
-        var person = new PersonRow
-        {
-            Id = Guid.CreateVersion7(),
-            OrganizationId = organization.Id,
-            DisplayName = "範例使用者",
-            Role = OrganizationRole.Member,
-            CreatedAt = DateTimeOffset.UtcNow,
-        };
+        var personId = Guid.CreateVersion7();
         var account = new AccountRow
         {
             Id = Guid.CreateVersion7(),
             OrganizationId = organization.Id,
-            PersonId = person.Id,
+            PersonId = personId,
             Email = email,
             PasswordHash = passwordHash,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Organizations.Add(organization);
-        db.People.Add(person);
+        await db.SaveChangesAsync();
+
+        // 這是舊的結構（還沒有職稱欄位）：用 EF 寫人員會帶到現行模型才有的欄位，所以直接下 SQL。
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO identity.people (id, organization_id, display_name, role, created_at) VALUES ({personId}, {organization.Id}, {"範例使用者"}, {"member"}, {DateTimeOffset.UtcNow})");
         db.Accounts.Add(account);
         await db.SaveChangesAsync();
         return account.Id;

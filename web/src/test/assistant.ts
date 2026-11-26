@@ -7,6 +7,8 @@ import type {
   AssistantMessage,
   AssistantMessageInput,
   ItemProposal,
+  MemberChange,
+  MemberProposal,
   NewItemDraft,
   NewItemProposal,
   ProjectProposal,
@@ -304,6 +306,8 @@ export function makeNewItemDraft(overrides: Partial<NewItemDraft> = {}): NewItem
     estimate: null,
     parentKey: null,
     parentRef: null,
+    cycleId: null,
+    milestoneId: null,
     fields: {},
     ...overrides,
   };
@@ -320,6 +324,7 @@ export function makeNewItemProposal(overrides: Partial<NewItemProposal> = {}): N
     createdAt: '2026-11-26T02:00:00Z',
     decidedAt: null,
     error: null,
+    addMembers: [],
     ...overrides,
   };
 }
@@ -355,6 +360,59 @@ export function serveNewItemProposal(
     http.post(`${path}/dismiss`, () => {
       dismissCount += 1;
       current = { ...current, status: 'dismissed', decidedAt: '2026-11-26T02:05:00Z' };
+      return ok(current);
+    }),
+  );
+  return { applied: () => applyCount, dismissed: () => dismissCount };
+}
+
+export function makeMemberChange(overrides: Partial<MemberChange> = {}): MemberChange {
+  return {
+    personId: 'p-2',
+    displayName: '小美',
+    role: 'contributor',
+    roleName: '執行者',
+    previousRole: null,
+    previousRoleName: null,
+    ...overrides,
+  };
+}
+
+export function makeMemberProposal(overrides: Partial<MemberProposal> = {}): MemberProposal {
+  return {
+    id: 'mp-1',
+    projectKey: 'SMK',
+    changes: [makeMemberChange()],
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+/** 假的成員建議端點：GET 回目前的狀態；apply 成功時換成 applied（applied 可蓋掉結果，例如帶 error），onApply 可回失敗；dismiss 換成 dismissed。 */
+export function serveMemberProposal(
+  proposal: MemberProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<MemberProposal> = {},
+): ProposalBackend {
+  let current = proposal;
+  let applyCount = 0;
+  let dismissCount = 0;
+  const path = `/v1/ai/member-proposals/${proposal.id}`;
+  server.use(
+    http.get(path, () => ok(current)),
+    http.post(`${path}/apply`, () => {
+      applyCount += 1;
+      const failed = onApply();
+      if (failed !== null) return failed;
+      current = { ...current, status: 'applied', decidedAt: '2026-11-27T02:05:00Z', ...applied };
+      return ok(current);
+    }),
+    http.post(`${path}/dismiss`, () => {
+      dismissCount += 1;
+      current = { ...current, status: 'dismissed', decidedAt: '2026-11-27T02:05:00Z' };
       return ok(current);
     }),
   );

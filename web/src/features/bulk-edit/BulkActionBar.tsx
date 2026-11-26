@@ -1,5 +1,6 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useRef, useState, type KeyboardEvent } from 'react';
 import { BULK_MAX_ITEMS } from '../../api/itemRecovery';
+import type { Member } from '../../api/types';
 import { Button } from '../../components/Button/Button';
 import { DatePicker } from '../../components/DatePicker/DatePicker';
 import { Icon } from '../../components/Icon/Icon';
@@ -10,6 +11,7 @@ import { remInPixels, useElementWidth } from '../../lib/useElementWidth';
 import { PRIORITY_LABELS } from '../../domain/labels';
 import { isCommitEnter } from '../../lib/keyboard';
 import { memberOptions } from '../item-table/cells/CoreCells';
+import { usePersonTitles } from '../people/usePersonTitles';
 import { useProjectTable, type ProjectAbilities } from '../item-table/ProjectTableContext';
 import { usePlanning } from '../item-table/usePlanning';
 import { cancelOnEscape } from './cancelOnEscape';
@@ -41,15 +43,18 @@ function FieldPicker({
   isBlocked,
   describedBy,
   onPick,
+  onOpenChange,
 }: {
   readonly label: string;
   readonly options: readonly SelectOption[];
   readonly isBlocked: boolean;
   readonly describedBy: string | undefined;
   readonly onPick: (value: string) => void;
+  readonly onOpenChange?: (isOpen: boolean) => void;
 }) {
   return (
     <Select
+      onOpenChange={onOpenChange}
       aria-label={label}
       aria-describedby={describedBy}
       aria-disabled={isBlocked || undefined}
@@ -62,6 +67,17 @@ function FieldPicker({
       onChange={onPick}
     />
   );
+}
+
+/** 負責人的下拉：選項名稱下面寫職稱（人員清單，和人員頁共用同一份快取）。 */
+function AssigneePicker({ members, ...props }: { readonly members: readonly Member[]; readonly isBlocked: boolean; readonly describedBy: string | undefined; readonly onPick: (value: string) => void }) {
+  // 打開選單才讀人員清單（規範 8：負責人的選單在打開編輯時才讀）；開過一次就留著，關上再開不閃。
+  const [hasOpened, setHasOpened] = useState(false);
+  const titles = usePersonTitles(hasOpened);
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (isOpen) setHasOpened(true);
+  }, []);
+  return <FieldPicker label="負責人" options={memberOptions(members, '沒有負責人', null, titles)} onOpenChange={handleOpenChange} {...props} />;
 }
 
 function sendOrNull(bulk: BulkEdit, build: (value: string | null) => BulkPatch): (value: string) => void {
@@ -179,7 +195,7 @@ function FieldControl({ name, ...props }: ControlProps & { readonly name: FieldA
       );
     }
     case 'assignee':
-      return <FieldPicker label="負責人" options={memberOptions(detail.members, '沒有負責人')} {...common} onPick={sendOrNull(bulk, (assigneeId) => ({ assigneeId }))} />;
+      return <AssigneePicker members={detail.members} {...common} onPick={sendOrNull(bulk, (assigneeId) => ({ assigneeId }))} />;
     case 'priority':
       return (
         <FieldPicker

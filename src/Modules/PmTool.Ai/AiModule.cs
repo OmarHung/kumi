@@ -56,6 +56,9 @@ public static class AiModule
         services.TryAddScoped<ConnectionUsageLedger>();
         services.TryAddScoped<IAssistantService, AssistantService>();
 
+        // 派工用的專案摘要與人員名單（get_project、list_people；內建助理與 MCP 共用）。
+        services.TryAddScoped<IStaffingBriefService, Staffing.StaffingBriefService>();
+
         // 助理的附件：檔案放在共用的儲存空間（和項目、知識庫的附件同一份設定與容量上限；組合根註冊過的設定留下來，沒有才用預設）。
         services.TryAddSingleton(attachments ?? new FileStoreSettings(null));
         services.TryAddSingleton<IFileStore>(provider => FileStores.Create(provider.GetRequiredService<FileStoreSettings>()));
@@ -115,6 +118,10 @@ public static class AiModule
         services.TryAddScoped<INewItemProposalCreator, NewItems.NewItemProposalCreator>();
         services.TryAddScoped<NewItems.NewItemApplier>();
         services.TryAddScoped<INewItemProposalService, NewItems.NewItemProposalService>();
+
+        // 成員建議：同樣只建立建議，使用者按「套用」才以自己的身分改專案的成員。
+        services.TryAddScoped<IMemberProposalCreator, MemberProposals.MemberProposalCreator>();
+        services.TryAddScoped<IMemberProposalService, MemberProposals.MemberProposalService>();
 
         // 新專案建議（不選專案的組織對話）：同樣只建立建議，使用者按「建立專案」才以自己的身分建立。
         services.TryAddScoped<IProjectProposalCreator, ProjectProposalCreator>();

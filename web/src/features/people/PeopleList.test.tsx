@@ -8,8 +8,8 @@ import { exampleMember, exampleOwner } from '../../test/fixtures';
 import { renderApp } from '../../test/renderApp';
 import { server } from '../../test/server';
 
-const owner: Person = { personId: exampleOwner.personId, displayName: exampleOwner.displayName, email: exampleOwner.email, role: 'owner', disabled: false };
-const member: Person = { personId: exampleMember.personId, displayName: exampleMember.displayName, email: exampleMember.email, role: 'member', disabled: false };
+const owner: Person = { personId: exampleOwner.personId, displayName: exampleOwner.displayName, email: exampleOwner.email, role: 'owner', disabled: false, jobTitle: null, responsibilities: null };
+const member: Person = { personId: exampleMember.personId, displayName: exampleMember.displayName, email: exampleMember.email, role: 'member', disabled: false, jobTitle: null, responsibilities: null };
 
 /** 窄螢幕：只有窄螢幕的查詢符合。 */
 function stubCompactScreen() {
@@ -60,7 +60,7 @@ describe('人員頁：窄螢幕的動作', () => {
     vi.unstubAllGlobals();
   });
 
-  it('停用的人標「已停用」；擁有者在別人那一筆有動作的選單，自己那一筆沒有', async () => {
+  it('停用的人標「已停用」；擁有者在每一筆都有動作的選單', async () => {
     // Arrange
     stubCompactScreen();
     signedInAs(exampleOwner);
@@ -73,9 +73,9 @@ describe('人員頁：窄螢幕的動作', () => {
 
     // Assert
     expect(within(itemOf(list, '範例成員')).getByText('已停用')).toBeInTheDocument();
-    expect(within(itemOf(list, '範例使用者')).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(itemOf(list, '範例使用者')).getByRole('button', { name: '範例使用者 的動作' })).toBeInTheDocument();
     const menu = await screen.findByRole('menu', { name: '範例成員 的動作' });
-    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['變更角色…', '重設密碼…', '重新啟用帳號']);
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['編輯職稱…', '變更角色…', '重設密碼…', '重新啟用帳號']);
   });
 });
 

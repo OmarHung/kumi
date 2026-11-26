@@ -56,12 +56,14 @@ internal sealed record FindManyCall(Guid OrganizationId, IReadOnlyList<Guid> Per
 
 internal sealed record SetDisabledCall(Actor Actor, Guid PersonId, bool Disabled);
 
+internal sealed record SetProfileCall(Actor Actor, Guid PersonId, PersonProfile Profile);
+
 internal sealed record SetRoleCall(Actor Actor, Guid PersonId, OrganizationRole Role);
 
 internal sealed record ResetPasswordCall(Actor Actor, Guid PersonId, string NewPassword);
 
 /// <summary>測試用的人員目錄。預設有 <see cref="TestUsers"/> 的三個人，都在同一個組織。</summary>
-internal sealed class FakePeopleDirectory : IPeopleDirectory
+internal sealed class FakePeopleDirectory : IPeopleDirectory, IPersonProfileService
 {
     private readonly ConcurrentDictionary<Guid, (Guid OrganizationId, PersonSummary Person)> _people = new();
     private readonly ConcurrentQueue<FindManyCall> _findManyCalls = new();
@@ -69,6 +71,7 @@ internal sealed class FakePeopleDirectory : IPeopleDirectory
     private readonly ConcurrentQueue<SetDisabledCall> _setDisabledCalls = new();
     private readonly ConcurrentQueue<ResetPasswordCall> _resetPasswordCalls = new();
     private readonly ConcurrentQueue<SetRoleCall> _setRoleCalls = new();
+    private readonly ConcurrentQueue<SetProfileCall> _setProfileCalls = new();
 
     public FakePeopleDirectory()
     {
@@ -89,6 +92,11 @@ internal sealed class FakePeopleDirectory : IPeopleDirectory
 
     /// <summary>預設：同一個組織裡找得到人就成功，回傳改過角色的資料；找不到是 person.not_found。</summary>
     public Func<SetRoleCall, Result<PersonSummary>>? OnSetRole { get; set; }
+
+    /// <summary>預設：同一個組織裡找得到人就成功，回傳改過的資料；找不到是 person.not_found。</summary>
+    public Func<SetProfileCall, Result<PersonSummary>>? OnSetProfile { get; set; }
+
+    public IReadOnlyList<SetProfileCall> SetProfileCalls => _setProfileCalls.ToArray();
 
     public IReadOnlyList<SetRoleCall> SetRoleCalls => _setRoleCalls.ToArray();
 
@@ -150,6 +158,15 @@ internal sealed class FakePeopleDirectory : IPeopleDirectory
         var call = new SetRoleCall(actor, personId, role);
         _setRoleCalls.Enqueue(call);
         return Task.FromResult(OnSetRole?.Invoke(call) ?? Update(actor, personId, person => person with { Role = role }));
+    }
+
+    public Task<Result<PersonSummary>> UpdateProfileAsync(Actor actor, Guid personId, PersonProfile profile, CancellationToken cancellationToken)
+    {
+        var call = new SetProfileCall(actor, personId, profile);
+        _setProfileCalls.Enqueue(call);
+        return Task.FromResult(
+            OnSetProfile?.Invoke(call)
+            ?? Update(actor, personId, person => person with { JobTitle = profile.JobTitle, Responsibilities = profile.Responsibilities }));
     }
 
     private Result<PersonSummary> Update(Actor actor, Guid personId, Func<PersonSummary, PersonSummary> change)

@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { disablePerson, enablePerson, resetPersonPassword, setPersonRole } from '../../api/people';
+import { disablePerson, enablePerson, resetPersonPassword, setPersonProfile, setPersonRole } from '../../api/people';
 import { isApiError } from '../../api/http';
 import { queryKeys } from '../../api/queryKeys';
-import type { OrganizationRole, Person } from '../../api/types';
+import type { OrganizationRole, Person, SetPersonProfileRequest } from '../../api/types';
 
 /** 伺服器回的那個人換掉清單裡的他（停用之後 disabled 變了）：不必整份重抓。 */
 function replaceInPeople(queryClient: QueryClient, person: Person): void {
@@ -76,6 +76,24 @@ export function useSetPersonRole() {
       if (isApiError(error) && error.code === 'person.forbidden') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.session });
       }
+    },
+  });
+}
+
+export interface SetProfileVariables extends SetPersonProfileRequest {
+  readonly personId: string;
+}
+
+/** 設定職稱與負責範圍。成功時清單裡的他換成伺服器回的樣子；被擋下來時重抓，畫面上的資料多半舊了。 */
+export function useSetPersonProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ personId, ...profile }: SetProfileVariables) => setPersonProfile(personId, profile),
+    onSuccess: (person) => {
+      replaceInPeople(queryClient, person);
+    },
+    onError: () => {
+      refetchPeople(queryClient);
     },
   });
 }

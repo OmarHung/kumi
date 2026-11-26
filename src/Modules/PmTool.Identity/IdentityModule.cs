@@ -92,6 +92,7 @@ public static class IdentityModule
         services.TryAddSingleton<ICliLoginService, CliLoginService>();
         services.TryAddSingleton<IAccountService, AccountService>();
         services.TryAddSingleton<IPeopleDirectory, PeopleDirectory>();
+        services.TryAddSingleton<IPersonProfileService, PersonProfileService>();
         services.TryAddSingleton<IOrganizationClock>(provider => new OrganizationClock(
             provider.GetRequiredService<IDbContextFactory<IdentityDbContext>>(),
             provider.GetRequiredService<TimeProvider>(),

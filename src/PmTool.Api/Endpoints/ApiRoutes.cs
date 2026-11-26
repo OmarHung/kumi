@@ -38,6 +38,7 @@ internal static class ApiRoutes
             .MapAssistantAttachmentEndpoints()
             .MapItemProposalEndpoints()
             .MapNewItemProposalEndpoints()
+            .MapMemberProposalEndpoints()
             .MapProjectProposalEndpoints()
             .MapLocalAgentEndpoints()
             .MapHostAgentAdminEndpoints()

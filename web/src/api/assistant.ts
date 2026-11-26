@@ -12,6 +12,7 @@ import type {
 import { createSseParser, toStreamEvent } from './assistantStream';
 import { ApiError, apiRequest, CSRF_HEADER, networkError, unwrapResponse } from './http';
 import { listItems } from './items';
+import { listCycles, listMilestones } from './planning';
 import type { Item } from './types';
 import { queryKeys } from './queryKeys';
 
@@ -413,18 +414,50 @@ export function useDecideNewItemProposal(proposal: NewItemProposal) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.myWork });
     void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
   };
+  // 先加人再建項目：加人的那一步可能已經成功，成員與人員的快取一起失效。
+  const invalidateMembers = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.project(proposal.projectKey), exact: true });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.people });
+  };
   const apply = useMutation({
     mutationFn: () => applyNewItemProposal(proposal.id),
     onSuccess: (decided) => {
       settle(decided);
       invalidateCreated();
+      if (proposal.addMembers.length > 0) invalidateMembers();
     },
     onError: () => {
       // 已經處理過（別的分頁按了）：以伺服器現在的狀態為準；第一個就失敗的維持待處理，重讀也不會變。
       void queryClient.invalidateQueries({ queryKey: queryKeys.newItemProposal(proposal.id) });
       invalidateCreated();
+      if (proposal.addMembers.length > 0) invalidateMembers();
     },
   });
-  const dismiss = useMutation({ mutationFn: () => dismissNewItemProposal(proposal.id), onSuccess: settle });
+  const dismiss = useMutation({
+    mutationFn: () => dismissNewItemProposal(proposal.id),
+    onSuccess: settle,
+    // 409（別的分頁已處理）：重讀，卡片才會從待處理變成實際的狀態。
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.newItemProposal(proposal.id) });
+    },
+  });
   return { apply, dismiss };
+}
+
+/**
+ * 新增項目建議卡片要顯示的週期與里程碑名稱：和專案頁同一組快取，只有建議真的帶了才讀（沒帶時不多打請求）。
+ * 讀失敗時 data 是 undefined，卡片只寫「週期」「里程碑」不帶名稱。
+ */
+export function useProposalPlanningNames(projectKey: string, needsCycles: boolean, needsMilestones: boolean) {
+  const cycles = useQuery({
+    queryKey: queryKeys.cycles(projectKey),
+    queryFn: ({ signal }) => listCycles(projectKey, signal),
+    enabled: needsCycles,
+  });
+  const milestones = useQuery({
+    queryKey: queryKeys.milestones(projectKey),
+    queryFn: ({ signal }) => listMilestones(projectKey, signal),
+    enabled: needsMilestones,
+  });
+  return { cycles: cycles.data, milestones: milestones.data };
 }

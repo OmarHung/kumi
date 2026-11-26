@@ -93,11 +93,33 @@ internal sealed class FakeProjectService : IProjectService
     public Task<Result<Unit>> CheckNewProjectAsync(Actor actor, NewProject project, CancellationToken cancellationToken) =>
         Task.FromResult(OnCheckNewProject(actor, project));
 
+    private readonly List<(Actor Actor, string Key, Guid PersonId, string? Role)> _memberWrites = [];
+
+    /// <summary>設了就用它決定每一次成員寫入的結果（參數是第幾次、從 0 起算，人與角色；角色 null 是移出）；沒設時成功。</summary>
+    public Func<int, Guid, string?, Result<ProjectMember>>? OnMemberWrite { get; set; }
+
+    /// <summary>每一次 SetMember（角色有值）與 RemoveMember（角色 null）的呼叫。</summary>
+    public IReadOnlyList<(Actor Actor, string Key, Guid PersonId, string? Role)> MemberWrites => _memberWrites;
+
     public Task<Result<ProjectMember>> SetMemberAsync(
-        Actor actor, string projectKey, Guid personId, string role, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Actor actor, string projectKey, Guid personId, string role, CancellationToken cancellationToken) =>
+        WriteMember(actor, projectKey, personId, role);
 
     public Task<Result<ProjectMember>> RemoveMemberAsync(
-        Actor actor, string projectKey, Guid personId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Actor actor, string projectKey, Guid personId, CancellationToken cancellationToken) =>
+        WriteMember(actor, projectKey, personId, null);
+
+    private Task<Result<ProjectMember>> WriteMember(Actor actor, string projectKey, Guid personId, string? role)
+    {
+        int index;
+        lock (_memberWrites)
+        {
+            index = _memberWrites.Count;
+            _memberWrites.Add((actor, projectKey, personId, role));
+        }
+
+        return Task.FromResult(OnMemberWrite?.Invoke(index, personId, role) ?? new ProjectMember(personId, role ?? "removed"));
+    }
 
     public Task<Result<ProjectSummary>> RenameAsync(Actor actor, string projectKey, string name, CancellationToken cancellationToken) =>
         throw new NotSupportedException();

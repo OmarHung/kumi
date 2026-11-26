@@ -4,7 +4,9 @@ import type { Person } from '../../api/types';
 import type { PersonActionHandlers } from './PersonActions';
 import { useSetPersonDisabled } from './personMutations';
 
-export type PersonDialog = { readonly kind: 'disable' | 'resetPassword' | 'changeRole'; readonly person: Person } | null;
+type PersonDialogKind = 'disable' | 'resetPassword' | 'changeRole' | 'editProfile';
+
+export type PersonDialog = { readonly kind: PersonDialogKind; readonly person: Person } | null;
 
 interface Feedback {
   readonly clear: () => void;
@@ -68,11 +70,12 @@ export function usePeopleAdmin() {
       setFailures((current) => [...current, text]);
     },
   });
-  const openDialog = (kind: 'disable' | 'resetPassword' | 'changeRole') => (person: Person) => {
+  const openDialog = (kind: PersonDialogKind) => (person: Person) => {
     clear();
     setDialog({ kind, person });
   };
   const handlers: PersonActionHandlers = {
+    onEditProfile: openDialog('editProfile'),
     onChangeRole: openDialog('changeRole'),
     onResetPassword: openDialog('resetPassword'),
     onDisable: openDialog('disable'),

@@ -131,6 +131,26 @@ describe('Select 的結構與無障礙的合約', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument();
   });
 
+  it('description：寫在選項名稱下面、連到選項的說明；選項照常選得到，名稱不含它，選到時按鈕上不畫', async () => {
+    // Arrange
+    const options: readonly SelectOption[] = [
+      { value: 'a', label: '範例成員', description: '前端工程師' },
+      { value: 'b', label: '範例設計師' },
+    ];
+    const { user, select, onChange } = renderSelect({ options });
+    await openOptions(user, select);
+
+    // Act & Assert
+    const described = await screen.findByRole('option', { name: '範例成員' });
+    const plain = screen.getByRole('option', { name: '範例設計師' });
+    expect(described).toHaveAccessibleDescription('前端工程師');
+    expect(plain).not.toHaveAttribute('aria-describedby');
+    await user.click(described);
+
+    // Assert
+    expect(onChange).toHaveBeenCalledWith('a');
+  });
+
   it('名稱來自 aria-labelledby 時，清單用同一個', async () => {
     // Arrange
     const user = userEvent.setup();

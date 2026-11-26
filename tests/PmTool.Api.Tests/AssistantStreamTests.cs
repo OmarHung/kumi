@@ -70,8 +70,8 @@ public sealed class AssistantStreamTests
                  "assistantMessageId":"{{assistantId}}"}
                 """);
             AssertJson(frames[1].Data, """{"delta":"好，我先讀目前的設定。"}""");
-            AssertJson(frames[2].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"running","changeSetNumber":null,"error":null,"itemProposalId":null,"projectProposalId":null,"newItemProposalId":null}""");
-            AssertJson(frames[3].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"done","changeSetNumber":12,"error":null,"itemProposalId":null,"projectProposalId":null,"newItemProposalId":null}""");
+            AssertJson(frames[2].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"running","changeSetNumber":null,"error":null,"itemProposalId":null,"projectProposalId":null,"newItemProposalId":null,"memberProposalId":null}""");
+            AssertJson(frames[3].Data, """{"type":"tool","callId":"c1","name":"propose_changeset","status":"done","changeSetNumber":12,"error":null,"itemProposalId":null,"projectProposalId":null,"newItemProposalId":null,"memberProposalId":null}""");
             var done = JsonNode.Parse(frames[4].Data!);
             Assert.That(done?["message"]?["id"]?.GetValue<string>(), Is.EqualTo(assistantId));
             Assert.That(done?["message"]?["status"]?.GetValue<string>(), Is.EqualTo("complete"));
@@ -349,6 +349,33 @@ public sealed class AssistantStreamTests
         {
             Assert.That(JsonNode.Parse(frames[1].Data!)?["newItemProposalId"]?.GetValue<Guid>(), Is.EqualTo(proposalId));
             Assert.That(JsonNode.Parse(frames[2].Data!)?["message"]?["parts"]?[0]?["newItemProposalId"]?.GetValue<Guid>(), Is.EqualTo(proposalId));
+        }
+    }
+
+    [Test]
+    public async Task Send_ToolPartWithAMemberProposal_CarriesMemberProposalId()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        var proposalId = FakeMemberProposals.ProposalId;
+        var tool = new AssistantToolPart("c1", "propose_member_changes", AssistantToolStatus.Done, null, null) { MemberProposalId = proposalId };
+        factory.Modules.Assistant.OnStart = _ => new AssistantRun(
+            FakeAssistantService.UserMessage(),
+            Guid.Parse("33333333-3333-3333-3333-333333333332"),
+            Events(
+                new AssistantToolUpdate(tool),
+                new AssistantRunCompleted(FakeAssistantService.AssistantReply() with { Parts = [tool] })));
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await SendAsync(client, Body());
+        var frames = await new SseReader(response).ReadToEndAsync();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(JsonNode.Parse(frames[1].Data!)?["memberProposalId"]?.GetValue<Guid>(), Is.EqualTo(proposalId));
+            Assert.That(JsonNode.Parse(frames[2].Data!)?["message"]?["parts"]?[0]?["memberProposalId"]?.GetValue<Guid>(), Is.EqualTo(proposalId));
         }
     }
 

@@ -58,7 +58,7 @@ describe('人員頁：停用的人', () => {
 });
 
 describe('人員頁：每一列的動作', () => {
-  it('擁有者看得到別人那一列的「動作」，自己那一列沒有', async () => {
+  it('擁有者每一列都有「動作」（自己那一列只能編輯職稱）', async () => {
     // Arrange
     const people = [ownerPerson, adminPerson, memberPerson];
 
@@ -69,22 +69,35 @@ describe('人員頁：每一列的動作', () => {
     expect(within(table).getByRole('columnheader', { name: '動作' })).toBeInTheDocument();
     expect(within(table).getByRole('button', { name: '範例管理員 的動作' })).toBeInTheDocument();
     expect(within(table).getByRole('button', { name: '範例成員 的動作' })).toBeInTheDocument();
-    expect(within(table).queryByRole('button', { name: '範例使用者 的動作' })).not.toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: '範例使用者 的動作' })).toBeInTheDocument();
   });
 
-  it('管理員看不到擁有者、其他管理員與自己那一列的動作；成員與訪客的有', async () => {
+  it('自己那一列的選單只有「編輯職稱…」（不能改自己的角色、停用自己）', async () => {
+    // Arrange
+    const { user } = await openPeople(exampleOwner, [ownerPerson, memberPerson]);
+
+    // Act
+    const { menu } = await openActions(user, '範例使用者');
+
+    // Assert
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['編輯職稱…']);
+  });
+
+  it('管理員在擁有者、其他管理員與自己那一列只有「編輯職稱…」，成員與訪客的有完整的動作', async () => {
     // Arrange
     const people = [ownerPerson, adminPerson, otherAdmin, memberPerson, guestPerson];
 
     // Act
-    const { table } = await openPeople(orgAdmin, people);
+    const { table, user } = await openPeople(orgAdmin, people);
 
     // Assert
     const buttons = within(table).getAllByRole('button', { name: /的動作$/ });
-    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['範例成員 的動作', '範例訪客 的動作']);
+    expect(buttons).toHaveLength(5);
+    const { menu } = await openActions(user, '範例使用者');
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['編輯職稱…']);
   });
 
-  it('沒有登入帳號的人（沒有 Email）沒有東西可以停用或重設，選單裡只剩「變更角色…」', async () => {
+  it('沒有登入帳號的人（沒有 Email）沒有東西可以停用或重設，選單裡只剩「編輯職稱…」「變更角色…」', async () => {
     // Arrange
     const noAccount: Person = { ...guestPerson, email: null };
     const { user } = await openPeople(exampleOwner, [ownerPerson, memberPerson, noAccount]);
@@ -93,7 +106,7 @@ describe('人員頁：每一列的動作', () => {
     const { menu } = await openActions(user, '範例訪客');
 
     // Assert
-    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['變更角色…']);
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['編輯職稱…', '變更角色…']);
   });
 
   it('一般成員沒有「動作」那一欄', async () => {
@@ -108,7 +121,7 @@ describe('人員頁：每一列的動作', () => {
     expect(within(table).queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('選單裡是「變更角色…」「重設密碼…」與「停用帳號…」；停用的人是「重新啟用帳號」', async () => {
+  it('選單裡是「編輯職稱…」「變更角色…」「重設密碼…」與「停用帳號…」；停用的人是「重新啟用帳號」', async () => {
     // Arrange
     const { user } = await openPeople(exampleOwner, [ownerPerson, memberPerson, { ...guestPerson, disabled: true }]);
 
@@ -119,8 +132,8 @@ describe('人員頁：每一列的動作', () => {
     const { menu: disabled } = await openActions(user, '範例訪客');
 
     // Assert
-    expect(activeItems).toEqual(['變更角色…', '重設密碼…', '停用帳號…']);
-    expect(within(disabled).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['變更角色…', '重設密碼…', '重新啟用帳號']);
+    expect(activeItems).toEqual(['編輯職稱…', '變更角色…', '重設密碼…', '停用帳號…']);
+    expect(within(disabled).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['編輯職稱…', '變更角色…', '重設密碼…', '重新啟用帳號']);
   });
 
   it('用鍵盤打開選單、Esc 關上，焦點回到那一列的動作按鈕', async () => {
@@ -132,7 +145,7 @@ describe('人員頁：每一列的動作', () => {
     // Act
     await user.keyboard('{Enter}');
     const menu = await screen.findByRole('menu', { name: '範例成員 的動作' });
-    const firstItem = within(menu).getByRole('menuitem', { name: '變更角色…' });
+    const firstItem = within(menu).getByRole('menuitem', { name: '編輯職稱…' });
     const hadFocus = document.activeElement === firstItem;
     await user.keyboard('{Escape}');
 

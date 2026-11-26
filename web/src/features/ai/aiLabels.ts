@@ -49,6 +49,9 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   propose_new_items: '建議新增項目',
   list_projects: '查看你的專案清單',
   propose_project: '提出新專案',
+  get_project: '讀專案的成員與設定',
+  list_people: '查組織的人員',
+  propose_member_changes: '建議成員變動',
 };
 
 /** itemKey：工具的段落帶得到編號時給（get_item 寫「讀取 WEB-12」）；沒有就寫「讀取項目」。 */

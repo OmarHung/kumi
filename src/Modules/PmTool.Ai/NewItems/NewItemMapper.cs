@@ -13,6 +13,11 @@ internal static class NewItemMapper
     public static IReadOnlyList<NewItemDraft> ReadItems(string json) =>
         JsonSerializer.Deserialize<List<NewItemDraft>>(json, Options) ?? [];
 
+    public static string WriteAddMembers(IReadOnlyList<MemberAddition> additions) => JsonSerializer.Serialize(additions, Options);
+
+    public static IReadOnlyList<MemberAddition> ReadAddMembers(string json) =>
+        JsonSerializer.Deserialize<List<MemberAddition>>(json, Options) ?? [];
+
     public static string WriteKeys(IReadOnlyList<string?> keys) => JsonSerializer.Serialize(keys, Options);
 
     public static IReadOnlyList<string?> ReadKeys(string json) =>
@@ -46,6 +51,7 @@ internal static class NewItemMapper
         return new NewItemProposal(row.Id, row.ProjectKey, items, keys, status, row.CreatedAt)
         {
             DecidedAt = row.DecidedAt,
+            AddMembers = ReadAddMembers(row.AddMembers),
             Error = isStale ? AiText.Cut(NewItemApplyReport.Interrupted(items, keys), AiRules.MaxErrorLength) : row.Error,
         };
     }

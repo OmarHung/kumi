@@ -212,7 +212,7 @@ public sealed class AssistantTranscriptTests
         var prompt = AssistantPrompt.SystemPrompt;
 
         // Assert
-        var order = new[] { "project-blueprint.schema.json", "changeset.schema.json", "planning-structure.md" }
+        var order = new[] { "project-blueprint.schema.json", "changeset.schema.json", "planning-structure.md", "planning-capture.md" }
             .Select(name => prompt.IndexOf($"<reference name=\"{name}\">", StringComparison.Ordinal))
             .ToList();
         using (Assert.EnterMultipleScope())
@@ -225,9 +225,9 @@ public sealed class AssistantTranscriptTests
         }
     }
 
-    [TestCase(true, true, "能提出變更集；能核准")]
-    [TestCase(true, false, "能提出變更集；不能核准")]
-    [TestCase(false, false, "不能提出變更集；不能核准")]
+    [TestCase(true, true, "能提出變更集；能核准變更集")]
+    [TestCase(true, false, "能提出變更集；不能核准變更集")]
+    [TestCase(false, false, "不能提出變更集；不能核准變更集")]
     public void ProjectNote_SaysWhatTheUserMayDo(bool propose, bool apply, string expected)
     {
         // Arrange
@@ -246,7 +246,49 @@ public sealed class AssistantTranscriptTests
         var note = AssistantPrompt.ProjectNote("WEB", permissions);
 
         // Assert：專案名稱是專案管理者寫的內容，不放進 system 訊息，只放代號。
-        Assert.That(note, Is.EqualTo($"這則對話在專案代號 WEB 的專案。使用者在這個專案：能讀設定；{expected}。"));
+        Assert.That(
+            note,
+            Is.EqualTo($"這則對話在專案代號 WEB 的專案。使用者在這個專案：能讀設定；不能建立項目；不能修改項目；不能改狀態；不能刪除項目；不能留言；不能管理成員；{expected}。"));
+    }
+
+    [Test]
+    public void ProjectNote_ListsEveryWritePermissionTheUserHas()
+    {
+        // Arrange
+        var all = new[]
+        {
+            PmTool.Work.WorkPermissions.ItemCreate, PmTool.Work.WorkPermissions.ItemUpdate, PmTool.Work.WorkPermissions.ItemTransition,
+            PmTool.Work.WorkPermissions.ItemDelete, PmTool.Work.WorkPermissions.CommentCreate, PmTool.Work.WorkPermissions.ProjectManage,
+        };
+
+        // Act
+        var note = AssistantPrompt.ProjectNote("WEB", all);
+
+        // Assert
+        Assert.That(note, Does.Contain("能建立項目；能修改項目；能改狀態；能刪除項目；能留言；能管理成員；不能提出變更集；不能核准變更集。"));
+    }
+
+    [Test]
+    public void ProjectNote_WithAskerJobTitle_QuotesItAsData()
+    {
+        // Arrange
+        var asker = new Asker(Guid.CreateVersion7(), "Example User", null, PmTool.Identity.OrganizationRole.Member, "前端「工程師」");
+
+        // Act
+        var note = AssistantPrompt.ProjectNote("WEB", [], asker);
+
+        // Assert
+        Assert.That(note, Does.Contain("，職稱「前端『工程師』」"));
+    }
+
+    [Test]
+    public void ProjectNote_WithoutAskerJobTitle_SaysNothingAboutIt()
+    {
+        // Act
+        var note = AssistantPrompt.ProjectNote("WEB", [], new Asker(Guid.CreateVersion7(), "Example User", null, PmTool.Identity.OrganizationRole.Member));
+
+        // Assert
+        Assert.That(note, Does.Not.Contain("職稱"));
     }
 
     [Test]

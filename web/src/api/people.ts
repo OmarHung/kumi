@@ -1,5 +1,5 @@
 import { apiRequest } from './http';
-import type { NewPersonRequest, Person, ResetPasswordRequest, SetPersonRoleRequest } from './types';
+import type { NewPersonRequest, Person, ResetPasswordRequest, SetPersonProfileRequest, SetPersonRoleRequest } from './types';
 
 export function listPeople(signal?: AbortSignal): Promise<readonly Person[]> {
   return apiRequest<readonly Person[]>('/v1/people', { signal });
@@ -43,4 +43,12 @@ export function resetPersonPassword(personId: string, request: ResetPasswordRequ
  */
 export function setPersonRole(personId: string, request: SetPersonRoleRequest): Promise<Person> {
   return apiRequest<Person>(personPath(personId, 'role'), { method: 'PUT', body: request });
+}
+
+/**
+ * 設定一個人的職稱與負責範圍（`PUT /v1/people/{personId}/profile`）：只有組織的擁有者與管理員，可以改任何人（包括自己）。
+ * 403 person.forbidden、404 person.not_found、422 person.profile_invalid（細項路徑 jobTitle、responsibilities）。
+ */
+export function setPersonProfile(personId: string, request: SetPersonProfileRequest): Promise<Person> {
+  return apiRequest<Person>(personPath(personId, 'profile'), { method: 'PUT', body: request });
 }

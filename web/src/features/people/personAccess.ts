@@ -30,3 +30,8 @@ export function roleUnavailableReason(actor: SessionUser, role: OrganizationRole
   if (role === 'owner') return '只有擁有者能設定擁有者';
   return role === 'admin' ? '只有擁有者能設定管理員' : undefined;
 }
+
+/** 登入的人能不能設定這個人的職稱與負責範圍：擁有者與管理員，任何人都行（包括自己）；不是安全性的設定。畫面只是不顯示入口。 */
+export function canEditProfile(actor: SessionUser): boolean {
+  return isOrganizationAdmin(actor);
+}

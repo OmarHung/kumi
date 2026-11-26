@@ -525,6 +525,44 @@ public sealed class LocalAgentEndpointTests
         Assert.That(factory.Modules.LocalAgents.ReportCalls, Is.Empty);
     }
 
+    [Test]
+    public async Task Report_ToolEventWithMemberProposalId_IsPassedToTheModule()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        var proposalId = FakeMemberProposals.ProposalId;
+        using var client = factory.CreateClient();
+        var body = new
+        {
+            events = new object[] { new { type = "tool", callId = "toolu_1", name = "propose_member_changes", status = "done", memberProposalId = proposalId } },
+        };
+
+        // Act
+        using var response = await client.SendAsync(Post(EventsRoute, AgentToken(factory), body));
+        await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(
+            factory.Modules.LocalAgents.ReportCalls.Single().Events.Single(),
+            Is.EqualTo(new LocalAgentTool(new AssistantToolPart("toolu_1", "propose_member_changes", AssistantToolStatus.Done, null, null) { MemberProposalId = proposalId })));
+    }
+
+    [Test]
+    public async Task Report_TextEventWithMemberProposalId_IsRefused()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        var body = new { events = new object[] { new { type = "text", delta = "x", memberProposalId = FakeMemberProposals.ProposalId } } };
+
+        // Act
+        using var response = await client.SendAsync(Post(EventsRoute, AgentToken(factory), body));
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.UnprocessableEntity));
+        Assert.That(factory.Modules.LocalAgents.ReportCalls, Is.Empty);
+    }
+
     [TestCase("\"turbo\"")]
     [TestCase("null")]
     public async Task CheckIn_UnknownDefaultEffort_IsTreatedAsNoneNotAnError(string json)

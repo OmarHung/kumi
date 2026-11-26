@@ -3,12 +3,13 @@ import type { Person, SessionUser } from '../../api/types';
 import { useCurrentUser } from '../../auth/CurrentUser';
 import { IconButton } from '../../components/IconButton/IconButton';
 import { Menu, type MenuItem } from '../../components/Menu/Menu';
-import { canChangeRole, canManageAccount } from './personAccess';
+import { canChangeRole, canEditProfile, canManageAccount } from './personAccess';
 
 /** 每一列最後的動作（只有擁有者與管理員有這一欄）；不能動的那一列是 null。 */
 export type RenderPersonActions = (person: Person) => ReactNode;
 
 export interface PersonActionHandlers {
+  readonly onEditProfile: (person: Person) => void;
   readonly onChangeRole: (person: Person) => void;
   readonly onResetPassword: (person: Person) => void;
   readonly onDisable: (person: Person) => void;
@@ -27,15 +28,20 @@ function accountItems(person: Person, handlers: PersonActionHandlers): MenuItem[
   return [reset, toggle];
 }
 
-/** 變更角色放第一個：最常用、也最不具破壞性；沒有登入帳號的人只剩這一項。 */
+/** 編輯職稱放第一個（任何人都能改、不具破壞性），接著變更角色；沒有登入帳號的人只剩這兩項。 */
 function actionItems(actor: SessionUser, person: Person, handlers: PersonActionHandlers): MenuItem[] {
+  const profile: MenuItem = { key: 'edit-profile', label: '編輯職稱…', icon: 'edit', onSelect: () => { handlers.onEditProfile(person); } };
   const role: MenuItem = { key: 'change-role', label: '變更角色…', icon: 'members', onSelect: () => { handlers.onChangeRole(person); } };
-  return [...(canChangeRole(actor, person) ? [role] : []), ...(canManageAccount(actor, person) ? accountItems(person, handlers) : [])];
+  return [
+    ...(canEditProfile(actor) ? [profile] : []),
+    ...(canChangeRole(actor, person) ? [role] : []),
+    ...(canManageAccount(actor, person) ? accountItems(person, handlers) : []),
+  ];
 }
 
 /**
- * 人員那一列最後的「更多」（ghost 的圖示按鈕，名稱「{名稱} 的動作」）：變更角色、重設密碼、停用或重新啟用帳號。
- * 不能動的那幾列（自己、管理員看到擁有者或管理員）沒有這顆按鈕；伺服器的檢查才算數。
+ * 人員那一列最後的「更多」（ghost 的圖示按鈕，名稱「{名稱} 的動作」）：編輯職稱、變更角色、重設密碼、停用或重新啟用帳號。
+ * 擁有者與管理員每一列都有（至少能編輯職稱）；其他動作不能動的那幾列（自己、管理員看到擁有者或管理員）沒有；伺服器的檢查才算數。
  * 選了之後選單先關上、焦點回到按鈕，才開對話框，所以對話框關上後焦點回到這顆按鈕。
  */
 export function PersonActions({ person, ...handlers }: { readonly person: Person } & PersonActionHandlers) {

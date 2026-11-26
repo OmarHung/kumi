@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import type { NewItemProposal } from '../../api/aiTypes';
-import { useDecideNewItemProposal, useNewItemProposal } from '../../api/assistant';
+import type { MemberAddition, NewItemProposal } from '../../api/aiTypes';
+import { useDecideNewItemProposal, useNewItemProposal, useProposalPlanningNames } from '../../api/assistant';
 import { errorMessage, isApiError } from '../../api/http';
 import { useProject } from '../../api/queries';
 import { Button } from '../../components/Button/Button';
@@ -18,9 +18,20 @@ const DEPTH_CLASSES = [undefined, styles.depth1, styles.depth2, styles.depth3] a
 const CLOSED_CODE = 'ai.new_item_proposal_closed';
 const CLOSED_TEXT = '這份建議已經處理過了。';
 
-function failureText(error: unknown): string {
+function failureText(error: unknown): string | null {
+  if (error === null || error === undefined) return null;
   if (isApiError(error) && error.code === CLOSED_CODE) return CLOSED_TEXT;
   return errorMessage(error);
+}
+
+/** 「會先把 甲（執行者）、乙（編輯者）加入專案」；角色名稱是建立建議時的，沒有就用角色的 key。 */
+function addMembersText(additions: readonly MemberAddition[]): string {
+  const names = additions.map((addition) => `${addition.displayName ?? '（未知）'}（${addition.roleName ?? addition.role}）`);
+  return `會先把 ${names.join('、')} 加入專案`;
+}
+
+function AddMembersNote({ additions }: { readonly additions: readonly MemberAddition[] }) {
+  return additions.length === 0 ? null : <p className={styles.summary}>{addMembersText(additions)}</p>;
 }
 
 function ParentNote({ row, projectKey }: { readonly row: NewItemRow; readonly projectKey: string }) {
@@ -87,11 +98,10 @@ function PendingBody({
 }) {
   const { apply, dismiss } = useDecideNewItemProposal(proposal);
   const isWorking = apply.isPending || dismiss.isPending;
-  // 專案（成員、藍圖）還沒讀到時畫面上的負責人、類型都不可靠，不讓人照它按建立。
-  const isBlocked = isWorking || projectState === 'loading';
-  const failure: unknown = apply.error ?? dismiss.error;
+  const isBlocked = isWorking || projectState === 'loading'; // 專案還沒讀到時負責人、類型不可靠，不讓人按建立
   return (
     <>
+      <AddMembersNote additions={proposal.addMembers} />
       <ol className={styles.drafts}>
         {rows.map((row, index) => (
           <ItemRow key={index} row={row} projectKey={proposal.projectKey} />
@@ -123,7 +133,7 @@ function PendingBody({
           不要
         </Button>
       </div>
-      <Notice tone="danger">{failure === null || failure === undefined ? null : failureText(failure)}</Notice>
+      <Notice tone="danger">{failureText(apply.error ?? dismiss.error)}</Notice>
     </>
   );
 }
@@ -164,7 +174,12 @@ function ClosedBody({ proposal }: { readonly proposal: NewItemProposal }) {
 function LoadedCard({ proposal }: { readonly proposal: NewItemProposal }) {
   const project = useProject(proposal.projectKey);
   const projectState: ProjectLoadState = project.data !== undefined ? 'ready' : project.isError ? 'error' : 'loading';
-  const rows = newItemRows(proposal.items, project.data, projectState);
+  const planning = useProposalPlanningNames(
+    proposal.projectKey,
+    proposal.items.some((item) => item.cycleId !== null),
+    proposal.items.some((item) => item.milestoneId !== null),
+  );
+  const rows = newItemRows(proposal.items, project.data, projectState, planning, proposal.addMembers);
   return (
     <section className={styles.card} aria-label={`新增項目建議 ${proposal.projectKey}`}>
       <p className={styles.title}>{`建議新增 ${proposal.items.length} 個項目（${proposal.projectKey}）`}</p>

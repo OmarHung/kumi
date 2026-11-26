@@ -13,12 +13,13 @@ internal sealed record NewItemApplyOutcome(IReadOnlyList<string?> Keys, string? 
 /// 照順序把一份建議的項目寫進工作引擎，一律用套用的人的身分。建立不是冪等的，所以每建好一個就立刻把編號記進資料庫
 /// （程序在中途結束時，已經建立的才查得到），同時把 <c>decided_at</c> 刷新成現在當心跳（一份建議最多 20 個項目，
 /// 總時間可能超過「建立中」的過期時限，過期要看最後一次有動靜的時間）。
+/// 項目之前先把 <c>addMembers</c> 的人加進專案（已經是成員的略過、不改他的角色）：加人失敗算「第一個就失敗」，一個項目都不建。
 /// 只有第一個項目明確回 <see cref="Failure"/>（工作引擎沒有寫入）時才回傳失敗、呼叫的人可以退回待決定；
 /// 其餘任何例外（含逾時的取消）都不保證工作引擎沒寫入，一律照丟、讓建議維持「建立中」。
 /// 之後的失敗不復原已經建立的，掛在失敗項目底下的跳過，說明在 <see cref="NewItemApplyOutcome.Error"/>。
 /// </summary>
 internal sealed class NewItemApplier(
-    IDbContextFactory<AiDbContext> contexts, IWorkItemService items, TimeProvider time, ILogger<NewItemApplier> logger)
+    IDbContextFactory<AiDbContext> contexts, IWorkItemService items, IProjectService projects, TimeProvider time, ILogger<NewItemApplier> logger)
 {
     /// <summary>每個項目建立時的時限。不跟著請求取消：使用者關掉頁面不能讓建立停在一半。</summary>
     internal static readonly TimeSpan CreateTimeout = TimeSpan.FromSeconds(60);
@@ -26,8 +27,13 @@ internal sealed class NewItemApplier(
     private const string SkippedReason = "上層沒有建立成功";
 
     public async Task<Result<NewItemApplyOutcome>> ApplyAsync(
-        Actor actor, Guid proposalId, string projectKey, IReadOnlyList<NewItemDraft> drafts)
+        Actor actor, Guid proposalId, string projectKey, IReadOnlyList<NewItemDraft> drafts, IReadOnlyList<MemberAddition> addMembers)
     {
+        if (addMembers.Count > 0 && (await AddMembersAsync(actor, projectKey, addMembers)).Failure is { } addFailure)
+        {
+            return addFailure;
+        }
+
         var keys = new string?[drafts.Count];
         var reasons = new List<(int Index, string Reason)>();
         var anyCreated = false;
@@ -58,6 +64,44 @@ internal sealed class NewItemApplier(
         }
 
         return new NewItemApplyOutcome(keys, reasons.Count == 0 ? null : NewItemApplyReport.PartlyFailed(drafts, reasons));
+    }
+
+    // 成員的寫入是冪等的：加到一半失敗再按一次，已經加的會被當成已經是成員略過；此時還沒建任何項目，
+    // 所以例外也轉成失敗，讓呼叫的人退回待決定，不會卡在「建立中」。
+    private async Task<Result<Unit>> AddMembersAsync(Actor actor, string projectKey, IReadOnlyList<MemberAddition> addMembers)
+    {
+        try
+        {
+            return await AddMembersCoreAsync(actor, projectKey, addMembers);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // 只記例外的種類：訊息可能帶內部資訊。
+            logger.LogError("套用新增項目的建議時加人丟了例外：{ExceptionType}", exception.GetType().Name);
+            return new Failure(FailureKind.Invalid, AiErrorCodes.FieldInvalid, "發生未預期的錯誤。");
+        }
+    }
+
+    private async Task<Result<Unit>> AddMembersCoreAsync(Actor actor, string projectKey, IReadOnlyList<MemberAddition> addMembers)
+    {
+        using var timeout = new CancellationTokenSource(CreateTimeout);
+        var project = await projects.GetAsync(actor, projectKey, timeout.Token);
+        if (project.Failure is { } notFound)
+        {
+            return notFound;
+        }
+
+        var current = project.Value.Members.Select(m => m.PersonId).ToHashSet();
+        foreach (var addition in addMembers.Where(a => !current.Contains(a.PersonId)))
+        {
+            var added = await projects.SetMemberAsync(actor, projectKey, addition.PersonId, addition.Role, timeout.Token);
+            if (added.Failure is { } failure)
+            {
+                return failure;
+            }
+        }
+
+        return Unit.Value;
     }
 
     // 已經有項目建立之後，後面的項目丟例外不能讓整個請求變成 500、建議維持待決定（再按一次會重複建立）：
@@ -124,6 +168,8 @@ internal sealed class NewItemApplier(
         DueDate = ParseDate(draft.DueDate),
         Estimate = draft.Estimate,
         ParentKey = parentKey,
+        CycleId = draft.CycleId,
+        MilestoneId = draft.MilestoneId,
         Fields = draft.Fields,
     };
 

@@ -11,12 +11,13 @@ namespace PmTool.Ai.Assistant.Tools;
 internal sealed class ProposeNewItemsTool(AssistantToolContext context) : AssistantTool(
     AssistantToolNames.ProposeNewItems,
     $"提出新增項目的建議（不會真的建立）：使用者在網頁上看到後按「全部建立」才會建立。items 是要建立的項目（1 到 {AiRules.MaxNewItemsPerProposal} 個，依順序建立）："
-    + "每一項有 type（藍圖裡的項目類型 key）、title，可以有 description（Markdown）、assignee（me 是發問的人、none 是不指派、或專案成員的人員 id）、"
-    + "priority（none、low、medium、high、urgent）、startDate、dueDate（yyyy-MM-dd）、estimate（數字）、fields（自訂欄位 {key: 值}）。"
+    + "每一項有 type（藍圖裡的項目類型 key）、title，可以有 description（Markdown）、assignee（me 是發問的人、none 是不指派、或人員 id：專案成員，或放進 addMembers 的人）、"
+    + "priority（none、low、medium、high、urgent）、startDate、dueDate（yyyy-MM-dd）、estimate（數字）、fields（自訂欄位 {key: 值}）、cycleId、milestoneId（get_project 回的週期、里程碑的 id）。"
+    + "負責人還不是專案成員、而使用者有 project.manage 時，用 addMembers（[{person: 人員 id, role?: 角色 key，沒給是 contributor}]）在建立項目之前先把他加進專案；已經是成員的會略過、不改他的角色。"
     + "要掛在既有項目底下用 parentKey（例如 WEB-12）；要掛在同一份建議裡前面的項目底下，前面那一項給 ref（小寫英文、數字、-、_），這一項用 parentRef 指它，兩個只能給一個。"
     + "狀態一律從流程的第一個狀態開始，不能指定。建議之前先用 get_blueprint 看類型與哪些類型能掛在哪些底下。提出之後告訴使用者「請按全部建立」，不要說已經建好了。",
     $$$$"""
-    {"type":"object","properties":{"items":{"type":"array","description":"要建立的項目，最多 {{{{AiRules.MaxNewItemsPerProposal}}}} 個，依建立的順序","items":{"type":"object","properties":{"ref":{"type":"string","description":"這一項的代稱，讓後面的項目用 parentRef 掛在它底下"},"type":{"type":"string","description":"項目類型的 key"},"title":{"type":"string"},"description":{"type":"string","description":"說明（Markdown）"},"assignee":{"type":"string","description":"me、none，或專案成員的人員 id"},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"startDate":{"type":"string","description":"yyyy-MM-dd"},"dueDate":{"type":"string","description":"yyyy-MM-dd"},"estimate":{"type":"number"},"parentKey":{"type":"string","description":"既有項目的編號，例如 WEB-12"},"parentRef":{"type":"string","description":"同一份建議裡前面某一項的 ref"},"fields":{"description":"自訂欄位 {key: 值}"}},"required":["type","title"],"additionalProperties":false}}},"required":["items"],"additionalProperties":false}
+    {"type":"object","properties":{"items":{"type":"array","description":"要建立的項目，最多 {{{{AiRules.MaxNewItemsPerProposal}}}} 個，依建立的順序","items":{"type":"object","properties":{"ref":{"type":"string","description":"這一項的代稱，讓後面的項目用 parentRef 掛在它底下"},"type":{"type":"string","description":"項目類型的 key"},"title":{"type":"string"},"description":{"type":"string","description":"說明（Markdown）"},"assignee":{"type":"string","description":"me、none，或人員 id（專案成員，或放進 addMembers 的人）"},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"startDate":{"type":"string","description":"yyyy-MM-dd"},"dueDate":{"type":"string","description":"yyyy-MM-dd"},"estimate":{"type":"number"},"parentKey":{"type":"string","description":"既有項目的編號，例如 WEB-12"},"parentRef":{"type":"string","description":"同一份建議裡前面某一項的 ref"},"cycleId":{"type":"string","description":"週期的 id（get_project 的 cycles）"},"milestoneId":{"type":"string","description":"里程碑的 id（get_project 的 milestones）"},"fields":{"description":"自訂欄位 {key: 值}"}},"required":["type","title"],"additionalProperties":false}},"addMembers":{"type":"array","description":"建立項目之前先加進專案的人，最多 {{{{AiRules.MaxMemberChangesPerProposal}}}} 個","items":{"type":"object","properties":{"person":{"type":"string","description":"人員 id"},"role":{"type":"string","description":"角色 key，沒給是 contributor"}},"required":["person"],"additionalProperties":false}}},"required":["items"],"additionalProperties":false}
     """,
     context)
 {
@@ -41,7 +42,17 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
             return ToolResults.Error(error);
         }
 
-        var draft = new NewItemProposalDraft(Context.RequiredProjectKey, parsed.Items!) { ConversationId = Context.ConversationId };
+        var additions = MemberArguments.ReadAdditions(arguments);
+        if (additions.Error is { } additionsError)
+        {
+            return ToolResults.Error(additionsError);
+        }
+
+        var draft = new NewItemProposalDraft(Context.RequiredProjectKey, parsed.Items!)
+        {
+            ConversationId = Context.ConversationId,
+            AddMembers = additions.Value!,
+        };
         var created = await Context.NewItemProposals.CreateAsync(Context.Actor, draft, cancellationToken);
         if (created.Failure is { } failure)
         {
@@ -116,6 +127,8 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
             Estimate = element.TryGetProperty("estimate", out var estimate) && estimate.ValueKind == JsonValueKind.Number && estimate.TryGetDecimal(out var number) ? number : null,
             ParentKey = Text(element, "parentKey"),
             ParentRef = Text(element, "parentRef"),
+            CycleId = MemberArguments.OptionalGuid(element, "cycleId"),
+            MilestoneId = MemberArguments.OptionalGuid(element, "milestoneId"),
             Fields = FieldsOf(element),
         };
         return (item, null);
@@ -123,17 +136,25 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
 
     private static readonly HashSet<string> KnownProperties = new(StringComparer.Ordinal)
     {
-        "ref", "type", "title", "description", "assignee", "priority", "startDate", "dueDate", "estimate", "parentKey", "parentRef", "fields",
+        "ref", "type", "title", "description", "assignee", "priority", "startDate", "dueDate", "estimate", "parentKey", "parentRef", "cycleId", "milestoneId", "fields",
     };
 
     // 型別不對的選填欄位照實告訴模型，不默默丟掉（默默丟掉會建出少了欄位的項目）。
     private static string? OptionalProblem(JsonElement element, string path)
     {
-        foreach (var name in new[] { "ref", "description", "priority", "startDate", "dueDate", "parentKey", "parentRef" })
+        foreach (var name in new[] { "ref", "description", "priority", "startDate", "dueDate", "parentKey", "parentRef", "cycleId", "milestoneId" })
         {
             if (element.TryGetProperty(name, out var value) && value.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
             {
                 return $"{path}.{name} 要是字串。";
+            }
+        }
+
+        foreach (var name in new[] { "cycleId", "milestoneId" })
+        {
+            if (Text(element, name) is { } text && !Guid.TryParse(text, out _))
+            {
+                return $"{path}.{name} 要是 get_project 回的 id。";
             }
         }
 
@@ -151,7 +172,7 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
     {
         if (element.TryGetProperty("assignee", out var raw) && raw.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
         {
-            return (null, $"{path}.assignee 要是字串（me、none 或專案成員的人員 id）。");
+            return (null, $"{path}.assignee 要是字串（me、none 或人員 id）。");
         }
 
         var text = Text(element, "assignee")?.Trim();
@@ -175,7 +196,7 @@ internal sealed class ProposeNewItemsTool(AssistantToolContext context) : Assist
         var members = project.Failure is null
             ? NewItemMembers.Describe(await NewItemMembers.ActiveAsync(Context.People, Context.Actor.OrganizationId, project.Value.Members, cancellationToken))
             : string.Empty;
-        return (null, $"{path}.assignee 要是 me、none 或專案成員的人員 id，不認得「{text}」。{members}");
+        return (null, $"{path}.assignee 要是 me、none 或人員 id（專案成員，或放進 addMembers 的人），不認得「{text}」。{members}");
     }
 
     private static string? Text(JsonElement element, string name) =>

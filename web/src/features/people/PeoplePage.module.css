@@ -12,6 +12,31 @@
   font-weight: var(--weight-medium);
 }
 
+/* 名稱與它下面的「職稱 · 負責範圍」：頭像在左邊、兩行文字疊在右邊；名稱那一行照舊可以換行放標籤。 */
+.nameStack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nameLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 職稱與負責範圍：小字、灰字、一行，放不下用省略號（不推動欄寬）。 */
+.profile {
+  overflow: hidden;
+  max-width: 28rem;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 新增之後的提示：和下面的清單隔開。沒有訊息時 Notice 本身看不見、不佔位置。 */
 .status {
   margin-bottom: var(--space-4);

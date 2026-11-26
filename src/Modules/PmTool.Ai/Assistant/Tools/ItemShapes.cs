@@ -85,6 +85,8 @@ internal static class ItemShapes
     {
         public string NameOf(Guid personId) => people.TryGetValue(personId, out var person) ? person.DisplayName : UnknownPerson;
 
+        public string? JobTitleOf(Guid personId) => people.TryGetValue(personId, out var person) ? person.JobTitle : null;
+
         /// <summary>現在能被指派、被提及的人：查得到（還在組織裡）而且沒有停用。和 MCP 的 get_item 同一套規則。</summary>
         public bool IsAssignable(Guid personId) => people.TryGetValue(personId, out var person) && !person.IsDisabled;
     }

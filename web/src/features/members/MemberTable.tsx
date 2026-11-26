@@ -7,14 +7,16 @@ import type { MemberRosterProps } from './MemberRoster';
 import styles from './MembersDialog.module.css';
 
 function MemberRow(props: MemberPartsProps) {
-  const { avatar, name, role, remove } = useMemberParts(props, 'sm');
+  const { avatar, name, nameText, role, remove } = useMemberParts(props, 'sm');
   return (
     // data-row-key：停駐點那一列被移除時，照原本的順序找到相鄰的一列（lib/useRovingGrid.ts）。
     <tr data-row-key={props.member.personId}>
       <th scope="row" className={tableStyles.primaryCell}>
         <span className={styles.nameCell}>
           {avatar}
-          <span>{name}</span>
+          <span className={styles.nameText} title={nameText}>
+            {name}
+          </span>
         </span>
       </th>
       <td className={styles.roleCell}>{role}</td>

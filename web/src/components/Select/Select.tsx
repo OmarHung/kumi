@@ -24,6 +24,11 @@ export interface SelectOption {
   readonly leading?: ReactNode;
   /** 有值：不能選（aria-disabled）、方向鍵停得到，原因寫在第二行並用 aria-describedby 連過去。寫短語，完整的說明放在清單外面。 */
   readonly disabledReason?: string;
+  /**
+   * 選項名稱下面的一行輔助文字（人員的職稱）：不影響能不能選，只在清單裡畫（選到時按鈕上不畫），
+   * 太長用省略號、不推動版面。報讀軟體在選項的說明裡唸出來。
+   */
+  readonly description?: string;
   /** 從這一項開始是新的一組：前面畫一條細線（第一項不畫）。 */
   readonly startsGroup?: boolean;
   /**
@@ -69,6 +74,8 @@ interface SelectOwnProps {
   readonly placeholder?: string;
   /** 掛上就打開（格子進入編輯時）。 */
   readonly isOpenInitially?: boolean;
+  /** 打開或關上時呼叫（含掛上就打開的那一次）：選項的資料要等打開才讀的選單用它。 */
+  readonly onOpenChange?: (isOpen: boolean) => void;
   readonly disabled?: boolean;
   readonly align?: FloatingAlign;
   readonly id?: string;
@@ -230,7 +237,7 @@ function buttonActiveDescendant(listId: string, activeId: string | undefined, ha
  * 值是按鈕裡的文字。外層和 Menu 一樣是 display: contents 的容器（給「點在外面」與焦點離開的判斷），className 加在按鈕上。
  * 選項 10 個以上時清單最上面有篩選框（selectFilter.ts）。
  */
-export function Select({ ref, value, options, size = 'md', width = 'fill', variant = 'default', display, showChevron = false, placeholder, isOpenInitially = false, disabled = false, ...rest }: SelectProps) {
+export function Select({ ref, value, options, size = 'md', width = 'fill', variant = 'default', display, showChevron = false, placeholder, isOpenInitially = false, onOpenChange, disabled = false, ...rest }: SelectProps) {
   const { align = 'start', id, className, onChange, onPick, onDismiss, onBlur, onKeyDown, ...aria } = rest;
   const { buttonRef, setButton } = useButtonRef(ref);
   const listId = useId();
@@ -239,6 +246,9 @@ export function Select({ ref, value, options, size = 'md', width = 'fill', varia
     { options, value, isOpenInitially, canOpen, isBusy: aria['aria-busy'] === true, onChange, onPick, onDismiss, onKeyDown },
     buttonRef,
   );
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
   const inputRef = useFocusFilter(isOpen, isFilterable);
   const activeId = activeIdOf(listId, active, positions);
   const activeDescendant = isOpen && !isFilterable ? buttonActiveDescendant(listId, activeId, options.length > 0) : undefined;

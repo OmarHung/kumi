@@ -115,7 +115,7 @@ public sealed class AssistantPromptRulesTests
         var prompt = AssistantPrompt.SystemPrompt;
 
         // Act
-        var order = new[] { "## 你能做的與不能做的", "## 項目", "## 變更集的寫法", "## 規則", "使用者沒有提出變更集的權限時", "以下是格式與", "<reference name=\"project-blueprint.schema.json\">", "<reference name=\"planning-structure.md\">" }
+        var order = new[] { "## 你能做的與不能做的", "## 項目", "## 變更集的寫法", "## 規則", "使用者沒有提出變更集的權限時", "以下是格式、", "<reference name=\"project-blueprint.schema.json\">", "<reference name=\"planning-structure.md\">", "<reference name=\"planning-capture.md\">" }
             .Select(marker => prompt.IndexOf(marker, StringComparison.Ordinal)).ToList();
 
         // Assert：抽出共用的規則之後，專案版的段落順序與內容不變。
@@ -124,6 +124,36 @@ public sealed class AssistantPromptRulesTests
             Assert.That(order, Has.None.EqualTo(-1));
             Assert.That(order, Is.Ordered);
         }
+    }
+
+    [Test]
+    public void ProjectSystemPrompt_IncludesHowToWriteItems_AfterTheStructureGuide()
+    {
+        // Arrange
+        var prompt = AssistantPrompt.SystemPrompt;
+
+        // Act
+        var structure = prompt.IndexOf("<reference name=\"planning-structure.md\">", StringComparison.Ordinal);
+        var capture = prompt.IndexOf("<reference name=\"planning-capture.md\">", StringComparison.Ordinal);
+
+        // Assert：建任務的規則（標題、說明的格式、負責人、日期）和 kumi-planning 的 skill 共用同一份原文。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(structure, Is.GreaterThan(0));
+            Assert.That(capture, Is.GreaterThan(structure));
+            Assert.That(prompt, Does.Contain("## 怎樣算完成"));
+            Assert.That(prompt, Does.Contain("卡片就是給使用者確認的那一步"));
+        }
+    }
+
+    [Test]
+    public void OrganizationSystemPrompt_LeavesOutHowToWriteItems()
+    {
+        // Act
+        var prompt = AssistantPrompt.OrganizationSystemPrompt;
+
+        // Assert：組織對話不建項目，不必多送這一份。
+        Assert.That(prompt, Does.Not.Contain("<reference name=\"planning-capture.md\">"));
     }
 
     [Test]

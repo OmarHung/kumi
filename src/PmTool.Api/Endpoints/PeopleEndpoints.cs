@@ -10,10 +10,13 @@ using PmTool.Identity;
 namespace PmTool.Api.Endpoints;
 
 /// <param name="Disabled">帳號被停用了：還在清單裡，工作項目與活動照樣顯示他，但不能登入。</param>
-internal sealed record PersonData(Guid PersonId, string DisplayName, string? Email, OrganizationRole Role, bool Disabled)
+/// <param name="JobTitle">職稱；沒有是 null（internal/HANDOFF-ai-assign.md）。</param>
+/// <param name="Responsibilities">負責範圍，一行字；沒有是 null。</param>
+internal sealed record PersonData(
+    Guid PersonId, string DisplayName, string? Email, OrganizationRole Role, bool Disabled, string? JobTitle, string? Responsibilities)
 {
     public static PersonData From(PersonSummary person) =>
-        new(person.PersonId, person.DisplayName, person.Email, person.Role, person.IsDisabled);
+        new(person.PersonId, person.DisplayName, person.Email, person.Role, person.IsDisabled, person.JobTitle, person.Responsibilities);
 }
 
 internal sealed record CreatePersonRequest(string DisplayName, string Email, string Password, OrganizationRole Role);
@@ -21,6 +24,8 @@ internal sealed record CreatePersonRequest(string DisplayName, string Email, str
 internal sealed record ResetPasswordRequest(string NewPassword);
 
 internal sealed record SetPersonRoleRequest(OrganizationRole Role);
+
+internal sealed record SetPersonProfileRequest(string? JobTitle, string? Responsibilities);
 
 internal static class PeopleEndpoints
 {
@@ -41,6 +46,7 @@ internal static class PeopleEndpoints
         v1.MapPost("/people/{personId}/enable", EnableAsync).WithName("EnablePerson");
         v1.MapPut("/people/{personId}/password", ResetPasswordAsync).WithName("ResetPersonPassword");
         v1.MapPut("/people/{personId}/role", SetRoleAsync).WithName("SetPersonRole");
+        v1.MapPut("/people/{personId}/profile", SetProfileAsync).WithName("SetPersonProfile");
         return v1;
     }
 
@@ -154,6 +160,28 @@ internal static class PeopleEndpoints
         }
 
         return ToResult(result);
+    }
+
+    private static async Task<IResult> SetProfileAsync(
+        string personId,
+        JsonBody<SetPersonProfileRequest> body,
+        ClaimsPrincipal principal,
+        [FromServices] IPersonProfileService profiles,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(personId, out var id))
+        {
+            return ApiFailure.PersonNotFound.ToResult();
+        }
+
+        if (!body.TryGetValue(out var request, out var bodyFailure))
+        {
+            return bodyFailure.ToResult();
+        }
+
+        var actor = SessionPrincipal.Read(principal).ToActor();
+        var profile = new PersonProfile(request.JobTitle, request.Responsibilities);
+        return ToResult(await profiles.UpdateProfileAsync(actor, id, profile, cancellationToken));
     }
 
     private static IResult ToResult(Result<PersonSummary> result) =>

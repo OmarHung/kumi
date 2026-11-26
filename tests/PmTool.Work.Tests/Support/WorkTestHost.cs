@@ -47,6 +47,8 @@ internal sealed class WorkTestHost : IAsyncDisposable
 
     public IProjectDescriptionService Descriptions => _scope.ServiceProvider.GetRequiredService<IProjectDescriptionService>();
 
+    public IProjectStaffingQueries Staffing => _scope.ServiceProvider.GetRequiredService<IProjectStaffingQueries>();
+
     public IWorkItemService Items => _scope.ServiceProvider.GetRequiredService<IWorkItemService>();
 
     public IBulkItemService Bulk => _scope.ServiceProvider.GetRequiredService<IBulkItemService>();

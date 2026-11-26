@@ -35,6 +35,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  /* 自動版面的表格格子會被不換行的文字撐寬；給上限，職稱最長 60 字時才會在這裡截斷而不是撐成兩行。 */
+  max-width: 28rem;
 }
 
 /* 角色選單只有選項那麼寬，不撐滿格子。 */
@@ -120,4 +122,19 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* 表格的名稱格：名稱與職稱同一行，放不下時職稱截斷（一列一行，列高不變）。 */
+.nameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 成員名稱後面的職稱：灰字，放不下時隨名稱那一行截斷，不推動版面。 */
+.jobTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
 }

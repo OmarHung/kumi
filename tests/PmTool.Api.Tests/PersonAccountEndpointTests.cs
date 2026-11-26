@@ -209,6 +209,60 @@ public sealed class PersonAccountEndpointTests
         Assert.That(disabled, Is.EqualTo(new Guid?[] { TestUsers.Member.PersonId }));
     }
 
+    [Test]
+    public async Task SetProfile_Accepted_ReturnsThePersonWithTheProfileAndPassesItToTheModule()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+
+        // Act
+        using var response = await client.PutAsync(
+            $"{MemberRoute}/profile", ApiRequests.Json(new { jobTitle = "前端工程師", responsibilities = (string?)null }));
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        var expected = ExpectedMember(disabled: false);
+        expected["jobTitle"] = "前端工程師";
+        Assert.That(JsonNode.DeepEquals(data, expected), Is.True, data?.ToJsonString());
+        Assert.That(factory.Modules.People.SetProfileCalls, Is.EqualTo(new[]
+        {
+            new SetProfileCall(TestUsers.Owner.ToActor(), TestUsers.Member.PersonId, new PersonProfile("前端工程師", null)),
+        }));
+    }
+
+    [Test]
+    public async Task SetProfile_NotAGuid_Returns404PersonNotFoundWithoutCallingTheModule()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Owner);
+
+        // Act
+        using var response = await client.PutAsync("/v1/people/not-a-guid/profile", ApiRequests.Json(new { jobTitle = "工程師", responsibilities = (string?)null }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.NotFound, ApiErrorCodes.PersonNotFound);
+        Assert.That(factory.Modules.People.SetProfileCalls, Is.Empty);
+    }
+
+    [TestCase(FailureKind.Forbidden, IdentityErrorCodes.Forbidden, HttpStatusCode.Forbidden)]
+    [TestCase(FailureKind.NotFound, IdentityErrorCodes.NotFound, HttpStatusCode.NotFound)]
+    [TestCase(FailureKind.Invalid, IdentityErrorCodes.ProfileInvalid, HttpStatusCode.UnprocessableEntity)]
+    public async Task SetProfile_ModuleRejects_ReturnsTheModuleCode(FailureKind kind, string code, HttpStatusCode expected)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        factory.Modules.People.OnSetProfile = _ => new Failure(kind, code, "身分模組說的原因。");
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PutAsync($"{MemberRoute}/profile", ApiRequests.Json(new { jobTitle = "工程師", responsibilities = (string?)null }));
+
+        // Assert
+        await ApiRequests.AssertErrorEnvelopeAsync(response, expected, code);
+    }
+
     private static JsonObject ExpectedMember(bool disabled) => new()
     {
         ["personId"] = TestUsers.Member.PersonId,
@@ -216,6 +270,8 @@ public sealed class PersonAccountEndpointTests
         ["email"] = TestUsers.Member.Email,
         ["role"] = "member",
         ["disabled"] = disabled,
+        ["jobTitle"] = null,
+        ["responsibilities"] = null,
     };
 
     private static Task<HttpResponseMessage> SendAsync(HttpClient client, string operation, string personRoute) =>

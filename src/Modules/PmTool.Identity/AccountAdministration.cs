@@ -141,7 +141,7 @@ internal sealed class AccountAdministration(
 
         await transaction.CommitAsync(cancellationToken);
         cache.Forget(account.Id);
-        return new PersonSummary(person.Id, person.DisplayName, account.Email, role, account.DisabledAt is not null);
+        return Summary(person, account, account.DisabledAt is not null) with { Role = role };
     }
 
     private static Task<bool> IsOwnerAsync(IdentityDbContext db, Actor actor, CancellationToken cancellationToken) =>
@@ -201,7 +201,11 @@ internal sealed class AccountAdministration(
     }
 
     private static PersonSummary Summary(PersonRow person, AccountRow account, bool disabled) =>
-        new(person.Id, person.DisplayName, account.Email, person.Role, disabled);
+        new(person.Id, person.DisplayName, account.Email, person.Role, disabled)
+        {
+            JobTitle = person.JobTitle,
+            Responsibilities = person.Responsibilities,
+        };
 
     /// <summary>
     /// 照順序檢查，回傳要動的人與他的帳號。不是管理者先擋（不必查資料庫，也不讓他知道那個人存不存在）；

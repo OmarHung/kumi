@@ -13,7 +13,8 @@ import {
 } from '../../test/fixtures';
 import { serveItems, servePatch } from '../../test/items';
 import { renderApp } from '../../test/renderApp';
-import { chooseOption } from '../../test/select';
+import { memberPerson } from '../../test/people';
+import { chooseOption, openOptions } from '../../test/select';
 import { server } from '../../test/server';
 
 const task = smkItem({
@@ -253,6 +254,31 @@ describe('格內編輯：日期與選項', () => {
     // Assert
     expect(await within(row).findByRole('button', { name: '負責人：未填' })).toBeInTheDocument();
     expect(bodies).toEqual([{ assigneeId: exampleMember.personId }, { assigneeId: null }]);
+  });
+
+  it('負責人的選項名稱下面寫職稱（打開編輯時才讀人員清單）', async () => {
+    // Arrange
+    signedInAs(exampleOwner, { details: [smkDetail()] });
+    serveItems('SMK', [task]);
+    let peopleRequests = 0;
+    server.use(
+      http.get('/v1/people', () => {
+        peopleRequests += 1;
+        return ok([{ ...memberPerson, jobTitle: '前端工程師' }]);
+      }),
+    );
+    const { user } = renderApp('/projects/SMK');
+    const row = within(await screen.findByRole('table', { name: '項目' })).getByRole('row', { name: /SMK-7/ });
+    expect(peopleRequests).toBe(0);
+
+    // Act
+    await user.click(within(row).getByRole('button', { name: '負責人：範例使用者' }));
+    const select = within(row).getByRole('combobox', { name: '負責人' });
+    await openOptions(user, select);
+
+    // Assert
+    expect(await screen.findByRole('option', { name: /範例成員/ })).toHaveTextContent('前端工程師');
+    expect(peopleRequests).toBe(1);
   });
 
   it('多選勾好後按 Enter 儲存，依選項的順序送；全部取消就清掉', async () => {

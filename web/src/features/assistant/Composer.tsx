@@ -15,7 +15,7 @@ import { useComposerAttachments, type AttachmentEntry, type ComposerAttachments 
 import { useDrafts, useRestoreFocus, type DraftFill } from './useComposerDrafts';
 import styles from './Assistant.module.css';
 
-const SETTINGS_PLACEHOLDER = '描述你想怎麼改這個專案的設定…';
+const PROJECT_PLACEHOLDER = '描述你想做的事：建任務、指派、調整設定…';
 const ITEM_PLACEHOLDER = '問這個項目的事，或請助理建議怎麼改…';
 /** 不選專案的對話不收附件：拖放或貼上檔案時說明。 */
 const NO_ATTACHMENTS_NOTE = '不選專案的對話不收附件。';
@@ -23,7 +23,7 @@ const ORGANIZATION_PLACEHOLDER = '問模板、規劃，或請助理幫你開新�
 
 function placeholderOf(isOrganization: boolean, hasItem: boolean): string {
   if (isOrganization) return ORGANIZATION_PLACEHOLDER;
-  return hasItem ? ITEM_PLACEHOLDER : SETTINGS_PLACEHOLDER;
+  return hasItem ? ITEM_PLACEHOLDER : PROJECT_PLACEHOLDER;
 }
 
 interface ComposerProps {

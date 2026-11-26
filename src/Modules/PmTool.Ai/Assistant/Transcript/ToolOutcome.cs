@@ -15,6 +15,9 @@ internal sealed record ToolOutcome(string RawResult, bool IsOk, string? Error, l
     /// <summary>propose_new_items 成功時結果裡的 proposalId。</summary>
     public Guid? NewItemProposalId { get; init; }
 
+    /// <summary>propose_member_changes 成功時結果裡的 proposalId。</summary>
+    public Guid? MemberProposalId { get; init; }
+
     private const string UnreadableError = "工具沒有回傳可以讀的結果。";
 
     /// <summary>
@@ -44,7 +47,7 @@ internal sealed record ToolOutcome(string RawResult, bool IsOk, string? Error, l
                 return new ToolOutcome(raw, false, string.IsNullOrWhiteSpace(error) ? "工具回報失敗。" : error, null);
             }
 
-            return new ToolOutcome(raw, true, null, ChangeSetNumberOf(root)) { ItemProposalId = ProposalIdOf(root), ProjectProposalId = ProposalIdOf(root), NewItemProposalId = ProposalIdOf(root) };
+            return new ToolOutcome(raw, true, null, ChangeSetNumberOf(root)) { ItemProposalId = ProposalIdOf(root), ProjectProposalId = ProposalIdOf(root), NewItemProposalId = ProposalIdOf(root), MemberProposalId = ProposalIdOf(root) };
         }
         catch (JsonException)
         {

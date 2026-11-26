@@ -13,8 +13,9 @@ internal static class AssistantPrompt
 {
     private const string ResourcePrefix = "PmTool.Ai.Prompts.";
 
+    // 「需求怎麼寫成項目」（planning-capture.md）和 kumi-planning 的 skill 共用同一份原文：建任務的規則改一處，兩邊一起變。
     private static readonly string[] References =
-        ["project-blueprint.schema.json", "changeset.schema.json", "planning-structure.md"];
+        ["project-blueprint.schema.json", "changeset.schema.json", "planning-structure.md", "planning-capture.md"];
 
     // 不選專案的對話只讀「專案的結構怎麼決定」的建議；藍圖與變更集的格式用不到。
     private static readonly string[] OrganizationReferences = ["planning-structure.md"];
@@ -38,10 +39,24 @@ internal static class AssistantPrompt
     /// 用「」包起來並標明是資料。
     /// </remarks>
     public static string ProjectNote(string projectKey, IReadOnlyList<string> permissions, Asker? asker = null) =>
-        $"這則對話在專案代號 {projectKey} 的專案。使用者在這個專案：能讀設定；"
-        + $"{(permissions.Contains(WorkPermissions.BlueprintPropose) ? "能" : "不能")}提出變更集；"
-        + $"{(permissions.Contains(WorkPermissions.BlueprintApply) ? "能" : "不能")}核准。"
+        $"這則對話在專案代號 {projectKey} 的專案。使用者在這個專案：能讀設定；{PermissionSentence(permissions)}。"
         + (asker is null ? string.Empty : AskerSentence(asker));
+
+    // 助理能做的就是使用者能做的：每一種寫入都明講能不能，模型才不會對沒權限的事提建議、也不會對有權限的事說「做不到」。
+    private static readonly (string Permission, string Label)[] PermissionLabels =
+    [
+        (WorkPermissions.ItemCreate, "建立項目"),
+        (WorkPermissions.ItemUpdate, "修改項目"),
+        (WorkPermissions.ItemTransition, "改狀態"),
+        (WorkPermissions.ItemDelete, "刪除項目"),
+        (WorkPermissions.CommentCreate, "留言"),
+        (WorkPermissions.ProjectManage, "管理成員"),
+        (WorkPermissions.BlueprintPropose, "提出變更集"),
+        (WorkPermissions.BlueprintApply, "核准變更集"),
+    ];
+
+    private static string PermissionSentence(IReadOnlyList<string> permissions) =>
+        string.Join("；", PermissionLabels.Select(p => (permissions.Contains(p.Permission) ? "能" : "不能") + p.Label));
 
     /// <summary>
     /// 不選專案的組織對話的一句說明，放在系統提示之後。使用者能不能開新專案（只有組織管理員能）寫在這裡，助理才知道要不要提出；
@@ -71,7 +86,8 @@ internal static class AssistantPrompt
     private static string Details(Asker asker)
     {
         var email = asker.Email is { Length: > 0 } address ? $"，Email {address}" : string.Empty;
-        return $"人員編號 {asker.PersonId}{email}，組織的{RoleName(asker.Role)}";
+        var title = asker.JobTitle is { Length: > 0 } text ? $"，職稱「{text.Replace('「', '『').Replace('」', '』')}」" : string.Empty;
+        return $"人員編號 {asker.PersonId}{email}，組織的{RoleName(asker.Role)}{title}";
     }
 
     private static string RoleName(OrganizationRole role) => role switch
@@ -129,4 +145,4 @@ internal static class AssistantPrompt
 }
 
 /// <summary>發問的人自己的帳號資料，只用來寫給模型的那一句說明（<see cref="AssistantPrompt.ProjectNote"/>）。</summary>
-internal sealed record Asker(Guid PersonId, string DisplayName, string? Email, OrganizationRole Role);
+internal sealed record Asker(Guid PersonId, string DisplayName, string? Email, OrganizationRole Role, string? JobTitle = null);

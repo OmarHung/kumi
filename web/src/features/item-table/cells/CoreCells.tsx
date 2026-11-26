@@ -6,6 +6,7 @@ import { findItemType, itemTypeName } from '../../../domain/blueprint';
 import { formatDate } from '../../../domain/dates';
 import { formatNumber } from '../../../domain/fields';
 import { PRIORITY_LABELS } from '../../../domain/labels';
+import { NO_TITLES, usePersonTitles, type PersonTitles } from '../../people/usePersonTitles';
 import { DueDateText, EmptyValue, PriorityText } from '../../work-items/ItemCells';
 import { useItemPanelLink } from '../../item-page/ItemPanelContext';
 import { itemPagePath, useItemPageEntry } from '../../work-items/itemLinks';
@@ -91,13 +92,24 @@ export function TitleCell({ item }: ItemCellProps) {
  * 伺服器不讓再把他填進去，但選回他就是沒改，不會送出。
  * 每一個選項前面都有小圖（規範 7.3）：成員是頭像，「沒有負責人」是虛線的空圓，字才對齊。
  */
-export function memberOptions(members: readonly Member[], emptyLabel: string, current: PersonRef | null = null): SelectOption[] {
+export function memberOptions(
+  members: readonly Member[],
+  emptyLabel: string,
+  current: PersonRef | null = null,
+  titles: PersonTitles = NO_TITLES,
+): SelectOption[] {
   const isFormer = current !== null && !members.some((member) => member.personId === current.personId);
   return [
     { value: '', label: emptyLabel, leading: <NobodyMark /> },
-    ...members.map((member) => personOption(member)),
-    ...(isFormer ? [personOption(current)] : []),
+    ...members.map((member) => personOption(member, false, titles.get(member.personId))),
+    ...(isFormer ? [personOption(current, false, titles.get(current.personId))] : []),
   ];
+}
+
+/** 負責人的下拉：打開編輯時才讀職稱（人員清單），選項名稱下面寫職稱。 */
+function AssigneeEditor({ api, members, current }: { readonly api: EditorApi<string>; readonly members: readonly Member[]; readonly current: PersonRef | null }) {
+  const titles = usePersonTitles();
+  return <SelectEditor api={api} options={memberOptions(members, '沒有負責人', current, titles)} />;
 }
 
 export function assigneeSpec(item: Item, members: readonly Member[]): FieldEditSpec<string> {
@@ -107,7 +119,7 @@ export function assigneeSpec(item: Item, members: readonly Member[]): FieldEditS
     errorPaths: ['assignee', 'assigneeId'],
     initialDraft: () => current,
     toCommand: (draft) => (draft === current ? UNCHANGED : patchCommand({ assigneeId: draft || null })),
-    renderEditor: (api) => <SelectEditor api={api} options={memberOptions(members, '沒有負責人', item.assignee)} />,
+    renderEditor: (api) => <AssigneeEditor api={api} members={members} current={item.assignee} />,
   };
 }
 

@@ -32,6 +32,8 @@ public sealed class PeopleEndpointTests
                 ["email"] = TestUsers.Guest.Email,
                 ["role"] = "guest",
                 ["disabled"] = false,
+                ["jobTitle"] = null,
+                ["responsibilities"] = null,
             }), Is.True, guest?.ToJsonString());
         }
     }

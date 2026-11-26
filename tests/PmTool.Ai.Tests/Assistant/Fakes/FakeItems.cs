@@ -172,14 +172,21 @@ internal sealed class FakePeopleDirectory : IPeopleDirectory
 
     public OrganizationRole? DefaultRole { get; set; } = OrganizationRole.Member;
 
-    public void Set(Guid organizationId, Guid personId, OrganizationRole role, bool disabled = false) =>
-        _people[(organizationId, personId)] = new PersonSummary(personId, "王小明", null, role, disabled);
+    public void Set(
+        Guid organizationId, Guid personId, OrganizationRole role, bool disabled = false, string name = "王小明", string? jobTitle = null, string? responsibilities = null) =>
+        _people[(organizationId, personId)] = new PersonSummary(personId, name, null, role, disabled) { JobTitle = jobTitle, Responsibilities = responsibilities };
 
-    public void SetRole(Guid organizationId, Guid personId, OrganizationRole role) =>
-        Set(organizationId, personId, role, _people.TryGetValue((organizationId, personId), out var found) && found.IsDisabled);
+    public void SetRole(Guid organizationId, Guid personId, OrganizationRole role)
+    {
+        var found = _people.TryGetValue((organizationId, personId), out var existing) ? existing : null;
+        Set(organizationId, personId, role, found?.IsDisabled ?? false, found?.DisplayName ?? "王小明", found?.JobTitle, found?.Responsibilities);
+    }
 
-    public void SetDisabled(Guid organizationId, Guid personId, bool disabled) =>
-        Set(organizationId, personId, _people.TryGetValue((organizationId, personId), out var found) ? found.Role : OrganizationRole.Member, disabled);
+    public void SetDisabled(Guid organizationId, Guid personId, bool disabled)
+    {
+        var found = _people.TryGetValue((organizationId, personId), out var existing) ? existing : null;
+        Set(organizationId, personId, found?.Role ?? OrganizationRole.Member, disabled, found?.DisplayName ?? "王小明", found?.JobTitle, found?.Responsibilities);
+    }
 
     public Task<IReadOnlyDictionary<Guid, PersonSummary>> FindManyAsync(
         Guid organizationId, IReadOnlyCollection<Guid> personIds, CancellationToken cancellationToken)
@@ -201,7 +208,8 @@ internal sealed class FakePeopleDirectory : IPeopleDirectory
     }
 
     public Task<IReadOnlyList<PersonSummary>> ListAsync(Guid organizationId, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+        Task.FromResult<IReadOnlyList<PersonSummary>>(
+            [.. _people.Where(entry => entry.Key.Organization == organizationId).Select(entry => entry.Value).OrderBy(person => person.DisplayName, StringComparer.Ordinal)]);
 
     public Task<Result<PersonSummary>> CreateAsync(Actor actor, NewPerson person, CancellationToken cancellationToken) =>
         throw new NotSupportedException();

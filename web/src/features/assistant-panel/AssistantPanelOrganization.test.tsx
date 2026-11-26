@@ -84,7 +84,7 @@ describe('面板：不選專案', () => {
     serveCreateConversation(null, NEW);
     serveProjectProposal(makeProjectProposal());
 
-    const tool = { type: 'tool', callId: 'c1', name: 'propose_project', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: 'pp-1', newItemProposalId: null } as const;
+    const tool = { type: 'tool', callId: 'c1', name: 'propose_project', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: 'pp-1', newItemProposalId: null, memberProposalId: null } as const;
     const reply = serveReply(null, 'conv-org', (stream) => {
       stream.event('start', { userMessage: makeMessage({ parts: [{ type: 'text', text: '開一個網站改版專案' }] }), assistantMessageId: 'msg-a1' });
       stream.event('tool', { tool });
@@ -109,7 +109,7 @@ describe('面板：不選專案', () => {
   it('建好之後「在這個專案開 AI 助理」：面板切到那個專案、輸入框換成專案版', async () => {
     // Arrange
     const summary = makeConversationSummary({ id: 'conv-org', title: '開專案', messageCount: 2 });
-    const tool = { type: 'tool', callId: 'c1', name: 'propose_project', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: 'pp-1', newItemProposalId: null } as const;
+    const tool = { type: 'tool', callId: 'c1', name: 'propose_project', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: 'pp-1', newItemProposalId: null, memberProposalId: null } as const;
     serveProjectProposal(makeProjectProposal({ key: 'AGY', name: '接案', status: 'applied', decidedAt: '2026-11-26T02:05:00Z', createdProjectKey: 'AGY' }));
     const { user } = openApp();
     serveConversations(null, [summary]);
@@ -124,7 +124,7 @@ describe('面板：不選專案', () => {
 
     // Assert
     expect(await within(panel).findByRole('combobox', { name: '專案' })).toHaveTextContent('接案測試');
-    expect(await within(panel).findByRole('textbox', { name: '訊息' })).toHaveAttribute('placeholder', '描述你想怎麼改這個專案的設定…');
+    expect(await within(panel).findByRole('textbox', { name: '訊息' })).toHaveAttribute('placeholder', '描述你想做的事：建任務、指派、調整設定…');
   });
 });
 

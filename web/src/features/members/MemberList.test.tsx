@@ -17,9 +17,9 @@ import { MembersDialog } from './MembersDialog';
 const designer: Member = { personId: '0190a000-0000-7000-8000-000000000003', displayName: '範例設計師', role: 'project_manager' };
 
 const people: Person[] = [
-  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false },
-  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false },
-  { ...designer, email: 'designer@example.com', role: 'member', disabled: false },
+  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false, jobTitle: null, responsibilities: null },
+  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false, jobTitle: null, responsibilities: null },
+  { ...designer, email: 'designer@example.com', role: 'member', disabled: false, jobTitle: '設計師', responsibilities: null },
 ];
 
 /** 窄螢幕：只有窄螢幕的查詢符合。 */
@@ -96,6 +96,18 @@ describe('成員對話框：寬螢幕', () => {
 describe('成員對話框：窄螢幕', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('成員的名稱後面寫職稱（灰字），沒有職稱的人沒有', async () => {
+    // Arrange
+    stubCompactScreen();
+
+    // Act
+    const { list } = await openDialog(threeMembers());
+
+    // Assert
+    expect(await within(itemOf(list, '範例設計師')).findByText('設計師')).toBeInTheDocument();
+    expect(within(itemOf(list, '範例成員')).queryByText('設計師')).not.toBeInTheDocument();
   });
 
   it('成員是清單而不是表格：每一筆有名稱、角色選單與「移除」，標出自己', async () => {

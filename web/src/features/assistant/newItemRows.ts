@@ -1,4 +1,5 @@
-import type { NewItemDraft } from '../../api/aiTypes';
+import type { MemberAddition, NewItemDraft } from '../../api/aiTypes';
+import type { Cycle, Milestone } from '../../api/planning';
 import type { FieldValue, Member, ProjectDetail } from '../../api/types';
 import { formatDate } from '../../domain/dates';
 import { fieldDefinition, formatFieldValue, formatNumber, NOT_A_MEMBER } from '../../domain/fields';
@@ -67,15 +68,28 @@ function customDetails(draft: NewItemDraft, detail: ProjectDetail | undefined, m
   });
 }
 
-function assigneeDetail(assigneeId: string, state: ProjectLoadState, members: readonly Member[]): string {
+function assigneeDetail(
+  assigneeId: string,
+  state: ProjectLoadState,
+  members: readonly Member[],
+  additions: readonly MemberAddition[],
+): string {
+  // 要先加入的人還不是成員，查成員會說成「不是成員的人」；名字在建議裡就有，不必等專案讀到。
+  const added = additions.find((addition) => addition.personId === assigneeId);
+  if (added !== undefined) return `負責人：${added.displayName ?? '（未知）'}（先加入專案）`;
   if (state === 'loading') return LOADING_ASSIGNEE;
   if (state === 'error') return UNREADABLE_ASSIGNEE;
   return `負責人：${members.find((member) => member.personId === assigneeId)?.displayName ?? NOT_A_MEMBER}`;
 }
 
-function coreDetails(draft: NewItemDraft, state: ProjectLoadState, members: readonly Member[]): readonly string[] {
+function coreDetails(
+  draft: NewItemDraft,
+  state: ProjectLoadState,
+  members: readonly Member[],
+  additions: readonly MemberAddition[],
+): readonly string[] {
   const details: string[] = [];
-  if (draft.assigneeId !== null) details.push(assigneeDetail(draft.assigneeId, state, members));
+  if (draft.assigneeId !== null) details.push(assigneeDetail(draft.assigneeId, state, members, additions));
   const priority = draft.priority === null ? undefined : (PRIORITY_LABELS as Readonly<Record<string, string | undefined>>)[draft.priority];
   if (priority !== undefined) details.push(`優先度：${priority}`);
   if (draft.startDate !== null) details.push(`開始日：${formatDate(draft.startDate)}`);
@@ -84,11 +98,32 @@ function coreDetails(draft: NewItemDraft, state: ProjectLoadState, members: read
   return details;
 }
 
+/** 週期與里程碑的名稱來源；還沒讀到或讀不到時是 undefined，畫面只寫「週期」「里程碑」。 */
+export interface PlanningNames {
+  readonly cycles?: readonly Cycle[];
+  readonly milestones?: readonly Milestone[];
+}
+
+function planningDetails(draft: NewItemDraft, names: PlanningNames): readonly string[] {
+  const details: string[] = [];
+  if (draft.cycleId !== null) {
+    const name = names.cycles?.find((cycle) => cycle.id === draft.cycleId)?.name;
+    details.push(name === undefined ? '週期' : `週期 ${name}`);
+  }
+  if (draft.milestoneId !== null) {
+    const name = names.milestones?.find((milestone) => milestone.id === draft.milestoneId)?.name;
+    details.push(name === undefined ? '里程碑' : `里程碑 ${name}`);
+  }
+  return details;
+}
+
 /** 建議裡的項目轉成卡片上的列；藍圖還沒讀到時類型與欄位先寫原本的 key。 */
 export function newItemRows(
   drafts: readonly NewItemDraft[],
   detail: ProjectDetail | undefined,
   state: ProjectLoadState = detail === undefined ? 'loading' : 'ready',
+  planning: PlanningNames = {},
+  additions: readonly MemberAddition[] = [],
 ): readonly NewItemRow[] {
   const members = detail?.members ?? [];
   return drafts.map((draft, index) => {
@@ -98,7 +133,7 @@ export function newItemRows(
       typeName: detail?.blueprint.itemTypes.find((type) => type.key === draft.type)?.name ?? draft.type,
       title: draft.title,
       depth: depthOf(drafts, index),
-      details: [...coreDetails(draft, state, members), ...customDetails(draft, detail, members)],
+      details: [...coreDetails(draft, state, members, additions), ...planningDetails(draft, planning), ...customDetails(draft, detail, members)],
       parentKey: parentIndex >= 0 ? null : draft.parentKey,
       parentTitle: parentIndex >= 0 ? (drafts[parentIndex]?.title ?? null) : null,
       description,

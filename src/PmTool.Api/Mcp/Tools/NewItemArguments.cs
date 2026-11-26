@@ -6,7 +6,7 @@ namespace PmTool.Api.Mcp.Tools;
 /// <summary>
 /// propose_new_items 的 <c>items</c> 參數：把模型給的每一項讀成 <see cref="NewItemDraft"/>。
 /// 這裡只擋形狀（型別、不認得的屬性、控制字元）；類型、日期、欄位值這些規則只有 AI 模組的建立端一份。
-/// 負責人要換成人員編號（me、none、Email、編號），所以是非同步的。
+/// 負責人要換成人員編號（me、none、Email、編號；在整個組織裡找，是不是成員交給建立端判斷），所以是非同步的。
 /// </summary>
 internal static class NewItemArguments
 {
@@ -14,8 +14,13 @@ internal static class NewItemArguments
 
     private static readonly HashSet<string> KnownProperties = new(StringComparer.Ordinal)
     {
-        "ref", "type", "title", "description", "assignee", "priority", "startDate", "dueDate", "estimate", "parentKey", "parentRef", "fields",
+        "ref", "type", "title", "description", "assignee", "priority", "startDate", "dueDate", "estimate", "parentKey", "parentRef", "cycleId", "milestoneId", "fields",
     };
+
+    private static readonly HashSet<string> AddMemberProperties = new(StringComparer.Ordinal) { "person", "role" };
+
+    /// <summary>addMembers 沒給角色時用：只看得到自己負責或建立的項目，給的權限最少。</summary>
+    private const string DefaultAddedRole = "contributor";
 
     public static async Task<IReadOnlyList<NewItemDraft>> ReadAsync(
         McpToolContext context, string projectKey, McpArguments arguments, CancellationToken cancellationToken)
@@ -34,6 +39,52 @@ internal static class NewItemArguments
         }
 
         return drafts;
+    }
+
+    /// <summary>addMembers：建立項目之前先加進專案的人 [{person, role?}]；沒給是空的。角色沒給用 contributor。</summary>
+    public static async Task<IReadOnlyList<MemberAddition>> ReadAddMembersAsync(
+        McpToolContext context, string projectKey, McpArguments arguments, CancellationToken cancellationToken)
+    {
+        var elements = arguments.OptionalArray("addMembers") ?? [];
+        if (elements.Count > AiRules.MaxMemberChangesPerProposal)
+        {
+            throw new McpArgumentException($"addMembers 最多 {AiRules.MaxMemberChangesPerProposal} 個，給了 {elements.Count} 個。");
+        }
+
+        var members = new List<MemberAddition>(elements.Count);
+        foreach (var element in elements)
+        {
+            members.Add(await ReadAddMemberAsync(context, projectKey, element, members.Count, cancellationToken));
+        }
+
+        return members;
+    }
+
+    private static async Task<MemberAddition> ReadAddMemberAsync(
+        McpToolContext context, string projectKey, JsonElement element, int index, CancellationToken cancellationToken)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            throw new McpArgumentException($"addMembers[{index}] 要是一個物件。");
+        }
+
+        var values = element.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.Clone());
+        if (values.Keys.FirstOrDefault(name => !AddMemberProperties.Contains(name)) is { } unknown)
+        {
+            throw new McpArgumentException($"addMembers[{index}] 不認得的屬性：{unknown}。");
+        }
+
+        try
+        {
+            var member = new McpArguments(values);
+            var person = await McpPeople.ResolveAsync(context, projectKey, member.RequiredPlain("person"), "找不到這個人", cancellationToken)
+                ?? throw new McpArgumentException("person 要是人員編號或 Email。");
+            return new MemberAddition(person, member.OptionalPlain("role") ?? DefaultAddedRole);
+        }
+        catch (McpArgumentException exception)
+        {
+            throw new McpArgumentException($"addMembers[{index}]：{exception.Message}");
+        }
     }
 
     private static async Task<NewItemDraft> ReadOneAsync(
@@ -66,6 +117,8 @@ internal static class NewItemArguments
                 Estimate = ReadEstimate(values),
                 ParentKey = item.OptionalPlain("parentKey"),
                 ParentRef = item.OptionalPlain("parentRef"),
+                CycleId = ReadId(item, "cycleId"),
+                MilestoneId = ReadId(item, "milestoneId"),
                 Fields = item.OptionalObject("fields"),
             };
         }
@@ -81,7 +134,7 @@ internal static class NewItemArguments
     {
         try
         {
-            return await McpAssignees.ResolveAsync(context, projectKey, "assignee", assignee, cancellationToken);
+            return await McpPeople.ResolveAsync(context, projectKey, assignee, "找不到可以指派的人", cancellationToken);
         }
         catch (McpArgumentException exception)
         {
@@ -98,6 +151,11 @@ internal static class NewItemArguments
             throw new McpArgumentException($"{exception.Message}。{listed}");
         }
     }
+
+    private static Guid? ReadId(McpArguments item, string name) =>
+        item.OptionalPlain(name) is { } text
+            ? Guid.TryParse(text, out var id) ? id : throw new McpArgumentException($"參數 {name} 要是 get_project 回的 id。")
+            : null;
 
     private static decimal? ReadEstimate(Dictionary<string, JsonElement> values)
     {

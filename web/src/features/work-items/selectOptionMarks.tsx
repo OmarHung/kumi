@@ -70,7 +70,14 @@ export function EveryoneMark() {
   );
 }
 
-/** 人員的選項：前面是頭像。 */
-export function personOption(person: PersonRef, startsGroup = false): SelectOption {
-  return { value: person.personId, label: person.displayName, leading: <PersonMark name={person.displayName} />, startsGroup };
+/** 人員的選項：前面是頭像。有職稱時寫在名稱下面（次要文字），篩選時也找得到。 */
+export function personOption(person: PersonRef, startsGroup = false, jobTitle?: string): SelectOption {
+  return {
+    value: person.personId,
+    label: person.displayName,
+    leading: <PersonMark name={person.displayName} />,
+    startsGroup,
+    description: jobTitle,
+    keywords: jobTitle === undefined ? undefined : [jobTitle],
+  };
 }

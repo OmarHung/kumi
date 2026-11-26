@@ -31,6 +31,7 @@ internal static partial class JobValidation
     [
         "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset", "get_changeset",
         "get_item", "search_items", "propose_item_changes", "propose_new_items",
+        "get_project", "list_people", "propose_member_changes",
         "list_projects", "propose_project",
     ];
 

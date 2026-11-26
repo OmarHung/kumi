@@ -6,6 +6,9 @@ public static class IdentityErrorCodes
     public const string Forbidden = "person.forbidden";
     public const string NameRequired = "person.name_required";
     public const string NameTooLong = "person.name_too_long";
+
+    /// <summary>職稱或負責範圍太長、有控制字元或看不見的字元（422）；細項的路徑是 <c>jobTitle</c> 或 <c>responsibilities</c>。</summary>
+    public const string ProfileInvalid = "person.profile_invalid";
     public const string EmailInvalid = "person.email_invalid";
     public const string EmailTaken = "person.email_taken";
     public const string PasswordTooShort = "person.password_too_short";

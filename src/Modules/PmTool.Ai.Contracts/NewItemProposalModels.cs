@@ -44,6 +44,26 @@ public sealed record NewItemProposalDraft(string ProjectKey, IReadOnlyList<NewIt
 {
     /// <summary>內建助理建立的才有；MCP 是 null。</summary>
     public Guid? ConversationId { get; init; }
+
+    /// <summary>
+    /// 建立項目之前先加進專案的人（負責人還不是成員時用）。使用者要有 <c>project.manage</c>（組織管理員一律有），
+    /// 不然 <see cref="AiErrorCodes.Forbidden"/>，訊息和 <see cref="IMemberProposalCreator"/> 一樣寫出誰能管理成員。
+    /// 檢查（路徑 <c>addMembers[0].role</c>）：最多 <see cref="AiRules.MaxMemberChangesPerProposal"/> 個、不重複、在組織裡、帳號沒停用、
+    /// 現在還不是成員、角色是專案能用的。<see cref="NewItemDraft.AssigneeId"/> 是成員或在這份名單裡才行。
+    /// 存起來的會填好 <see cref="MemberAddition.DisplayName"/>、<see cref="MemberAddition.RoleName"/>。
+    /// </summary>
+    public IReadOnlyList<MemberAddition> AddMembers { get; init; } = [];
+}
+
+/// <summary>新增項目的建議裡，建立項目之前要先加進專案的一個人。</summary>
+/// <param name="Role">角色 key（工具沒給時用 <c>contributor</c>：只看得到自己負責或建立的項目，給的權限最少）。</param>
+public sealed record MemberAddition(Guid PersonId, string Role)
+{
+    /// <summary>建立建議時的顯示名稱（給卡片顯示）；草稿裡不用填。</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>建立建議時角色的名稱（給卡片顯示）；草稿裡不用填。</summary>
+    public string? RoleName { get; init; }
 }
 
 /// <summary>
@@ -64,8 +84,10 @@ public sealed record NewItemDraft(string Type, string Title)
     public string? Description { get; init; }
 
     /// <summary>
-    /// 負責人。工具收 <c>me</c>（發問的人）、<c>none</c>、專案成員的人員編號（MCP 另外收 Email），在工具那一層換成人員編號；
-    /// 這裡一定是專案成員的人員編號或 null（不是成員：細項的訊息列出成員的名稱與編號，讓模型改用正確的）。
+    /// 負責人。工具收 <c>me</c>（發問的人）、<c>none</c>、人員編號（MCP 另外收 Email），在工具那一層換成人員編號；
+    /// 這裡一定是專案成員、或在 <see cref="NewItemProposalDraft.AddMembers"/> 裡的人，或 null。
+    /// 都不是時細項的訊息列出成員的名稱與編號，並依使用者有沒有 <c>project.manage</c> 說明下一步：
+    /// 有的話「他還不是專案成員，可以把他放進 addMembers 一起加入」，沒有的話「你不能把人加進專案，能管理成員的是：…；或先指派給自己、不指派」。
     /// </summary>
     public Guid? AssigneeId { get; init; }
 
@@ -92,6 +114,12 @@ public sealed record NewItemDraft(string Type, string Title)
     /// 套用時那個項目沒建立成功，這個也跳過。
     /// </summary>
     public string? ParentRef { get; init; }
+
+    /// <summary>排進這個專案的週期（<c>get_project</c> 回的 cycles 的 id）；要是這個專案的、而且使用者讀得到週期，不然是錯誤（路徑 <c>items[0].cycleId</c>）。</summary>
+    public Guid? CycleId { get; init; }
+
+    /// <summary>歸屬這個專案的里程碑（<c>get_project</c> 回的 milestones 的 id）；規則同 <see cref="CycleId"/>。</summary>
+    public Guid? MilestoneId { get; init; }
 
     /// <summary>
     /// 自訂欄位 {key: 值}：key 要是這個類型有的欄位，值的 JSON 種類要對（規則和修改建議的 <c>fields.&lt;key&gt;</c> 同一份）；
@@ -132,4 +160,10 @@ public sealed record NewItemProposal(
 
     /// <summary>有項目沒建立成功、或建立的過程中斷：說明哪些沒建立，繁體中文。</summary>
     public string? Error { get; init; }
+
+    /// <summary>
+    /// 建立項目之前先加進專案的人（<see cref="NewItemProposalDraft.AddMembers"/>，名稱已填好）。套用時先加人、再建項目：
+    /// 加的時候已經是成員的略過（不改他的角色）；加人失敗算是「第一個就失敗」，什麼項目都不建、回到待決定。
+    /// </summary>
+    public IReadOnlyList<MemberAddition> AddMembers { get; init; } = [];
 }

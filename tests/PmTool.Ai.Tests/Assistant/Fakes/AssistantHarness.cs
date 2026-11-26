@@ -53,6 +53,12 @@ internal sealed class AssistantHarness : IAsyncDisposable
 
     public FakeBlueprintUsageService Usage => (FakeBlueprintUsageService)Host.Get<PmTool.Work.IBlueprintUsageService>();
 
+    public FakeStaffingQueries StaffingQueries => (FakeStaffingQueries)Host.Get<PmTool.Work.IProjectStaffingQueries>();
+
+    public FakePlanning Planning => (FakePlanning)Host.Get<PmTool.Work.IPlanningService>();
+
+    public FakePeopleDirectory People => (FakePeopleDirectory)Host.Get<PmTool.Identity.IPeopleDirectory>();
+
     public ManualClock Clock => (ManualClock)Host.Get<TimeProvider>();
 
     /// <param name="timings">換成短的逾時，測試不必真的等五分鐘。</param>
@@ -73,6 +79,8 @@ internal sealed class AssistantHarness : IAsyncDisposable
             services.AddSingleton<PmTool.Identity.IPeopleDirectory>(new FakePeopleDirectory());
             services.AddSingleton<PmTool.Work.IBlueprintUsageService>(new FakeBlueprintUsageService());
             services.AddSingleton<PmTool.Work.ITemplateLibrary>(new FakeTemplateLibrary());
+            services.AddSingleton<PmTool.Work.IProjectStaffingQueries>(new FakeStaffingQueries());
+            services.AddSingleton<PmTool.Work.IPlanningService>(new FakePlanning());
             if (timings is not null)
             {
                 services.AddSingleton(timings);

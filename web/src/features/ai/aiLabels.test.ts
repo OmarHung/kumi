@@ -31,6 +31,13 @@ describe('工具的說法', () => {
     expect(toolLabel('propose_project')).toBe('提出新專案');
   });
 
+  it('派工的三個工具', () => {
+    // Arrange / Act / Assert
+    expect(toolLabel('get_project')).toBe('讀專案的成員與設定');
+    expect(toolLabel('list_people')).toBe('查組織的人員');
+    expect(toolLabel('propose_member_changes')).toBe('建議成員變動');
+  });
+
   it('不認得的名稱照原文', () => {
     // Arrange / Act / Assert
     expect(toolLabel('something_new')).toBe('something_new');

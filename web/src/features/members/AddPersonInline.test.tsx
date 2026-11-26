@@ -10,9 +10,9 @@ import { renderApp } from '../../test/renderApp';
 import { chooseOption } from '../../test/select';
 import { server } from '../../test/server';
 
-const owner: Person = { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false };
-const member: Person = { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false };
-const created: Person = { personId: '0190a000-0000-7000-8000-000000000009', displayName: '範例新人', email: 'new@example.com', role: 'member', disabled: false };
+const owner: Person = { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false, jobTitle: null, responsibilities: null };
+const member: Person = { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false, jobTitle: null, responsibilities: null };
+const created: Person = { personId: '0190a000-0000-7000-8000-000000000009', displayName: '範例新人', email: 'new@example.com', role: 'member', disabled: false, jobTitle: null, responsibilities: null };
 
 /** 組織的人員：POST 之後清單多一個人（和真的後端一樣，之後讀到的清單有他）。 */
 function servePeople(initial: readonly Person[]) {

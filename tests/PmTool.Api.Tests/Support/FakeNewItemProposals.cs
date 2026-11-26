@@ -10,6 +10,12 @@ internal sealed class FakeNewItemProposals : INewItemProposalService, INewItemPr
 {
     public static readonly Guid ProposalId = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
+    public static readonly Guid AddedPersonId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+
+    public static readonly Guid CycleId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+    public static readonly Guid MilestoneId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
     private readonly ConcurrentQueue<(string Action, Actor Actor, Guid Id)> _calls = new();
     private readonly ConcurrentQueue<(Actor Actor, NewItemProposalDraft Draft)> _creates = new();
 
@@ -33,7 +39,9 @@ internal sealed class FakeNewItemProposals : INewItemProposalService, INewItemPr
             new NewItemDraft("task", "盤點資源")
             {
                 ParentRef = "epic",
-                AssigneeId = Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                AssigneeId = AddedPersonId,
+                CycleId = CycleId,
+                MilestoneId = MilestoneId,
                 Fields = new Dictionary<string, JsonElement> { ["area"] = JsonSerializer.SerializeToElement("infra") },
             },
         ],
@@ -42,6 +50,7 @@ internal sealed class FakeNewItemProposals : INewItemProposalService, INewItemPr
         new DateTimeOffset(2026, 11, 26, 3, 0, 0, TimeSpan.Zero))
     {
         DecidedAt = status == NewItemProposalStatus.Pending ? null : new DateTimeOffset(2026, 11, 26, 3, 5, 0, TimeSpan.Zero),
+        AddMembers = [new MemberAddition(AddedPersonId, "contributor") { DisplayName = "新人", RoleName = "執行者" }],
         Error = status == NewItemProposalStatus.Applied ? "有幾個沒有建立：第 2 個「盤點資源」（上層沒有建立成功）。其餘已經建立。" : null,
     };
 

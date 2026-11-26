@@ -18,17 +18,20 @@ internal static partial class NewItemChecker
     /// <summary>
     /// <paramref name="existingParents"/> 是已經查到的既有上層（以 <see cref="NewItemDraft.ParentKey"/> 為鍵，不分大小寫）；
     /// <paramref name="assignable"/> 是現在能被指派的人（專案成員且帳號沒有停用，<see cref="NewItemMembers.ActiveAsync"/>）；
-    /// <paramref name="membersText"/> 是不認得的負責人時附上的成員名單（呼叫的人先用 <see cref="HasUnknownAssignee"/> 判斷要不要列）。
+    /// <paramref name="membersText"/> 是不認得的負責人時附上的成員名單與下一步（呼叫的人先用 <see cref="HasUnknownAssignee"/> 判斷要不要列）；
+    /// <paramref name="priorIssues"/> 是 addMembers 檢查已經找到的問題，一起回給模型。
     /// </summary>
     public static Result<IReadOnlyList<NewItemDraft>> Check(
         IReadOnlyList<NewItemDraft>? items,
         ProjectDetail project,
         IReadOnlyDictionary<string, WorkItem> existingParents,
         IReadOnlySet<Guid> assignable,
-        string? membersText)
+        string? membersText,
+        PlanningIds? planning = null,
+        IReadOnlyList<FailureDetail>? priorIssues = null)
     {
         var drafts = items ?? [];
-        var issues = new List<FailureDetail>();
+        var issues = new List<FailureDetail>(priorIssues ?? []);
         if (drafts.Count is 0 or > AiRules.MaxNewItemsPerProposal)
         {
             issues.Add(Issue("items", $"一份建議要有 1 到 {AiRules.MaxNewItemsPerProposal} 個項目。"));
@@ -45,7 +48,7 @@ internal static partial class NewItemChecker
                 continue;
             }
 
-            var found = new ItemCheck(project, existingParents, assignable, membersText, refTypes, allRefs, $"items[{i}]", issues);
+            var found = new ItemCheck(project, existingParents, assignable, membersText, planning ?? new PlanningIds(null, null), refTypes, allRefs, $"items[{i}]", issues);
             cleaned.Add(found.Run(drafts[i]));
         }
 
@@ -58,6 +61,12 @@ internal static partial class NewItemChecker
     public static bool HasUnknownAssignee(IReadOnlyList<NewItemDraft>? items, IReadOnlySet<Guid> assignable) =>
         (items ?? []).Any(d => d?.AssigneeId is { } id && !assignable.Contains(id));
 
+    /// <summary>
+    /// 這個專案的週期、里程碑編號；null 是使用者讀不到（沒有 item.read），有項目帶 cycleId、milestoneId 時是錯誤。
+    /// 呼叫的人只在有項目用到時才去查。
+    /// </summary>
+    internal sealed record PlanningIds(IReadOnlySet<Guid>? Cycles, IReadOnlySet<Guid>? Milestones);
+
     internal static FailureDetail Issue(string path, string message) => new(AiErrorCodes.FieldInvalid, path, message);
 
     [GeneratedRegex("^[a-z0-9_-]{1,20}$", RegexOptions.CultureInvariant)]
@@ -69,6 +78,7 @@ internal static partial class NewItemChecker
         IReadOnlyDictionary<string, WorkItem> existingParents,
         IReadOnlySet<Guid> assignable,
         string? membersText,
+        PlanningIds planning,
         Dictionary<string, string?> refTypes,
         HashSet<string?> allRefs,
         string path,
@@ -94,6 +104,8 @@ internal static partial class NewItemChecker
             }
 
             CheckAssignee(draft.AssigneeId);
+            CheckPlanning("cycleId", "週期", draft.CycleId, planning.Cycles);
+            CheckPlanning("milestoneId", "里程碑", draft.MilestoneId, planning.Milestones);
             var fields = CheckFields(draft.Fields, type);
             var parentKey = CheckParents(draft, type);
             var reference = CheckRef(draft.Ref, type);
@@ -108,6 +120,8 @@ internal static partial class NewItemChecker
                 Estimate = draft.Estimate,
                 ParentKey = parentKey,
                 ParentRef = string.IsNullOrWhiteSpace(draft.ParentRef) ? null : draft.ParentRef.Trim(),
+                CycleId = draft.CycleId,
+                MilestoneId = draft.MilestoneId,
                 Fields = fields,
             };
         }
@@ -149,6 +163,23 @@ internal static partial class NewItemChecker
             if (assigneeId is { } id && !assignable.Contains(id))
             {
                 Problem("assigneeId", "assigneeId 不是這個專案的成員。" + membersText);
+            }
+        }
+
+        private void CheckPlanning(string field, string name, Guid? id, IReadOnlySet<Guid>? known)
+        {
+            if (id is not { } value)
+            {
+                return;
+            }
+
+            if (known is null)
+            {
+                Problem(field, $"你讀不到這個專案的{name}。");
+            }
+            else if (!known.Contains(value))
+            {
+                Problem(field, $"這個專案沒有這個{name}；{field} 要用 get_project 回的{name}的 id。");
             }
         }
 

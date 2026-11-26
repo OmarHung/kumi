@@ -27,6 +27,8 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
     public DbSet<NewItemProposalRow> NewItemProposals => Set<NewItemProposalRow>();
 
+    public DbSet<MemberProposalRow> MemberProposals => Set<MemberProposalRow>();
+
     public DbSet<ProjectProposalRow> ProjectProposals => Set<ProjectProposalRow>();
 
     public DbSet<LocalAgentRow> LocalAgents => Set<LocalAgentRow>();
@@ -154,6 +156,19 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
             proposal.Property(p => p.ProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
             proposal.Property(p => p.Items).HasColumnType(Jsonb);
             proposal.Property(p => p.CreatedKeys).HasColumnType(Jsonb);
+            proposal.Property(p => p.AddMembers).HasColumnType(Jsonb).HasDefaultValueSql("'[]'::jsonb");
+            proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
+            proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
+            proposal.HasIndex(p => new { p.OrganizationId, p.PersonId });
+        });
+
+        modelBuilder.Entity<MemberProposalRow>(proposal =>
+        {
+            proposal.ToTable("member_proposals");
+            proposal.HasKey(p => p.Id);
+            proposal.Property(p => p.Id).ValueGeneratedNever();
+            proposal.Property(p => p.ProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
+            proposal.Property(p => p.Changes).HasColumnType(Jsonb);
             proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
             proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
             proposal.HasIndex(p => new { p.OrganizationId, p.PersonId });

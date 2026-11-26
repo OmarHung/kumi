@@ -266,6 +266,21 @@
   font-weight: var(--weight-regular);
 }
 
+/* 人員的職稱：小字、灰字、一行，放不下用省略號（選單的寬度不夠時不推動版面）。 */
+.description {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 實心反白時職稱跟著字色（規範 7.3）；不能選的選項反白是淡底灰字，維持灰字，和 .reason 一樣。 */
+.option[data-active='true']:not([aria-disabled='true']) .description {
+  color: inherit;
+}
+
 .check {
   display: inline-flex;
   flex: none;

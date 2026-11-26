@@ -39,10 +39,16 @@ internal static class ItemProposalTools
             $"建議新增項目（不會真的建立）：使用者在 Kumi 網頁上看到後按「全部建立」才會以他自己的身分建立。一份建議 1 到 {AiRules.MaxNewItemsPerProposal} 個項目，依順序建立；" +
             "把一份需求拆成幾個任務時放在同一份。每個項目要有 type（藍圖裡的類型 key，先 get_blueprint）與 title；狀態一律從流程的第一個開始，不能指定。" +
             "要掛在新建的項目底下：前面的項目給 ref（小寫英文、數字、-、_，最多 20 字），後面的用 parentRef 指它；要掛在既有的項目底下用 parentKey，兩個只能給一個，而且藍圖要允許這個類型掛在那個類型底下。" +
-            "assignee 寫 me、none、專案成員的 Email 或人員編號（get_item 回的 members；空的專案沒有項目可讀時，錯誤訊息會列出成員）。資訊不足時先問使用者，或把不確定的寫進說明的「待確認」，不要捏造。提出之後告訴使用者「請按全部建立」，不要說已經建好了。",
+            "assignee 寫 me、none、人員編號或 Email（在整個組織裡找，list_people 能查；get_project 的 members 是專案成員）。負責人還不是專案成員時：你有管理成員的權限（get_project 的 myPermissions 有 project.manage）就把他放進 addMembers，按「全部建立」時會先加人再建項目；沒有就請使用者找 get_project 的 memberManagers 或組織管理員加人，或先指派給自己、不指派。週期與里程碑用 get_project 回的 id（cycleId、milestoneId）。資訊不足時先問使用者，或把不確定的寫進說明的「待確認」，不要捏造。提出之後告訴使用者「請按全部建立」，不要說已經建好了。",
             McpSchemas.Object(
                 required: ["projectKey", "items"],
                 ("projectKey", McpSchemas.Text("這一則對話的專案代號。")),
+                ("addMembers", McpSchemas.ArrayOf(
+                    $"建立項目之前先加進專案的人（負責人還不是成員時用），最多 {AiRules.MaxMemberChangesPerProposal} 個；已經是成員的略過、不改他的角色。",
+                    McpSchemas.ObjectOf(
+                        required: ["person"],
+                        ("person", McpSchemas.Text("人員編號或 Email。")),
+                        ("role", McpSchemas.Text("專案角色的 key（get_project 的 roles），沒給用 contributor（只看得到自己負責或建立的項目）。"))))),
                 ("items", McpSchemas.ArrayOf(
                     "要新增的項目，依建立的順序。",
                     McpSchemas.ObjectOf(
@@ -51,13 +57,15 @@ internal static class ItemProposalTools
                         ("type", McpSchemas.Text("項目類型的 key。")),
                         ("title", McpSchemas.Text("標題。")),
                         ("description", McpSchemas.Text("說明（Markdown）。")),
-                        ("assignee", McpSchemas.Text("負責人：me、none、成員的 Email 或人員編號。")),
+                        ("assignee", McpSchemas.Text("負責人：me、none、人員編號或 Email。")),
                         ("priority", McpSchemas.Text("none、low、medium、high、urgent。")),
                         ("startDate", McpSchemas.Text("開始日，yyyy-MM-dd。")),
                         ("dueDate", McpSchemas.Text("到期日，yyyy-MM-dd。")),
                         ("estimate", McpSchemas.Number("估計，數字。")),
                         ("parentKey", McpSchemas.Text("既有項目的編號，例如 WEB-12。")),
                         ("parentRef", McpSchemas.Text("同一份建議裡排在前面的項目的 ref。")),
+                        ("cycleId", McpSchemas.Text("排進這個週期（get_project 回的 cycles 的 id）。")),
+                        ("milestoneId", McpSchemas.Text("歸屬這個里程碑（get_project 回的 milestones 的 id）。")),
                         ("fields", McpSchemas.FreeObject("自訂欄位 {key: 值}。")))))),
             AccessTokenScope.AgentRun, ReadOnly: false, ProposeNewItemsAsync),
     ];
@@ -65,7 +73,12 @@ internal static class ItemProposalTools
     private static async Task<McpToolResult> ProposeNewItemsAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {
         var projectKey = context.Project(arguments.RequiredPlain("projectKey"));
-        var draft = new NewItemProposalDraft(projectKey, await NewItemArguments.ReadAsync(context, projectKey, arguments, cancellationToken));
+        // 先讀 addMembers：負責人可以是還沒加進專案、但在 addMembers 裡的人，兩邊都在整個組織裡找人。
+        var addMembers = await NewItemArguments.ReadAddMembersAsync(context, projectKey, arguments, cancellationToken);
+        var draft = new NewItemProposalDraft(projectKey, await NewItemArguments.ReadAsync(context, projectKey, arguments, cancellationToken))
+        {
+            AddMembers = addMembers,
+        };
         var created = await context.Services.NewItemProposals.CreateAsync(context.Actor, draft, cancellationToken);
         if (created.Failure is { } failure)
         {
@@ -77,7 +90,8 @@ internal static class ItemProposalTools
         {
             proposalId = proposal.Id,
             projectKey = proposal.ProjectKey,
-            items = proposal.Items.Select(item => new { @ref = item.Ref, type = item.Type, title = item.Title, parentKey = item.ParentKey, parentRef = item.ParentRef }),
+            items = proposal.Items.Select(item => new { @ref = item.Ref, type = item.Type, title = item.Title, parentKey = item.ParentKey, parentRef = item.ParentRef, cycleId = item.CycleId, milestoneId = item.MilestoneId }),
+            addMembers = proposal.AddMembers.Select(member => new { personId = member.PersonId, name = member.DisplayName, role = member.Role, roleName = member.RoleName }),
             note = NewItemsCreatedNote,
             notice = ItemReadTools.UserContentNotice,
         });

@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
 using PmTool.Abstractions;
 using PmTool.Ai;
+using PmTool.Api.Live;
 using PmTool.Api.Tests.Support;
 using PmTool.Work;
 
@@ -16,10 +18,86 @@ public sealed class NewItemProposalEndpointTests
     private const string PendingJson = """
         {"id":"55555555-5555-5555-5555-555555555555","projectKey":"WEB",
          "items":[
-           {"ref":"epic","type":"epic","title":"搬遷","description":null,"assigneeId":null,"priority":"high","startDate":null,"dueDate":null,"estimate":3.5,"parentKey":null,"parentRef":null,"fields":{}},
-           {"ref":null,"type":"task","title":"盤點資源","description":null,"assigneeId":"66666666-6666-6666-6666-666666666666","priority":null,"startDate":null,"dueDate":null,"estimate":null,"parentKey":null,"parentRef":"epic","fields":{"area":"infra"}}],
-         "createdKeys":[null,null],"status":"pending","createdAt":"2026-11-26T03:00:00Z","decidedAt":null,"error":null}
+           {"ref":"epic","type":"epic","title":"搬遷","description":null,"assigneeId":null,"priority":"high","startDate":null,"dueDate":null,"estimate":3.5,"parentKey":null,"parentRef":null,"cycleId":null,"milestoneId":null,"fields":{}},
+           {"ref":null,"type":"task","title":"盤點資源","description":null,"assigneeId":"66666666-6666-6666-6666-666666666666","priority":null,"startDate":null,"dueDate":null,"estimate":null,"parentKey":null,"parentRef":"epic","cycleId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","milestoneId":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","fields":{"area":"infra"}}],
+         "createdKeys":[null,null],"status":"pending","createdAt":"2026-11-26T03:00:00Z","decidedAt":null,"error":null,
+         "addMembers":[{"personId":"66666666-6666-6666-6666-666666666666","role":"contributor","displayName":"新人","roleName":"執行者"}]}
         """;
+
+    private sealed class RecordingNotifier : ILiveNotifier
+    {
+        public List<IReadOnlyCollection<Guid>?> AccessChanges { get; } = [];
+
+        public Task InboxChangedAsync(Guid personId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task InboxChangedAsync(IReadOnlyCollection<Guid> personIds, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void AccessChanged(IReadOnlyCollection<Guid>? personIds) => AccessChanges.Add(personIds);
+    }
+
+    private static ApiFactory NewFactory(RecordingNotifier notifier) => new(
+        FakeBlueprintValidator.Passing(),
+        new ApiFactoryOptions { ConfigureServices = services => services.AddSingleton<ILiveNotifier>(notifier) });
+
+    [Test]
+    public async Task Apply_WithAddMembers_RecalculatesTheAddedPeoplesConnections()
+    {
+        // Arrange
+        var notifier = new RecordingNotifier();
+        using var factory = NewFactory(notifier);
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PostAsync(Route + "/apply", null);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(notifier.AccessChanges.Single(), Is.EqualTo(new[] { FakeNewItemProposals.AddedPersonId }));
+        }
+    }
+
+    [Test]
+    public async Task Apply_WithAddMembersButFailed_StillRecalculatesBecauseSomeoneMayAlreadyBeAdded()
+    {
+        // Arrange
+        var notifier = new RecordingNotifier();
+        using var factory = NewFactory(notifier);
+        factory.Modules.NewItemProposals.OnApply = _ => new Failure(FailureKind.Invalid, WorkErrorCodes.TransitionNotAllowed, "不行");
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PostAsync(Route + "/apply", null);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.UnprocessableEntity));
+            Assert.That(notifier.AccessChanges.Single(), Is.EqualTo(new[] { FakeNewItemProposals.AddedPersonId }));
+        }
+    }
+
+    [Test]
+    public async Task Apply_WithoutAddMembers_NotifiesNobody()
+    {
+        // Arrange
+        var notifier = new RecordingNotifier();
+        using var factory = NewFactory(notifier);
+        factory.Modules.NewItemProposals.OnGet = _ => FakeNewItemProposals.Proposal() with { AddMembers = [] };
+        factory.Modules.NewItemProposals.OnApply = _ => FakeNewItemProposals.Proposal(NewItemProposalStatus.Applied) with { AddMembers = [] };
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+
+        // Act
+        using var response = await client.PostAsync(Route + "/apply", null);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(notifier.AccessChanges, Is.Empty);
+        }
+    }
 
     [Test]
     public async Task Get_ReturnsTheProposalInTheContractShapeForTheSignedInPerson()
@@ -58,7 +136,7 @@ public sealed class NewItemProposalEndpointTests
             Assert.That(data?["createdKeys"]?[0]?.GetValue<string>(), Is.EqualTo("WEB-13"));
             Assert.That(data?["createdKeys"]?[1], Is.Null);
             Assert.That(data?["error"]?.GetValue<string>(), Does.Contain("上層沒有建立成功"));
-            Assert.That(factory.Modules.NewItemProposals.Calls.Single().Action, Is.EqualTo("apply"));
+            Assert.That(factory.Modules.NewItemProposals.Calls.Select(call => call.Action), Is.EqualTo(new[] { "get", "apply" }), "先讀一次，才知道失敗時有沒有 addMembers");
         }
     }
 

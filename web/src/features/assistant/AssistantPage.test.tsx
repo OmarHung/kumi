@@ -120,7 +120,7 @@ describe('送出與串流', () => {
   it('工具一列一列、進行中接「…中」；提出變更集後有卡片連到變更集頁', async () => {
     // Arrange
     serveCreateConversation('SMK', NEW);
-    const tool = { type: 'tool', callId: 'c1', name: 'get_blueprint', status: 'running', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null } as const;
+    const tool = { type: 'tool', callId: 'c1', name: 'get_blueprint', status: 'running', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null } as const;
     const reply = serveReply('SMK', 'conv-new', () => undefined);
     const { user } = openAssistant();
     await typeMessage(user, 'x');
@@ -167,7 +167,7 @@ describe('送出與串流', () => {
           status: 'failed',
           error: '模型拒絕了這個要求',
           parts: [
-            { type: 'tool', callId: 'c1', name: 'preview_changeset', status: 'failed', changeSetNumber: null, error: '設定格式不對', itemProposalId: null, projectProposalId: null, newItemProposalId: null },
+            { type: 'tool', callId: 'c1', name: 'preview_changeset', status: 'failed', changeSetNumber: null, error: '設定格式不對', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null },
           ],
         }),
       });

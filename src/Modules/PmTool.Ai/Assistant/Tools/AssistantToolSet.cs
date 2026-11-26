@@ -29,5 +29,8 @@ internal static class AssistantToolSet
         new SearchItemsTool(context),
         new ProposeItemChangesTool(context),
         new ProposeNewItemsTool(context),
+        new GetProjectTool(context),
+        new ListPeopleTool(context),
+        new ProposeMemberChangesTool(context),
     ];
 }

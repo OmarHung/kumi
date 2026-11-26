@@ -1,9 +1,10 @@
 import type { Person } from '../../api/types';
 import { Avatar } from '../../components/Avatar/Avatar';
-import { List, ListRow } from '../../components/List/List';
+import { List, ListRow, type ListMeta } from '../../components/List/List';
 import { ORGANIZATION_ROLE_LABELS } from '../../domain/labels';
 import type { RenderPersonActions } from './PersonActions';
 import { PersonName } from './PersonName';
+import { profileText } from './personProfile';
 import styles from './PeoplePage.module.css';
 
 interface PeopleListProps {
@@ -12,6 +13,15 @@ interface PeopleListProps {
   readonly renderActions?: RenderPersonActions;
   /** 正在重新啟用的人：名稱後面寫「啟用中…」。 */
   readonly enablingIds?: ReadonlySet<string>;
+}
+
+/** 第二行：Email，有職稱或負責範圍時前面多一段「職稱 · 負責範圍」。 */
+function metaOf(person: Person): ListMeta[] {
+  const profile = profileText(person);
+  return [
+    ...(profile === null ? [] : [{ key: 'profile', label: '職稱與負責範圍', content: profile }]),
+    ...(person.email === null ? [] : [{ key: 'email', content: person.email }]),
+  ];
 }
 
 /**
@@ -28,7 +38,7 @@ export function PeopleList({ people, renderActions, enablingIds }: PeopleListPro
           leading={<Avatar name={person.displayName} decorative />}
           title={<PersonName person={person} isEnabling={enablingIds?.has(person.personId) === true} />}
           titleText={person.displayName}
-          meta={person.email === null ? [] : [{ key: 'email', content: person.email }]}
+          meta={metaOf(person)}
           trailing={
             <>
               <span>

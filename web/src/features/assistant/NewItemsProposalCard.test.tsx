@@ -7,6 +7,7 @@ import { queryKeys } from '../../api/queryKeys';
 import { failure, ok } from '../../test/api';
 import { makeNewItemDraft, makeNewItemProposal, serveNewItemProposal } from '../../test/assistant';
 import { exampleMember, smkDetail } from '../../test/fixtures';
+import { cycleOf, milestoneOf } from '../../test/planning';
 import { renderInRouter } from '../../test/renderInRouter';
 import { server } from '../../test/server';
 import { NewItemsProposalCard } from './NewItemsProposalCard';
@@ -207,6 +208,22 @@ describe('新增項目建議的卡片：不要與其他狀態', () => {
     expect(await view.findByText(/已略過/)).toBeInTheDocument();
     expect(backend.dismissed()).toBe(1);
     expect(view.queryByRole('button', { name: '全部建立' })).not.toBeInTheDocument();
+  });
+
+  it('不要遇到 409（別的分頁已處理）：重讀這份建議', async () => {
+    // Arrange
+    const { user, queryClient } = renderCard();
+    server.use(http.post('/v1/ai/new-item-proposals/nip-1/dismiss', () => failure(409, 'ai.new_item_proposal_closed', '關了')));
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const view = within(await card());
+
+    // Act
+    await user.click(view.getByRole('button', { name: '不要' }));
+
+    // Assert
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.newItemProposal('nip-1') });
+    });
   });
 
   it('applying（別的分頁按的）：顯示「建立中…」、沒有按鈕，伺服器變成 applied 後自動換成已建立', async () => {
@@ -448,5 +465,74 @@ describe('newItemRows：資料不合規格時的退路', () => {
 
     // Assert
     expect(row?.details).toEqual([]);
+  });
+});
+
+describe('新增項目建議的卡片：加人與週期、里程碑', () => {
+  it('addMembers 不是空的：清單上面寫會先加入哪些人與角色，建立後專案詳細資料與人員失效', async () => {
+    // Arrange
+    const proposal = makeNewItemProposal({
+      addMembers: [
+        { personId: 'p-2', role: 'contributor', displayName: '甲', roleName: '執行者' },
+        { personId: 'p-3', role: 'editor', displayName: '乙', roleName: null },
+      ],
+    });
+    const { user, queryClient } = renderCard(proposal);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const view = within(await card());
+
+    // Assert
+    expect(view.getByText('會先把 甲（執行者）、乙（editor） 加入專案')).toBeInTheDocument();
+    await user.click(view.getByRole('button', { name: '全部建立' }));
+    await view.findByRole('link', { name: 'SMK-13' });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.project('SMK'), exact: true });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.people });
+  });
+
+  it('沒有 addMembers 時不寫那一行，也不讓成員失效', async () => {
+    // Arrange
+    const { user, queryClient } = renderCard();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const view = within(await card());
+
+    // Act
+    await user.click(view.getByRole('button', { name: '全部建立' }));
+
+    // Assert
+    await view.findByRole('link', { name: 'SMK-13' });
+    expect(view.queryByText(/會先把/)).not.toBeInTheDocument();
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: queryKeys.people });
+  });
+
+  it('第二行寫週期與里程碑的名稱', async () => {
+    // Arrange
+    const cycle = cycleOf('第一輪', '2026-12-01', '2026-12-14');
+    const milestone = milestoneOf('上線', '2026-12-31');
+    server.use(
+      http.get('/v1/projects/SMK/cycles', () => ok([cycle])),
+      http.get('/v1/projects/SMK/milestones', () => ok([milestone])),
+    );
+
+    // Act
+    renderCard(makeNewItemProposal({ items: [makeNewItemDraft({ cycleId: cycle.id, milestoneId: milestone.id })] }));
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText(/週期 第一輪/)).toHaveTextContent('週期 第一輪 · 里程碑 上線');
+  });
+
+  it('查不到或讀不到名稱時只寫「週期」「里程碑」', async () => {
+    // Arrange
+    server.use(
+      http.get('/v1/projects/SMK/cycles', () => ok([])),
+      http.get('/v1/projects/SMK/milestones', () => failure(500, 'server.error', '壞了')),
+    );
+
+    // Act
+    renderCard(makeNewItemProposal({ items: [makeNewItemDraft({ cycleId: 'gone', milestoneId: 'x' })] }));
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText('週期 · 里程碑')).toBeInTheDocument();
   });
 });

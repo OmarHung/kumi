@@ -1,11 +1,14 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Item } from '../../api/types';
-import { signedInAs } from '../../test/api';
+import { http } from 'msw';
+import { ok, signedInAs } from '../../test/api';
 import { agyDetail, agyItem, exampleOwner, smkDetail, smkItem } from '../../test/fixtures';
 import { serveItems } from '../../test/items';
+import { memberPerson, ownerPerson } from '../../test/people';
 import { renderApp } from '../../test/renderApp';
 import { chooseOption, openOptions } from '../../test/select';
+import { server } from '../../test/server';
 
 /*
  * 下拉的選項前面的小圖（docs/DESIGN.md 7.3）：狀態是狀態類別的形狀、人員是頭像；同一個清單裡要嘛全部有、要嘛全部沒有，
@@ -142,6 +145,23 @@ describe('下拉選項前面的小圖：人員', () => {
     expect(leadingOf(optionNamed(options, '範例成員'))).toHaveTextContent('範');
     // 格子裡的按鈕是格子平常的樣子（docs/DESIGN.md 8.3「就地編輯」）：表格的負責人格只有名字。
     expect(select).toHaveTextContent(/^範例使用者$/);
+  });
+
+  it('負責人格：成員有職稱時寫在名稱下面（人員清單來的），沒有職稱的沒有', async () => {
+    // Arrange
+    server.use(http.get('/v1/people', () => ok([{ ...memberPerson, jobTitle: '前端工程師' }, ownerPerson])));
+    const { user, row } = await openSmkRow(smkItem({ number: 1 }));
+
+    // Act
+    await user.click(within(row).getByRole('button', { name: '負責人：範例使用者' }));
+    const select = await within(row).findByRole('combobox', { name: '負責人' });
+    await openOptions(user, select);
+
+    // Assert
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: '範例成員' })).toHaveAccessibleDescription('前端工程師');
+    });
+    expect(screen.getByRole('option', { name: '範例使用者' })).not.toHaveAttribute('aria-describedby');
   });
 
   it('人員欄位的值是已經不是成員的人：選項接在最後，小圖是沒有字的頭像（名字查不到）', async () => {

@@ -14,6 +14,7 @@ public sealed class McpAgentToolLimitTests
     [
         "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset", "get_changeset",
         "get_item", "search_items", "propose_item_changes", "propose_new_items",
+        "get_project", "list_people", "propose_member_changes",
     ];
 
     private static readonly AccessTokenScope[] AgentScopes =
@@ -47,7 +48,7 @@ public sealed class McpAgentToolLimitTests
         // Assert
         Assert.That(
             tools.Select(tool => tool.Name),
-            Is.EquivalentTo(new[] { "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "get_changeset", "propose_item_changes", "propose_new_items" }));
+            Is.EquivalentTo(new[] { "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "get_changeset", "propose_item_changes", "propose_new_items", "propose_member_changes" }));
     }
 
     [Test]
@@ -122,7 +123,7 @@ public sealed class McpAgentToolLimitTests
         {
             Assert.That(tools, Does.Contain("update_item").And.Contain("list_projects").And.Contain("my_work"));
             Assert.That(tools, Does.Not.Contain("propose_item_changes"));
-            Assert.That(tools, Has.Length.EqualTo(16));
+            Assert.That(tools, Has.Length.EqualTo(18));
         }
     }
 }

@@ -19,10 +19,12 @@ import { EmptyValue } from '../work-items/ItemCells';
 import { AuditLogSection } from './AuditLogSection';
 import { ChangeRoleDialog } from './ChangeRoleDialog';
 import { DisablePersonDialog } from './DisablePersonDialog';
+import { EditProfileDialog } from './EditProfileDialog';
 import { NewPersonDialog } from './NewPersonDialog';
 import { PeopleList } from './PeopleList';
 import { PersonActions, type RenderPersonActions } from './PersonActions';
 import { PersonName } from './PersonName';
+import { profileText } from './personProfile';
 import { usePeopleAdmin, type PeopleAdmin } from './usePeopleAdmin';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import styles from './PeoplePage.module.css';
@@ -37,6 +39,17 @@ interface PeopleViewProps {
   readonly renderActions: RenderPersonActions | undefined;
   /** 正在重新啟用的人：名稱後面寫「啟用中…」。 */
   readonly enablingIds: ReadonlySet<string>;
+}
+
+/** 名稱下面的「職稱 · 負責範圍」（次要文字）；兩個都沒有就不畫。放不下用省略號，完整的字在 title。 */
+function PersonProfileLine({ person }: { readonly person: Person }) {
+  const text = profileText(person);
+  if (text === null) return null;
+  return (
+    <span className={styles.profile} title={text}>
+      {text}
+    </span>
+  );
 }
 
 function PeopleTable({ people, renderActions, enablingIds }: PeopleViewProps) {
@@ -63,7 +76,12 @@ function PeopleTable({ people, renderActions, enablingIds }: PeopleViewProps) {
               <td className={tableStyles.primaryCell}>
                 <span className={styles.name}>
                   <Avatar name={person.displayName} size="sm" decorative />
-                  <PersonName person={person} isEnabling={enablingIds.has(person.personId)} />
+                  <span className={styles.nameStack}>
+                    <span className={styles.nameLine}>
+                      <PersonName person={person} isEnabling={enablingIds.has(person.personId)} />
+                    </span>
+                    <PersonProfileLine person={person} />
+                  </span>
                 </span>
               </td>
               <td className={tableStyles.muted}>{person.email ?? <EmptyValue label="沒有 Email" />}</td>
@@ -115,11 +133,14 @@ function roleChangedMessage(before: Person, after: Person): string {
     : `已把「${after.displayName}」的組織角色改成「${role}」。`;
 }
 
-/** 變更角色、停用的確認與重設密碼的對話框：成功時關上，結果寫在頁面上方。 */
+/** 編輯職稱、變更角色、停用的確認與重設密碼的對話框：成功時關上，結果寫在頁面上方。 */
 function PersonDialogs({ admin }: { readonly admin: PeopleAdmin }) {
   const { dialog, closeDialog, finish } = admin;
   if (dialog === null) return null;
   const { person } = dialog;
+  if (dialog.kind === 'editProfile') {
+    return <EditProfileDialog person={person} onClose={closeDialog} onSaved={(saved) => { finish(`已更新「${saved.displayName}」的職稱與負責範圍。`); }} />;
+  }
   if (dialog.kind === 'changeRole') {
     return <ChangeRoleDialog person={person} onClose={closeDialog} onChanged={(changed) => { finish(roleChangedMessage(person, changed)); }} />;
   }

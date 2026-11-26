@@ -41,6 +41,9 @@ interface SelectEntryProps {
 
 function SelectEntry({ option, groupLabel, id, isSelected, isActive, onPoint, onChoose }: SelectEntryProps) {
   const reason = option.disabledReason;
+  const describedBy = [reason === undefined ? null : `${id}-reason`, option.description === undefined ? null : `${id}-description`]
+    .filter((entry) => entry !== null)
+    .join(' ');
   return (
     <>
       {groupLabel !== undefined && (
@@ -58,7 +61,7 @@ function SelectEntry({ option, groupLabel, id, isSelected, isActive, onPoint, on
       aria-selected={isSelected}
       aria-disabled={reason !== undefined || undefined}
       aria-labelledby={`${id}-name`}
-      aria-describedby={reason === undefined ? undefined : `${id}-reason`}
+      aria-describedby={describedBy === '' ? undefined : describedBy}
       onPointerMove={onPoint}
       onClick={onChoose}
     >
@@ -69,6 +72,11 @@ function SelectEntry({ option, groupLabel, id, isSelected, isActive, onPoint, on
       )}
       <span className={styles.optionText}>
         <span id={`${id}-name`}>{option.label}</span>
+        {option.description !== undefined && (
+          <span id={`${id}-description`} className={styles.description}>
+            {option.description}
+          </span>
+        )}
         {reason !== undefined && (
           <span id={`${id}-reason`} className={styles.reason}>
             {reason}

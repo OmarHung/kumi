@@ -150,6 +150,104 @@ public sealed class McpNewItemProposalToolTests
     }
 
     [Test]
+    public async Task Call_AddMembersCycleAndMilestone_ArePassedToTheCreator()
+    {
+        // Arrange：Guest 在組織裡、不是這個專案的成員：整個組織裡找得到，是不是成員交給建立端判斷。
+        await using var mcp = await McpHarness.StartForAgentAsync("WEB", AgentScopes);
+
+        // Act
+        var (isError, body) = await mcp.CallAsync("propose_new_items", new
+        {
+            projectKey = "WEB",
+            addMembers = new object[]
+            {
+                new { person = TestUsers.Guest.Email },
+                new { person = TestUsers.Owner.PersonId.ToString(), role = "editor" },
+            },
+            items = new[]
+            {
+                new { type = "task", title = "T", assignee = TestUsers.Guest.PersonId.ToString(), cycleId = FakeStaffingBrief.CycleId.ToString(), milestoneId = FakeStaffingBrief.MilestoneId.ToString() },
+            },
+        });
+
+        // Assert
+        var draft = mcp.Modules.NewItemProposals.Creates.Single().Draft;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.False, body.ToJsonString());
+            Assert.That(draft.AddMembers, Is.EqualTo(new[] { new MemberAddition(TestUsers.Guest.PersonId, "contributor"), new MemberAddition(TestUsers.Owner.PersonId, "editor") }));
+            Assert.That(draft.Items.Single().AssigneeId, Is.EqualTo(TestUsers.Guest.PersonId), "不是成員的人也換成編號，由建立端判斷");
+            Assert.That((draft.Items.Single().CycleId, draft.Items.Single().MilestoneId), Is.EqualTo(((Guid?)FakeStaffingBrief.CycleId, (Guid?)FakeStaffingBrief.MilestoneId)));
+            Assert.That(body["addMembers"]?[0]?["name"]?.GetValue<string>(), Is.EqualTo("新人"), "結果回的是模組建立出來的建議");
+            Assert.That(body["items"]?[1]?["cycleId"]?.GetValue<Guid>(), Is.EqualTo(FakeNewItemProposals.CycleId));
+        }
+    }
+
+    [TestCase("""{"projectKey":"WEB","addMembers":[{"role":"editor"}],"items":[{"type":"task","title":"x"}]}""")]
+    [TestCase("""{"projectKey":"WEB","addMembers":[{"person":"me","extra":1}],"items":[{"type":"task","title":"x"}]}""")]
+    [TestCase("""{"projectKey":"WEB","addMembers":["me"],"items":[{"type":"task","title":"x"}]}""")]
+    [TestCase("""{"projectKey":"WEB","addMembers":[{"person":"nobody@example.com"}],"items":[{"type":"task","title":"x"}]}""")]
+    [TestCase("""{"projectKey":"WEB","items":[{"type":"task","title":"x","cycleId":"not-a-guid"}]}""")]
+    [TestCase("""{"projectKey":"WEB","items":[{"type":"task","title":"x","milestoneId":5}]}""")]
+    public async Task Call_BadAddMembersCycleOrMilestone_AreToolErrorsAndNothingIsCreated(string json)
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartForAgentAsync("WEB", AgentScopes);
+
+        // Act
+        var (isError, _) = await mcp.CallAsync("propose_new_items", JsonSerializer.Deserialize<JsonElement>(json));
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.True);
+            Assert.That(mcp.Modules.NewItemProposals.Creates, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task Call_MoreAddMembersThanTheLimit_IsRefusedBeforeLookingAnyoneUp()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartForAgentAsync("WEB", AgentScopes);
+
+        // Act
+        var (isError, body) = await mcp.CallAsync("propose_new_items", new
+        {
+            projectKey = "WEB",
+            addMembers = Enumerable.Range(0, AiRules.MaxMemberChangesPerProposal + 1).Select(_ => new { person = "nobody@example.com" }).ToArray(),
+            items = new[] { new { type = "task", title = "T" } },
+        });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.True);
+            Assert.That(body["error"]?.GetValue<string>(), Does.Contain("addMembers").And.Not.Contain("找不到這個人"));
+        }
+    }
+
+    [Test]
+    public async Task Call_GuestCaller_AssigneeIsStillLimitedToProjectMembers()
+    {
+        // Arrange：訪客不能在整個組織裡找人（AG-10）。
+        await using var mcp = await McpHarness.StartAsync(TestUsers.Guest, "WEB", AgentScopes);
+        mcp.Modules.People.Add(
+            TestUsers.OrganizationId, new PersonSummary(Guid.NewGuid(), "路人", "stranger@example.com", OrganizationRole.Member, IsDisabled: false));
+
+        // Act
+        var (isError, body) = await mcp.CallAsync(
+            "propose_new_items", new { projectKey = "WEB", items = new[] { new { type = "task", title = "T", assignee = "stranger@example.com" } } });
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.True);
+            Assert.That(body["error"]?.GetValue<string>(), Does.Contain("找不到可以指派的人"));
+        }
+    }
+
+    [Test]
     public async Task Call_ItemsGivenAsAJsonString_AreAccepted()
     {
         // Arrange

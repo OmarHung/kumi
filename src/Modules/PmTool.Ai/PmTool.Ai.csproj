@@ -22,11 +22,12 @@
     <InternalsVisibleTo Include="PmTool.Ai.Tests" />
   </ItemGroup>
 
-  <!-- 助理的系統提示：自己寫的規則，加上藍圖格式的 Schema 與「結構怎麼決定」的建議。後兩份和 CLI 的代理共用同一份原文，不另抄一份。 -->
+  <!-- 助理的系統提示：自己寫的規則，加上藍圖格式的 Schema、「結構怎麼決定」與「需求怎麼寫成項目」的建議。後兩份和 CLI 的代理共用同一份原文，不另抄一份。 -->
   <ItemGroup>
     <EmbeddedResource Include="Assistant\Prompts\*.md" LogicalName="PmTool.Ai.Prompts.%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\..\..\schemas\blueprint\v0\*.schema.json" LogicalName="PmTool.Ai.Prompts.%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\..\..\skills\kumi-planning\references\structure.md" LogicalName="PmTool.Ai.Prompts.planning-structure.md" />
+    <EmbeddedResource Include="..\..\..\skills\kumi-planning\references\capture.md" LogicalName="PmTool.Ai.Prompts.planning-capture.md" />
   </ItemGroup>
 
   <!-- 內嵌的參考資料不在時，EmbeddedResource 不會讓建置失敗，助理要到第一次回覆才出錯（例如映像檔沒有複製 skills/）。
@@ -34,6 +35,8 @@
   <Target Name="RequireAssistantPromptReferences" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\skills\kumi-planning\references\structure.md')"
            Text="找不到 AI 助理的參考資料 skills/kumi-planning/references/structure.md（建置映像檔時要一起複製）。" />
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\skills\kumi-planning\references\capture.md')"
+           Text="找不到 AI 助理的參考資料 skills/kumi-planning/references/capture.md（建置映像檔時要一起複製）。" />
     <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\..\..\schemas\blueprint\v0\project-blueprint.schema.json')"
            Text="找不到 AI 助理的參考資料 schemas/blueprint/v0/project-blueprint.schema.json。" />
   </Target>

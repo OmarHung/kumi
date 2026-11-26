@@ -13,9 +13,9 @@ import { server } from '../../test/server';
 const designer: Member = { personId: '0190a000-0000-7000-8000-000000000003', displayName: '範例設計師', role: 'project_manager' };
 
 const people: Person[] = [
-  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false },
-  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false },
-  { ...designer, email: 'designer@example.com', role: 'member', disabled: false },
+  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false, jobTitle: null, responsibilities: null },
+  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false, jobTitle: null, responsibilities: null },
+  { ...designer, email: 'designer@example.com', role: 'member', disabled: false, jobTitle: null, responsibilities: null },
 ];
 
 async function openDialog(detail: ProjectDetail, viewer: SessionUser = exampleOwner) {

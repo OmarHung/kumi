@@ -81,7 +81,7 @@ public sealed class NewItemAgentTests
     }
 
     [TestCase("0.14.0", false)]
-    [TestCase(NewVersion, true)]
+    [TestCase(AiRules.MinAgentVersionForStaffingTools, true)]
     public async Task HostJob_HasTheNewItemsToolOnlyForAWorkerThatIsNewEnough(string version, bool hasTool)
     {
         // Arrange

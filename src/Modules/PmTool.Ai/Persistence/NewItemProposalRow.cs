@@ -29,6 +29,9 @@ internal sealed record NewItemProposalRow
     /// <summary>jsonb：和 <see cref="Items"/> 一樣長，已建立的是項目編號、其他是 null。</summary>
     public required string CreatedKeys { get; init; }
 
+    /// <summary>jsonb：建立項目之前先加進專案的人（<see cref="MemberAddition"/> 陣列）；舊的資料列是 <c>[]</c>。</summary>
+    public string AddMembers { get; init; } = "[]";
+
     /// <summary>pending、applying、applied、dismissed。</summary>
     public required string Status { get; init; }
 

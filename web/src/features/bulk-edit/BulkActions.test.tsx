@@ -1,7 +1,10 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Item } from '../../api/types';
-import { signedInAs } from '../../test/api';
+import { http } from 'msw';
+import { ok, signedInAs } from '../../test/api';
+import { memberPerson } from '../../test/people';
+import { server } from '../../test/server';
 import { serveBulkUpdate } from '../../test/bulk';
 import { agyDetail, agyItem, exampleMember, exampleOwner, smkDetail, smkItem } from '../../test/fixtures';
 import { serveItems } from '../../test/items';
@@ -126,6 +129,26 @@ describe('批次動作列：送出', () => {
       ]);
     });
     expect(await within(rowOf(table, 'SMK-1')).findByRole('button', { name: '負責人：未填' })).toBeInTheDocument();
+  });
+
+  it('負責人的選單：不打開不讀人員清單，打開才讀，選項名稱下面寫職稱', async () => {
+    // Arrange
+    let peopleRequests = 0;
+    server.use(
+      http.get('/v1/people', () => {
+        peopleRequests += 1;
+        return ok([{ ...memberPerson, jobTitle: '前端工程師' }]);
+      }),
+    );
+    const { user, bar } = await openBar();
+    expect(peopleRequests).toBe(0);
+
+    // Act
+    await openOptions(user, within(bar).getByRole('combobox', { name: '負責人' }));
+
+    // Assert
+    expect(await screen.findByRole('option', { name: /範例成員/ })).toHaveTextContent('前端工程師');
+    expect(peopleRequests).toBe(1);
   });
 
   it('改優先度', async () => {

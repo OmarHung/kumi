@@ -225,6 +225,18 @@ public sealed class EngineSpecTests
         }
     }
 
+    [Test]
+    public void KnownTools_IncludeTheStaffingTools_SoAJobWithThemIsNotRefused()
+    {
+        // Assert：不認得的工具會讓整件工作不跑，所以三個新工具要在清單裡。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(JobValidation.KnownTools, Is.SupersetOf(new[] { "get_project", "list_people", "propose_member_changes" }));
+            Assert.That(
+                JobValidation.Check(TestJobs.Make() with { AllowedTools = ["get_item", "get_project", "list_people", "propose_member_changes"] }, Server), Is.Null);
+        }
+    }
+
     [TestCase("DEMO", true)]
     [TestCase("A", true)]
     [TestCase("ABCDEFGHIJ0123456789", true)]

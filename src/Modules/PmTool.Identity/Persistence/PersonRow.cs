@@ -12,4 +12,10 @@ internal sealed record PersonRow
     public required OrganizationRole Role { get; init; }
 
     public required DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>職稱；沒有是 null。AI 助理靠它判斷該指派給誰。</summary>
+    public string? JobTitle { get; init; }
+
+    /// <summary>負責範圍，一行字；沒有是 null。</summary>
+    public string? Responsibilities { get; init; }
 }

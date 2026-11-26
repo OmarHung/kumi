@@ -1,7 +1,7 @@
 import { Button } from '../../components/Button/Button';
 import styles from './Assistant.module.css';
 
-export const EXAMPLES: readonly string[] = ['把驗收拆成內部驗收和客戶驗收', '幫我看設定有沒有用不到的欄位或狀態', '加一個「客戶」單選欄位'];
+export const EXAMPLES: readonly string[] = ['幫我建一個任務，派給適合的人', '把這份需求拆成幾個任務', '加一個「客戶」單選欄位'];
 /** 選了項目時的例子。 */
 export const ITEM_EXAMPLES: readonly string[] = ['整理這個項目的重點', '草擬一則回覆留言', '這個項目下一步該做什麼'];
 
@@ -10,7 +10,7 @@ export const ORGANIZATION_EXAMPLES: readonly string[] = ['有哪些內建模板�
 const ORGANIZATION_INTRO =
   '不選專案時，助理可以介紹內建的模板、幫你規劃專案的結構，也能提出新專案的建議，你按「建立專案」才會建立（只有組織管理員建得成）。它不會讀專案裡的項目。';
 const PROJECT_INTRO =
-  '描述你想怎麼改這個專案的設定，助理會讀目前的設定、算出影響，提出變更集讓你核准。選了項目時，助理也能讀那個項目、建議怎麼改（你按「套用」才會改）。它不會直接改設定。';
+  '告訴助理你想做的事：建任務並派給適合的人、把需求拆成幾個任務、把同事加進專案、調整專案的設定。助理會讀專案的成員與設定，提出建議讓你確認，你按了「全部建立」或核准變更集才會生效，它不會直接改任何東西。選了項目時，助理也能讀那個項目、建議怎麼改（你按「套用」才會改）。';
 
 interface EmptyIntroProps {
   readonly onPick: (text: string) => void;

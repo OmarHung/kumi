@@ -239,6 +239,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<ICliLoginService>();
         services.RemoveAll<IAuditLog>();
         services.RemoveAll<IPeopleDirectory>();
+        services.RemoveAll<IPersonProfileService>();
         services.RemoveAll<IIdentityBootstrapper>();
         services.RemoveAll<IProjectService>();
         services.RemoveAll<IProjectDescriptionService>();
@@ -268,6 +269,9 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<IItemProposalCreator>();
         services.RemoveAll<INewItemProposalService>();
         services.RemoveAll<INewItemProposalCreator>();
+        services.RemoveAll<IMemberProposalService>();
+        services.RemoveAll<IMemberProposalCreator>();
+        services.RemoveAll<IStaffingBriefService>();
         services.RemoveAll<IProjectProposalService>();
         services.RemoveAll<IProjectProposalCreator>();
         services.RemoveAll<ILocalAgentService>();
@@ -290,6 +294,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<ICliLoginService>(Modules.CliLogin);
         services.AddSingleton<IAuditLog>(Modules.Audit);
         services.AddSingleton<IPeopleDirectory>(Modules.People);
+        services.AddSingleton<IPersonProfileService>(Modules.People);
         services.AddSingleton<IIdentityBootstrapper>(Modules.Bootstrapper);
         services.AddSingleton<IProjectService>(Modules.Projects);
         services.AddSingleton<IProjectDescriptionService>(Modules.Descriptions);
@@ -321,6 +326,9 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<IItemProposalCreator>(Modules.ItemProposals);
         services.AddSingleton<INewItemProposalService>(Modules.NewItemProposals);
         services.AddSingleton<INewItemProposalCreator>(Modules.NewItemProposals);
+        services.AddSingleton<IMemberProposalService>(Modules.MemberProposals);
+        services.AddSingleton<IMemberProposalCreator>(Modules.MemberProposals);
+        services.AddSingleton<IStaffingBriefService>(Modules.Staffing);
         services.AddSingleton<IProjectProposalService>(Modules.ProjectProposals);
         services.AddSingleton<IProjectProposalCreator>(Modules.ProjectProposals);
         services.AddSingleton<ILocalAgentService>(Modules.LocalAgents);

@@ -4,9 +4,11 @@ import { isOrganizationAdmin, useCurrentUser } from '../../auth/CurrentUser';
 import { Avatar } from '../../components/Avatar/Avatar';
 import { Badge } from '../../components/Badge/Badge';
 import { projectRoleLabel } from '../../domain/labels';
+import { usePersonTitles } from '../people/usePersonTitles';
 import { isLastAdmin, roleOptions, type MemberFeedback } from './memberRoles';
 import { RemoveMemberButton } from './RemoveMember';
 import { RoleSelect } from './RoleSelect';
+import styles from './MembersDialog.module.css';
 
 export interface MemberPartsProps extends MemberFeedback {
   readonly detail: ProjectDetail;
@@ -24,6 +26,8 @@ export interface MemberParts {
   readonly avatar: ReactNode;
   /** 名字，自己後面標「你」。 */
   readonly name: ReactNode;
+  /** 名稱加職稱的純文字：表格裡被截斷時放在 title，看得到完整的內容。 */
+  readonly nameText: string;
   readonly role: ReactNode;
   readonly remove: ReactNode;
 }
@@ -44,6 +48,7 @@ export function isLockedAdmin(user: SessionUser, detail: ProjectDetail, member: 
 export function useMemberParts(props: MemberPartsProps, avatarSize: 'sm' | 'md'): MemberParts {
   const { detail, member, canManage, idPrefix, lastAdminNoteId, onRemove, onSaved, onFailed } = props;
   const user = useCurrentUser();
+  const jobTitle = usePersonTitles().get(member.personId);
   const isLocked = isLockedAdmin(user, detail, member, canManage);
   const reasonId = isLocked ? lastAdminNoteId : undefined;
   const role = canManage ? (
@@ -65,7 +70,9 @@ export function useMemberParts(props: MemberPartsProps, avatarSize: 'sm' | 'md')
     <>
       {member.displayName}
       {member.personId === user.personId && <> <Badge>你</Badge></>}
+      {jobTitle !== undefined && <> <span className={styles.jobTitle}>{jobTitle}</span></>}
     </>
   );
-  return { avatar: <Avatar name={member.displayName} size={avatarSize} decorative />, name, role, remove };
+  const nameText = jobTitle === undefined ? member.displayName : `${member.displayName} · ${jobTitle}`;
+  return { avatar: <Avatar name={member.displayName} size={avatarSize} decorative />, name, nameText, role, remove };
 }

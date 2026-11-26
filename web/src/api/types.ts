@@ -315,6 +315,10 @@ export interface Person {
    * （internal/HANDOFF-security-local-ops.md 第 2 節第 3 點）。
    */
   readonly disabled: boolean;
+  /** 職稱（例如「前端工程師」），組織管理員在人員頁設；沒有是 null（internal/HANDOFF-ai-assign.md）。 */
+  readonly jobTitle: string | null;
+  /** 負責範圍，一行字；沒有是 null。 */
+  readonly responsibilities: string | null;
 }
 
 /** 登出其他裝置的回應：因此作廢的其他工作階段數（0 是沒有別的登入）。 */
@@ -380,6 +384,12 @@ export interface ResetPasswordRequest {
 
 export interface SetPersonRoleRequest {
   readonly role: OrganizationRole;
+}
+
+/** 設定職稱與負責範圍：兩個都整個換掉，要清掉就給 null（internal/HANDOFF-ai-assign.md）。 */
+export interface SetPersonProfileRequest {
+  readonly jobTitle: string | null;
+  readonly responsibilities: string | null;
 }
 
 /** 網頁回報的例外是哪一種：window 的 error、沒有人接的 Promise 失敗、路由的錯誤頁（畫面出錯）。 */

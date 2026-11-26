@@ -233,7 +233,7 @@ internal sealed partial class AssistantService
     {
         var found = await people.FindManyAsync(actor.OrganizationId, [actor.PersonId], cancellationToken);
         return found.TryGetValue(actor.PersonId, out var person)
-            ? new Asker(person.PersonId, person.DisplayName, person.Email, person.Role)
+            ? new Asker(person.PersonId, person.DisplayName, person.Email, person.Role, person.JobTitle)
             : null;
     }
 

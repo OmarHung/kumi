@@ -121,6 +121,9 @@ public static class LocalAgentTools
         "search_items",
         "propose_item_changes",
         "propose_new_items",
+        "get_project",
+        "list_people",
+        "propose_member_changes",
     ];
 
     public static bool IsAllowed(string toolName) => Allowed.Contains(toolName);

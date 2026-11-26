@@ -43,8 +43,8 @@ RUN dotnet restore src/PmTool.Api/PmTool.Api.csproj
 
 # schemas/ 要放在和 repo 相同的相對位置：藍圖模組用萬用字元內嵌 Schema，路徑對不到時建置不會失敗，只會內嵌零個檔案。
 COPY schemas/ schemas/
-# AI 助理的系統提示內嵌「結構怎麼決定」的建議，和 CLI 的代理共用同一份原文（PmTool.Ai.csproj）。
-COPY skills/kumi-planning/references/structure.md skills/kumi-planning/references/
+# AI 助理的系統提示內嵌「結構怎麼決定」與「需求怎麼寫成項目」的建議，和 CLI 的代理共用同一份原文（PmTool.Ai.csproj）。
+COPY skills/kumi-planning/references/structure.md skills/kumi-planning/references/capture.md skills/kumi-planning/references/
 COPY src/ src/
 RUN dotnet publish src/PmTool.Api/PmTool.Api.csproj -c Release --no-restore -o /app/publish -p:UseAppHost=false
 

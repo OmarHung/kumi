@@ -56,6 +56,7 @@ public static class WorkModule
         services.TryAddSingleton<BlueprintCache>();
         services.TryAddScoped<IProjectService, ProjectService>();
         services.TryAddScoped<IProjectDescriptionService, ProjectDescriptionService>();
+        services.TryAddScoped<IProjectStaffingQueries, ProjectStaffingQueries>();
         services.TryAddScoped<IBlueprintUsageService, BlueprintUsageService>();
         services.TryAddSingleton<ITemplateLibrary, TemplateLibrary>();
         services.TryAddScoped<IWorkItemService, WorkItemService>();

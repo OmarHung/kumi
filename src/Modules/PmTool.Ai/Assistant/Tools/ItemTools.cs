@@ -69,7 +69,7 @@ internal sealed class GetItemTool(AssistantToolContext context) : AssistantTool(
             hasMoreChildren = children.Value.NextCursor is not null,
             members = project.Value.Members
                 .Where(member => names.IsAssignable(member.PersonId))
-                .Select(member => new { id = member.PersonId, name = names.NameOf(member.PersonId), role = member.Role }),
+                .Select(member => new { id = member.PersonId, name = names.NameOf(member.PersonId), role = member.Role, jobTitle = names.JobTitleOf(member.PersonId) }),
             activities = activities.Value.Items.Select(activity => ItemShapes.Activity(activity, names)),
         });
     }

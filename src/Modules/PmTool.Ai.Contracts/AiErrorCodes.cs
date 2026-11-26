@@ -93,6 +93,12 @@ public static class AiErrorCodes
     /// <summary>這份新增項目的建議已經套用、作廢或正在建立（409）。</summary>
     public const string NewItemProposalClosed = "ai.new_item_proposal_closed";
 
+    /// <summary>成員建議不存在、不是自己的，或專案已經看不到（404）。</summary>
+    public const string MemberProposalNotFound = "ai.member_proposal_not_found";
+
+    /// <summary>成員建議已經套用或作廢了（409）。</summary>
+    public const string MemberProposalClosed = "ai.member_proposal_closed";
+
     /// <summary>新專案建議不存在或不是自己的（404）。</summary>
     public const string ProjectProposalNotFound = "ai.project_proposal_not_found";
 

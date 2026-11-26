@@ -423,6 +423,30 @@ public sealed class McpReadToolTests
     }
 
     [Test]
+    public async Task GetItem_MemberWithAJobTitle_ListsItSoTheModelCanPickWhoToAssign()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartAsync();
+        mcp.Modules.People.Add(
+            TestUsers.Owner.OrganizationId,
+            new PersonSummary(TestUsers.Owner.PersonId, TestUsers.Owner.DisplayName, TestUsers.Owner.Email, OrganizationRole.Owner, IsDisabled: false)
+            {
+                JobTitle = "前端工程師",
+            });
+
+        // Act
+        var (_, body) = await mcp.CallAsync("get_item", new { itemKey = "WEB-1" });
+
+        // Assert
+        var members = body["members"]!.AsArray();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(members.Single(m => m!["id"]!.GetValue<Guid>() == TestUsers.Owner.PersonId)!["jobTitle"]?.GetValue<string>(), Is.EqualTo("前端工程師"));
+            Assert.That(members.Single(m => m!["id"]!.GetValue<Guid>() == TestUsers.Member.PersonId)!.AsObject().ContainsKey("jobTitle"), Is.False);
+        }
+    }
+
+    [Test]
     public async Task GetItem_DisabledMember_IsNotInTheMembersList()
     {
         // Arrange：停用的人不能被指派，名單裡也不列（和負責人的檢查同一份名單）。

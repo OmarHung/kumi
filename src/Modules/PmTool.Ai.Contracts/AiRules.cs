@@ -44,6 +44,12 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForNewItemProposals = "0.15.0";
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放 get_project、list_people、propose_member_changes（理由同 <see cref="MinAgentVersionForNewItemProposals"/>）。
+    /// 舊版照樣能用，只是少了這三個工具；提示裡請模型在要用到時叫使用者 <c>kumi update</c>。
+    /// </summary>
+    public const string MinAgentVersionForStaffingTools = "0.16.0";
+
     public const int MaxMachineNameLength = 60;
 
     /// <summary>一個引擎最多列幾個模型。</summary>
@@ -105,6 +111,12 @@ public static class AiRules
 
     /// <summary>一份新增項目的建議最多幾個項目（把一份需求拆成幾個任務夠用；再多請分幾次）。</summary>
     public const int MaxNewItemsPerProposal = 20;
+
+    /// <summary>一份成員建議最多幾筆（新增項目建議的 addMembers 也是這個上限）。</summary>
+    public const int MaxMemberChangesPerProposal = 10;
+
+    /// <summary>list_people 一次最多列幾個人。</summary>
+    public const int MaxPeopleListed = 100;
 
     /// <summary>新增項目的建議停在「建立中」超過這麼久，當作建立的過程中斷了（程序在中途結束），讀出來是已套用加說明。</summary>
     public static readonly TimeSpan NewItemProposalApplyStale = TimeSpan.FromMinutes(5);

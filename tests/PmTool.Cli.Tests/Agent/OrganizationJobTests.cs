@@ -214,6 +214,16 @@ public sealed class OrganizationJobTests
     }
 
     [Test]
+    public void ToolEvent_SerializesTheMemberProposalId()
+    {
+        // Act
+        var json = new ToolEvent("c1", "propose_member_changes", "done", MemberProposalId: ProposalId).ToJson();
+
+        // Assert
+        Assert.That(json["memberProposalId"]!.GetValue<string>(), Is.EqualTo(ProposalId));
+    }
+
+    [Test]
     public void ToolEvent_SerializesTheProjectProposalId()
     {
         // Act

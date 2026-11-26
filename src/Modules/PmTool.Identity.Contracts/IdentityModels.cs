@@ -27,7 +27,20 @@ public sealed record AuthenticatedUser(
 }
 
 /// <param name="IsDisabled">帳號被停用了：不能登入，但工作項目、留言與活動還是顯示他。沒有帳號的人是 false。</param>
-public sealed record PersonSummary(Guid PersonId, string DisplayName, string? Email, OrganizationRole Role, bool IsDisabled);
+public sealed record PersonSummary(Guid PersonId, string DisplayName, string? Email, OrganizationRole Role, bool IsDisabled)
+{
+    /// <summary>職稱（例如「前端工程師」），組織管理員在人員頁設；沒有是 null。AI 助理靠它和 <see cref="Responsibilities"/> 判斷該指派給誰。</summary>
+    public string? JobTitle { get; init; }
+
+    /// <summary>負責範圍，一行字（例如「WordPress 維運、客戶 A 的網站」）；沒有是 null。</summary>
+    public string? Responsibilities { get; init; }
+}
+
+/// <summary>
+/// 人員的職稱與負責範圍（<see cref="IPersonProfileService.UpdateProfileAsync"/>）。兩個都是一行字：去掉前後空白，空字串當作 null；
+/// 擋控制字元與看不見的字元（<c>InputText.HasInvisibleCharacters</c>）。長度上限見 <see cref="IdentityRules"/>。
+/// </summary>
+public sealed record PersonProfile(string? JobTitle, string? Responsibilities);
 
 /// <summary>新增一個人，同時建立他用 Email 加密碼登入的帳號。</summary>
 public sealed record NewPerson(string DisplayName, string Email, string Password, OrganizationRole Role);
@@ -43,6 +56,12 @@ public static class IdentityRules
     public const int MaxPasswordLength = 128;
 
     public const int MaxDisplayNameLength = 100;
+
+    /// <summary>職稱最長幾個字（去掉前後空白之後）。</summary>
+    public const int MaxJobTitleLength = 60;
+
+    /// <summary>負責範圍最長幾個字（去掉前後空白之後）。</summary>
+    public const int MaxResponsibilitiesLength = 200;
 
     public const int MaxEmailLength = 254;
 

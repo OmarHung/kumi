@@ -86,7 +86,7 @@ internal sealed class NewItemProposalService(
     {
         // 不接例外：applier 只在第一個項目明確回失敗（工作引擎沒有寫入）時回 Failure。丟例外（含逾時的取消、記編號失敗）
         // 時工作引擎可能已經寫入，不能退回待決定（再按一次會重複建立），維持「建立中」，讀出來時過了時限就是已套用加說明。
-        var outcome = await applier.ApplyAsync(actor, row.Id, row.ProjectKey, NewItemMapper.ReadItems(row.Items));
+        var outcome = await applier.ApplyAsync(actor, row.Id, row.ProjectKey, NewItemMapper.ReadItems(row.Items), NewItemMapper.ReadAddMembers(row.AddMembers));
         if (outcome.Failure is { } failure)
         {
             await RevertToPendingAsync(db, row.Id, cancellationToken);

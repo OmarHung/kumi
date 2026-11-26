@@ -63,6 +63,9 @@ internal static class ProjectRoles
         : schema.Roles.TryGetValue(role, out var custom) ? custom.Name
         : role;
 
+    /// <summary>內建角色的 key，照權限由大到小的固定順序（給畫面與派工的角色清單用，不是依字母）。</summary>
+    public static readonly IReadOnlyList<string> BuiltInKeys = [Admin, Editor, Contributor, Commenter, Viewer];
+
     /// <summary>內建角色在前，接著是藍圖裡的自訂角色。</summary>
     public static IEnumerable<string> All(ProjectSchema schema) =>
         BuiltIn.Keys.Order(StringComparer.Ordinal).Concat(schema.Blueprint.Roles.Select(r => r.Key));

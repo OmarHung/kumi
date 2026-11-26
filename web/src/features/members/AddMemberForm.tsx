@@ -123,14 +123,15 @@ interface PersonSelectProps {
 
 /**
  * 人員的選項：前面是頭像（裝飾，Select 包成 aria-hidden），每一個都有，清單裡的字才對齊。
- * 人多時清單有篩選框（規範 7.3）：Email 放進 keywords，用 Email 也找得到。
+ * 人多時清單有篩選框（規範 7.3）：Email、職稱與負責範圍放進 keywords，用它們也找得到；職稱寫在名稱下面。
  */
 function personOptions(candidates: readonly Person[]): SelectOption[] {
   return candidates.map((person) => ({
     value: person.personId,
     label: personLabel(person),
     leading: <Avatar name={person.displayName} size="sm" decorative />,
-    keywords: person.email === null ? undefined : [person.email],
+    description: person.jobTitle ?? undefined,
+    keywords: [person.email, person.jobTitle, person.responsibilities].filter((word): word is string => word !== null),
   }));
 }
 

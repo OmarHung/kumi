@@ -8,8 +8,8 @@ import { serveMembers } from '../../test/members';
 import { renderApp } from '../../test/renderApp';
 
 const people: Person[] = [
-  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false },
-  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false },
+  { ...ownerAsAdmin, email: exampleOwner.email, role: 'owner', disabled: false, jobTitle: null, responsibilities: null },
+  { ...memberAsEditor, email: exampleMember.email, role: 'member', disabled: false, jobTitle: null, responsibilities: null },
 ];
 
 async function openEmptyProject(detail = smkDetail(), path = '/projects/SMK') {

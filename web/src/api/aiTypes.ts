@@ -203,6 +203,8 @@ export interface AssistantToolPart {
   readonly projectProposalId: string | null;
   /** propose_new_items 成功時，建立的新增項目建議（畫成有「全部建立」「不要」的卡片）。 */
   readonly newItemProposalId: string | null;
+  /** propose_member_changes 成功時，建立的成員建議（畫成有「套用」「不要」的卡片；internal/HANDOFF-ai-assign.md）。 */
+  readonly memberProposalId: string | null;
 }
 
 export type AssistantPart = AssistantTextPart | AssistantToolPart;
@@ -337,6 +339,41 @@ export interface NewItemProposal {
   readonly decidedAt: string | null;
   /** 有項目沒建立成功、或建立的過程中斷：哪些沒建立。 */
   readonly error: string | null;
+  /** 建立項目之前先加進專案的人（負責人還不是成員時）；套用時先加人、再建項目。 */
+  readonly addMembers: readonly MemberAddition[];
+}
+
+/** 新增項目的建議裡，建立項目之前要先加進專案的一個人。名稱是建立建議時的。 */
+export interface MemberAddition {
+  readonly personId: string;
+  readonly role: string;
+  readonly displayName: string | null;
+  readonly roleName: string | null;
+}
+
+/**
+ * AI 助理提出的專案成員建議（internal/HANDOFF-ai-assign.md）：加入、改角色、移出，按「套用」才以自己的身分寫入。
+ * 名稱都是建立建議時的。
+ */
+export interface MemberProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly changes: readonly MemberChange[];
+  readonly status: 'pending' | 'applied' | 'dismissed';
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  /** 有幾筆沒套用成功：哪些沒套用。 */
+  readonly error: string | null;
+}
+
+/** 一筆成員的變動：role 是 null 是移出；previousRole 是 null 是還不是成員（加入）。 */
+export interface MemberChange {
+  readonly personId: string;
+  readonly displayName: string;
+  readonly role: string | null;
+  readonly roleName: string | null;
+  readonly previousRole: string | null;
+  readonly previousRoleName: string | null;
 }
 
 /** 建議新增的一個項目；狀態一律從流程的第一個狀態開始。 */
@@ -359,6 +396,10 @@ export interface NewItemDraft {
   readonly parentKey: string | null;
   /** 掛在同一份建議裡前面的項目底下（它的 ref）。 */
   readonly parentRef: string | null;
+  /** 排進的週期（編號）。 */
+  readonly cycleId: string | null;
+  /** 歸屬的里程碑（編號）。 */
+  readonly milestoneId: string | null;
   /** 自訂欄位 {key: 值}。 */
   readonly fields: Readonly<Record<string, unknown>>;
 }

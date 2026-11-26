@@ -112,7 +112,7 @@ internal sealed class PeopleDirectory(
         administration.SetRoleAsync(actor, personId, role, cancellationToken);
 
     /// <summary>Email 存在帳號上，而合約允許沒有帳號的人（Email 是 null），所以用左外部聯結。</summary>
-    private static IQueryable<PersonSummary> Summaries(IdentityDbContext db, IQueryable<PersonRow> people) =>
+    internal static IQueryable<PersonSummary> Summaries(IdentityDbContext db, IQueryable<PersonRow> people) =>
         from person in people
         join account in db.Accounts on person.Id equals account.PersonId into accounts
         from account in accounts.DefaultIfEmpty()
@@ -122,7 +122,11 @@ internal sealed class PeopleDirectory(
             person.DisplayName,
             account == null ? null : account.Email,
             person.Role,
-            account != null && account.DisabledAt != null);
+            account != null && account.DisabledAt != null)
+        {
+            JobTitle = person.JobTitle,
+            Responsibilities = person.Responsibilities,
+        };
 
     /// <summary>
     /// 擁有者與管理員只能由擁有者新增，管理員才不能替自己開出同等或更大的權限。Actor 分不出這兩種，

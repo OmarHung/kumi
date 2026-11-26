@@ -77,6 +77,8 @@ internal sealed partial class IdentityDbContext(DbContextOptions<IdentityDbConte
             person.Property(p => p.Role)
                 .HasMaxLength(MaxRoleLength)
                 .HasConversion(role => role.ToString().ToLowerInvariant(), name => Enum.Parse<OrganizationRole>(name, true));
+            person.Property(p => p.JobTitle).HasMaxLength(IdentityRules.MaxJobTitleLength);
+            person.Property(p => p.Responsibilities).HasMaxLength(IdentityRules.MaxResponsibilitiesLength);
             person.HasOne<OrganizationRow>().WithMany().HasForeignKey(p => p.OrganizationId).OnDelete(DeleteBehavior.Restrict);
             person.HasIndex(p => new { p.OrganizationId, p.DisplayName });
         });
