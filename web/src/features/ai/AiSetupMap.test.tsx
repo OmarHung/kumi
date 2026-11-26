@@ -15,7 +15,7 @@ async function openAiAccounts() {
   serveAiOptions(makeAiOptions({ canAddPersonal: true }));
   servePersonalAi();
   renderApp('/account/ai');
-  return screen.findByRole('region', { name: 'AI 的四種接法' });
+  return screen.findByRole('region', { name: /^AI 的(四|兩)種接法$/ });
 }
 
 describe('AI 的四種接法', () => {
@@ -28,7 +28,7 @@ describe('AI 的四種接法', () => {
 
     // Assert
     expect(within(map).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['誰能用', 'API 金鑰', 'Claude Code／Codex']);
-    expect(within(map).getAllByRole('rowheader').map((header) => header.textContent)).toEqual(['全組織共用', '只有自己']);
+    expect(within(map).getAllByRole('rowheader').map((header) => header.textContent)).toEqual(['只有自己']);
     expect(within(map).getByRole('link', { name: '我的 API 金鑰' })).toHaveAttribute('href', '/account/ai#ai-keys');
     expect(within(map).getByRole('link', { name: '我的 API 金鑰' })).toHaveAttribute('aria-current', 'page');
     expect(within(map).getByRole('link', { name: '本機代理' })).toHaveAttribute('aria-current', 'page');
@@ -64,7 +64,7 @@ describe('AI 的四種接法', () => {
     expect(hostCell).toHaveTextContent('代價：一次只跑一則、其他人排隊；要有人維護主機上的 ai-worker');
   });
 
-  it('一般成員：組織的兩格沒有連結，寫由誰設定', async () => {
+  it('一般成員：沒有全組織共用那一列（兩格都設定不了），只有「只有自己」', async () => {
     // Arrange
     signedInAs(exampleMember);
 
@@ -72,10 +72,11 @@ describe('AI 的四種接法', () => {
     const map = await openAiAccounts();
 
     // Assert
-    expect(within(map).queryByRole('link', { name: '組織的 API 金鑰' })).not.toBeInTheDocument();
-    expect(within(map).queryByRole('link', { name: '主機 AI 代理' })).not.toBeInTheDocument();
-    expect(within(map).getByText('由組織管理員設定')).toBeInTheDocument();
-    expect(within(map).getByText('由組織擁有者設定')).toBeInTheDocument();
+    expect(within(map).getAllByRole('rowheader').map((header) => header.textContent)).toEqual(['只有自己']);
+    expect(within(map).queryByText('組織的 API 金鑰')).not.toBeInTheDocument();
+    expect(within(map).queryByText('主機 AI 代理')).not.toBeInTheDocument();
+    expect(within(map).queryByText(/由組織/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'AI 的兩種接法' })).toBeInTheDocument();
   });
 
   it('管理員：組織的 API 金鑰有連結，主機 AI 代理只有擁有者能設定', async () => {

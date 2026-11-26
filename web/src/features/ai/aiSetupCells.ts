@@ -60,6 +60,14 @@ export function canOpenAiSetup(cell: AiSetupCell, user: SessionUser): boolean {
   return user.role === 'owner' || user.role === 'admin';
 }
 
+/**
+ * 這個人看得到的列：一列裡至少有一格打得開才列。一般成員與訪客設定不了全組織共用的兩種，那一列整列不顯示
+ * （2026-11-26 使用者要求：兩格都只寫「由誰設定」對他們沒有用）；管理員打得開組織的 API 金鑰，照樣列出、主機那一格寫由擁有者設定。
+ */
+export function visibleAiSetupRows(user: SessionUser): readonly AiSetupRow[] {
+  return AI_SETUP_ROWS.filter((row) => row.cells.some((cell) => canOpenAiSetup(cell, user)));
+}
+
 export function managedByText(cell: AiSetupCell): string | null {
   return cell.access === 'everyone' ? null : MANAGED_BY[cell.access];
 }

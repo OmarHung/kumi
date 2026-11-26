@@ -1,10 +1,11 @@
 import { Link } from 'react-router';
 import { useCurrentUser } from '../../auth/CurrentUser';
 import { SettingsSection } from '../../components/SettingsSection/SettingsSection';
-import { AI_SETUP_COLUMNS, AI_SETUP_ROWS, canOpenAiSetup, managedByText, type AiSetupCell, type AiSetupPage } from './aiSetupCells';
+import { AI_SETUP_COLUMNS, canOpenAiSetup, managedByText, visibleAiSetupRows, type AiSetupCell, type AiSetupPage } from './aiSetupCells';
 import styles from './AiSetupMap.module.css';
 
-const TITLE = 'AI 的四種接法';
+/** 標題照列出的格數寫：一般成員只看得到自己的兩種（全組織那一列不列）。 */
+const titleOf = (cellCount: number): string => `AI 的${cellCount === 4 ? '四' : '兩'}種接法`;
 const DESCRIPTION = '看兩件事：誰能用，和用什麼登入。費用一律算在登入的那個帳號。';
 const ADVICE =
   '建議：全組織共用先開組織的 API 金鑰（快、不排隊、不用維護主機）；想讓大家用 Claude Code／Codex 又不想各自安裝，再加主機 AI 代理。已經有 Claude、ChatGPT 訂閱的人，用本機代理最省。';
@@ -63,8 +64,9 @@ function MapNote({ isDetailed }: { readonly isDetailed: boolean }) {
  * 用真的表格：列與欄的標題是 th，報讀軟體唸得出「全組織共用、API 金鑰：組織的 API 金鑰」。
  */
 export function AiSetupMap({ page, isDetailed = false }: { readonly page: AiSetupPage; readonly isDetailed?: boolean }) {
+  const rows = visibleAiSetupRows(useCurrentUser());
   return (
-    <SettingsSection title={TITLE} description={<MapNote isDetailed={isDetailed} />} isContentStart isFullWidth>
+    <SettingsSection title={titleOf(rows.length * 2)} description={<MapNote isDetailed={isDetailed} />} isContentStart isFullWidth>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -80,7 +82,7 @@ export function AiSetupMap({ page, isDetailed = false }: { readonly page: AiSetu
           </tr>
         </thead>
         <tbody>
-          {AI_SETUP_ROWS.map((row) => (
+          {rows.map((row) => (
             <tr key={row.label}>
               <th scope="row" className={styles.rowHeader}>
                 {row.label}
