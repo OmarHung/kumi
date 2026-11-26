@@ -23,12 +23,12 @@ export const OVERVIEW_NUMBERS: readonly OverviewNumber[] = [
   {
     id: 'dueSoon',
     label: `${String(DUE_SOON_DAYS)} 天內到期`,
-    head: [`${String(DUE_SOON_DAYS)} 天內`, '到期'],
+    // 表頭寫一行的短名（「需要注意」底下）：兩行的表頭讓第一筆內容超過 6.2 節的高度預算；完整的天數在 title 與下面的說明。
+    head: ['快到期'],
     description: `還沒結束、到期日在今天到 ${String(DUE_SOON_DAYS - 1)} 天後的項目`,
     valueOf: (p) => p.dueSoon,
     linkOf: overviewLinks.dueSoon,
   },
-  { id: 'unassigned', label: '沒有負責人', head: ['沒有', '負責人'], description: '還沒結束、沒有負責人的項目', valueOf: (p) => p.unassigned, linkOf: overviewLinks.unassigned },
   {
     id: 'stale',
     label: '停滯',
@@ -37,6 +37,7 @@ export const OVERVIEW_NUMBERS: readonly OverviewNumber[] = [
     valueOf: (p) => p.stale,
     linkOf: overviewLinks.stale,
   },
+  { id: 'unassigned', label: '沒有負責人', head: ['未指派'], description: '還沒結束、沒有負責人的項目', valueOf: (p) => p.unassigned, linkOf: overviewLinks.unassigned },
   {
     id: 'doneRecently',
     label: `近 ${String(DONE_RECENTLY_DAYS)} 天完成`,
@@ -46,3 +47,20 @@ export const OVERVIEW_NUMBERS: readonly OverviewNumber[] = [
     linkOf: null,
   },
 ];
+
+function numberOf(id: string): OverviewNumber {
+  const found = OVERVIEW_NUMBERS.find((number) => number.id === id);
+  if (found === undefined) throw new Error(`沒有這個數字：${id}`);
+  return found;
+}
+
+/** 表格的「需要注意」一組（兩層表頭的第一列跨這四欄）：照要緊的程度排，過期的在最前面。 */
+export const ATTENTION_NUMBERS: readonly OverviewNumber[] = ['overdue', 'dueSoon', 'stale', 'unassigned'].map(numberOf);
+
+/** 「還沒結束」不另佔一欄：寫在狀態橫條下面的註腳。 */
+export const OPEN_NUMBER: OverviewNumber = numberOf('open');
+
+export const DONE_RECENTLY_NUMBER: OverviewNumber = numberOf('doneRecently');
+
+/** 「需要注意」的組名。 */
+export const ATTENTION_LABEL = '需要注意';

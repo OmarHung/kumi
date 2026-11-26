@@ -6,7 +6,7 @@ import { server } from '../../test/server';
 import { saveProjectView } from '../projects/projectViewPreference';
 import { signedInAs } from '../../test/api';
 import { exampleOwner } from '../../test/fixtures';
-import { appOverview, emptyOverview, opsOverview, serveOverview, webOverview } from '../../test/overview';
+import { appOverview, emptyOverview, opsOverview, overviewOf, serveOverview, webOverview } from '../../test/overview';
 import { currentPath, renderApp } from '../../test/renderApp';
 
 async function findRow(projectKey: string): Promise<HTMLElement> {
@@ -72,7 +72,6 @@ describe('專案總覽', () => {
     expect(hrefOf('WEB 沒有負責人 2 個')).toBe('/projects/WEB?assignee=unassigned&open=1');
     expect(hrefOf('WEB 停滯 1 個')).toBe('/projects/WEB?stale=1&open=1');
     expect(hrefOf('WEB 這期週期 第 12 週')).toBe('/projects/WEB?cycle=cycle-1');
-    expect(hrefOf('WEB 下一個里程碑 正式上線')).toBe('/projects/WEB?milestone=milestone-1');
   });
 
   it('依狀態分段的橫條：一段一個狀態，連到那個狀態的清單', async () => {
@@ -107,32 +106,108 @@ describe('專案總覽', () => {
 
     // Assert
     expect(within(ops).queryByRole('link', { name: /OPS .* \d+ 個/ })).not.toBeInTheDocument();
-    expect(within(ops).getAllByText('0')).toHaveLength(6);
+    expect(within(ops).getAllByText('0')).toHaveLength(5);
     expect(within(web).queryByRole('link', { name: /近 7 天完成/ })).not.toBeInTheDocument();
     expect(within(web).getByText('3')).toBeInTheDocument();
   });
 
-  it('這期週期與下一個里程碑：名稱、日期與完成進度；沒有時說沒有', async () => {
+  it('進度欄：有週期時顯示週期；沒有週期時顯示里程碑；都沒有只有一個淡化的短橫線', async () => {
     // Arrange
     signedInAs(exampleOwner);
-    serveOverview([webOverview, emptyOverview]);
+    serveOverview([webOverview, opsOverview, emptyOverview]);
     renderApp('/overview');
 
     // Act
     const web = await findRow('WEB');
+    const ops = await findRow('OPS');
     const empty = await findRow('NEW');
 
-    // Assert
-    expect(within(web).getByText('2026/11/23 – 2026/12/06')).toBeInTheDocument();
-    expect(within(web).getByText('完成 3／8')).toBeInTheDocument();
-    expect(within(web).getByText('到期 2026/12/15')).toBeInTheDocument();
-    expect(within(web).getByText('完成 6／9・取消 1')).toBeInTheDocument();
-    expect(within(empty).getByText('沒有進行中的週期')).toBeInTheDocument();
-    expect(within(empty).getByText('沒有即將到期的里程碑')).toBeInTheDocument();
+    // Assert 有週期：名稱與「完成／要做」同一行，下面一條細條；不再另外列里程碑
+    expect(within(web).getByRole('link', { name: 'WEB 這期週期 第 12 週' })).toBeInTheDocument();
+    expect(within(web).getByText('3／8')).toBeInTheDocument();
+    expect(within(web).getByRole('progressbar', { name: '第 12 週 的完成進度' })).toHaveAttribute('aria-valuetext', '完成 3／8');
+    expect(within(web).queryByRole('link', { name: /下一個里程碑/ })).not.toBeInTheDocument();
+    // Assert 沒有週期、有里程碑：「里程碑」小標、名稱、到期日與完成數
+    expect(within(ops).getByText('里程碑')).toBeInTheDocument();
+    expect(within(ops).getByRole('link', { name: 'OPS 下一個里程碑 年度檢查' })).toHaveAttribute('href', '/projects/OPS?milestone=m-ops');
+    expect(within(ops).getByText('到期 01/10 · 還沒有項目')).toBeInTheDocument();
+    // Assert 都沒有：只有給報讀軟體的說明，沒有任何連結（專案名稱除外）
+    expect(within(empty).getByText('沒有進行中的週期或即將到期的里程碑')).toBeInTheDocument();
+    expect(within(empty).queryByRole('progressbar')).not.toBeInTheDocument();
     expect(within(empty).getByText('沒有項目')).toBeInTheDocument();
     // 最近更新寫在專案名稱下面；沒有項目的專案沒有更新時間，乾脆不寫那一行（不寫「更新於 還沒有更新」）。
     expect(within(empty).queryByText(/更新於/)).not.toBeInTheDocument();
     expect(within(web).getByText(/更新於/)).toBeInTheDocument();
+  });
+
+  it('里程碑的完成數寫「完成／要做」，取消的不算進分母，細條有完整的說法', async () => {
+    // Arrange
+    signedInAs(exampleOwner);
+    serveOverview([overviewOf('MS', '里程碑專案', { nextMilestone: { id: 'm1', name: '上線', dueDate: '2026-12-02', progress: { total: 10, done: 6, canceled: 1, estimateTotal: null, estimateDone: null } } })]);
+    renderApp('/overview');
+
+    // Act
+    const row = await findRow('MS');
+
+    // Assert
+    expect(within(row).getByText('到期 12/02 · 6／9')).toBeInTheDocument();
+    expect(within(row).getByRole('progressbar', { name: '上線 的完成進度' })).toHaveAttribute('aria-valuetext', '完成 6／9・取消 1');
+  });
+
+  it('兩層表頭：「需要注意」跨四欄，其他欄跨兩列；七欄', async () => {
+    // Arrange
+    signedInAs(exampleOwner);
+    serveOverview([webOverview]);
+    renderApp('/overview');
+
+    // Act
+    const table = await screen.findByRole('table', { name: '專案總覽' });
+    const group = within(table).getByRole('columnheader', { name: '需要注意' });
+    const spanning = within(table).getAllByRole('columnheader').filter((header) => header.getAttribute('rowspan') === '2');
+
+    // Assert
+    expect(group).toHaveAttribute('colspan', '4');
+    expect(spanning.map((header) => header.textContent)).toEqual(['專案', '狀態', '近 7 天完成', '進度']);
+    const second = within(table).getAllByRole('row')[1] as HTMLElement;
+    expect(within(second).getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      '已過期',
+      '快到期',
+      '停滯',
+      '未指派',
+    ]);
+    // 表頭是短名，完整的天數與意思在 title（滑過）與下面的說明。
+    expect(within(second).getByRole('columnheader', { name: '快到期' })).toHaveAttribute('title', '還沒結束、到期日在今天到 6 天後的項目');
+  });
+
+  it('已過期不是 0 時用 danger 的樣式，其他數字沒有', async () => {
+    // Arrange
+    signedInAs(exampleOwner);
+    serveOverview([webOverview]);
+    renderApp('/overview');
+
+    // Act
+    const row = await findRow('WEB');
+
+    // Assert
+    expect(within(row).getByRole('link', { name: 'WEB 已過期 2 個' }).className).toMatch(/numberDanger/);
+    expect(within(row).getByRole('link', { name: 'WEB 停滯 1 個' }).className).not.toMatch(/numberDanger/);
+  });
+
+  it('狀態橫條下面寫「還沒結束」，數字連到 open=1；全部結束時淡化、不是連結', async () => {
+    // Arrange
+    signedInAs(exampleOwner);
+    serveOverview([webOverview, overviewOf('DON', '全完成', { states: [{ key: 'done', name: '完成', category: 'done', count: 4 }] })]);
+    renderApp('/overview');
+
+    // Act
+    const web = await findRow('WEB');
+    const done = await findRow('DON');
+
+    // Assert
+    expect(within(web).getByText(/還沒結束/)).toBeInTheDocument();
+    expect(within(web).getByRole('link', { name: 'WEB 還沒結束 7 個' })).toHaveTextContent('7');
+    expect(within(done).getByText('全部結束')).toBeInTheDocument();
+    expect(within(done).queryByRole('link', { name: /還沒結束/ })).not.toBeInTheDocument();
   });
 
   it('只看得到自己項目的專案標明數字只算自己的', async () => {
@@ -227,16 +302,24 @@ describe('專案總覽', () => {
     expect(screen.queryByRole('link', { name: '看全部看得到的專案' })).not.toBeInTheDocument();
   });
 
-  it('表格下面說明每個數字的算法，和篩選用同一組天數', async () => {
+  it('表格下面的說明收在預設收起的「數字怎麼算」裡，點開看得到算法，和篩選用同一組天數', async () => {
     // Arrange
     signedInAs(exampleOwner);
     serveOverview([webOverview]);
-    renderApp('/overview');
+    const { user } = renderApp('/overview');
 
     // Act
-    const notes = await screen.findByRole('region', { name: '數字的算法' });
+    const summary = await screen.findByText('數字怎麼算');
+    const notes = summary.closest('details') as HTMLDetailsElement;
 
     // Assert
+    expect(notes.open).toBe(false);
+
+    // Act
+    await user.click(summary);
+
+    // Assert
+    expect(notes.open).toBe(true);
     expect(within(notes).getByText(/到期日在今天到 6 天後/)).toBeInTheDocument();
     expect(within(notes).getByText(/14 天沒有更新/)).toBeInTheDocument();
   });

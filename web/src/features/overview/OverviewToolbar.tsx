@@ -64,6 +64,7 @@ export function OverviewToolbar() {
       <SelectField
         label="排序"
         size="sm"
+        isLabelHidden
         value={sort}
         options={SORT_OPTIONS}
         onChange={(next) => {

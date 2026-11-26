@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { StateBar } from './StateBar';
-import { CycleCell, MilestoneCell, NumberCell, UpdatedCell } from './OverviewCells';
-import { OVERVIEW_NUMBERS } from './overviewColumns';
+import { NumberCell, OpenFootnote, PlanCell, UpdatedCell } from './OverviewCells';
+import { ATTENTION_LABEL, ATTENTION_NUMBERS, DONE_RECENTLY_NUMBER } from './overviewColumns';
 import type { ProjectOverview } from '../../api/overview';
 import { useProjectPageLink } from '../projects/projectViewPreference';
 import type { OverviewListProps } from './overviewTypes';
@@ -19,7 +19,7 @@ function CardTitle({ project }: { readonly project: ProjectOverview }) {
   );
 }
 
-/** 窄螢幕：一個專案一張卡片（不用橫向捲動的表格，docs/DESIGN.md 6.3）；數字一格一格換行排。 */
+/** 窄螢幕：一個專案一張卡片（不用橫向捲動的表格，docs/DESIGN.md 6.3），和表格同一套：需要注意一組、其他、進度合成一格。 */
 export function OverviewCards({ projects, now }: OverviewListProps) {
   return (
     <ul className={styles.cards} aria-label="專案總覽">
@@ -27,28 +27,34 @@ export function OverviewCards({ projects, now }: OverviewListProps) {
         <li key={project.projectKey} className={styles.card} data-content-start={index === 0 || undefined}>
           <CardTitle project={project} />
           {project.ownItemsOnly && <p className={styles.projectMeta}>只算你負責或建立的項目</p>}
-          <StateBar projectKey={project.projectKey} states={project.states} />
-          <dl className={styles.numbers}>
-            {OVERVIEW_NUMBERS.map((number) => (
-              <div key={number.id} className={styles.numberItem}>
-                <dt>{number.label}</dt>
-                <dd>
-                  <NumberCell project={project} number={number} />
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <div className={styles.cardState}>
+            <StateBar projectKey={project.projectKey} states={project.states} />
+            <OpenFootnote project={project} />
+          </div>
+          <section className={styles.cardGroup}>
+            <h3 className={styles.groupTitle}>{ATTENTION_LABEL}</h3>
+            <dl className={styles.numbers}>
+              {ATTENTION_NUMBERS.map((number) => (
+                <div key={number.id} className={styles.numberItem}>
+                  <dt>{number.label}</dt>
+                  <dd>
+                    <NumberCell project={project} number={number} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
           <dl className={styles.planning}>
             <div>
-              <dt>這期週期</dt>
+              <dt>{DONE_RECENTLY_NUMBER.label}</dt>
               <dd>
-                <CycleCell projectKey={project.projectKey} cycle={project.currentCycle} />
+                <NumberCell project={project} number={DONE_RECENTLY_NUMBER} />
               </dd>
             </div>
             <div>
-              <dt>下一個里程碑</dt>
+              <dt>進度</dt>
               <dd>
-                <MilestoneCell projectKey={project.projectKey} milestone={project.nextMilestone} />
+                <PlanCell project={project} />
               </dd>
             </div>
             <div>

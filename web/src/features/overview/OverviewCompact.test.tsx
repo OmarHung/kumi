@@ -34,7 +34,8 @@ describe('窄螢幕的專案總覽', () => {
     expect(web).toBeDefined();
     expect(within(web as HTMLElement).getByText('已過期')).toBeInTheDocument();
     expect(within(web as HTMLElement).getByRole('link', { name: 'WEB 停滯 1 個' })).toHaveAttribute('href', '/projects/WEB?stale=1&open=1');
-    expect(within(web as HTMLElement).getByText('完成 3／8')).toBeInTheDocument();
+    expect(within(web as HTMLElement).getByRole('heading', { name: '需要注意' })).toBeInTheDocument();
+    expect(within(web as HTMLElement).getByText('3／8')).toBeInTheDocument();
   });
 
   it('範圍用下拉選（和我的工作一樣），選了換成全部看得到的', async () => {
