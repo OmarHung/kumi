@@ -107,13 +107,36 @@ function repositoryUrl(manifest) {
   return (manifest.homepage ?? repository ?? '').replace(/^git\+/, '').replace(/\.git$/, '');
 }
 
+// lockfile 是別人可以改的檔案（PR、被入侵的套件）：路徑一定要是 web/node_modules 底下的套件，
+// 不然 "../../" 或符號連結就能讓腳本把任意檔案當成授權條文讀進 THIRD-PARTY-NOTICES.txt。
+const WEB_MODULES = path.join(ROOT, 'web', 'node_modules');
+
+function packageDirOf(lockPath) {
+  if (!lockPath.startsWith(NODE_MODULES) || lockPath.split('/').some((part) => part === '..' || part === '.' || part === '')) {
+    throw new Error(`package-lock.json 裡的路徑不是 node_modules 底下的套件：${lockPath}`);
+  }
+  const dir = path.resolve(ROOT, 'web', lockPath);
+  if (!dir.startsWith(WEB_MODULES + path.sep)) {
+    throw new Error(`package-lock.json 裡的路徑跑到 web/node_modules 外面：${lockPath}`);
+  }
+  return dir;
+}
+
+function assertRealPathInside(dir, lockPath) {
+  const real = fs.realpathSync(dir);
+  if (!real.startsWith(fs.realpathSync(WEB_MODULES) + path.sep)) {
+    throw new Error(`web/${lockPath} 是指到 web/node_modules 外面的連結。`);
+  }
+}
+
 function readNpmPackage(lockPath, entry) {
-  const dir = path.join(ROOT, 'web', lockPath);
+  const dir = packageDirOf(lockPath);
   if (!fs.existsSync(dir)) {
     // 選用的平台套件，這台機器沒裝，也不會進打包結果。
     if (entry.optional) return [];
     throw new Error(`web/${lockPath} 不存在，先在 web/ 底下跑 npm ci。`);
   }
+  assertRealPathInside(dir, lockPath);
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
   return [{
     ecosystem: 'npm',

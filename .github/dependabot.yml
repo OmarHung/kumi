@@ -1,0 +1,47 @@
+# 每週一次、依生態系分組成一個 PR：套件很多，逐一開 PR 會淹掉人。
+# 升級一律照 CONTRIBUTING.md 的檢查跑完（含重新產生 THIRD-PARTY-NOTICES.txt）才合併，不自動合併。
+# deploy/ai-worker 的引擎（Claude Code、Codex）不在這裡：kumi 只認實測過的版本範圍，升引擎要手動驗過旗標再改 lockfile。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      nuget:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm:
+        patterns: ["*"]
+
+  # 基底映像檔固定在 digest：Dependabot 會開 PR 更新 digest（docs/DEPLOYMENT.md 第 7 節的流程照舊）。
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      docker:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /deploy/ai-worker
+    schedule:
+      interval: weekly
+    groups:
+      ai-worker-images:
+        patterns: ["*"]
