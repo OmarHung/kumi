@@ -86,7 +86,7 @@ interface PanelWindowProps {
   readonly children: ReactNode;
 }
 
-/** 面板裡的連結（開成整頁、到「AI 帳號」、變更集）換了頁：全螢幕的面板會蓋住新的頁面，要收起來；浮動的留著。 */
+/** 面板裡的連結（開成整頁、到「我的 AI 助理」、變更集）換了頁：全螢幕的面板會蓋住新的頁面，要收起來；浮動的留著。 */
 function closeOnLink(event: MouseEvent<HTMLElement>, isCompact: boolean, onClose: () => void): void {
   if (!isCompact) return;
   const target = event.target instanceof Element ? event.target.closest('a[href]') : null;

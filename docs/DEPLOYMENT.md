@@ -244,14 +244,14 @@ mkdir -m 700 pmtool-dp
 
 ### 1.8 AI（供應商與 AI 助理）
 
-接哪家 AI、開放哪些模型，是組織管理員在網頁的「AI 設定」頁設定的，不是部署的環境變數。部署時只要注意：
+接哪家 AI、開放哪些模型，是組織管理員在網頁的「AI 助理設定」頁設定的，不是部署的環境變數。部署時只要注意：
 
 - **主機要連得到供應商**：Anthropic（`api.anthropic.com`）、OpenAI（`api.openai.com`）、Google（`generativelanguage.googleapis.com`）、OpenRouter（`openrouter.ai`），都是對外的 443。有限制對外連線的要放行。
 - **「用 OpenRouter 登入」不用事先註冊應用**：瀏覽器導到 OpenRouter 登入、回到 `https://<PublicHost>/ai/openrouter/callback`，伺服器再用授權碼向 `openrouter.ai` 換一把金鑰。回呼網址由 `Security__PublicHost` 組成（同第 1.9 節），沒設的話用請求的 Host。登入的狀態用 Data Protection 加密帶在網址上，所以多個容器之間不用另外共用。
-- **成員自己的 AI 帳號**：組織管理員在「AI 設定」勾「允許成員使用自己的 AI 帳號」之後，每個人可以在「設定 → AI 帳號」接自己的供應商（費用算在自己的帳號）。個人的「OpenAI 相容」端點**一律不准連私有網段**，`Ai__AllowPrivateEndpoints` 只放寬組織的連線（不然任何成員都能讓伺服器連內網）。
+- **成員自己的 AI 帳號**：組織管理員在「AI 助理設定」勾「允許成員使用自己的 AI 帳號」之後，每個人可以在「設定 → 我的 AI 助理」接自己的供應商（費用算在自己的帳號）。個人的「OpenAI 相容」端點**一律不准連私有網段**，`Ai__AllowPrivateEndpoints` 只放寬組織的連線（不然任何成員都能讓伺服器連內網）。
 - **OpenAI 相容端點（自架的 Ollama、vLLM）在內網或本機時**：預設不准連私有網段、本機與 link-local 的位址（伺服器會照管理員填的網址去連，不擋的話等於讓人拿它掃內網，雲端主機的中繼資料服務也在 link-local）。真的要連內網的模型服務才設 `Ai__AllowPrivateEndpoints=true`。容器裡的 `localhost` 是容器自己，主機上的服務用主機的內網 IP（Docker Desktop 是 `host.docker.internal`）。
 - **助理的回覆是串流（`text/event-stream`）**：api 每 15 秒送一行心跳、回應帶 `X-Accel-Buffering: no`，nginx 不用改設定（預設 60 秒的 `proxy_read_timeout` 夠用）；前面還有別的代理或 CDN 的話，要確認它不會把整個回應緩衝到結束才送。Cloud Run 一則回覆最多 5 分鐘，在預設的請求逾時之內。
-- **金鑰和 Cookie 的金鑰是同一套 Data Protection**（同第 1.7 節）：上線一定要設憑證；弄丟憑證的話，AI 設定的金鑰要重新輸入（助理會顯示「存的金鑰解不開，請管理員重新輸入」）。
+- **金鑰和 Cookie 的金鑰是同一套 Data Protection**（同第 1.7 節）：上線一定要設憑證；弄丟憑證的話，AI 助理設定的金鑰要重新輸入（助理會顯示「存的金鑰解不開，請管理員重新輸入」）。
 - 費用算在組織自己的供應商帳號；設定頁顯示每個連線這個月的 token 用量，金額要到供應商的主控台看。
 
 ### 1.9 MCP 與 OAuth（用自己的 Claude Code／Codex 連）
@@ -287,7 +287,7 @@ mkdir -m 700 pmtool-dp
 
 ### 1.12 主機 AI 代理（全組織共用的 Claude Code／Codex）
 
-組織擁有者在「AI 設定 → 主機 AI 代理」設定，全組織的成員在 AI 助理選「主機上的 Claude Code／Codex」（`internal/HANDOFF-host-agent.md`，操作步驟在 `docs/OPERATIONS.md` 第 17 節）。部署時要注意：
+組織擁有者在「設定 → AI 助理主機代理」設定，全組織的成員在 AI 助理選「主機上的 Claude Code／Codex」（`internal/HANDOFF-host-agent.md`，操作步驟在 `docs/OPERATIONS.md` 第 17 節）。部署時要注意：
 
 - **只適合 VM 加 docker compose（第 3.3 節）**：worker（`deploy/ai-worker/Dockerfile`）要常駐、要一個持久的資料卷放 CLI 的登入與機器憑證。Cloud Run 會縮到零、沒有持久的檔案，不適合；要用的話另外開一台 VM 只跑 ai-worker，連到 Cloud Run 的對外網址。
 - **計費一定是 API 用量**：Claude Code 用 Anthropic Console 登入、Codex 用 OpenAI API 金鑰。Claude 與 ChatGPT 的訂閱帳號依兩家的條款不能給全組織共用，伺服器會拒絕、worker 會登出（交接第 2 節）。費用算在登入的 Console 組織或 OpenAI 帳號；設定頁只顯示 Kumi 記錄的則數與 token，不是帳單。

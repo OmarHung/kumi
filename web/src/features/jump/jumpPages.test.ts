@@ -29,7 +29,7 @@ describe('currentProjectKey', () => {
 });
 
 const exampleAdmin: SessionUser = { ...exampleOwner, role: 'admin' };
-const PERSONAL_PAGES = ['我的帳號', '通知', 'AI 帳號', '命令列與整合'];
+const PERSONAL_PAGES = ['我的帳號', '通知', '我的 AI 助理', '命令列與整合'];
 
 describe('jumpPages', () => {
   it('不在專案裡：我的工作、知識庫、專案，加上個人的設定頁；成員沒有人員與組織的設定頁', () => {
@@ -65,7 +65,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleAdmin, project: null });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', '儲存空間', 'AI 設定']);
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', '儲存空間', 'AI 助理設定']);
     expect(pages.map((page) => page.action)).toContainEqual({ kind: 'navigate', to: '/people' });
   });
 
@@ -74,7 +74,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleOwner, project: null });
 
     // Assert
-    expect(pages.at(-1)).toMatchObject({ label: '主機 AI 代理', action: { kind: 'navigate', to: '/ai-settings/host' } });
+    expect(pages.at(-1)).toMatchObject({ label: 'AI 助理主機代理', action: { kind: 'navigate', to: '/ai-settings/host' } });
   });
 
   it('在專案裡、看得到設定：設定、成員、變更集，旁邊寫出是哪個專案', () => {

@@ -28,6 +28,17 @@
   }
 }
 
+/* 滿寬的一塊（比較用的表格）：永遠上下排，內容不受 --reading-max 限制。 */
+@container settings-hub (min-width: 46rem) {
+  .section[data-full-width] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.section[data-full-width] .body {
+  max-width: none;
+}
+
 .aside {
   display: flex;
   flex-direction: column;
@@ -82,4 +93,9 @@
 .body > ul,
 .body > div > ul {
   border-top: 0;
+}
+
+/* 滿寬時說明照樣以閱讀寬度為限，不拉成一整排長句。 */
+.section[data-full-width] .aside {
+  max-width: var(--reading-max);
 }

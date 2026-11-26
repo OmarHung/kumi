@@ -81,3 +81,9 @@ a.label {
   font-weight: var(--weight-semibold);
   color: var(--color-text);
 }
+
+/* 好處與代價：和上面的費用那一行隔開一點，一組一組讀。 */
+.tradeoffs {
+  display: block;
+  margin-top: var(--space-2);
+}

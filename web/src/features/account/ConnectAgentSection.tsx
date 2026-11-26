@@ -88,7 +88,7 @@ function ConnectNote() {
   return (
     <p>
       只有你能用。在你電腦上的 Claude Code／Codex 裡叫 {PRODUCT_NAME} 的工具，用的是你自己的 Claude／ChatGPT 訂閱，看得到、做得到的和你自己一樣。反過來讓網頁的 AI
-      助理用你的 Claude Code／Codex，是「AI 帳號」的<Link to="/account/ai#local-agent">本機代理</Link>。
+      助理用你的 Claude Code／Codex，是「我的 AI 助理」的<Link to="/account/ai#local-agent">本機代理</Link>。
     </p>
   );
 }

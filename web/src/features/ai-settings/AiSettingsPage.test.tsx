@@ -44,7 +44,7 @@ async function openEditDialog(initial: Partial<AiSettings> = SAVED) {
 }
 
 describe('AI 設定：入口與權限', () => {
-  it('組織管理員從側欄的「設定」進去，次導覽有「AI 設定」，按了到設定頁', async () => {
+  it('組織管理員從側欄的「設定」進去，次導覽有「AI 助理設定」，按了到設定頁', async () => {
     // Arrange
     signedInAs(exampleOwner);
     serveAiSettings();
@@ -52,14 +52,14 @@ describe('AI 設定：入口與權限', () => {
 
     // Act
     await user.click(await screen.findByRole('link', { name: '設定' }));
-    await user.click(await screen.findByRole('link', { name: 'AI 設定' }));
+    await user.click(await screen.findByRole('link', { name: 'AI 助理設定' }));
 
     // Assert
-    expect(await screen.findByRole('heading', { level: 1, name: 'AI 設定' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'AI 助理設定' })).toBeInTheDocument();
     expect(currentPath(router)).toBe('/ai-settings');
   });
 
-  it('一般成員的側欄沒有「AI 設定」；直接打網址說沒有權限', async () => {
+  it('一般成員的側欄沒有「AI 助理設定」；直接打網址說沒有權限', async () => {
     // Arrange
     signedInAs(exampleMember);
     forbidAiSettings();
@@ -69,7 +69,7 @@ describe('AI 設定：入口與權限', () => {
 
     // Assert
     expect(await screen.findByText('只有組織的擁有者與管理員可以設定 AI。')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'AI 設定' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'AI 助理設定' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '儲存' })).not.toBeInTheDocument();
   });
 
@@ -221,7 +221,7 @@ describe('AI 設定：用量上限', () => {
 
     // Act
     await user.type(screen.getByRole('textbox', { name: '全組織每月最多（則）' }), '10');
-    await user.click(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: '主機 AI 代理' }));
+    await user.click(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: 'AI 助理主機代理' }));
 
     // Assert
     expect(await screen.findByRole('dialog', { name: '還有沒儲存的修改' })).toBeInTheDocument();
@@ -728,7 +728,7 @@ describe('AI 設定：沒存的修改', () => {
 });
 
 describe('AI 設定：版面', () => {
-  it('由上往下：四種接法的對照、組織的 API 金鑰、開放給成員、成員自己的 AI；表單不另外取名，個人的指到設定的「AI 帳號」', async () => {
+  it('由上往下：四種接法的對照、組織的 API 金鑰、開放給成員、成員自己的 AI；表單不另外取名，個人的指到「我的 AI 助理」', async () => {
     // Arrange / Act
     await openPage();
 
@@ -740,7 +740,7 @@ describe('AI 設定：版面', () => {
     expect(within(assistant).queryByRole('form')).not.toBeInTheDocument();
     expect(within(assistant).getByRole('heading', { level: 3, name: '預設' })).toBeInTheDocument();
     const policy = screen.getByRole('region', { name: '成員自己的 AI' });
-    expect(within(policy).getByText(/設定的「AI 帳號」/)).toBeInTheDocument();
+    expect(within(policy).getByText(/在「我的 AI 助理」接/)).toBeInTheDocument();
     expect(within(policy).getByRole('button', { name: '儲存（成員自己的 AI）' })).toBeInTheDocument();
     const keys = screen.getByRole('region', { name: '組織的 API 金鑰' });
     expect(within(keys).getByRole('button', { name: '新增 API 金鑰' })).toBeInTheDocument();
@@ -771,7 +771,7 @@ describe('AI 設定：版面', () => {
     await openPage();
 
     // Assert
-    expect(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: '主機 AI 代理' })).toHaveAttribute('href', '/ai-settings/host');
+    expect(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: 'AI 助理主機代理' })).toHaveAttribute('href', '/ai-settings/host');
     expect(screen.queryByRole('button', { name: '新增主機代理' })).not.toBeInTheDocument();
   });
 });

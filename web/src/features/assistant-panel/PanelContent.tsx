@@ -18,8 +18,8 @@ interface PanelContentProps {
 function AddPersonalHint() {
   return (
     <div className={styles.message}>
-      <p>組織還沒設定 AI。你可以在「AI 帳號」加自己的 AI 帳號。</p>
-      <Link to="/account/ai">前往「AI 帳號」</Link>
+      <p>組織還沒設定 AI。你可以在「我的 AI 助理」接自己的 AI 帳號。</p>
+      <Link to="/account/ai">前往「我的 AI 助理」</Link>
     </div>
   );
 }

@@ -17,7 +17,7 @@ beforeEach(() => {
 
 const ALLOWED = makeAiOptions({ canAddPersonal: true });
 
-describe('AI 帳號：我的 API 金鑰（出現的條件）', () => {
+describe('我的 AI 助理：我的 API 金鑰（出現的條件）', () => {
   it('組織不允許、自己也沒有連線與電腦：不是空白頁，只有一塊說明，沒有新增的按鈕', async () => {
     // Arrange
     signedInAs(exampleOwner);
@@ -29,7 +29,7 @@ describe('AI 帳號：我的 API 金鑰（出現的條件）', () => {
 
     // Assert
     const section = await screen.findByRole('region', { name: '我的 API 金鑰' });
-    expect(await within(section).findByText(/組織目前不允許使用自己的 AI 帳號。要用的話請組織的擁有者或管理員在「AI 設定」開啟。/)).toBeInTheDocument();
+    expect(await within(section).findByText(/組織目前不允許使用自己的 AI 帳號。要用的話請組織的擁有者或管理員在「AI 助理設定」開啟。/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '新增 API 金鑰' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '本機代理' })).not.toBeInTheDocument();
   });
@@ -93,12 +93,12 @@ describe('AI 帳號：我的 API 金鑰（出現的條件）', () => {
       expect(backend.deleted).toEqual(['pc-1']);
     });
     // 刪光之後不是空白頁：換成一塊說明。
-    expect(await screen.findByText(/要用的話請組織的擁有者或管理員在「AI 設定」開啟/)).toBeInTheDocument();
+    expect(await screen.findByText(/要用的話請組織的擁有者或管理員在「AI 助理設定」開啟/)).toBeInTheDocument();
     expect(screen.queryByText('我的 OpenRouter')).not.toBeInTheDocument();
   });
 });
 
-describe('AI 帳號：我的 API 金鑰（清單與動作）', () => {
+describe('我的 AI 助理：我的 API 金鑰（清單與動作）', () => {
   it('每個連線列出名稱、金鑰的最後四個字、開放幾個模型與本月用量', async () => {
     // Arrange
     signedInAs(exampleOwner);

@@ -47,7 +47,7 @@ export function AiSettingsPage() {
   // 對照放在讀取狀態之外：載入中、讀不到時照樣在最上面，資料到了不把內容往下推（和主機 AI 代理頁一樣）。
   return (
     <>
-      <AiSetupMap page="organization" />
+      <AiSetupMap page="organization" isDetailed />
       <SettingsContent />
     </>
   );

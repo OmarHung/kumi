@@ -11,8 +11,8 @@ import { BELOW_WIDE_QUERY } from '../../lib/useMediaQuery';
 
 const exampleAdmin: SessionUser = { ...exampleOwner, role: 'admin', displayName: '範例管理員' };
 
-const PERSONAL = ['我的帳號', '通知', 'AI 帳號', '命令列與整合'];
-const ORGANIZATION = ['說明格式', '寄信設定', '儲存空間', 'AI 設定'];
+const PERSONAL = ['我的帳號', '通知', '我的 AI 助理', '命令列與整合'];
+const ORGANIZATION = ['說明格式', '寄信設定', '儲存空間', 'AI 助理設定'];
 
 function serveHubPages() {
   serveEmailSettings();
@@ -50,7 +50,7 @@ describe('設定中心：次導覽', () => {
 
     // Assert
     expect(linkNames(nav)).toEqual([...PERSONAL, ...ORGANIZATION]);
-    expect(within(nav).queryByRole('link', { name: '主機 AI 代理' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'AI 助理主機代理' })).not.toBeInTheDocument();
   });
 
   it('擁有者五項組織的都有，主機 AI 代理在最後', async () => {
@@ -58,7 +58,7 @@ describe('設定中心：次導覽', () => {
     const { nav } = await openHubNav(exampleOwner);
 
     // Assert
-    expect(linkNames(nav)).toEqual([...PERSONAL, ...ORGANIZATION, '主機 AI 代理']);
+    expect(linkNames(nav)).toEqual([...PERSONAL, ...ORGANIZATION, 'AI 助理主機代理']);
   });
 
   it('目前所在的那一項標 aria-current="page"，其他都沒有', async () => {
@@ -157,7 +157,7 @@ describe('設定中心：側欄的「設定」', () => {
 
     // Assert
     expect(settings).toBeInTheDocument();
-    for (const name of ['說明格式', '寄信設定', 'AI 設定']) {
+    for (const name of ['說明格式', '寄信設定', 'AI 助理設定']) {
       expect(within(sidebar).queryByRole('link', { name })).not.toBeInTheDocument();
     }
   });

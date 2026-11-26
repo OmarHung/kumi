@@ -91,9 +91,9 @@ function UsageLimits({ form, settings }: { readonly form: AiSettingsFormState; r
   );
 }
 
-const ASSISTANT_DESCRIPTION = '全組織共用。打開後，成員在專案的 AI 助理選得到上面的 API 金鑰開放的模型。不影響主機 AI 代理與成員自己的 AI。';
-const CONNECTIONS_DESCRIPTION = '全組織共用。每一筆是一把供應商的 API 金鑰（Anthropic、OpenAI、Gemini、OpenRouter 或相容的服務），按用量計費、算在那個供應商帳號。Claude、ChatGPT 的訂閱不能接在這裡。';
-const POLICY_DESCRIPTION = '全組織的政策，管成員自己的 API 金鑰與電腦上的本機代理。開了之後只有本人能用、費用算本人的帳號；關掉時已經接的還在，但只能刪除。';
+const ASSISTANT_DESCRIPTION = '全組織共用。打開後，成員在 AI 助理選得到上面開放的模型。';
+const CONNECTIONS_DESCRIPTION = '全組織共用。供應商的 API 金鑰（Anthropic、OpenAI、Gemini、OpenRouter 等），按用量計費；不能接訂閱。';
+const POLICY_DESCRIPTION = '全組織的政策，管成員自己的 API 金鑰與本機代理。關掉時已經接的只能刪除。';
 const POLICY_SAVE_NAME = '儲存（成員自己的 AI）';
 const NEED_MODELS_TO_ENABLE = '先在上面新增 API 金鑰、開放至少一個模型才能打開。';
 
@@ -175,7 +175,7 @@ function PolicySection({ form }: { readonly form: AiSettingsFormState }) {
       <form className={styles.form} noValidate aria-busy={form.isPolicySaving} onSubmit={handleSubmit}>
         <CheckboxField
           label="允許成員使用自己的 AI 帳號"
-          hint="成員在設定的「AI 帳號」接自己的 API 金鑰，或用自己電腦上的 Claude Code／Codex（本機代理，可以用自己的訂閱）。專案的設定會送到他們選的供應商。"
+          hint="成員在「我的 AI 助理」接自己的 API 金鑰，或用自己電腦上的 Claude Code／Codex（本機代理，可以用自己的訂閱）。只有本人能用、費用算本人的帳號；專案的設定會送到他們選的供應商。"
           checked={form.allowPersonal}
           onChange={(event) => {
             form.setAllowPersonal(event.target.checked);

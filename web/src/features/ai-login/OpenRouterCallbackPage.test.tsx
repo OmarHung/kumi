@@ -67,12 +67,12 @@ describe('用 OpenRouter 登入回來', () => {
 
     // Assert
     expect(await screen.findByRole('heading', { level: 1, name: '沒有完成 OpenRouter 的登入' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '回到 AI 設定' })).toHaveAttribute('href', '/ai-settings');
-    expect(screen.getByRole('link', { name: '回到 AI 帳號' })).toHaveAttribute('href', '/account/ai');
+    expect(screen.getByRole('link', { name: '回到 AI 助理設定' })).toHaveAttribute('href', '/ai-settings');
+    expect(screen.getByRole('link', { name: '回到我的 AI 助理' })).toHaveAttribute('href', '/account/ai');
     expect(backend.completions).toHaveLength(0);
   });
 
-  it('一般成員失敗：只有回到 AI 帳號', async () => {
+  it('一般成員失敗：只有回到我的 AI 助理', async () => {
     // Arrange
     signedInAs(exampleMember);
     servePersonalAi();
@@ -82,8 +82,8 @@ describe('用 OpenRouter 登入回來', () => {
 
     // Assert
     await screen.findByRole('heading', { level: 1, name: '沒有完成 OpenRouter 的登入' });
-    expect(screen.queryByRole('link', { name: '回到 AI 設定' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '回到 AI 帳號' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '回到 AI 助理設定' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '回到我的 AI 助理' })).toBeInTheDocument();
   });
 
   it('伺服器說登入失敗（422）：顯示原因與回去的連結，不導走', async () => {
@@ -98,7 +98,7 @@ describe('用 OpenRouter 登入回來', () => {
     // Assert
     expect(await screen.findByRole('heading', { level: 1, name: '無法完成登入' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('登入已經過期');
-    expect(screen.getByRole('link', { name: '回到 AI 帳號' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '回到我的 AI 助理' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('OpenRouter 的登入沒有完成：登入已經過期。');
     expect(screen.queryByRole('heading', { name: 'OpenRouter 的登入沒有完成' })).not.toBeInTheDocument();
     // 送出之後 code 與 state 就不在網址上了（不留在瀏覽紀錄、重新整理不會再送一次）。

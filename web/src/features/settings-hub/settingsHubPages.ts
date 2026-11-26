@@ -41,13 +41,13 @@ export const SETTINGS_HUB_GROUP_LABELS: Readonly<Record<SettingsHubGroup, string
 export const SETTINGS_HUB_PAGES: readonly SettingsHubPage[] = [
   { key: 'account', path: '/account', label: '我的帳號', group: 'personal', access: 'everyone', variant: 'reading' },
   { key: 'notifications', path: '/account/notifications', label: '通知', group: 'personal', access: 'everyone', variant: 'reading' },
-  { key: 'ai-accounts', path: '/account/ai', label: 'AI 帳號', group: 'personal', access: 'everyone', variant: 'reading' },
+  { key: 'ai-accounts', path: '/account/ai', label: '我的 AI 助理', group: 'personal', access: 'everyone', variant: 'reading' },
   { key: 'integrations', path: '/account/integrations', label: '命令列與整合', group: 'personal', access: 'everyone', variant: 'reading' },
   { key: 'description-templates', path: '/description-templates', label: '說明格式', group: 'organization', access: 'admin', variant: 'list' },
   { key: 'email-settings', path: '/email-settings', label: '寄信設定', group: 'organization', access: 'admin', variant: 'reading' },
   { key: 'storage-usage', path: '/storage-usage', label: '儲存空間', group: 'organization', access: 'admin', variant: 'reading' },
-  { key: 'ai-settings', path: '/ai-settings', label: 'AI 設定', group: 'organization', access: 'admin', variant: 'reading' },
-  { key: 'host-agents', path: '/ai-settings/host', label: '主機 AI 代理', group: 'organization', access: 'owner', variant: 'reading' },
+  { key: 'ai-settings', path: '/ai-settings', label: 'AI 助理設定', group: 'organization', access: 'admin', variant: 'reading' },
+  { key: 'host-agents', path: '/ai-settings/host', label: 'AI 助理主機代理', group: 'organization', access: 'owner', variant: 'reading' },
 ];
 
 /** 說明格式的新增與編輯頁不在設定中心的版面裡（填滿畫面的編輯器），但側欄的「設定」照樣是目前所在。 */
@@ -64,7 +64,7 @@ export function visibleSettingsHubPages(user: SessionUser): readonly SettingsHub
   return SETTINGS_HUB_PAGES.filter((page) => canSeeSettingsHubPage(page, user));
 }
 
-/** 比對用的路徑：去掉結尾的斜線、轉小寫（React Router 的路由不分大小寫，/Account/AI 也會掛上「AI 帳號」）。 */
+/** 比對用的路徑：去掉結尾的斜線、轉小寫（React Router 的路由不分大小寫，/Account/AI 也會掛上「我的 AI 助理」）。 */
 function normalizedPath(pathname: string): string {
   const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   return path.toLowerCase();

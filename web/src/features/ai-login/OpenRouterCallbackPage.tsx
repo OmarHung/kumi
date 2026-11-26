@@ -15,7 +15,7 @@ const HTTP_TOO_MANY_REQUESTS = 429;
 const TITLE = 'OpenRouter 登入';
 const CALLBACK_PATH = '/ai/openrouter/callback';
 
-/** 成功之後去哪：組織的連線到 AI 設定頁、自己的到「AI 帳號」頁，帶著編號讓那一頁直接打開編輯對話框。 */
+/** 成功之後去哪：組織的連線到 AI 設定頁、自己的到「我的 AI 助理」頁，帶著編號讓那一頁直接打開編輯對話框。 */
 export function afterLoginPath(scope: AiConnectionScope, connectionId: string): string {
   const id = encodeURIComponent(connectionId);
   return scope === 'organization' ? `/ai-settings?edit=${id}` : `/account/ai?aiConnection=${id}`;
@@ -25,18 +25,18 @@ function failureText(error: unknown): string {
   return isApiError(error) && error.status === HTTP_TOO_MANY_REQUESTS ? '請求太頻繁，請稍後再試。' : errorMessage(error);
 }
 
-/** 失敗時回去的地方：管理員兩邊都可能是從那裡來的，成員只有「AI 帳號」頁。 */
+/** 失敗時回去的地方：管理員兩邊都可能是從那裡來的，成員只有「我的 AI 助理」頁。 */
 function BackLinks() {
   const user = useCurrentUser();
   return (
     <div className={styles.actions}>
       {isOrganizationAdmin(user) && (
         <Link to="/ai-settings" className={buttonClassName('secondary')}>
-          回到 AI 設定
+          回到 AI 助理設定
         </Link>
       )}
       <Link to="/account/ai" className={buttonClassName('secondary')}>
-        回到 AI 帳號
+        回到我的 AI 助理
       </Link>
     </div>
   );

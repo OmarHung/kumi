@@ -13,7 +13,7 @@ describe('主機 AI 代理：誰看得到', () => {
     await openHostSection();
 
     // Assert
-    expect(screen.getByRole('heading', { level: 1, name: '主機 AI 代理' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'AI 助理主機代理' })).toBeInTheDocument();
     expect(await screen.findByText('還沒有主機代理。先新增一台，再到主機上配對。')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '主機' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '來源' })).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe('主機 AI 代理：誰看得到', () => {
     await settle();
 
     // Assert
-    expect(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: '主機 AI 代理' })).toHaveAttribute('href', HOST_PATH);
+    expect(within(screen.getByRole('navigation', { name: '設定' })).getByRole('link', { name: 'AI 助理主機代理' })).toHaveAttribute('href', HOST_PATH);
     expect(screen.queryByRole('button', { name: '新增主機代理' })).not.toBeInTheDocument();
     expect(reads).toHaveLength(0);
   });
@@ -46,7 +46,7 @@ describe('主機 AI 代理：誰看得到', () => {
     await screen.findByRole('button', { name: '儲存' });
 
     // Assert
-    expect(screen.queryByRole('link', { name: '主機 AI 代理' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'AI 助理主機代理' })).not.toBeInTheDocument();
   });
 
   it.each([

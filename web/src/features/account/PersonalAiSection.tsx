@@ -9,9 +9,9 @@ import { ConnectionManager } from '../ai-settings/ConnectionList';
 import { LocalAgentSection } from './LocalAgentSection';
 
 const NOT_ALLOWED = '組織目前不允許使用自己的 AI 帳號。已經接的還在，但只能刪除。';
-const NOT_ALLOWED_EMPTY = '組織目前不允許使用自己的 AI 帳號。要用的話請組織的擁有者或管理員在「AI 設定」開啟。';
-const INTRO = '只有你能用。接你自己的供應商 API 金鑰（或用 OpenRouter 登入），按用量計費、算在你自己的帳號；專案的設定會送到你選的供應商。';
-// 頁名已經是「AI 帳號」：這一塊叫「我的 API 金鑰」，和下一塊「本機代理」並列，說清楚是金鑰、不是訂閱。
+const NOT_ALLOWED_EMPTY = '組織目前不允許使用自己的 AI 帳號。要用的話請組織的擁有者或管理員在「AI 助理設定」開啟。';
+const INTRO = '只有你能用。你自己的供應商 API 金鑰（或用 OpenRouter 登入），按用量計費、算在你的帳號。';
+// 頁名已經是「我的 AI 助理」：這一塊叫「我的 API 金鑰」，和下一塊「本機代理」並列，說清楚是金鑰、不是訂閱。
 const TITLE = '我的 API 金鑰';
 /** 四種接法的對照連到這一塊（/account/ai#ai-keys）。 */
 const SECTION_ID = 'ai-keys';

@@ -15,8 +15,8 @@ export const OLD_TOKEN_NOTE = '之前建立的權杖讀不到項目，要讀項�
 
 /** 兩個引擎的名稱：說明裡整段不斷行（左欄窄，原本會在斜線的地方折成兩行）。 */
 export const LOCAL_ENGINES = 'Claude Code／Codex';
-export const LOCAL_AGENT_NOTE_BEFORE = '只有你能用。用你電腦上已經登入的 ';
-export const LOCAL_AGENT_NOTE_AFTER = '，可以是你自己的訂閱（Claude、ChatGPT），費用照你的訂閱或帳號算。它只能讀這個專案的設定與項目、提出變更集與修改建議，不能碰你電腦上的檔案。';
+export const LOCAL_AGENT_NOTE_BEFORE = '只有你能用。網頁的 AI 助理借用你電腦上的 ';
+export const LOCAL_AGENT_NOTE_AFTER = '，可以用你自己的訂閱；它不能碰你電腦上的檔案。';
 
 /** 權杖的名稱：加上建立的日期，清單裡才分得出新舊。 */
 export function localAgentTokenName(now: Date): string {

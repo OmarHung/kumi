@@ -679,7 +679,7 @@ describe('模型選單與沒有模型', () => {
     expect(screen.getByText('Anthropic')).toBeInTheDocument();
   });
 
-  it('組織沒設定 AI、可以接自己的：說明與連到「AI 帳號」的連結', async () => {
+  it('組織沒設定 AI、可以接自己的：說明與連到「我的 AI 助理」的連結', async () => {
     // Arrange
     const { user } = openApp('/projects/SMK', makeAiOptions({ available: false, canAddPersonal: true, connections: [], default: null }));
 
@@ -687,8 +687,8 @@ describe('模型選單與沒有模型', () => {
     const panel = await openPanel(user);
 
     // Assert
-    expect(await within(panel).findByText('組織還沒設定 AI。你可以在「AI 帳號」加自己的 AI 帳號。')).toBeInTheDocument();
-    expect(within(panel).getByRole('link', { name: '前往「AI 帳號」' })).toHaveAttribute('href', '/account/ai');
+    expect(await within(panel).findByText('組織還沒設定 AI。你可以在「我的 AI 助理」接自己的 AI 帳號。')).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: '前往「我的 AI 助理」' })).toHaveAttribute('href', '/account/ai');
   });
 
   it('沒有 blueprint.read：說明沒有權限', async () => {

@@ -35,7 +35,7 @@ function optionNames(dialog: HTMLElement): string[] {
 }
 
 // 設定中心的頁面接在「頁面」組裡，旁邊寫「設定」（和專案的「設定」分得開）。
-const PERSONAL_HUB_OPTIONS = ['我的帳號 個人設定', '通知 個人設定', 'AI 帳號 個人設定', '命令列與整合 個人設定'];
+const PERSONAL_HUB_OPTIONS = ['我的帳號 個人設定', '通知 個人設定', '我的 AI 助理 個人設定', '命令列與整合 個人設定'];
 const HUB_OPTIONS_OWNER_BEFORE_PROJECT = [
   '我的工作',
   '知識庫',
@@ -45,8 +45,8 @@ const HUB_OPTIONS_OWNER_BEFORE_PROJECT = [
   '說明格式 組織設定',
   '寄信設定 組織設定',
   '儲存空間 組織設定',
-  'AI 設定 組織設定',
-  '主機 AI 代理 組織設定',
+  'AI 助理設定 組織設定',
+  'AI 助理主機代理 組織設定',
 ];
 
 describe('快速跳轉：打開與關上', () => {

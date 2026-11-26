@@ -6,6 +6,8 @@ import type { SessionUser } from '../../api/types';
 import { exampleMember, exampleOwner } from '../../test/fixtures';
 import { servePersonalAi } from '../../test/personalAi';
 import { renderApp } from '../../test/renderApp';
+import { serveAiSettings } from '../../test/aiSettings';
+import { serveHostReads } from '../host-agents/hostAgentsTestKit';
 
 const exampleAdmin: SessionUser = { ...exampleOwner, role: 'admin', displayName: '範例管理員' };
 
@@ -32,7 +34,7 @@ describe('AI 的四種接法', () => {
     expect(within(map).getByRole('link', { name: '本機代理' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('每一格寫好處與代價，左欄給選擇的建議', async () => {
+  it('我的 AI 助理頁是精簡版：只有每一格的費用那一行，沒有好處、代價與建議', async () => {
     // Arrange
     signedInAs(exampleMember);
 
@@ -40,12 +42,26 @@ describe('AI 的四種接法', () => {
     const map = await openAiAccounts();
 
     // Assert
+    expect(within(map).queryByText(/好處：/)).not.toBeInTheDocument();
+    expect(within(map).queryByText(/^建議：/)).not.toBeInTheDocument();
+    expect(within(map).getByText('按用量計費，算在自己的供應商帳號；要組織允許')).toBeInTheDocument();
+  });
+
+  it('AI 助理設定頁是完整版：每一格寫好處與代價，說明給選擇的建議', async () => {
+    // Arrange
+    signedInAs(exampleOwner);
+    serveAiSettings();
+    serveHostReads();
+
+    // Act
+    renderApp('/ai-settings');
+    const map = await screen.findByRole('region', { name: 'AI 的四種接法' });
+
+    // Assert
     expect(within(map).getByText(/^建議：全組織共用先開組織的 API 金鑰/)).toBeInTheDocument();
-    const hostCell = within(map).getByText('主機 AI 代理').closest('td');
+    const hostCell = within(map).getByRole('link', { name: '主機 AI 代理' }).closest('td');
     expect(hostCell).toHaveTextContent('好處：成員不用設定，用的是 Claude Code／Codex 本身');
     expect(hostCell).toHaveTextContent('代價：一次只跑一則、其他人排隊；要有人維護主機上的 ai-worker');
-    const localCell = within(map).getByRole('link', { name: '本機代理' }).closest('td');
-    expect(localCell).toHaveTextContent('好處：用已經有的訂閱，不另外按用量付費');
   });
 
   it('一般成員：組織的兩格沒有連結，寫由誰設定', async () => {

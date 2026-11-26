@@ -58,7 +58,7 @@ interface ComposerBarProps extends Pick<ComposerProps, 'options' | 'selection' |
 /** 沒有可選的模型：有主機來源現在不能用時，逐一說明原因（來源名稱加伺服器給的一句話）；都沒有才叫人去開放。 */
 function NoModels({ options }: { readonly options: AiOptions }) {
   const unavailable = options.connections.filter((connection) => connection.notice !== null);
-  if (unavailable.length === 0) return <p className={styles.noModels}>組織還沒有開放任何模型：請組織管理員到「AI 設定」開放組織的 API 金鑰，或請組織擁有者設定主機 AI 代理。</p>;
+  if (unavailable.length === 0) return <p className={styles.noModels}>組織還沒有開放任何模型：請組織管理員到「AI 助理設定」開放組織的 API 金鑰，或請組織擁有者設定主機 AI 代理。</p>;
   return (
     <div className={styles.noModels}>
       {unavailable.map((connection) => (
@@ -97,7 +97,7 @@ function ComposerBar({ options, selection, onSelectionChange, isStreaming, canSe
       <AttachButton onPick={onPickFiles} />
       <div className={styles.pickers}>
         {selection === null ? (
-          // 只剩現在不能用的主機來源：說伺服器給的原因，不叫人去「AI 設定」開放（模型其實開著）。
+          // 只剩現在不能用的主機來源：說伺服器給的原因，不叫人去「AI 助理設定」開放（模型其實開著）。
           <NoModels options={options} />
         ) : (
           <ModelPicker options={options} selection={selection} onChange={onSelectionChange} />

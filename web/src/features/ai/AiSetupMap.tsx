@@ -9,7 +9,13 @@ const DESCRIPTION = '看兩件事：誰能用，和用什麼登入。費用一�
 const ADVICE =
   '建議：全組織共用先開組織的 API 金鑰（快、不排隊、不用維護主機）；想讓大家用 Claude Code／Codex 又不想各自安裝，再加主機 AI 代理。已經有 Claude、ChatGPT 訂閱的人，用本機代理最省。';
 
-function CellBody({ cell, page }: { readonly cell: AiSetupCell; readonly page: AiSetupPage }) {
+interface CellProps {
+  readonly cell: AiSetupCell;
+  readonly page: AiSetupPage;
+  readonly isDetailed: boolean;
+}
+
+function CellBody({ cell, page, isDetailed }: CellProps) {
   const user = useCurrentUser();
   const isCurrent = cell.page === page;
   const managedBy = managedByText(cell);
@@ -23,37 +29,42 @@ function CellBody({ cell, page }: { readonly cell: AiSetupCell; readonly page: A
         <span className={styles.label}>{cell.label}</span>
       )}
       <span className={styles.detail}>{cell.detail}</span>
-      <span className={styles.detail}>
-        <span className={styles.term}>好處：</span>
-        {cell.pros}
-      </span>
-      <span className={styles.detail}>
-        <span className={styles.term}>代價：</span>
-        {cell.cons}
-      </span>
+      {isDetailed && (
+        <span className={styles.tradeoffs}>
+          <span className={styles.detail}>
+            <span className={styles.term}>好處：</span>
+            {cell.pros}
+          </span>
+          <span className={styles.detail}>
+            <span className={styles.term}>代價：</span>
+            {cell.cons}
+          </span>
+        </span>
+      )}
       {!canOpenAiSetup(cell, user) && managedBy !== null && <span className={styles.detail}>{managedBy}</span>}
     </td>
   );
 }
 
-/** 左欄：怎麼看這張表，和一句選擇的建議（四格各自的好處與代價寫在格子裡）。 */
-function MapNote() {
+/** 說明：怎麼看這張表；完整版再加一句選擇的建議（四格各自的好處與代價寫在格子裡）。 */
+function MapNote({ isDetailed }: { readonly isDetailed: boolean }) {
   return (
     <>
       <p>{DESCRIPTION}</p>
-      <p>{ADVICE}</p>
+      {isDetailed && <p>{ADVICE}</p>}
     </>
   );
 }
 
 /**
- * 三頁 AI 設定最上面的對照（docs/design/08-interaction.md 8.3「AI 的四種接法」）：兩列（全組織共用、只有自己）乘兩欄（API 金鑰、Claude Code／Codex）。
+ * 三頁 AI 助理設定最上面的對照（docs/design/08-interaction.md 8.3「AI 的四種接法」），整塊滿寬（右欄放不下四格）。
+ * 完整版（isDetailed，AI 助理設定頁：管理員在這裡決定開哪幾種）多寫每一格的好處、代價與一句建議；另外兩頁只是告訴人「這一頁是哪一格」，用精簡版。：兩列（全組織共用、只有自己）乘兩欄（API 金鑰、Claude Code／Codex）。
  * 目前這一頁的格子用選取的底（和次導覽的目前所在同一套），其他格子是連到那一頁的連結；看不到的頁不給連結，寫由誰設定。
  * 用真的表格：列與欄的標題是 th，報讀軟體唸得出「全組織共用、API 金鑰：組織的 API 金鑰」。
  */
-export function AiSetupMap({ page }: { readonly page: AiSetupPage }) {
+export function AiSetupMap({ page, isDetailed = false }: { readonly page: AiSetupPage; readonly isDetailed?: boolean }) {
   return (
-    <SettingsSection title={TITLE} description={<MapNote />} isContentStart>
+    <SettingsSection title={TITLE} description={<MapNote isDetailed={isDetailed} />} isContentStart isFullWidth>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -75,7 +86,7 @@ export function AiSetupMap({ page }: { readonly page: AiSetupPage }) {
                 {row.label}
               </th>
               {row.cells.map((cell) => (
-                <CellBody key={cell.kind} cell={cell} page={page} />
+                <CellBody key={cell.kind} cell={cell} page={page} isDetailed={isDetailed} />
               ))}
             </tr>
           ))}
