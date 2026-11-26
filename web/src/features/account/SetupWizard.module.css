@@ -138,10 +138,14 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * 結果後面可以接一顆按鈕（本機代理離線時的「排查說明」）：文字與按鈕上下置中。不用 baseline：
+ * 帶圖示的按鈕的基線落在圖示上，按鈕會比文字高一截。整格的基線仍是文字的，和左欄的名稱對齊。
+ */
 .lineText {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-1) var(--space-2);
   min-width: 0;
   margin: 0;
