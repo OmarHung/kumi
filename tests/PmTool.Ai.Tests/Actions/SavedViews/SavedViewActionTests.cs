@@ -84,6 +84,24 @@ public sealed class SavedViewActionTests
     }
 
     [Test]
+    public async Task Create_InMyWorkWithAnAssignee_IsRejectedAtCreationAndPointsToMine()
+    {
+        // Arrange：「我的工作」的檢視沒有負責人的條件，工作引擎要到套用時才擋；建立時就要擋下並說明改用 mine。
+        var bad = new { action = "create", name = "過期的", assignee = "me", due = "overdue" };
+
+        // Act
+        var rejected = await PrepareAsync(null, bad);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(rejected.Failure?.Details.Select(d => d.Path), Is.EqualTo(new[] { "changes[0].assignee" }));
+            Assert.That(rejected.Failure?.Details.Single().Message, Does.Contain("mine"));
+            Assert.That(_views.Calls, Is.Empty);
+        }
+    }
+
+    [Test]
     public async Task Update_OnlyTheGivenPropertiesChange_AndNullClearsACondition()
     {
         // Arrange

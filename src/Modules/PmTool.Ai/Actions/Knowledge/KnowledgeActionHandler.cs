@@ -144,7 +144,12 @@ internal sealed class KnowledgeActionHandler(IServiceProvider services) : IActio
     }
 
     private static ActionStepResult PageResult(Result<PageDetail> result, string spaceKey) =>
-        result.Failure is { } failure ? ActionStepResult.Failed(failure) : ActionStepResult.Done(Link(spaceKey, result.Value.Number));
+        result.Failure is { } failure ? ActionStepResult.Failed(ForCard(failure)) : ActionStepResult.Done(Link(spaceKey, result.Value.Number));
+
+    // 知識庫的衝突訊息是寫給網頁編輯器的（「再決定要不要覆蓋」），卡片上再按一次只會再被擋：改成告訴使用者下一步。
+    private static Failure ForCard(Failure failure) => failure.Code == KnowledgeErrorCodes.PageConflict
+        ? failure with { Message = "這一頁在建議提出之後被別人改過，這次沒有套用（不會蓋掉別人改的）。請助理重新讀這一頁再提一次。" }
+        : failure;
 
     private static ActionStepResult SpaceResult(Result<SpaceSummary> result) =>
         result.Failure is { } failure ? ActionStepResult.Failed(failure) : ActionStepResult.Done(Link(result.Value.Key, null));

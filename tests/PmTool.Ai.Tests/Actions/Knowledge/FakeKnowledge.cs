@@ -138,10 +138,13 @@ internal sealed class FakeKnowledgePages : IKnowledgePageService
         return Task.FromResult(OnCreate?.Invoke(page) ?? KnowledgeData.Page(_nextNumber++));
     }
 
+    /// <summary>設了就用它回改頁面的結果（例如衝突）；沒設回現在的頁面。</summary>
+    public Func<int, Result<PageDetail>>? OnUpdate { get; set; }
+
     public Task<Result<PageDetail>> UpdateAsync(Actor actor, string spaceKey, int pageNumber, PageChanges changes, CancellationToken cancellationToken)
     {
         Updated.Add((pageNumber, changes));
-        return Task.FromResult(OnGet(pageNumber));
+        return Task.FromResult(OnUpdate?.Invoke(pageNumber) ?? OnGet(pageNumber));
     }
 
     public Task<Result<PageTree>> MoveAsync(Actor actor, string spaceKey, int pageNumber, PageMove move, CancellationToken cancellationToken)

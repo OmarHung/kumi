@@ -72,7 +72,7 @@ internal static class WorkspaceTools
             $"建議新增、修改、刪除你自己的檢視（不會真的改）：使用者在網頁上看到後按「套用」才會生效。給 projectKey 是那個專案的檢視，不給是「我的工作」的檢視。changes 是 1 到 {AiRules.MaxActionSteps} 筆，依順序套用：" +
             "action 是 create、update、delete；update、delete 要給 viewId（list_saved_views 回的）；create 要給 name，layout 是 table、board、calendar、timeline（預設 table）。" +
             "條件和 list_saved_views 的 query 同一套：type、state、assignee（me、none、人員編號）、search、sort、due、priority、cycle（current、none 或週期 id）、milestone、group、fields（自訂欄位 key 對到條件字串）、open、stale；" +
-            "「我的工作」的檢視另有 category、project、mine，專案的檢視另有 createdBy，兩邊不能混用。update 只改有給的屬性（給 null 是清掉那個條件）。檢視只有使用者自己看得到。提出之後告訴使用者「請按套用」，不要說已經改好了。",
+            "「我的工作」的檢視另有 category、project、mine（assigned 我負責的，預設；created 我建立的），沒有 assignee；專案的檢視另有 assignee、createdBy、cycle、milestone、open、stale；兩邊不能混用。update 只改有給的屬性（給 null 是清掉那個條件）。檢視只有使用者自己看得到。提出之後告訴使用者「請按套用」，不要說已經改好了。",
             McpSchemas.Object(
                 required: ["changes"],
                 ("projectKey", McpSchemas.Text("專案代號；不給是「我的工作」的檢視。")),

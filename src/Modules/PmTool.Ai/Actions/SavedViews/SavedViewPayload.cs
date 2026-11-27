@@ -29,7 +29,8 @@ internal static class SavedViewPayload
 
     private static readonly string[] MyWorkOnly = ["category", "project", "mine"];
 
-    private static readonly string[] ProjectOnly = ["cycle", "milestone", "createdBy", "open", "stale"];
+    // 「我的工作」的檢視沒有負責人的條件（範圍存在 mine）：工作引擎套用時才會擋，建立時先擋下並告訴模型怎麼寫。
+    private static readonly string[] ProjectOnly = ["cycle", "milestone", "createdBy", "open", "stale", "assignee"];
 
     private static readonly HashSet<string> Known =
         new(["action", "viewId", "name", "layout", "fields", .. StringProperties, .. BoolProperties]);
@@ -190,6 +191,13 @@ internal static class SavedViewPayload
 
     private static readonly SavedViewQuery EmptyQuery = new(null, null, null, null, null, null, null);
 
+    private static string ScopeIssueMessage(string name, bool isMyWork) => (isMyWork, name) switch
+    {
+        (true, "assignee") => "「我的工作」的檢視沒有負責人的條件：要看我負責的不用給（預設），要看我建立的給 mine: \"created\"。",
+        (true, _) => $"「我的工作」的檢視沒有「{name}」這個條件。",
+        _ => $"專案的檢視沒有「{name}」這個條件。",
+    };
+
     private static SavedViewQuery ReadQuery(JsonElement change, string path, bool isMyWork, SavedViewQuery start, List<FailureDetail> issues)
     {
         var query = start;
@@ -199,7 +207,7 @@ internal static class SavedViewPayload
             var scopeIssue = (isMyWork ? ProjectOnly : MyWorkOnly).Contains(name);
             if (scopeIssue)
             {
-                issues.Add(Issue($"{path}.{name}", isMyWork ? $"「我的工作」的檢視沒有「{name}」這個條件。" : $"專案的檢視沒有「{name}」這個條件。"));
+                issues.Add(Issue($"{path}.{name}", ScopeIssueMessage(name, isMyWork)));
                 continue;
             }
 

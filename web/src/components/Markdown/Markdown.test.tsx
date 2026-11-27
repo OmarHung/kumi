@@ -455,6 +455,16 @@ describe('連結的網域提示', () => {
     expect(screen.getByText('（docs.example）')).toBeInTheDocument();
   });
 
+  it('always 時文字本身就是完整的信箱或網址，不再重複接一次網域', async () => {
+    // Arrange & Act
+    await renderMarkdown('寄給 jia@example.com，網站 https://staging.example.com', MEMBERS, true, 'always');
+
+    // Assert
+    expect(await screen.findByRole('link', { name: 'jia@example.com' })).toBeInTheDocument();
+    expect(screen.queryByText('（jia@example.com）')).toBeNull();
+    expect(screen.queryByText('（staging.example.com）')).toBeNull();
+  });
+
   it('預設：文字看不出連到哪裡的外部連結，後面接上實際的網域（人寫的說明裡的釣魚連結）', async () => {
     // Arrange & Act
     await renderMarkdown('[重新登入 Kumi](https://kumi-login.example.net/verify)');

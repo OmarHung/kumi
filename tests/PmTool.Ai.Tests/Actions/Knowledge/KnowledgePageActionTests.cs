@@ -127,6 +127,26 @@ internal sealed class KnowledgePageActionTests : KnowledgeActionTestBase
     }
 
     [Test]
+    public async Task UpdatePage_ChangedByOthersBeforeApplying_FailsWithAMessageThatTellsWhatToDoNext()
+    {
+        // Arrange：知識庫的衝突訊息是寫給網頁編輯器的（「再決定要不要覆蓋」），卡片上要改成告訴使用者下一步。
+        var payload = Payload(new { action = "update_page", spaceKey = "HR", number = 2, body = "新內文", expectedRevision = 3 });
+        var prepared = await PrepareOkAsync(payload);
+        Pages.OnUpdate = _ => new Failure(FailureKind.Conflict, KnowledgeErrorCodes.PageConflict, "這一頁在你開始編輯之後被別人改過了，這次沒有儲存。請看新的內容，再決定要不要覆蓋。");
+
+        // Act
+        var result = await ApplyAsync(prepared, 0);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Failure?.Code, Is.EqualTo(KnowledgeErrorCodes.PageConflict));
+            Assert.That(result.Failure?.Message, Does.Contain("請助理重新讀這一頁再提一次"));
+            Assert.That(result.Failure?.Message, Does.Not.Contain("覆蓋"));
+        }
+    }
+
+    [Test]
     public async Task UpdatePage_WithTheCurrentRevision_ShowsBeforeAndAfterAndWritesWithThatRevision()
     {
         // Arrange

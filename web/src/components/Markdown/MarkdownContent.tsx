@@ -96,12 +96,21 @@ function HostNote({ href, children }: { readonly href: string; readonly children
     );
   }
   const host = mode === 'always' ? actualHostOf(href) : hiddenHostOf(visibleText(children), href);
-  if (host === null) return null;
+  if (host === null || showsItself(visibleText(children), href, host)) return null;
   return (
     <span className={styles.hostNote} title={href}>
       {`（${host}）`}
     </span>
   );
+}
+
+/**
+ * 文字本身就是完整的信箱或網址（自動連結）時不再接一次：「a@example.com（a@example.com）」沒有多給資訊。
+ * 文字和連結不一致的情形在前面已經用警告樣式標出；這裡只省掉一模一樣的重複。
+ */
+function showsItself(text: string, href: string, host: string): boolean {
+  const shown = text.trim().toLowerCase();
+  return shown === host || shown === href.trim().toLowerCase() || `mailto:${shown}` === href.trim().toLowerCase();
 }
 
 /** 'auto' 要補上的網域：連到別的網站、而且文字裡看不到那個主機（或信箱）時才有；其他是 null。 */
