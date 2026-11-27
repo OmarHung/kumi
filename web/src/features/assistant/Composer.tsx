@@ -5,7 +5,10 @@ import { Button } from '../../components/Button/Button';
 import { Icon } from '../../components/Icon/Icon';
 import { IconButton } from '../../components/IconButton/IconButton';
 import { Notice } from '../../components/Notice/Notice';
+import { MentionOverlay } from '../rich-text/EditorOverlays';
+import type { MentionInput } from '../item-page/mentions/useMentionInput';
 import { AttachmentChips } from './AttachmentChips';
+import { useComposerMentions, useListContinuation } from './composer/useComposerInput';
 import { engineSourceOf, FILE_ACCEPT, isUnreadable, PASTED_IMAGE_NAME, unreadableNote, type EngineSource } from './attachmentRules';
 import { ModelPicker } from './ModelPicker';
 import { SendKeyPicker } from './SendKeyPicker';
@@ -24,7 +27,7 @@ function placeholderOf(isOrganization: boolean, hasItem: boolean): string {
   return hasItem ? ITEM_PLACEHOLDER : PROJECT_PLACEHOLDER;
 }
 
-interface ComposerProps {
+export interface ComposerProps {
   /** null 是不選專案（組織的對話）：不選項目，附件上傳到組織對話自己的端點。 */
   readonly projectKey: AssistantScope;
   readonly options: AiOptions;
@@ -135,18 +138,28 @@ interface InputProps {
   readonly isDragging: boolean;
   readonly sendKey: SendKey;
   readonly onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
+  /** 打 @ 的人員清單（候選還沒讀到、訪客沒有人員清單時清單不會開）。 */
+  readonly mention: MentionInput;
 }
 
-/** 多行的文字框，跟著內容長高。送出的按法依偏好（Enter，或 ⌘／Ctrl+Enter）；輸入法選字用的 Enter 不算。檔案拖進來時外框換成虛線。 */
-function ComposerInput({ text, onChange, onSubmit, inputRef, placeholder, isDragging, sendKey, onPaste }: InputProps) {
+/**
+ * 多行的文字框，跟著內容長高。送出的按法依偏好（Enter，或 ⌘／Ctrl+Enter）；輸入法選字用的 Enter 不算。檔案拖進來時外框換成虛線。
+ * 按鍵先給 @ 的清單（開著時 Enter、Tab 是選人、Esc 是關清單），再給清單接續（換行時），最後才是送出。
+ */
+function ComposerInput({ text, onChange, onSubmit, inputRef, placeholder, isDragging, sendKey, onPaste, mention }: InputProps) {
   const hintId = useId();
+  const frameRef = useRef<HTMLDivElement>(null);
+  const continueOnNewline = useListContinuation(inputRef, onChange);
+  const { handlers } = mention;
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (handlers.onKeyDown(event)) return;
+    if (continueOnNewline(event, sendKey)) return;
     if (!isSendKeystroke(event, sendKey)) return;
     event.preventDefault();
     onSubmit();
   };
   return (
-    <div className={styles.inputFrame} data-value={text} data-dragging={isDragging ? 'true' : undefined}>
+    <div ref={frameRef} className={styles.inputFrame} data-value={text} data-dragging={isDragging ? 'true' : undefined}>
       <span id={hintId} className="visually-hidden">
         {sendKeyHint(sendKey)}
       </span>
@@ -158,12 +171,20 @@ function ComposerInput({ text, onChange, onSubmit, inputRef, placeholder, isDrag
         placeholder={placeholder}
         rows={1}
         value={text}
+        {...mention.aria}
         onChange={(event) => {
+          handlers.onChange(event);
           onChange(event.target.value);
         }}
+        onSelect={handlers.onSelect}
         onKeyDown={handleKeyDown}
+        onCompositionStart={handlers.onCompositionStart}
+        onCompositionEnd={handlers.onCompositionEnd}
+        onFocus={handlers.onFocus}
+        onBlur={handlers.onBlur}
         onPaste={onPaste}
       />
+      <MentionOverlay mention={mention} anchorRef={frameRef} />
     </div>
   );
 }
@@ -285,16 +306,17 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
   const attachments = useComposerAttachments(projectKey, conversationId, createdConversationId, isSending);
   const formRef = useRef<HTMLFormElement>(null);
   const files = useFileInput(attachments.add);
-  const { isDragging, dropProps } = files;
   const sendKey = useSendKey();
+  const mentions = useComposerMentions(projectKey, text, setText);
   useRestoreFocus(isStreaming, formRef, inputRef);
   const source = engineSourceOf(options, selection);
   const { ready, isBlocked, hasUnsupported } = attachmentState(attachments.entries, source);
   const canSend = selection !== null && (text.trim() !== '' || ready.length > 0) && !isBlocked && !hasUnsupported && !isStreaming && !isSending && !isLoading;
   const submit = () => {
     if (!canSend) return;
-    onSend(text.trim(), selection, idsOf(ready), () => {
+    onSend(mentions.resolve(text.trim()), selection, idsOf(ready), () => {
       clearSent(key, text);
+      mentions.clear();
       attachments.clearSent(ready.map((entry) => entry.id));
     });
   };
@@ -307,7 +329,7 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
         event.preventDefault();
         submit();
       }}
-      {...dropProps}
+      {...files.dropProps}
     >
       {error !== null && (
         <Notice tone="danger" onDismiss={onDismissError}>
@@ -321,9 +343,10 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
         onSubmit={submit}
         inputRef={inputRef}
         placeholder={placeholderOf(projectKey === null, hasItem)}
-        isDragging={isDragging}
+        isDragging={files.isDragging}
         sendKey={sendKey}
         onPaste={files.onPaste}
+        mention={mentions.mention}
       />
       <ComposerBar options={options} selection={selection} onSelectionChange={onSelectionChange} isStreaming={isStreaming} canSend={canSend} sendHint={sendKeyHint(sendKey)} sendKey={sendKey} isCompact={isCompact} onStop={onStop} onPickFiles={files.addFiles} />
     </form>

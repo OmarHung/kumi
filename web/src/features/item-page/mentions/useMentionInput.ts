@@ -3,7 +3,7 @@ import type { Member } from '../../../api/types';
 import { mentionEmptyId, mentionOptionId } from './MentionList';
 import type { MentionAria } from '../../rich-text/useEditorMention';
 import { mentionKeyAction } from './mentionKeys';
-import { filterMembers, findMentionTrigger, insertMention, type MentionTrigger } from './mentionText';
+import { filterMembers, findMentionTrigger, insertMention, type InsertedMention, type MentionTrigger } from './mentionText';
 
 interface MentionInputOptions {
   readonly value: string;
@@ -11,6 +11,10 @@ interface MentionInputOptions {
   /** 可以提及的人（專案的成員）；沒有給就沒有這個功能。 */
   readonly members: readonly Member[] | undefined;
   readonly maxLength: number;
+  /** 選了人之後怎麼寫進文字；沒有給就是 @[名稱](mention:編號)（助理的輸入框只寫 @名稱，送出時才換）。 */
+  readonly insert?: (value: string, trigger: MentionTrigger, member: Member) => InsertedMention;
+  /** 選了人、文字也放得下之後呼叫（記下這次選的是誰）。 */
+  readonly onChosen?: (member: Member) => void;
 }
 
 export interface MentionHandlers {
@@ -82,7 +86,7 @@ function ariaFor(isOpen: boolean, listId: string, activeId: string): MentionAria
  * ↑／↓ 選（繞回另一端）、Enter 或 Tab 插入 @[名稱](mention:編號)、Esc 關上（同一個 @ 不再打開，打別的 @ 才再開）。
  * 輸入法選字中不打開，也不攔任何按鍵（mentionKeys.ts）。
  */
-export function useMentionInput({ value, onChange, members, maxLength }: MentionInputOptions): MentionInput {
+export function useMentionInput({ value, onChange, members, maxLength, insert, onChosen }: MentionInputOptions): MentionInput {
   const listId = useId();
   const state = useTrigger(value, members !== undefined);
   const { trigger, setCaret, dismiss } = state;
@@ -103,12 +107,15 @@ export function useMentionInput({ value, onChange, members, maxLength }: Mention
   const choose = (index: number) => {
     const member = options[index];
     if (trigger === null || member === undefined) return;
-    const inserted = insertMention(value, trigger, member);
+    const inserted = (insert ?? insertMention)(value, trigger, member);
     // 放不下（已經很接近字數上限）：不插入、不截斷，關上清單，使用者看得到剩幾個字。
     if (inserted.value.length > maxLength) {
       dismiss();
       return;
     }
+    // 自訂的寫法（@名稱 加空白）插完游標前面仍像在打提及：同一個 @ 不再打開清單。
+    if (insert !== undefined) dismiss();
+    onChosen?.(member);
     setInsertion({ caret: inserted.caret });
     setCaret(inserted.caret);
     setActiveIndex(0);

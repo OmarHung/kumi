@@ -39,7 +39,7 @@ export function filterMembers(members: readonly Member[], query: string): readon
 const BREAKS_LINK = /[[\]\\\r\n`*_<]/g;
 
 /** 名稱放進連結文字：方括號、反斜線、換行，以及會開出行內程式碼、粗斜體、HTML 的 ` * _ <，都會弄壞後面的連結寫法，拿掉。 */
-function linkText(displayName: string): string {
+export function linkText(displayName: string): string {
   const text = displayName.replace(BREAKS_LINK, '').trim();
   return text === '' ? '成員' : text;
 }

@@ -1,3 +1,4 @@
+import { plainMentions } from './composer/userMentionText';
 import { Link } from 'react-router';
 import type { AiOptions, AssistantMessage, AssistantToolPart } from '../../api/aiTypes';
 import type { AssistantScope } from '../../api/assistant';
@@ -15,6 +16,8 @@ import { MemberProposalCard } from './MemberProposalCard';
 import { NewItemsProposalCard } from './NewItemsProposalCard';
 import { ProjectProposalCard } from './ProjectProposalCard';
 import { ProposalCard } from './ProposalCard';
+import { QuestionCard, type QuestionAnswering } from './questions/QuestionCard';
+import { parseQuestionBlock } from './questions/questionBlock';
 import { replyPhaseText, type ReplyPhase } from './replyPhase';
 import { findModel } from './selection';
 import styles from './Assistant.module.css';
@@ -64,9 +67,29 @@ function ChangeSetCard({ projectKey, number }: { readonly projectKey: string; re
   );
 }
 
-function PartView({ part, projectKey }: { readonly part: AssistantMessage['parts'][number]; readonly projectKey: AssistantScope }) {
+function AssistantText({ text, answer }: { readonly text: string; readonly answer: QuestionAnswering | undefined }) {
+  const { before, questions, after } = parseQuestionBlock(text);
+  const markdown = (body: string) => <Markdown text={body} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />;
+  // 讀不出問題區塊（含串流到一半）時整段照一般的文字顯示。
+  if (questions === null) return markdown(text);
+  return (
+    <>
+      {before.trim() !== '' && markdown(before)}
+      <QuestionCard questions={questions} answering={answer} />
+      {after.trim() !== '' && markdown(after)}
+    </>
+  );
+}
+
+interface PartViewProps {
+  readonly part: AssistantMessage['parts'][number];
+  readonly projectKey: AssistantScope;
+  readonly answer: QuestionAnswering | undefined;
+}
+
+function PartView({ part, projectKey, answer }: PartViewProps) {
   if (part.type === 'text') {
-    return part.text === '' ? null : <Markdown text={part.text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />;
+    return part.text === '' ? null : <AssistantText text={part.text} answer={answer} />;
   }
   return (
     <>
@@ -118,6 +141,8 @@ interface MessageViewProps {
   readonly isStreaming: boolean;
   /** 這一則在主機來源的進度（排隊中、執行中）；沒有是 null。 */
   readonly phase?: ReplyPhase;
+  /** 這一則的問題卡片能作答時才有（最新一則、已結束、後面沒有使用者的訊息）；沒有就是唯讀。 */
+  readonly answer?: QuestionAnswering;
 }
 
 /** 複製用的文字：使用者打的字、助理回覆的文字段落（多段用空行接起來，不含工具列與卡片）。 */
@@ -127,7 +152,8 @@ function copyTextOf(message: AssistantMessage): string {
 }
 
 function UserMessage({ message, projectKey }: { readonly message: AssistantMessage; readonly projectKey: AssistantScope }) {
-  const text = copyTextOf(message);
+  // 提及的語法是給助理看的：使用者看到與複製的都是 @名稱。
+  const text = plainMentions(copyTextOf(message));
   return (
     <div className={styles.userBlock}>
       <MessageAttachments attachments={message.attachments} projectKey={projectKey} />
@@ -150,7 +176,7 @@ function UserMessage({ message, projectKey }: { readonly message: AssistantMessa
   );
 }
 
-export function MessageView({ message, projectKey, options, isStreaming, phase = null }: MessageViewProps) {
+export function MessageView({ message, projectKey, options, isStreaming, phase = null, answer }: MessageViewProps) {
   if (message.role === 'user') return <UserMessage message={message} projectKey={projectKey} />;
   const footer = isStreaming ? null : footerText(message, options);
   const copyText = isStreaming ? '' : copyTextOf(message);
@@ -158,7 +184,7 @@ export function MessageView({ message, projectKey, options, isStreaming, phase =
   return (
     <div className={styles.assistantMessage}>
       {message.parts.map((part, index) => (
-        <PartView key={part.type === 'tool' ? part.callId : `text-${String(index)}`} part={part} projectKey={projectKey} />
+        <PartView key={part.type === 'tool' ? part.callId : `text-${String(index)}`} part={part} projectKey={projectKey} answer={isStreaming ? undefined : answer} />
       ))}
       {isStreaming && !hasRunningTool && (
         <div className={styles.toolRow}>

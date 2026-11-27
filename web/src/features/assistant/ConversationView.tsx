@@ -4,9 +4,11 @@ import { useConversation, type AssistantScope } from '../../api/assistant';
 import { isApiError } from '../../api/http';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { ErrorState, RefetchErrorNotice } from '../../components/StatusViews/StatusViews';
-import { Composer } from './Composer';
+import { Composer, type ComposerProps } from './Composer';
 import { EmptyIntro } from './EmptyIntro';
 import { MessageView } from './MessageView';
+import type { QuestionAnswering } from './questions/QuestionCard';
+import { questionAnswering } from './questions/useQuestionAnswering';
 import { ReplyAnnouncer } from './ReplyAnnouncer';
 import type { ReplyPhase } from './replyPhase';
 import type { AssistantReply } from './useAssistantReply';
@@ -48,9 +50,11 @@ interface BodyProps {
   readonly phase: ReplyPhase;
   readonly onPick: (text: string) => void;
   readonly hasItem: boolean;
+  /** 問題卡片的作答；null 是現在不能答（還沒選模型、回覆中）。只有最新一則助理回覆拿得到。 */
+  readonly answer: QuestionAnswering | null;
 }
 
-function ConversationBody({ projectKey, conversationId, conversation, options, activeMessageId, phase, onPick, hasItem }: BodyProps) {
+function ConversationBody({ projectKey, conversationId, conversation, options, activeMessageId, phase, onPick, hasItem, answer }: BodyProps) {
   const messages = conversation.data?.messages;
   if (conversationId !== undefined && conversation.isPending) return <Skeleton label="正在載入對話…" rows={SKELETON_ROWS} />;
   if (conversation.isLoadingError) {
@@ -70,6 +74,7 @@ function ConversationBody({ projectKey, conversationId, conversation, options, a
     );
   }
   if (messages === undefined || messages.length === 0) return <EmptyIntro onPick={onPick} hasItem={hasItem} isOrganization={projectKey === null} />;
+  const lastMessage = messages.at(-1);
   return (
     <div className={styles.thread} data-content-start>
       {messages.map((message) => (
@@ -80,10 +85,19 @@ function ConversationBody({ projectKey, conversationId, conversation, options, a
           options={options}
           isStreaming={activeMessageId === message.id}
           phase={activeMessageId === message.id ? phase : null}
+          answer={answer !== null && message === lastMessage && message.role === 'assistant' && message.status === 'complete' ? answer : undefined}
         />
       ))}
     </div>
   );
+}
+
+/** 輸入框送出：先把畫面釘在最下面（看得到自己剛送的），再送。拆出來是為了讓 ConversationView 不超過函式的行數上限。 */
+function composerSend(reply: ConversationViewProps['reply'], itemKey: string | null, pin: () => void): ComposerProps['onSend'] {
+  return (text, chosen, attachmentIds, onAccepted) => {
+    pin();
+    void reply.send({ text, selection: chosen, itemKey, attachmentIds, onAccepted });
+  };
 }
 
 /** 右邊的對話：訊息（自己捲，人在最下面時跟著長）與最下面的輸入框。沒有對話或還沒有訊息時是說明與例子。 */
@@ -93,7 +107,6 @@ export function ConversationView({ projectKey, conversationId, options, selectio
   const { scrollerRef, onScroll, pin } = useStickToBottom(conversation.data?.messages, conversationId ?? '');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [fill, setFill] = useState<FillState | null>(null);
-
   return (
     <section className={styles.conversation} aria-label="對話" data-variant={variant}>
       <div ref={scrollerRef} className={styles.scroller} onScroll={onScroll}>
@@ -106,6 +119,7 @@ export function ConversationView({ projectKey, conversationId, options, selectio
           activeMessageId={isStreamingHere ? reply.active.messageId : null}
           phase={isStreamingHere ? reply.active.phase : null}
           hasItem={itemKey !== null}
+          answer={questionAnswering(reply, selection, itemKey, pin)}
           onPick={(text) => {
             setFill({ text, nonce: (fill?.nonce ?? 0) + 1 });
             inputRef.current?.focus();
@@ -129,10 +143,7 @@ export function ConversationView({ projectKey, conversationId, options, selectio
         inputRef={inputRef}
         hasItem={itemKey !== null}
         isCompact={variant === 'panel'}
-        onSend={(text, chosen, attachmentIds, onAccepted) => {
-          pin();
-          void reply.send({ text, selection: chosen, itemKey, attachmentIds, onAccepted });
-        }}
+        onSend={composerSend(reply, itemKey, pin)}
         onStop={reply.stop}
       />
     </section>

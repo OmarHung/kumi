@@ -157,6 +157,31 @@ public sealed class AssistantPromptRulesTests
     }
 
     [Test]
+    public void BothSystemPrompts_TeachTheQuestionBlockAndHowAnswersComeBack()
+    {
+        // Act
+        var prompts = new[] { AssistantPrompt.SystemPrompt, AssistantPrompt.OrganizationSystemPrompt };
+
+        // Assert：網頁把回覆最後的 kumi-questions 區塊畫成一題一題回答的卡片，回答以「回答你的問題：」開頭送回來。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompts, Has.All.Contain("```kumi-questions"));
+            Assert.That(prompts, Has.All.Contain("\"recommended\""));
+            Assert.That(prompts, Has.All.Contain("回答你的問題："));
+        }
+    }
+
+    [Test]
+    public void BothSystemPrompts_SayAMentionInTheUsersMessageIsThePersonTheyMean()
+    {
+        // Act
+        var prompts = new[] { AssistantPrompt.SystemPrompt, AssistantPrompt.OrganizationSystemPrompt };
+
+        // Assert：輸入框的 @ 送出時換成提及語法，編號可以直接拿來用，不必再問是誰。
+        Assert.That(prompts, Has.All.Contain("使用者訊息裡的 `@[名稱](mention:<人員編號>)`"));
+    }
+
+    [Test]
     public void OrganizationSystemPrompt_LeavesOutHowToWriteItems()
     {
         // Act
