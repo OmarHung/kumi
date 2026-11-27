@@ -31,22 +31,18 @@ function useCandidates(projectKey: AssistantScope): readonly Member[] | undefine
 
 /**
  * 輸入框的提及：清單與鍵盤照項目留言的那一套，選了只寫 @名稱，記住這次選過的人；
- * resolve 在送出時把文字裡還在的 @名稱 換成 @[名稱](mention:編號)，clear 在伺服器收下之後忘掉選過的人。
+ * 選過的人跟著草稿存（useDrafts），resolve 在送出時把文字裡還在的 @名稱 換成 @[名稱](mention:編號)；伺服器收下之後 clearSent 一起忘掉。
  * 送出失敗、字還在輸入框時，選過的人也還在，再送一次照樣換得出來。
  */
-export function useComposerMentions(projectKey: AssistantScope, text: string, setText: (text: string) => void) {
+export function useComposerMentions(projectKey: AssistantScope, text: string, setText: (text: string) => void, picks: readonly MentionPick[], addPick: (pick: MentionPick) => void) {
   const members = useCandidates(projectKey);
-  const [picks, setPicks] = useState<readonly MentionPick[]>([]);
   const onChosen = useCallback((member: Member) => {
-    setPicks((current) => [...current, { personId: member.personId, displayName: member.displayName }]);
-  }, []);
+    addPick({ personId: member.personId, displayName: member.displayName });
+  }, [addPick]);
   const mention = useMentionInput({ value: text, onChange: setText, members, maxLength: NO_LIMIT, insert: plainMentionInsert, onChosen });
   return {
     mention,
     resolve: (value: string) => applyMentions(value, picks),
-    clear: () => {
-      setPicks([]);
-    },
   };
 }
 

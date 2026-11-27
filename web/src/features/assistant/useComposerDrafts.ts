@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import type { MentionPick } from './composer/composerMentions';
 
 /** 例子按下之後要填進輸入框的字；換了 nonce 就是新的一次。 */
 export type DraftFill = { readonly text: string; readonly nonce: number } | null;
 
 const NEW_DRAFT_KEY = '';
+const NO_PICKS: readonly MentionPick[] = [];
 
 interface DraftState {
   readonly key: string;
   readonly drafts: Readonly<Record<string, string>>;
+  /** 每個對話草稿裡選過的人：換對話不沿用，還原草稿時一起還原。 */
+  readonly picks: Readonly<Record<string, readonly MentionPick[]>>;
   readonly fillNonce: number;
 }
 
@@ -21,6 +25,9 @@ export interface Drafts {
   readonly key: string;
   readonly text: string;
   readonly setText: (text: string) => void;
+  /** 這個草稿裡選過的人。 */
+  readonly picks: readonly MentionPick[];
+  readonly addPick: (pick: MentionPick) => void;
   /** 伺服器收下了：清掉送出當下的那段字（sentKey 是送出時的草稿）。 */
   readonly clearSent: (sentKey: string, sent: string) => void;
 }
@@ -28,8 +35,10 @@ export interface Drafts {
 /** 換了對話：從「新的對話」送出而開出來的那一則，草稿跟著過去；其他的各自一份。 */
 function switchedTo(state: DraftState, key: string, createdId: string | null): DraftState {
   const carried = state.key === NEW_DRAFT_KEY && key === createdId ? (state.drafts[NEW_DRAFT_KEY] ?? '') : null;
-  const drafts = carried === null ? state.drafts : { ...state.drafts, [NEW_DRAFT_KEY]: '', [key]: carried };
-  return { ...state, key, drafts };
+  if (carried === null) return { ...state, key };
+  const drafts = { ...state.drafts, [NEW_DRAFT_KEY]: '', [key]: carried };
+  const picks = { ...state.picks, [NEW_DRAFT_KEY]: [], [key]: state.picks[NEW_DRAFT_KEY] ?? [] };
+  return { ...state, key, drafts, picks };
 }
 
 /**
@@ -39,15 +48,19 @@ function switchedTo(state: DraftState, key: string, createdId: string | null): D
  */
 export function useDrafts(conversationId: string | undefined, fill: DraftFill, createdId: string | null): Drafts {
   const key = conversationId ?? NEW_DRAFT_KEY;
-  const [state, setState] = useState<DraftState>({ key, drafts: {}, fillNonce: fill?.nonce ?? 0 });
+  const [state, setState] = useState<DraftState>({ key, drafts: {}, picks: {}, fillNonce: fill?.nonce ?? 0 });
   if (state.key !== key) {
     setState(switchedTo(state, key, createdId));
   } else if (fill !== null && fill.nonce !== state.fillNonce) {
-    setState({ ...state, drafts: { ...state.drafts, [key]: fill.text }, fillNonce: fill.nonce });
+    setState({ ...state, drafts: { ...state.drafts, [key]: fill.text }, picks: { ...state.picks, [key]: [] }, fillNonce: fill.nonce });
   }
   return {
     key,
     text: state.drafts[key] ?? '',
+    picks: state.picks[key] ?? NO_PICKS,
+    addPick: (pick) => {
+      setState((current) => ({ ...current, picks: { ...current.picks, [current.key]: [...(current.picks[current.key] ?? []), pick] } }));
+    },
     setText: (text) => {
       setState((current) => ({ ...current, drafts: { ...current.drafts, [current.key]: text } }));
     },
@@ -56,10 +69,12 @@ export function useDrafts(conversationId: string | undefined, fill: DraftFill, c
         // 從「新的對話」送出、網址已經換過去：字在現在這一則的草稿裡。
         const keys = sentKey === NEW_DRAFT_KEY ? [sentKey, current.key] : [sentKey];
         const drafts = { ...current.drafts };
+        const picks = { ...current.picks };
         keys.forEach((name) => {
           drafts[name] = withoutSent(drafts[name] ?? '', sent);
+          picks[name] = [];
         });
-        return { ...current, drafts };
+        return { ...current, drafts, picks };
       });
     },
   };

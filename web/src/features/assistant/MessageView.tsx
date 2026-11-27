@@ -17,7 +17,7 @@ import { NewItemsProposalCard } from './NewItemsProposalCard';
 import { ProjectProposalCard } from './ProjectProposalCard';
 import { ProposalCard } from './ProposalCard';
 import { QuestionCard, type QuestionAnswering } from './questions/QuestionCard';
-import { parseQuestionBlock } from './questions/questionBlock';
+import { parseQuestionBlock, withoutOpenQuestionBlock, withQuestionsAsList } from './questions/questionBlock';
 import { replyPhaseText, type ReplyPhase } from './replyPhase';
 import { findModel } from './selection';
 import styles from './Assistant.module.css';
@@ -67,15 +67,35 @@ function ChangeSetCard({ projectKey, number }: { readonly projectKey: string; re
   );
 }
 
-function AssistantText({ text, answer }: { readonly text: string; readonly answer: QuestionAnswering | undefined }) {
-  const { before, questions, after } = parseQuestionBlock(text);
+interface AssistantTextProps {
+  readonly text: string;
+  readonly answer: QuestionAnswering | undefined;
+  readonly isStreaming: boolean;
+  readonly draftKey: string;
+}
+
+function AssistantText({ text, answer, isStreaming, draftKey }: AssistantTextProps) {
   const markdown = (body: string) => <Markdown text={body} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />;
-  // 讀不出問題區塊（含串流到一半）時整段照一般的文字顯示。
+  // 串流中尾端還沒收尾的問題區塊先藏起來，不讓一半的 JSON 閃出來；結束後照規則畫卡片或程式碼區塊。
+  const visible = isStreaming ? withoutOpenQuestionBlock(text) : null;
+  if (visible !== null) {
+    return (
+      <>
+        {visible.trim() !== '' && markdown(visible)}
+        <div className={styles.toolRow} role="status">
+          <span className={styles.spinner} aria-hidden="true" />
+          <span>正在準備問題…</span>
+        </div>
+      </>
+    );
+  }
+  const { before, questions, after } = parseQuestionBlock(text);
+  // 讀不出問題區塊時整段照一般的文字顯示。
   if (questions === null) return markdown(text);
   return (
     <>
       {before.trim() !== '' && markdown(before)}
-      <QuestionCard questions={questions} answering={answer} />
+      <QuestionCard questions={questions} answering={answer} draftKey={draftKey} />
       {after.trim() !== '' && markdown(after)}
     </>
   );
@@ -85,11 +105,14 @@ interface PartViewProps {
   readonly part: AssistantMessage['parts'][number];
   readonly projectKey: AssistantScope;
   readonly answer: QuestionAnswering | undefined;
+  readonly isStreaming: boolean;
+  /** 問題卡片作答到一半的內容依這個存（訊息編號加段落的位置）。 */
+  readonly draftKey: string;
 }
 
-function PartView({ part, projectKey, answer }: PartViewProps) {
+function PartView({ part, projectKey, answer, isStreaming, draftKey }: PartViewProps) {
   if (part.type === 'text') {
-    return part.text === '' ? null : <AssistantText text={part.text} answer={answer} />;
+    return part.text === '' ? null : <AssistantText text={part.text} answer={answer} isStreaming={isStreaming} draftKey={draftKey} />;
   }
   return (
     <>
@@ -148,7 +171,7 @@ interface MessageViewProps {
 /** 複製用的文字：使用者打的字、助理回覆的文字段落（多段用空行接起來，不含工具列與卡片）。 */
 function copyTextOf(message: AssistantMessage): string {
   const texts = message.parts.flatMap((part) => (part.type === 'text' && part.text !== '' ? [part.text] : []));
-  return message.role === 'user' ? texts.join('') : texts.join('\n\n');
+  return message.role === 'user' ? texts.join('') : texts.map(withQuestionsAsList).join('\n\n');
 }
 
 function UserMessage({ message, projectKey }: { readonly message: AssistantMessage; readonly projectKey: AssistantScope }) {
@@ -184,7 +207,14 @@ export function MessageView({ message, projectKey, options, isStreaming, phase =
   return (
     <div className={styles.assistantMessage}>
       {message.parts.map((part, index) => (
-        <PartView key={part.type === 'tool' ? part.callId : `text-${String(index)}`} part={part} projectKey={projectKey} answer={isStreaming ? undefined : answer} />
+        <PartView
+          key={part.type === 'tool' ? part.callId : `text-${String(index)}`}
+          part={part}
+          projectKey={projectKey}
+          answer={isStreaming ? undefined : answer}
+          isStreaming={isStreaming}
+          draftKey={`${message.id}:${String(index)}`}
+        />
       ))}
       {isStreaming && !hasRunningTool && (
         <div className={styles.toolRow}>

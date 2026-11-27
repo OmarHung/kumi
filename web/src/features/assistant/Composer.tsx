@@ -302,12 +302,12 @@ function AttachmentArea({ projectKey, attachments, source, hasUnsupported, isLoc
  * 附件：迴紋針、拖進來、貼上都先上傳，文字框上方一列小卡；伺服器收下訊息之後才清掉字與小卡。
  */
 export function Composer({ projectKey, options, selection, onSelectionChange, isStreaming, isSending, createdConversationId, isLoading, conversationId, error, onDismissError, onSend, onStop, fill, inputRef, hasItem, isCompact = false }: ComposerProps) {
-  const { text, setText, clearSent, key } = useDrafts(conversationId, fill, createdConversationId);
+  const { text, setText, clearSent, key, picks, addPick } = useDrafts(conversationId, fill, createdConversationId);
   const attachments = useComposerAttachments(projectKey, conversationId, createdConversationId, isSending);
   const formRef = useRef<HTMLFormElement>(null);
   const files = useFileInput(attachments.add);
   const sendKey = useSendKey();
-  const mentions = useComposerMentions(projectKey, text, setText);
+  const mentions = useComposerMentions(projectKey, text, setText, picks, addPick);
   useRestoreFocus(isStreaming, formRef, inputRef);
   const source = engineSourceOf(options, selection);
   const { ready, isBlocked, hasUnsupported } = attachmentState(attachments.entries, source);
@@ -316,7 +316,6 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
     if (!canSend) return;
     onSend(mentions.resolve(text.trim()), selection, idsOf(ready), () => {
       clearSent(key, text);
-      mentions.clear();
       attachments.clearSent(ready.map((entry) => entry.id));
     });
   };

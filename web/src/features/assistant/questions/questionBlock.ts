@@ -29,6 +29,12 @@ export interface QuestionAnswer {
 
 const MAX_QUESTIONS = 5;
 const MAX_OPTIONS = 6;
+const MAX_QUESTION_LENGTH = 200;
+const MAX_LABEL_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 300;
+/** 伺服器收一則訊息的字數上限（AiRules.MaxMessageLength）；回答整則不能超過。 */
+const MAX_MESSAGE_LENGTH = 8000;
+const ELLIPSIS = '…';
 const ANSWER_HEADER = '回答你的問題：';
 const SKIPPED_TEXT = '（略過）';
 const LIST_SEPARATOR = '、';
@@ -42,19 +48,20 @@ function isRecord(value: unknown): value is Json {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function readText(value: unknown): string | null {
+function readText(value: unknown, maxLength: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
+  return trimmed === '' || trimmed.length > maxLength ? null : trimmed;
 }
 
 function readOption(raw: unknown): AssistantQuestionOption | null {
   if (!isRecord(raw)) return null;
-  const label = readText(raw['label']);
+  const label = readText(raw['label'], MAX_LABEL_LENGTH);
   if (label === null) return null;
   if (raw['description'] === undefined) return { label };
   if (typeof raw['description'] !== 'string') return null;
   const description = raw['description'].trim();
+  if (description.length > MAX_DESCRIPTION_LENGTH) return null;
   return description === '' ? { label } : { label, description };
 }
 
@@ -62,12 +69,14 @@ function readOptions(raw: unknown): readonly AssistantQuestionOption[] | null {
   if (raw === undefined) return [];
   if (!Array.isArray(raw) || raw.length > MAX_OPTIONS) return null;
   const options = raw.map(readOption);
-  return options.every((option) => option !== null) ? options : null;
+  if (!options.every((option) => option !== null)) return null;
+  // label 是回答的依據，重複的選項分不出選了哪一個。
+  return new Set(options.map((option) => option.label)).size === options.length ? options : null;
 }
 
 function readQuestion(raw: unknown): AssistantQuestion | null {
   if (!isRecord(raw)) return null;
-  const question = readText(raw['question']);
+  const question = readText(raw['question'], MAX_QUESTION_LENGTH);
   const options = readOptions(raw['options']);
   if (question === null || options === null) return null;
   const multi = raw['multiSelect'];
@@ -112,11 +121,56 @@ function answerText(answer: QuestionAnswer): string {
   return parts.join(LIST_SEPARATOR);
 }
 
-/** 回答訊息：「回答你的問題：」開頭，每題一行題目、下一行縮排的「→ 回答」。 */
-export function formatAnswers(questions: readonly AssistantQuestion[], answers: readonly QuestionAnswer[]): string {
+const oneLine = (text: string): string => text.replace(/\s*[\r\n]+\s*/g, ' ');
+
+function truncated(text: string, maxLength: number): string {
+  return text.length <= maxLength ? text : `${text.slice(0, Math.max(0, maxLength - 1))}${ELLIPSIS}`;
+}
+
+function answerLines(questions: readonly string[], answers: readonly QuestionAnswer[]): string {
   const lines = questions.flatMap((question, index) => {
     const answer = answers[index];
-    return [`${String(index + 1)}. ${question.question}`, `   → ${answer === undefined ? SKIPPED_TEXT : answerText(answer)}`];
+    return [`${String(index + 1)}. ${question}`, `   → ${answer === undefined ? SKIPPED_TEXT : answerText(answer)}`];
   });
   return [ANSWER_HEADER, ...lines].join('\n');
+}
+
+/**
+ * 回答訊息：「回答你的問題：」開頭，每題一行題目（換行換成空白）、下一行縮排的「→ 回答」。
+ * 整則超過伺服器的字數上限時只把題目截短加「…」，回答本身不截。
+ */
+export function formatAnswers(questions: readonly AssistantQuestion[], answers: readonly QuestionAnswer[]): string {
+  const texts = questions.map((question) => oneLine(question.question));
+  const full = answerLines(texts, answers);
+  if (full.length <= MAX_MESSAGE_LENGTH) return full;
+  const room = MAX_MESSAGE_LENGTH - answerLines(texts.map(() => ''), answers).length;
+  const each = Math.max(1, Math.floor(room / Math.max(1, texts.length)));
+  return answerLines(texts.map((text) => truncated(text, each)), answers);
+}
+
+const OPEN_PATTERN = /^```kumi-questions[ \t]*(?:\r?\n|$)/gm;
+const CLOSING_FENCE = /^```[ \t]*$/m;
+
+/** 串流到一半、尾端還沒收尾的 kumi-questions 區塊：回傳區塊之前的文字，讓畫面先不要閃出原始 JSON；沒有這種區塊是 null。 */
+export function withoutOpenQuestionBlock(text: string): string | null {
+  const last = [...text.matchAll(OPEN_PATTERN)].at(-1);
+  if (last === undefined) return null;
+  const rest = text.slice(last.index + last[0].length);
+  return CLOSING_FENCE.test(rest) ? null : text.slice(0, last.index);
+}
+
+function questionListText(questions: readonly AssistantQuestion[]): string {
+  return questions
+    .flatMap((question, index) => [
+      `${String(index + 1)}. ${oneLine(question.question)}`,
+      ...question.options.map((option) => `   - ${option.label}${option.description === undefined ? '' : `：${option.description}`}`),
+    ])
+    .join('\n');
+}
+
+/** 複製助理的回覆用：可以畫成卡片的問題區塊換成純文字的問題清單，不複製 JSON。 */
+export function withQuestionsAsList(text: string): string {
+  const { before, questions, after } = parseQuestionBlock(text);
+  if (questions === null) return text;
+  return [before.trim(), questionListText(questions), after.trim()].filter((part) => part !== '').join('\n\n');
 }

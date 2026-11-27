@@ -8,6 +8,7 @@ import { Composer, type ComposerProps } from './Composer';
 import { EmptyIntro } from './EmptyIntro';
 import { MessageView } from './MessageView';
 import type { QuestionAnswering } from './questions/QuestionCard';
+import { QuestionDraftProvider } from './questions/QuestionDrafts';
 import { questionAnswering } from './questions/useQuestionAnswering';
 import { ReplyAnnouncer } from './ReplyAnnouncer';
 import type { ReplyPhase } from './replyPhase';
@@ -108,44 +109,46 @@ export function ConversationView({ projectKey, conversationId, options, selectio
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [fill, setFill] = useState<FillState | null>(null);
   return (
-    <section className={styles.conversation} aria-label="對話" data-variant={variant}>
-      <div ref={scrollerRef} className={styles.scroller} onScroll={onScroll}>
-        <RefetchErrorNotice query={conversation} message="無法更新這則對話，畫面上可能是舊的。" />
-        <ConversationBody
+    <QuestionDraftProvider>
+      <section className={styles.conversation} aria-label="對話" data-variant={variant}>
+        <div ref={scrollerRef} className={styles.scroller} onScroll={onScroll}>
+          <RefetchErrorNotice query={conversation} message="無法更新這則對話，畫面上可能是舊的。" />
+          <ConversationBody
+            projectKey={projectKey}
+            conversationId={conversationId}
+            conversation={conversation}
+            options={options}
+            activeMessageId={isStreamingHere ? reply.active.messageId : null}
+            phase={isStreamingHere ? reply.active.phase : null}
+            hasItem={itemKey !== null}
+            answer={questionAnswering(reply, selection, itemKey, pin)}
+            onPick={(text) => {
+              setFill({ text, nonce: (fill?.nonce ?? 0) + 1 });
+              inputRef.current?.focus();
+            }}
+          />
+        </div>
+        <ReplyAnnouncer messages={conversation.data?.messages} watchedId={reply.lastMessageId} activeMessageId={isStreamingHere ? reply.active.messageId : null} phase={isStreamingHere ? reply.active.phase : null} />
+        <Composer
           projectKey={projectKey}
-          conversationId={conversationId}
-          conversation={conversation}
           options={options}
-          activeMessageId={isStreamingHere ? reply.active.messageId : null}
-          phase={isStreamingHere ? reply.active.phase : null}
+          selection={selection}
+          onSelectionChange={onSelectionChange}
+          isStreaming={reply.active !== null}
+          isSending={reply.isSending}
+          createdConversationId={reply.createdConversationId}
+          isLoading={conversationId !== undefined && conversation.isPending}
+          conversationId={conversationId}
+          error={reply.error}
+          onDismissError={reply.clearError}
+          fill={fill}
+          inputRef={inputRef}
           hasItem={itemKey !== null}
-          answer={questionAnswering(reply, selection, itemKey, pin)}
-          onPick={(text) => {
-            setFill({ text, nonce: (fill?.nonce ?? 0) + 1 });
-            inputRef.current?.focus();
-          }}
+          isCompact={variant === 'panel'}
+          onSend={composerSend(reply, itemKey, pin)}
+          onStop={reply.stop}
         />
-      </div>
-      <ReplyAnnouncer messages={conversation.data?.messages} watchedId={reply.lastMessageId} activeMessageId={isStreamingHere ? reply.active.messageId : null} phase={isStreamingHere ? reply.active.phase : null} />
-      <Composer
-        projectKey={projectKey}
-        options={options}
-        selection={selection}
-        onSelectionChange={onSelectionChange}
-        isStreaming={reply.active !== null}
-        isSending={reply.isSending}
-        createdConversationId={reply.createdConversationId}
-        isLoading={conversationId !== undefined && conversation.isPending}
-        conversationId={conversationId}
-        error={reply.error}
-        onDismissError={reply.clearError}
-        fill={fill}
-        inputRef={inputRef}
-        hasItem={itemKey !== null}
-        isCompact={variant === 'panel'}
-        onSend={composerSend(reply, itemKey, pin)}
-        onStop={reply.stop}
-      />
-    </section>
+      </section>
+    </QuestionDraftProvider>
   );
 }

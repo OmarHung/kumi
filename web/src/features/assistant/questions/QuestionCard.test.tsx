@@ -1,8 +1,10 @@
 import { render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { QuestionCard, type QuestionAnswering } from './QuestionCard';
 import type { AssistantQuestion } from './questionBlock';
+import { QuestionDraftProvider } from './QuestionDrafts';
 
 const QUESTIONS: readonly AssistantQuestion[] = [
   { question: '要做到什麼程度？', options: [{ label: '只評估與報價', description: '先給工時' }, { label: '完整做完' }], recommended: '只評估與報價' },
@@ -134,5 +136,73 @@ describe('問題卡片：唯讀', () => {
     expect(within(card).getByText('誰負責？')).toBeInTheDocument();
     expect(within(card).getByText(/只評估與報價/)).toHaveTextContent('建議');
     expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
+describe('問題卡片：焦點', () => {
+  it('單選自動跳題、上一題、下一題之後，焦點在新那一題的第一個選項', async () => {
+    const { user } = renderCard();
+
+    await user.click(screen.getByRole('button', { name: /完整做完/ }));
+    expect(screen.getByRole('button', { name: '阿哲' })).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: '上一題' }));
+    expect(screen.getByRole('button', { name: /只評估與報價/ })).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: '略過' }));
+    expect(screen.getByRole('button', { name: '阿哲' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Ivan' }));
+    expect(screen.getByRole('button', { name: 'A' })).toHaveFocus();
+  });
+
+  it('第一題的「上一題」還在、只是停用，不會整顆卸載讓焦點掉到頁面本體', async () => {
+    const { user } = renderCard();
+    const back = screen.getByRole('button', { name: '上一題' });
+
+    back.focus();
+    await user.click(back);
+
+    expect(back).toHaveAttribute('aria-disabled', 'true');
+    expect(back).toHaveFocus();
+    expect(progress('第 1／3 題')).toBeInTheDocument();
+  });
+});
+
+describe('問題卡片：作答到一半的內容', () => {
+  function Toggling({ onSubmit }: { readonly onSubmit: () => void }) {
+    const [isAnswering, setIsAnswering] = useState(true);
+    return (
+      <QuestionDraftProvider>
+        <button type="button" onClick={() => { setIsAnswering(!isAnswering); }}>切換</button>
+        <QuestionCard questions={QUESTIONS} draftKey="m1:0" answering={isAnswering ? { isSending: false, error: null, onSubmit } : undefined} />
+      </QuestionDraftProvider>
+    );
+  }
+
+  it('卡片在唯讀與可作答之間切換（回覆被接受後又失敗）：作答的草稿與題號保留', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    render(<Toggling onSubmit={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: /完整做完/ }));
+    await user.click(screen.getByRole('button', { name: 'Ivan' }));
+    expect(progress('第 3／3 題')).toBeInTheDocument();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '切換' }));
+    expect(screen.queryByText('第 3／3 題')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '切換' }));
+
+    // Assert
+    expect(progress('第 3／3 題')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '上一題' }));
+    expect(screen.getByRole('button', { name: 'Ivan' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('問題卡片：唯讀的 key', () => {
+  it('兩題文字相同也不會出重複 key 的警告', () => {
+    render(<QuestionCard questions={[{ question: '同一題', options: [] }, { question: '同一題', options: [] }]} />);
+
+    expect(screen.getAllByText('同一題')).toHaveLength(2);
   });
 });

@@ -40,4 +40,34 @@ describe('輸入框的提及', () => {
   it('名稱裡會弄壞連結的字拿掉', () => {
     expect(applyMentions('@a[b] x', [{ personId: 'p-3', displayName: 'a[b]' }])).toBe('@[ab](mention:p-3) x');
   });
+
+  it('名稱是另一個名稱的前綴時不換錯：@Ivani 不是 @Ivan', () => {
+    // Arrange
+    const ivan = { personId: 'p-1', displayName: 'Ivan' };
+    const ivani = { personId: 'p-2', displayName: 'Ivani' };
+
+    // Act
+    const result = applyMentions('@Ivani 和 @Ivan', [ivan, ivani]);
+
+    // Assert
+    expect(result).toBe('@[Ivani](mention:p-2) 和 @[Ivan](mention:p-1)');
+  });
+
+  it('只選了短名稱時，文字裡較長的名稱延伸不算', () => {
+    expect(applyMentions('@Ivani 好', [{ personId: 'p-1', displayName: 'Ivan' }])).toBe('@Ivani 好');
+    expect(applyMentions('@Ivan，好', [{ personId: 'p-1', displayName: 'Ivan' }])).toBe('@[Ivan](mention:p-1)，好');
+  });
+
+  it('選人的順序和文字的順序不同也都換得到', () => {
+    // Act
+    const result = applyMentions('@小華 先，再 @小明', [XIAO_MING, { personId: 'p-5', displayName: '小華' }]);
+
+    // Assert
+    expect(result).toBe('@[小華](mention:p-5) 先，再 @[小明](mention:p-1)');
+  });
+
+  it('同一個人提及兩次，兩處都換', () => {
+    expect(applyMentions('@小明 你好 @小明', [XIAO_MING, XIAO_MING])).toBe('@[小明](mention:p-1) 你好 @[小明](mention:p-1)');
+    expect(applyMentions('@小明 你好 @小明', [XIAO_MING])).toBe('@[小明](mention:p-1) 你好 @[小明](mention:p-1)');
+  });
 });

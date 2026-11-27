@@ -1,7 +1,7 @@
 import type { Member } from '../../../api/types';
 import { linkText, type InsertedMention, type MentionTrigger } from '../../item-page/mentions/mentionText';
 
-/** 這次在輸入框選過的人（名稱 → 編號）；送出時照選的順序對應文字裡的 @名稱。 */
+/** 這次在輸入框選過的人（名稱 → 編號）；送出時對應文字裡的 @名稱。 */
 export interface MentionPick {
   readonly personId: string;
   readonly displayName: string;
@@ -17,24 +17,55 @@ export function plainMentionInsert(value: string, trigger: MentionTrigger, membe
 // @ 前面是英數字、點、底線的是 Email，不是提及（和 findMentionTrigger 同一條規矩）。
 const EMAIL_PREFIX = /[A-Za-z0-9_.@]/;
 
-function findMention(text: string, name: string, from: number): number {
-  let index = text.indexOf(`@${name}`, from);
-  while (index > 0 && EMAIL_PREFIX.test(text.charAt(index - 1))) index = text.indexOf(`@${name}`, index + 1);
-  return index;
+// 名稱後面接著文字或數字就是另一個名稱的延伸（@Ivan 不是 @Ivani），不算這個人。
+const NAME_CONTINUATION = /[\p{L}\p{N}_]/u;
+
+interface Replacement {
+  readonly start: number;
+  readonly end: number;
+  readonly pick: MentionPick;
+}
+
+function overlaps(taken: readonly Replacement[], start: number, end: number): boolean {
+  return taken.some((each) => start < each.end && each.start < end);
+}
+
+/** 文字裡這個名稱的每一處提及（由左到右），排除前面是 Email 的、後面是名稱延伸的、已被別的名稱佔走的區間。 */
+function findMentions(text: string, name: string, taken: readonly Replacement[]): readonly number[] {
+  const needle = `@${name}`;
+  const found: number[] = [];
+  let index = text.indexOf(needle);
+  while (index >= 0) {
+    const end = index + needle.length;
+    const isEmailLike = index > 0 && EMAIL_PREFIX.test(text.charAt(index - 1));
+    const isExtended = end < text.length && NAME_CONTINUATION.test(text.charAt(end));
+    if (!isEmailLike && !isExtended && !overlaps(taken, index, end)) found.push(index);
+    index = text.indexOf(needle, index + 1);
+  }
+  return found;
 }
 
 /**
- * 送出前把文字裡還在的 @名稱 換成 @[名稱](mention:編號)：依選的順序一個一個往後找，
- * 使用者刪掉或改掉的找不到就略過（不換），同名的兩個人照順序對應。
+ * 送出前把文字裡還在的 @名稱 換成 @[名稱](mention:編號)。
+ * 較長的名稱先找（@Ivani 不會被 @Ivan 搶走）；每個名稱各自從頭找，選人的順序和文字順序無關；
+ * 同名的幾個人照文字裡出現的順序對應，同一個人（編號相同）提及幾次就換幾處；使用者刪掉或改掉的找不到就略過。
  */
 export function applyMentions(text: string, picks: readonly MentionPick[]): string {
+  const names = [...new Set(picks.map((pick) => pick.displayName))].sort((a, b) => b.length - a.length);
+  const taken: Replacement[] = [];
+  for (const name of names) {
+    const group = picks.filter((pick) => pick.displayName === name);
+    const isOnePerson = group.every((pick) => pick.personId === group[0]?.personId);
+    findMentions(text, name, taken).forEach((start, order) => {
+      const pick = group[order] ?? (isOnePerson ? group[0] : undefined);
+      if (pick !== undefined) taken.push({ start, end: start + 1 + name.length, pick });
+    });
+  }
   let result = '';
   let cursor = 0;
-  for (const pick of picks) {
-    const index = findMention(text, pick.displayName, cursor);
-    if (index < 0) continue;
-    result += `${text.slice(cursor, index)}@[${linkText(pick.displayName)}](mention:${pick.personId})`;
-    cursor = index + 1 + pick.displayName.length;
+  for (const each of [...taken].sort((a, b) => a.start - b.start)) {
+    result += `${text.slice(cursor, each.start)}@[${linkText(each.pick.displayName)}](mention:${each.pick.personId})`;
+    cursor = each.end;
   }
   return result + text.slice(cursor);
 }

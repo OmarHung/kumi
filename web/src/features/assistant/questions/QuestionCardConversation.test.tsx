@@ -1,5 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { makeAssistantMessage, makeConversationSummary, makeMessage, serveConversation, serveConversations, serveReply, completeReply } from '../../../test/assistant';
 import { exampleOwner, smkDetail } from '../../../test/fixtures';
 import { signedInAs } from '../../../test/api';
@@ -62,5 +62,37 @@ describe('助理回覆裡的問題卡片', () => {
 
     expect(await screen.findByText(/壞掉/)).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '助理的問題' })).not.toBeInTheDocument();
+  });
+
+  it('串流中尾端還沒收尾的問題區塊先藏起來，不閃出原始 JSON', async () => {
+    // Arrange
+    const reply = serveReply('SMK', 'conv-1', (stream) => {
+      stream.event('start', { userMessage: makeMessage({ id: 'u2' }), assistantMessageId: 'a2' });
+      stream.event('text', { delta: '先問一題。\n\n```kumi-questions\n{"questions":[{"que' });
+    });
+    const { user } = openConversation([makeMessage({ id: 'u1' })]);
+    await user.type(await screen.findByRole('textbox', { name: '訊息' }), '開始{Enter}');
+    await waitFor(() => {
+      expect(reply.sent).toHaveLength(1);
+    });
+
+    // Assert
+    expect(await screen.findByText('正在準備問題…')).toBeInTheDocument();
+    expect(screen.getByText('先問一題。')).toBeInTheDocument();
+    expect(screen.queryByText(/kumi-questions/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/"questions"/)).not.toBeInTheDocument();
+  });
+
+  it('複製助理的回覆：問題區塊換成純文字的清單，不帶 JSON', async () => {
+    // Arrange
+    const { user } = openConversation([makeMessage({ id: 'u1' }), asking()]);
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText');
+    await screen.findByRole('region', { name: '助理的問題' });
+
+    // Act
+    await user.click(screen.getAllByRole('button', { name: '複製訊息' }).at(-1) as HTMLElement);
+
+    // Assert
+    expect(writeText).toHaveBeenCalledWith('先問一題。\n\n1. 誰負責？\n   - 阿哲\n   - Ivan');
   });
 });
