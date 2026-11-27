@@ -316,4 +316,29 @@ describe('Menu', () => {
     expect(within(menu).getByRole('menuitemradio', { name: '淺色' })).toHaveAttribute('aria-checked', 'false');
     expect(within(menu).getByRole('menuitem', { name: '設定' })).toHaveFocus();
   });
+
+  it('組的名字：畫在每一組的第一項前面、不是選項（方向鍵跳過），報讀軟體在那一組每一項的說明裡唸出組名', async () => {
+    // Arrange
+    const noop = () => undefined;
+    const grouped: MenuItem[] = [
+      { key: 'new', label: '新的對話', isChecked: true, onSelect: noop },
+      { key: 'a', label: '拆驗收', groupLabel: '網站改版', isChecked: false, onSelect: noop },
+      { key: 'b', label: '加欄位', isChecked: false, onSelect: noop },
+      { key: 'c', label: '開新專案', groupLabel: '不選專案', isChecked: false, disabledReason: '回覆中', onSelect: noop },
+    ];
+    const { user, trigger } = renderMenu({ items: grouped });
+
+    // Act
+    await user.click(trigger);
+    await user.keyboard('{ArrowDown}');
+
+    // Assert
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['新的對話', '拆驗收', '加欄位', '開新專案回覆中']);
+    expect(screen.getByRole('menuitemradio', { name: '拆驗收' })).toHaveFocus();
+    expect(screen.getByRole('menuitemradio', { name: '新的對話' })).not.toHaveAccessibleDescription();
+    expect(screen.getByRole('menuitemradio', { name: '拆驗收' })).toHaveAccessibleDescription('網站改版');
+    expect(screen.getByRole('menuitemradio', { name: '加欄位' })).toHaveAccessibleDescription('網站改版');
+    expect(screen.getByRole('menuitemradio', { name: '開新專案' })).toHaveAccessibleDescription('不選專案 回覆中');
+  });
 });

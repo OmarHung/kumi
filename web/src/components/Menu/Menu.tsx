@@ -18,6 +18,11 @@ export interface MenuItem {
   /** 從這一項開始是新的一組：前面畫一條分隔線（第一項不畫）。 */
   readonly startsGroup?: boolean;
   /**
+   * 這一項是一組的第一項、組有名字（浮動面板的對話依專案分組）：前面畫一行組的名字（不是選項、方向鍵跳過）。
+   * 後面的組前面多一條細線；不要和 startsGroup 一起給。報讀軟體在這一組每一項的說明裡唸出組名（選單裡的 group 不好用方向鍵走）。
+   */
+  readonly groupLabel?: string;
+  /**
    * 有值（true 或 false）：這是「選一個」的項目（目前的主題、目前的檢視），渲染成 menuitemradio 並帶 aria-checked，
    * 報讀軟體才聽得到哪一項是目前的；勾選的那一項自己畫打勾圖示（不必給 icon）。同一個選單裡要選一個的項目都要給。
    */
@@ -42,6 +47,8 @@ interface MenuEntryProps {
   readonly item: MenuItem;
   readonly id: string;
   readonly hasSeparator: boolean;
+  /** 這一項屬於哪一組的名字的元素編號（沒有分組是 undefined）。 */
+  readonly groupLabelId: string | undefined;
   readonly onSelect: () => void;
 }
 
@@ -53,13 +60,19 @@ function focusOnPoint(event: PointerEvent<HTMLButtonElement>) {
   if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true });
 }
 
-function MenuEntry({ item, id, hasSeparator, onSelect }: MenuEntryProps) {
+function MenuEntry({ item, id, hasSeparator, groupLabelId, onSelect }: MenuEntryProps) {
   const reason = item.disabledReason;
   const isBlocked = reason !== undefined;
   const icon = item.icon ?? (item.isChecked === true ? 'check' : undefined);
+  const describedBy = [groupLabelId, isBlocked ? `${id}-reason` : undefined].filter((part) => part !== undefined).join(' ');
   return (
     <>
       {hasSeparator && <li role="separator" className={styles.separator} />}
+      {item.groupLabel !== undefined && (
+        <li role="presentation" id={groupLabelId} className={styles.groupLabel}>
+          {item.groupLabel}
+        </li>
+      )}
       <li role="none">
         <button
           type="button"
@@ -70,7 +83,7 @@ function MenuEntry({ item, id, hasSeparator, onSelect }: MenuEntryProps) {
           data-tone={item.tone ?? 'default'}
           aria-disabled={isBlocked || undefined}
           aria-labelledby={`${id}-name`}
-          aria-describedby={isBlocked ? `${id}-reason` : undefined}
+          aria-describedby={describedBy === '' ? undefined : describedBy}
           onPointerMove={focusOnPoint}
           onClick={() => {
             if (!isBlocked) onSelect();
@@ -89,6 +102,14 @@ function MenuEntry({ item, id, hasSeparator, onSelect }: MenuEntryProps) {
       </li>
     </>
   );
+}
+
+/** 第 index 項所在的那一組的名字的元素編號：往前找最近一個帶組名的項目；前面都沒有是 undefined。 */
+function groupLabelIdOf(items: readonly MenuItem[], index: number, menuId: string): string | undefined {
+  for (let at = index; at >= 0; at -= 1) {
+    if (items[at]?.groupLabel !== undefined) return `${menuId}-group-${String(at)}`;
+  }
+  return undefined;
 }
 
 /**
@@ -122,6 +143,7 @@ export function Menu({ menuLabel, renderTrigger, items, align = 'start', trigger
                 item={item}
                 id={`${menuId}-${String(index)}`}
                 hasSeparator={item.startsGroup === true && index > 0}
+                groupLabelId={groupLabelIdOf(items, index, menuId)}
                 onSelect={() => {
                   closeAndFocus();
                   item.onSelect();

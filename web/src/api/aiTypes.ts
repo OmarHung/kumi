@@ -256,6 +256,11 @@ export interface AssistantConversationSummary {
   readonly updatedAt: string;
 }
 
+/** 跨專案的對話清單（浮動面板的「對話」選單）的一則：多了它屬於哪個專案；null 是不選專案的組織對話。 */
+export interface AssistantConversationListing extends AssistantConversationSummary {
+  readonly projectKey: string | null;
+}
+
 export interface AssistantConversation {
   readonly conversation: AssistantConversationSummary;
   readonly messages: readonly AssistantMessage[];

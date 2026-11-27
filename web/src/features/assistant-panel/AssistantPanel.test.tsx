@@ -14,6 +14,7 @@ import {
   makeConversationSummary,
   rejectReply,
   serveAiOptions,
+  serveConversationList,
   serveConversations,
   serveCreateConversation,
   serveReply,
@@ -656,6 +657,58 @@ describe('對話選單', () => {
     // Assert
     expect(within(panel).getByRole('link', { name: '開成整頁' })).toHaveAttribute('href', '/projects/SMK/assistant/conv-9');
   });
+
+  it('列出所有專案的對話，依專案分組：目前的專案在最前面，不選專案的叫「不選專案」', async () => {
+    // Arrange
+    const { user } = openApp();
+    serveConversations('SMK', [makeConversationSummary({ id: 'conv-s', title: '加客戶欄位', updatedAt: '2026-11-25T02:00:00Z' })]);
+    serveConversations('AGY', [makeConversationSummary({ id: 'conv-a', title: '拆驗收', updatedAt: '2026-11-26T02:00:00Z' })]);
+    serveConversations(null, [makeConversationSummary({ id: 'conv-o', title: '開新專案', updatedAt: '2026-11-24T02:00:00Z' })]);
+    const panel = await openPanel(user);
+
+    // Act
+    await user.click(await within(panel).findByRole('button', { name: '對話' }));
+    await screen.findByRole('menuitemradio', { name: '拆驗收' });
+
+    // Assert
+    const names = screen.getAllByRole('menuitemradio').map((item) => item.textContent);
+    expect(names).toEqual(['新的對話', '加客戶欄位', '拆驗收', '開新專案']);
+    expect(screen.getByRole('menuitemradio', { name: '加客戶欄位' })).toHaveAccessibleDescription('冒煙測試');
+    expect(screen.getByRole('menuitemradio', { name: '拆驗收' })).toHaveAccessibleDescription('接案測試');
+    expect(screen.getByRole('menuitemradio', { name: '開新專案' })).toHaveAccessibleDescription('不選專案');
+  });
+
+  it('在專案頁選了別的專案的對話：面板換到那個專案，頁首換成專案的選單，選得回來', async () => {
+    // Arrange
+    const { user } = openApp();
+    serveConversations('AGY', [makeConversationSummary({ id: 'conv-a', title: '拆驗收' })]);
+    const panel = await openPanel(user);
+    await user.click(await within(panel).findByRole('button', { name: '對話' }));
+
+    // Act
+    await user.click(await screen.findByRole('menuitemradio', { name: '拆驗收' }));
+
+    // Assert
+    expect(await within(panel).findByRole('combobox', { name: '專案' })).toHaveTextContent('接案測試');
+    expect(within(panel).getByRole('link', { name: '開成整頁' })).toHaveAttribute('href', '/projects/AGY/assistant/conv-a');
+  });
+
+  it('不選專案時選了專案的對話：面板換到那個專案', async () => {
+    // Arrange
+    const { user } = openApp('/my-work');
+    serveConversations(null, []);
+    serveConversations('SMK', [makeConversationSummary({ id: 'conv-s', title: '加客戶欄位' })]);
+    const panel = await openPanel(user);
+    await chooseOption(user, await within(panel).findByRole('combobox', { name: '專案' }), '不選專案');
+    await user.click(await within(panel).findByRole('button', { name: '對話' }));
+
+    // Act
+    await user.click(await screen.findByRole('menuitemradio', { name: '加客戶欄位' }));
+
+    // Assert
+    expect(await within(panel).findByRole('combobox', { name: '專案' })).toHaveTextContent('冒煙測試');
+    expect(within(panel).getByRole('link', { name: '開成整頁' })).toHaveAttribute('href', '/projects/SMK/assistant/conv-s');
+  });
 });
 
 describe('模型選單與沒有模型', () => {
@@ -714,8 +767,8 @@ describe('第一則訊息之後的對話選單', () => {
     signedInAs(exampleOwner, { details: [smkDetail()] });
     serveAiOptions();
     let list = [] as ReturnType<typeof makeConversationSummary>[];
+    serveConversationList('SMK', () => list);
     server.use(
-      http.get('/v1/projects/SMK/assistant/conversations', () => ok(list)),
       http.post('/v1/projects/SMK/assistant/conversations', () => {
         counter += 1;
         const summary = makeConversationSummary({ id: `conv-${String(counter)}`, title: null });
@@ -756,9 +809,7 @@ describe('第一則訊息之後的對話選單', () => {
     signedInAs(exampleOwner, { details: [smkDetail()] });
     serveAiOptions();
     let isRunning = true;
-    server.use(
-      http.get('/v1/projects/SMK/assistant/conversations', () => ok([makeConversationSummary({ id: 'conv-1', title: '加欄位', isRunning })])),
-    );
+    serveConversationList('SMK', () => [makeConversationSummary({ id: 'conv-1', title: '加欄位', isRunning })]);
     serveCreateConversation('SMK', makeConversationSummary({ id: 'conv-1', title: '加欄位', isRunning: true }));
     const reply = serveReply('SMK', 'conv-1', () => undefined);
     const { user } = renderApp('/projects/SMK');

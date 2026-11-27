@@ -1,7 +1,8 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
   AiOptions,
   AssistantConversation,
+  AssistantConversationListing,
   AssistantConversationSummary,
   AssistantMessageInput,
   AssistantStreamEvent,
@@ -59,6 +60,22 @@ export function deleteConversation(projectKey: AssistantScope, conversationId: s
   });
 }
 
+/** 自己所有的對話（各專案與不選專案的），新的在前；看不到的專案的對話不列。 */
+export function listAllConversations(signal?: AbortSignal): Promise<readonly AssistantConversationListing[]> {
+  return apiRequest<readonly AssistantConversationListing[]>('/v1/assistant/all-conversations', { signal });
+}
+
+/**
+ * 一邊的對話清單變了（開新的、刪掉、送出、回覆結束）：那一邊的清單與跨專案的清單一起失效。
+ * exact：對話的快取鍵以清單的鍵開頭，不加的話正在長的那一則對話也被重抓、蓋掉串流寫進去的內容。
+ */
+export function invalidateConversationLists(queryClient: QueryClient, projectKey: AssistantScope): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.assistantConversations(projectKey), exact: true }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.allAssistantConversations, exact: true }),
+  ]).then(() => undefined);
+}
+
 const RUNNING_POLL_MS = 2000;
 
 /**
@@ -69,6 +86,15 @@ export function useConversations(projectKey: AssistantScope) {
   return useQuery({
     queryKey: queryKeys.assistantConversations(projectKey),
     queryFn: ({ signal }) => listConversations(projectKey, signal),
+    refetchInterval: (query) => (query.state.data?.some((conversation) => conversation.isRunning) === true ? RUNNING_POLL_MS : false),
+  });
+}
+
+/** 跨專案的對話清單；和單一專案的清單一樣，有「回覆中」的就輪詢到存完。 */
+export function useAllConversations() {
+  return useQuery({
+    queryKey: queryKeys.allAssistantConversations,
+    queryFn: ({ signal }) => listAllConversations(signal),
     refetchInterval: (query) => (query.state.data?.some((conversation) => conversation.isRunning) === true ? RUNNING_POLL_MS : false),
   });
 }
@@ -99,10 +125,7 @@ export function useCreateConversation(projectKey: AssistantScope) {
         messages: [],
       });
       // exact：不然剛放進去的對話（鍵以清單的鍵開頭）也被重抓。
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.assistantConversations(projectKey),
-        exact: true,
-      });
+      void invalidateConversationLists(queryClient, projectKey);
     },
   });
 }
@@ -115,9 +138,7 @@ export function useDeleteConversation(projectKey: AssistantScope) {
       queryClient.removeQueries({
         queryKey: queryKeys.assistantConversation(projectKey, conversationId),
       });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.assistantConversations(projectKey),
-      });
+      void invalidateConversationLists(queryClient, projectKey);
     },
   });
 }

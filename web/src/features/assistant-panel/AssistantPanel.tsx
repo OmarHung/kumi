@@ -102,6 +102,7 @@ function AssistantWindow({ session, options, isFollowingRoute, isShown, isCompac
         onChooseItem={session.chooseItem}
         conversationId={session.conversationId}
         onSelectConversation={session.selectConversation}
+        onOpenConversation={session.openConversation}
         onClose={onClose}
       />
       <div className={styles.body}>
@@ -173,7 +174,9 @@ export function AssistantPanel() {
         <AssistantWindow
           session={session}
           options={options.data}
-          isFollowingRoute={routeProjectKey !== undefined}
+          // 在專案頁從對話選單開了別的專案的對話：面板不再跟著路由，頁首換回專案的選單，選得回來。
+          // 回覆中換頁時面板留在原本的專案（回覆完才跟上），那段時間照舊只顯示名稱。
+          isFollowingRoute={routeProjectKey !== undefined && (session.projectKey === routeProjectKey || session.isBusy)}
           isShown={panel.isShown}
           isCompact={isCompact}
           onClose={panel.close}

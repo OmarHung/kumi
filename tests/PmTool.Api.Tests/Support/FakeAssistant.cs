@@ -22,6 +22,12 @@ internal sealed class FakeAssistantService : IAssistantService
     private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey, Guid Id)> _getCalls = new();
     private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey, Guid Id)> _deleteCalls = new();
     private readonly ConcurrentQueue<StartCall> _startCalls = new();
+    private readonly ConcurrentQueue<Actor> _listAllCalls = new();
+
+    public Func<Actor, Result<IReadOnlyList<AssistantConversationListing>>> OnListAll { get; set; } =
+        _ => new List<AssistantConversationListing> { new("WEB", Summary()) };
+
+    public IReadOnlyList<Actor> ListAllCalls => _listAllCalls.ToArray();
 
     public Func<Actor, string?, Result<IReadOnlyList<AssistantConversationSummary>>> OnList { get; set; } =
         (_, _) => new List<AssistantConversationSummary> { Summary() };
@@ -89,6 +95,12 @@ internal sealed class FakeAssistantService : IAssistantService
     {
         _listCalls.Enqueue((actor, projectKey));
         return Task.FromResult(OnList(actor, projectKey));
+    }
+
+    public Task<Result<IReadOnlyList<AssistantConversationListing>>> ListAllAsync(Actor actor, CancellationToken cancellationToken)
+    {
+        _listAllCalls.Enqueue(actor);
+        return Task.FromResult(OnListAll(actor));
     }
 
     public Task<Result<AssistantConversationSummary>> CreateAsync(Actor actor, string? projectKey, CancellationToken cancellationToken)

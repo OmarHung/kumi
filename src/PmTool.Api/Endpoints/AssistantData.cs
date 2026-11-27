@@ -44,6 +44,18 @@ internal sealed record AssistantConversationData(
         conversation.Id, conversation.Title, conversation.MessageCount, conversation.IsRunning, conversation.CreatedAt, conversation.UpdatedAt);
 }
 
+/// <summary>跨專案的對話清單的一列：對話清單的欄位加 projectKey（不選專案的是 null）。</summary>
+internal sealed record AssistantConversationListingData(
+    string? ProjectKey, Guid Id, string? Title, int MessageCount, bool IsRunning, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+{
+    public static AssistantConversationListingData From(AssistantConversationListing listing)
+    {
+        var conversation = listing.Conversation;
+        return new(
+            listing.ProjectKey, conversation.Id, conversation.Title, conversation.MessageCount, conversation.IsRunning, conversation.CreatedAt, conversation.UpdatedAt);
+    }
+}
+
 internal sealed record AssistantConversationDetailData(AssistantConversationData Conversation, IReadOnlyList<AssistantMessageData> Messages)
 {
     public static AssistantConversationDetailData From(AssistantConversation conversation) => new(

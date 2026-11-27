@@ -2,7 +2,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router';
 import type { AiSelection, AssistantConversation, AssistantStreamEvent } from '../../api/aiTypes';
-import { getConversation, streamAssistantReply, useCreateConversation, type AssistantScope, type StreamOutcome } from '../../api/assistant';
+import { getConversation, invalidateConversationLists, streamAssistantReply, useCreateConversation, type AssistantScope, type StreamOutcome } from '../../api/assistant';
 import { errorMessage } from '../../api/http';
 import { queryKeys } from '../../api/queryKeys';
 import { assistantPagePath } from '../work-items/itemLinks';
@@ -62,8 +62,8 @@ interface StreamContext {
 /** 串流的事件寫進快取，結束時整理快取。回傳 false 表示串流開始之前就失敗了（呼叫端處理錯誤）。 */
 async function runStream(context: StreamContext, id: string, request: SendRequest, signal: AbortSignal): Promise<void> {
   const { queryClient, projectKey, setActive, onStarted } = context;
-  // exact：對話的快取鍵以清單的鍵開頭，不加的話清單失效會連正在長的那一則對話一起重抓、蓋掉。
-  const invalidateList = () => queryClient.invalidateQueries({ queryKey: queryKeys.assistantConversations(projectKey), exact: true });
+  // 只讓清單失效（exact）：正在長的那一則對話不重抓，不然會被伺服器那一份蓋掉。
+  const invalidateList = () => invalidateConversationLists(queryClient, projectKey);
   let messageId: string | null = null;
   let phase: ReplyPhase = null;
   const patch = (event: AssistantStreamEvent) => {
@@ -202,7 +202,7 @@ function useRunReply(
       } catch (failure) {
         setActive(null);
         // 失敗（含串流開始之前）：清單不能留著舊的「回覆中」。
-        void queryClient.invalidateQueries({ queryKey: queryKeys.assistantConversations(projectKey), exact: true });
+        void invalidateConversationLists(queryClient, projectKey);
         // 送出被擋（主機來源不能用、選擇失效、排隊滿了）：能選的 AI 與 notice 可能已經變了，選單要重讀。
         void queryClient.invalidateQueries({ queryKey: queryKeys.aiOptions });
         setScopedError({ conversationId: id, message: errorMessage(failure) });

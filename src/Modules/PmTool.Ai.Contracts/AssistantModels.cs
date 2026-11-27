@@ -19,6 +19,12 @@ public interface IAssistantService
     Task<Result<IReadOnlyList<AssistantConversationSummary>>> ListAsync(
         Actor actor, string? projectKey, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 自己所有的對話（各專案與不選專案的，浮動面板的「對話」選單），新的在前，最多 <see cref="AiRules.MaxConversationsListed"/> 則。
+    /// 每個專案照 <see cref="ListAsync"/> 同一套規則：看不到專案、沒有讀設定的權限的不列，看過全部項目而現在只剩自己的整則刪掉。
+    /// </summary>
+    Task<Result<IReadOnlyList<AssistantConversationListing>>> ListAllAsync(Actor actor, CancellationToken cancellationToken);
+
     /// <summary>開一則空的對話。組織沒開 AI 時回 <see cref="AiErrorCodes.Unavailable"/>。</summary>
     Task<Result<AssistantConversationSummary>> CreateAsync(Actor actor, string? projectKey, CancellationToken cancellationToken);
 

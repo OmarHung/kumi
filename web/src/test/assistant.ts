@@ -1,8 +1,10 @@
 import { http, HttpResponse } from 'msw';
+import { afterEach } from 'vitest';
 import type {
   AiOptions,
   AiSelection,
   AssistantConversation,
+  AssistantConversationListing,
   AssistantConversationSummary,
   AssistantMessage,
   AssistantMessageInput,
@@ -89,8 +91,33 @@ export function makeAssistantMessage(overrides: Partial<AssistantMessage> = {}):
 /** projectKey 是 null：不選專案的組織對話。 */
 const base = (projectKey: string | null) => (projectKey === null ? '/v1/assistant/conversations' : `/v1/projects/${projectKey}/assistant/conversations`);
 
+/**
+ * 跨專案的對話清單（浮動面板的「對話」選單，GET /v1/assistant/all-conversations）由各邊的清單合起來、新的在前：
+ * 測試照舊用 serveConversations／serveConversationList 設定每一邊，兩個端點讀到的永遠一致。
+ */
+const listedByScope = new Map<string | null, () => readonly AssistantConversationSummary[]>();
+
+afterEach(() => {
+  listedByScope.clear();
+});
+
+function allListings(): readonly AssistantConversationListing[] {
+  return [...listedByScope.entries()]
+    .flatMap(([projectKey, source]) => source().map((conversation) => ({ ...conversation, projectKey })))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/** 一邊的清單內容由 source 決定（每次讀都重算：測試中途改內容用這個）。 */
+export function serveConversationList(projectKey: string | null, source: () => readonly AssistantConversationSummary[]): void {
+  listedByScope.set(projectKey, source);
+  server.use(
+    http.get(base(projectKey), () => ok(source())),
+    http.get('/v1/assistant/all-conversations', () => ok(allListings())),
+  );
+}
+
 export function serveConversations(projectKey: string | null, conversations: readonly AssistantConversationSummary[]): void {
-  server.use(http.get(base(projectKey), () => ok(conversations)));
+  serveConversationList(projectKey, () => conversations);
 }
 
 /** GET 一則對話；回傳讀了幾次。 */

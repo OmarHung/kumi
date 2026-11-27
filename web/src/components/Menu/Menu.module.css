@@ -87,6 +87,19 @@
   font-size: var(--text-xs);
 }
 
+/* 組的名字（和 Select 的組名同一套）：第一組在最上面，後面的組前面一條細線（外框，強制色彩照樣看得到）。 */
+.groupLabel {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.groupLabel:not(:first-child) {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-border);
+}
+
 /* 分隔線用上緣的外框畫（不是底色）：強制色彩（Windows 高對比）會拿掉底色，外框則換成系統色、照樣看得到。 */
 .separator {
   margin: var(--space-1) 0;

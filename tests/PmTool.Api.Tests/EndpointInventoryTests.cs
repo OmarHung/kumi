@@ -86,6 +86,7 @@ public sealed class EndpointInventoryTests
         "GET /v1/ai/options",
         "GET /v1/ai/project-proposals/{proposalId:guid}",
         "GET /v1/ai/settings",
+        "GET /v1/assistant/all-conversations",
         "GET /v1/assistant/attachments/{id}/content",
         "GET /v1/assistant/conversations",
         "GET /v1/assistant/conversations/{conversationId:guid}",

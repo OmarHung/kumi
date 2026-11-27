@@ -63,6 +63,8 @@ export const queryKeys = {
   // projectKey 是 null：不選專案的組織對話，不掛在 ['project', key] 底下（專案的快取失效、改名不牽動它）。
   assistantConversations: (projectKey: string | null) =>
     projectKey === null ? ['ai', 'assistant', 'conversations'] : ['project', projectKey, 'assistant', 'conversations'],
+  // 自己所有的對話（各專案與不選專案的，浮動面板的「對話」選單）：任何一邊的清單變了都要一起失效（invalidateConversationLists）。
+  allAssistantConversations: ['ai', 'assistant', 'all-conversations'],
   assistantConversation: (projectKey: string | null, conversationId: string) => [
     ...(projectKey === null ? ['ai', 'assistant', 'conversations'] : ['project', projectKey, 'assistant', 'conversations']),
     conversationId,

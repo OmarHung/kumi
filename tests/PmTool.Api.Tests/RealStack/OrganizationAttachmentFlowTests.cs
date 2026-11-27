@@ -9,7 +9,7 @@ namespace PmTool.Api.Tests.RealStack;
 
 /// <summary>
 /// 不選專案的組織對話的附件從 HTTP 一路到資料庫與檔案：上傳到 <c>/v1/assistant/attachments</c>、送出時綁上、引擎讀得到、
-/// 對話裡看得到、下載；用專案的路徑讀不到；刪對話之後下載是 404。送訊息用本機代理的引擎（測試扮演代理），組織對話要 kumi 0.12.0 以上。
+/// 對話裡看得到、下載；用專案的路徑讀不到；刪對話之後下載是 404。另外驗跨專案的對話清單（浮動面板的「對話」選單）帶得出專案代號。送訊息用本機代理的引擎（測試扮演代理），組織對話要 kumi 0.12.0 以上。
 /// </summary>
 [TestFixture]
 public sealed class OrganizationAttachmentFlowTests : RealStackTestBase
@@ -97,6 +97,27 @@ public sealed class OrganizationAttachmentFlowTests : RealStackTestBase
             await ApiRequests.AssertErrorEnvelopeAsync(viaProject, HttpStatusCode.NotFound, AiErrorCodes.AttachmentNotFound);
             Assert.That(ownDelete.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
             await ApiRequests.AssertErrorEnvelopeAsync(afterDelete, HttpStatusCode.NotFound, AiErrorCodes.AttachmentNotFound);
+        }
+    }
+
+    [Test]
+    public async Task AllConversations_ListsProjectAndOrganizationConversationsWithTheirProjectKey()
+    {
+        // Arrange
+        using var inProject = await _owner.Client.PostAsync($"/v1/projects/{Project}/assistant/conversations", null);
+        var projectId = (await ApiRequests.AssertSuccessEnvelopeAsync(inProject, HttpStatusCode.Created))!["id"]!.GetValue<Guid>();
+        using var inOrganization = await _owner.Client.PostAsync(Conversations, null);
+        var organizationId = (await ApiRequests.AssertSuccessEnvelopeAsync(inOrganization, HttpStatusCode.Created))!["id"]!.GetValue<Guid>();
+
+        // Act
+        var listed = (await RealStackSteps.GetAsync(_owner.Client, "/v1/assistant/all-conversations")).AsArray();
+
+        // Assert
+        var keys = listed.ToDictionary(c => c!["id"]!.GetValue<Guid>(), c => c!["projectKey"]?.GetValue<string>());
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(keys[projectId], Is.EqualTo(Project));
+            Assert.That(keys[organizationId], Is.Null);
         }
     }
 

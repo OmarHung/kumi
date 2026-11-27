@@ -1,4 +1,4 @@
-import { useConversations } from '../../api/assistant';
+import { useAllConversations } from '../../api/assistant';
 import { useProjects } from '../../api/queries';
 import { Button } from '../../components/Button/Button';
 import { Icon } from '../../components/Icon/Icon';
@@ -8,13 +8,13 @@ import { Select, type SelectOption } from '../../components/Select/Select';
 import { NO_PROJECT_LABEL } from '../ai/aiLabels';
 import { ItemPicker } from '../assistant/ItemPicker';
 import { assistantPagePath } from '../work-items/itemLinks';
+import { groupConversations } from './conversationGroups';
 import type { PanelScope } from './panelMemory';
 import styles from './AssistantPanel.module.css';
 
 const NEW_CONVERSATION = '新的對話';
 /** 還沒有標題的對話（標題要等第一輪回覆之後才有）：不能也叫「新的對話」，不然和上面開新對話的那一項分不出來。 */
 const UNTITLED_CONVERSATION = '（還沒有標題）';
-const MAX_LISTED_CONVERSATIONS = 30;
 const BUSY_REASON = '回覆還在進行，等它結束或先按「停止」。';
 
 /** 選單裡「不選專案」那一項的值：專案代號只有英數字，不會撞到。 */
@@ -72,25 +72,35 @@ interface ConversationMenuProps {
   readonly conversationId: string | undefined;
   readonly isBusy: boolean;
   readonly onSelect: (id: string | undefined) => void;
+  readonly onOpen: (projectKey: string | null, id: string) => void;
 }
 
-/** 這個專案的對話：「新的對話」加最近的幾則。回覆中不能換（換了回覆就被中斷）。 */
-function ConversationMenu({ projectKey, conversationId, isBusy, onSelect }: ConversationMenuProps) {
-  const conversations = useConversations(projectKey);
+/**
+ * 「新的對話」（目前的專案）加上自己所有的對話，依專案分組（組名是專案名稱，不選專案的叫「不選專案」）。
+ * 選了別的專案的對話，面板連專案一起換。回覆中不能換（換了回覆就被中斷）。
+ */
+function ConversationMenu({ projectKey, conversationId, isBusy, onSelect, onOpen }: ConversationMenuProps) {
+  const conversations = useAllConversations();
+  const projects = useProjects();
+  const nameOf = (key: string | null) =>
+    key === null ? NO_PROJECT_LABEL : (projects.data?.find((project) => project.key === key)?.name ?? key);
   const blocked = isBusy ? { disabledReason: BUSY_REASON } : {};
   const items: readonly MenuItem[] = [
     { key: 'new', label: NEW_CONVERSATION, icon: 'add', isChecked: conversationId === undefined, onSelect: () => { onSelect(undefined); }, ...blocked },
-    ...(conversations.data ?? []).slice(0, MAX_LISTED_CONVERSATIONS).map(
-      (conversation, index): MenuItem => ({
-        key: conversation.id,
-        label: `${conversation.title ?? UNTITLED_CONVERSATION}${conversation.isRunning ? '（回覆中）' : ''}`,
-        isChecked: conversation.id === conversationId,
-        startsGroup: index === 0,
-        onSelect: () => {
-          onSelect(conversation.id);
-        },
-        ...blocked,
-      }),
+    ...groupConversations(conversations.data ?? [], projectKey).flatMap((group) =>
+      group.conversations.map(
+        (conversation, index): MenuItem => ({
+          key: conversation.id,
+          label: `${conversation.title ?? UNTITLED_CONVERSATION}${conversation.isRunning ? '（回覆中）' : ''}`,
+          isChecked: conversation.id === conversationId,
+          ...(index === 0 ? { groupLabel: nameOf(group.projectKey) } : {}),
+          onSelect: () => {
+            if (group.projectKey === projectKey) onSelect(conversation.id);
+            else onOpen(group.projectKey, conversation.id);
+          },
+          ...blocked,
+        }),
+      ),
     ),
   ];
   return (
@@ -131,11 +141,12 @@ export interface PanelHeaderProps extends ProjectPickerProps {
   readonly itemKey: string | null;
   readonly onChooseItem: (itemKey: string | null) => void;
   readonly onSelectConversation: (id: string | undefined) => void;
+  readonly onOpenConversation: (projectKey: string | null, id: string) => void;
   readonly onClose: () => void;
 }
 
 /** 頁首：標題與「開成整頁」「關閉」；下面一列是專案與對話選單。 */
-export function PanelHeader({ projectKey, isFollowingRoute, isBusy, onChoose, conversationId, itemKey, onChooseItem, onSelectConversation, onClose }: PanelHeaderProps) {
+export function PanelHeader({ projectKey, isFollowingRoute, isBusy, onChoose, conversationId, itemKey, onChooseItem, onSelectConversation, onOpenConversation, onClose }: PanelHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.titleRow}>
@@ -151,7 +162,7 @@ export function PanelHeader({ projectKey, isFollowingRoute, isBusy, onChoose, co
       <div className={styles.contextRow}>
         <ProjectPicker projectKey={projectKey} isFollowingRoute={isFollowingRoute} isBusy={isBusy} onChoose={onChoose} />
         {projectKey !== undefined && (
-          <ConversationMenu projectKey={projectKey} conversationId={conversationId} isBusy={isBusy} onSelect={onSelectConversation} />
+          <ConversationMenu projectKey={projectKey} conversationId={conversationId} isBusy={isBusy} onSelect={onSelectConversation} onOpen={onOpenConversation} />
         )}
         {typeof projectKey === 'string' && <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} />}
       </div>

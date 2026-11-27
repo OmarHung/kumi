@@ -19,6 +19,8 @@ export interface PanelSession {
   /** 現在的對話；undefined 是「新的對話」。換了專案就回到「新的對話」。 */
   readonly conversationId: string | undefined;
   readonly selectConversation: (id: string | undefined) => void;
+  /** 打開某個專案（null 是不選專案）的一則對話：對話選單列出所有專案的對話，選了別的專案的就連專案一起換。 */
+  readonly openConversation: (projectKey: string | null, id: string) => void;
   readonly reply: AssistantReply;
   /** 回覆中（含送出到串流結束的整段）：不換專案、不換對話。 */
   readonly isBusy: boolean;
@@ -55,6 +57,10 @@ export function usePanelSession(routeProjectKey: string | undefined, routeItemKe
     conversationId,
     selectConversation: (id) => {
       setConversation({ projectKey, id });
+    },
+    openConversation: (target, id) => {
+      chooseProject(target);
+      setConversation({ projectKey: target, id });
     },
     reply,
     isBusy,

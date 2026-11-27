@@ -35,6 +35,7 @@ internal static class AssistantEndpoints
             .RequireRateLimiting(ApiRateLimiting.AssistantMessagePolicy);
 
         v1.MapGet(OrganizationConversationsRoute, ListOrganizationAsync).WithName("ListOrganizationAssistantConversations");
+        v1.MapGet("/assistant/all-conversations", ListAllAsync).WithName("ListAllAssistantConversations");
         v1.MapPost(OrganizationConversationsRoute, CreateOrganizationAsync).WithName("CreateOrganizationAssistantConversation");
         v1.MapGet(OrganizationConversationRoute, GetOrganizationAsync).WithName("GetOrganizationAssistantConversation");
         v1.MapDelete(OrganizationConversationRoute, DeleteOrganizationAsync).WithName("DeleteOrganizationAssistantConversation");
@@ -47,6 +48,16 @@ internal static class AssistantEndpoints
     private static Task<IResult> ListOrganizationAsync(
         ClaimsPrincipal principal, [FromServices] IAssistantService assistant, CancellationToken cancellationToken) =>
         ListAsync(null, principal, assistant, cancellationToken);
+
+    /// <summary>自己所有的對話（浮動面板的「對話」選單）；每個專案的權限由模組照開那個專案的對話時同一套判斷。</summary>
+    private static async Task<IResult> ListAllAsync(
+        ClaimsPrincipal principal, [FromServices] IAssistantService assistant, CancellationToken cancellationToken)
+    {
+        var result = await assistant.ListAllAsync(SessionPrincipal.Read(principal).ToActor(), cancellationToken);
+        return result.Failure is { } failure
+            ? EndpointResults.Fail(failure)
+            : EndpointResults.Ok(result.Value.Select(AssistantConversationListingData.From).ToList());
+    }
 
     private static Task<IResult> CreateOrganizationAsync(
         ClaimsPrincipal principal, [FromServices] IAssistantService assistant, CancellationToken cancellationToken) =>

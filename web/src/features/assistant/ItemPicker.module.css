@@ -51,9 +51,14 @@
   list-style: none;
 }
 
+/*
+ * 清單是有高度上限的直向 flex：不設 flex: none 的話，選項多到要捲時每一項都被壓到 min-height，
+ * 標題換成兩行就溢出反白的底、疊到下一項。編號對齊第一行（標題換行時不跑到兩行中間）。
+ */
 .option {
   display: flex;
-  align-items: center;
+  flex: none;
+  align-items: baseline;
   gap: var(--space-2);
   min-height: var(--target-min);
   padding: var(--space-1) var(--space-2);
