@@ -528,18 +528,42 @@ describe('調整大小', () => {
 });
 
 describe('專案', () => {
-  it('在專案頁跟著路由；換到別的專案頁就換過去，新的對話', async () => {
+  it('在專案頁也能自己選專案：預設是那一頁的，改成別的專案或不選專案之後留在選的那個，換到另一個專案頁才跟上', async () => {
     // Arrange
     const { user, router } = openApp();
+    serveConversations(null, []);
     const panel = await openPanel(user);
-    expect(await within(panel).findByLabelText('目前的專案')).toHaveTextContent('冒煙測試');
+    const picker = await within(panel).findByRole('combobox', { name: '專案' });
+    expect(picker).toHaveTextContent('冒煙測試');
+
+    // Act
+    await chooseOption(user, picker, '不選專案');
+
+    // Assert
+    expect(await within(panel).findByRole('textbox', { name: '訊息' })).toHaveAttribute('placeholder', '問模板、規劃，或請助理幫你開新專案…');
+    expect(within(panel).getByRole('combobox', { name: '專案' })).toHaveTextContent('不選專案');
 
     // Act
     await goTo(router, '/projects/AGY');
 
     // Assert
     await waitFor(() => {
-      expect(within(panel).getByLabelText('目前的專案')).toHaveTextContent('接案測試');
+      expect(within(panel).getByRole('combobox', { name: '專案' })).toHaveTextContent('接案測試');
+    });
+  });
+
+  it('在專案頁跟著路由；換到別的專案頁就換過去，新的對話', async () => {
+    // Arrange
+    const { user, router } = openApp();
+    const panel = await openPanel(user);
+    expect(await within(panel).findByRole('combobox', { name: '專案' })).toHaveTextContent('冒煙測試');
+
+    // Act
+    await goTo(router, '/projects/AGY');
+
+    // Assert
+    await waitFor(() => {
+      expect(within(panel).getByRole('combobox', { name: '專案' })).toHaveTextContent('接案測試');
     });
   });
 
@@ -577,13 +601,13 @@ describe('專案', () => {
     await goTo(router, '/projects/AGY');
 
     // Assert
-    expect(within(panel).getByLabelText('目前的專案')).toHaveTextContent('冒煙測試');
+    expect(within(panel).getByRole('combobox', { name: '專案' })).toHaveTextContent('冒煙測試');
     act(() => {
       reply.stream()?.event('done', { message: { id: 'a1', role: 'assistant', createdAt: '2026-11-23T02:00:01Z', parts: [{ type: 'text', text: '好' }], status: 'complete', error: null, selection: null, connectionName: null, usage: null, attachments: [] } });
       reply.stream()?.close();
     });
     await waitFor(() => {
-      expect(within(panel).getByLabelText('目前的專案')).toHaveTextContent('接案測試');
+      expect(within(panel).getByRole('combobox', { name: '專案' })).toHaveTextContent('接案測試');
     });
   });
 });
@@ -678,7 +702,7 @@ describe('對話選單', () => {
     expect(screen.getByRole('menuitemradio', { name: '開新專案' })).toHaveAccessibleDescription('不選專案');
   });
 
-  it('在專案頁選了別的專案的對話：面板換到那個專案，頁首換成專案的選單，選得回來', async () => {
+  it('在專案頁選了別的專案的對話：面板換到那個專案', async () => {
     // Arrange
     const { user } = openApp();
     serveConversations('AGY', [makeConversationSummary({ id: 'conv-a', title: '拆驗收' })]);

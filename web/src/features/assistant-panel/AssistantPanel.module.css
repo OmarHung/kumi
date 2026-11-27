@@ -296,16 +296,6 @@
   padding-inline-end: var(--space-2);
 }
 
-.projectName {
-  min-width: 0;
-  overflow: hidden;
-  flex: 1;
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ---- 內容 ---- */
 
 .body {

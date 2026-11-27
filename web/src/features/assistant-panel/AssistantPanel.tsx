@@ -80,7 +80,6 @@ function usePanelOpen(isEntryShown: boolean, isFullPage: boolean, buttonRef: Ref
 interface WindowProps {
   readonly session: PanelSession;
   readonly options: AiOptions;
-  readonly isFollowingRoute: boolean;
   readonly isShown: boolean;
   readonly isCompact: boolean;
   readonly onClose: () => void;
@@ -89,13 +88,12 @@ interface WindowProps {
 }
 
 /** 浮動的面板：外框、頁首與內容。 */
-function AssistantWindow({ session, options, isFollowingRoute, isShown, isCompact, onClose, panelRef, host }: WindowProps) {
+function AssistantWindow({ session, options, isShown, isCompact, onClose, panelRef, host }: WindowProps) {
   useFocusOnOpen(isShown, panelRef, `${String(options.available)}|${String(session.projectKey)}`);
   return (
     <PanelWindow isOpen={isShown} isCompact={isCompact} onClose={onClose} panelRef={panelRef} host={host}>
       <PanelHeader
         projectKey={session.projectKey}
-        isFollowingRoute={isFollowingRoute}
         isBusy={session.isBusy}
         onChoose={session.chooseProject}
         itemKey={session.itemKey}
@@ -174,9 +172,6 @@ export function AssistantPanel() {
         <AssistantWindow
           session={session}
           options={options.data}
-          // 在專案頁從對話選單開了別的專案的對話：面板不再跟著路由，頁首換回專案的選單，選得回來。
-          // 回覆中換頁時面板留在原本的專案（回覆完才跟上），那段時間照舊只顯示名稱。
-          isFollowingRoute={routeProjectKey !== undefined && (session.projectKey === routeProjectKey || session.isBusy)}
           isShown={panel.isShown}
           isCompact={isCompact}
           onClose={panel.close}

@@ -292,7 +292,7 @@ describe('整頁：不選專案', () => {
     });
 
     // Assert
-    expect(await within(panel).findByLabelText('目前的專案')).toHaveTextContent('不選專案');
+    expect(await within(panel).findByRole('combobox', { name: '專案' })).toHaveTextContent('不選專案');
     reply.stream()?.close();
   });
 

@@ -23,24 +23,17 @@ const NO_PROJECT_VALUE = '@none';
 interface ProjectPickerProps {
   /** null 是「不選專案」；undefined 是還沒選。 */
   readonly projectKey: PanelScope;
-  /** 在專案頁：面板跟著路由，不能自己選。 */
-  readonly isFollowingRoute: boolean;
   readonly isBusy: boolean;
   readonly onChoose: (projectKey: string | null) => void;
 }
 
-/** 在專案頁是專案的名稱；不在專案頁是自己畫的選單，列出看得到、沒有封存的專案。 */
-function ProjectPicker({ projectKey, isFollowingRoute, isBusy, onChoose }: ProjectPickerProps) {
+/**
+ * 自己畫的選單，列出看得到、沒有封存的專案；一律可以選（2026-11-27 使用者要求）。在專案頁預設是那一頁的專案，
+ * 換成別的專案或不選專案之後，面板留在選的那個，換到另一個專案的頁面時才再跟上（useAssistantProject）。回覆中不能換。
+ */
+function ProjectPicker({ projectKey, isBusy, onChoose }: ProjectPickerProps) {
   const projects = useProjects();
   const listed = (projects.data ?? []).filter((project) => project.archivedAt === null || project.key === projectKey);
-  const current = listed.find((project) => project.key === projectKey);
-  if (isFollowingRoute) {
-    return (
-      <span className={styles.projectName} aria-label="目前的專案">
-        {current?.name ?? projectKey ?? NO_PROJECT_LABEL}
-      </span>
-    );
-  }
   // 第一項「不選專案」：問模板、規劃，請助理開新專案（組織的對話）。
   const options: readonly SelectOption[] = [
     { value: NO_PROJECT_VALUE, label: NO_PROJECT_LABEL },
@@ -146,7 +139,7 @@ export interface PanelHeaderProps extends ProjectPickerProps {
 }
 
 /** 頁首：標題與「開成整頁」「關閉」；下面一列是專案與對話選單。 */
-export function PanelHeader({ projectKey, isFollowingRoute, isBusy, onChoose, conversationId, itemKey, onChooseItem, onSelectConversation, onOpenConversation, onClose }: PanelHeaderProps) {
+export function PanelHeader({ projectKey, isBusy, onChoose, conversationId, itemKey, onChooseItem, onSelectConversation, onOpenConversation, onClose }: PanelHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.titleRow}>
@@ -160,7 +153,7 @@ export function PanelHeader({ projectKey, isFollowingRoute, isBusy, onChoose, co
         <IconButton icon="close" label="關閉" onClick={onClose} />
       </div>
       <div className={styles.contextRow}>
-        <ProjectPicker projectKey={projectKey} isFollowingRoute={isFollowingRoute} isBusy={isBusy} onChoose={onChoose} />
+        <ProjectPicker projectKey={projectKey} isBusy={isBusy} onChoose={onChoose} />
         {projectKey !== undefined && (
           <ConversationMenu projectKey={projectKey} conversationId={conversationId} isBusy={isBusy} onSelect={onSelectConversation} onOpen={onOpenConversation} />
         )}
