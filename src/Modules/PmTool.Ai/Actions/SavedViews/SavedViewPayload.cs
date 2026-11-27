@@ -263,8 +263,25 @@ internal static class SavedViewPayload
             "category" => query with { Category = text },
             "project" => query with { Project = text },
             "createdBy" => query with { CreatedBy = text },
-            _ => query with { Mine = text },
+            _ => SetMine(query, text, path, issues),
         };
+    }
+
+    // 「我的工作」的範圍：工作引擎只收 created（我建立的），我負責的是不給（預設）。模型常寫 assigned，當成不給；其他值建立時就擋。
+    private static SavedViewQuery SetMine(SavedViewQuery query, string? text, string path, List<FailureDetail> issues)
+    {
+        if (text is null || string.Equals(text, "assigned", StringComparison.OrdinalIgnoreCase))
+        {
+            return query with { Mine = null };
+        }
+
+        if (string.Equals(text, "created", StringComparison.OrdinalIgnoreCase))
+        {
+            return query with { Mine = "created" };
+        }
+
+        issues.Add(Issue(path, "mine 只能是 created（我建立的）；要看我負責的不用給。"));
+        return query;
     }
 
     private static SavedViewQuery SetBool(SavedViewQuery query, string name, JsonElement value, string path, List<FailureDetail> issues)

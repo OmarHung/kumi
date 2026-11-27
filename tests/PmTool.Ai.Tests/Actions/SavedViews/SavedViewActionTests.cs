@@ -102,6 +102,26 @@ public sealed class SavedViewActionTests
     }
 
     [Test]
+    public async Task Create_InMyWorkWithMineAssigned_MeansTheDefaultAndOtherValuesAreRejected()
+    {
+        // Arrange：工作引擎的 mine 只收 created；模型常寫 assigned（我負責的，其實是預設），當成不給。
+        var assigned = new { action = "create", name = "我負責的過期", mine = "assigned", due = "overdue" };
+        var bad = new { action = "create", name = "壞的", mine = "everyone" };
+
+        // Act
+        var prepared = await PrepareOkAsync(null, assigned);
+        await ApplyAsync(null, prepared, 0);
+        var rejected = await PrepareAsync(null, bad);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_views.Drafts.Single().Query.Mine, Is.Null);
+            Assert.That(rejected.Failure?.Details.Select(d => d.Path), Is.EqualTo(new[] { "changes[0].mine" }));
+        }
+    }
+
+    [Test]
     public async Task Update_OnlyTheGivenPropertiesChange_AndNullClearsACondition()
     {
         // Arrange
