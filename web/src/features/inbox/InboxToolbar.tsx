@@ -22,7 +22,11 @@ export function InboxCategoryTabs({ filter }: { readonly filter: InboxFilter }) 
     to: { search: inboxFilterSearch(searchParams, { category: entry.category }) },
     isCurrent: entry.category === filter.category,
   }));
-  return <NavTabs label="通知的分類" tabs={tabs} />;
+  return (
+    <div className={styles.categories}>
+      <NavTabs label="通知的分類" tabs={tabs} />
+    </div>
+  );
 }
 
 /**

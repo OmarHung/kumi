@@ -198,8 +198,8 @@
 /* 觸控：同一份畫面，目標變大、輸入框的字不小於 16px（否則 iOS 聚焦時會放大整頁）。 */
 @media (pointer: coarse) {
   :root {
-    --control-height: 2.75rem;
-    --control-height-sm: 2.75rem;
+    --control-height: 2.25rem; /* 按鈕、下拉、輸入框、圖示按鈕：36px（2026-11-27 使用者嫌 44px 太高），整列可點的東西仍是 --row-height／--target-min 的 44px */
+    --control-height-sm: 2.25rem;
     --row-height: 2.75rem;
     --target-min: 2.75rem;
     --text-control: 1rem;

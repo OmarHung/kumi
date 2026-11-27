@@ -17,7 +17,7 @@ export function ProjectItemList({ items, isRefreshing, footer }: ProjectItemList
   // 窄螢幕不用面板；登記順序是為了從整頁用上一頁回來時，焦點放回這份清單上的那一筆。
   useItemSequence(items.map((item) => item.key));
   return (
-    <List label="項目" layout="fill" isBusy={isRefreshing} footer={footer}>
+    <List label="項目" layout="fill" isFlush isBusy={isRefreshing} footer={footer}>
       {items.map((item, index) => (
         <ItemListRow key={item.key} item={item} blueprint={table.detail.blueprint} todayDate={table.todayDate} isContentStart={index === 0} />
       ))}

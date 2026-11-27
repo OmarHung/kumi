@@ -29,7 +29,7 @@ interface ItemListRowProps {
 function UrgentPriority({ item }: { readonly item: Item }) {
   if (item.priority !== 'high' && item.priority !== 'urgent') return null;
   return (
-    <span className={styles.metaItem}>
+    <span className={cx(styles.metaItem, styles.urgent)}>
       <span className="visually-hidden">優先度：</span>
       <Icon name="arrowUp" />
       <PriorityText priority={item.priority} />
@@ -42,7 +42,7 @@ function AssigneeMark({ item }: { readonly item: Item }) {
   return (
     <span className={styles.assignee}>
       <span className="visually-hidden">{`負責人：${item.assignee.displayName}`}</span>
-      <Avatar name={item.assignee.displayName} decorative />
+      <Avatar name={item.assignee.displayName} size="sm" decorative />
     </span>
   );
 }
@@ -77,8 +77,8 @@ function Side({ item, todayDate, showAssignee }: { readonly item: Item; readonly
 }
 
 /**
- * 窄螢幕的項目清單一筆（docs/design/07-components.md 7.1）：左邊上面一行是編號、狀態、類型、高與緊急的優先度（我的工作再加專案），
- * 上面一行的最右邊是負責人頭像與到期日；下面是標題（最多兩行），橫跨整列。整筆是連到項目頁的連結。
+ * 窄螢幕的項目清單一筆（docs/design/07-components.md 7.1）：第一行是編號、狀態、高與緊急的優先度、類型（一行不折），最右邊是負責人頭像（小的）與到期日；
+ * 第二行是標題（最多兩行）；我的工作再加第三行專案名稱（一行省略號）。整筆是連到項目頁的連結。
  * DOM 的順序是編號、標題、其餘（連結的名稱照這個順序唸，和以前一樣以「編號 標題」開頭）；上下兩行的位置靠 CSS 的格線排。
  */
 export function ItemListRow({ item, blueprint, todayDate, projectName, showAssignee = true, isSettled = false, isContentStart = false }: ItemListRowProps) {
@@ -96,21 +96,21 @@ export function ItemListRow({ item, blueprint, todayDate, projectName, showAssig
               <span className="visually-hidden">狀態：</span>
               <StateBadge label={stateLabel(blueprint, item.type, item.state, item.stateCategory)} category={item.stateCategory} />
             </span>{' '}
-            <span className={styles.metaItem}>
+            <span className={cx(styles.metaItem, styles.type)}>
               <span className="visually-hidden">類型：</span>
               {blueprint === undefined ? item.type : itemTypeName(blueprint, item.type)}
             </span>{' '}
             <UrgentPriority item={item} />
-            {projectName !== undefined && (
-              <>
-                {' '}
-                <span className={styles.metaItem}>
-                  <span className="visually-hidden">專案：</span>
-                  {projectName}
-                </span>
-              </>
-            )}
           </span>
+          {projectName !== undefined && (
+            <>
+              {' '}
+              <span className={styles.project}>
+                <span className="visually-hidden">專案：</span>
+                {projectName}
+              </span>
+            </>
+          )}
         </span>{' '}
         <Side item={item} todayDate={todayDate} showAssignee={showAssignee} />
       </Link>

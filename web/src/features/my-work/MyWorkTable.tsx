@@ -31,7 +31,7 @@ function MyWorkList({ groups, projects, todayDate, showProject, showAssignee, is
       <div className={styles.groups}>
         {groups.map((group) => (
           <MyWorkGroupSection key={group.key} group={group}>
-            <List label={group.label}>
+            <List label={group.label} isFlush>
               {group.items.map(({ item }) => (
                 <ItemListRow
                   key={item.key}

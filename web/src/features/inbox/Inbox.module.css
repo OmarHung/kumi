@@ -104,3 +104,30 @@
   align-items: center;
   margin-left: auto;
 }
+
+/*
+ * 窄螢幕（48rem 以下，2026-11-27 使用者回報手機版空間比例不協調後調整）：分類的分段切換撐滿整列、每格等寬，
+ * 右緣和下面滿寬的搜尋列對齊；只自己的字寬時右邊空一塊，兩條對不齊。
+ */
+@media (max-width: 48rem) {
+  .categories {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .categories nav,
+  .categories ul {
+    display: flex;
+    width: 100%;
+  }
+
+  .categories li {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .categories a {
+    flex: 1;
+    justify-content: center;
+  }
+}

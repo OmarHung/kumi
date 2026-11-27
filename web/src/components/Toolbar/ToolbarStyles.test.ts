@@ -20,4 +20,10 @@ describe('窄螢幕一行的工具列', () => {
     // Arrange / Act / Assert
     expect(compact).toMatch(/:focus-visible \{[^}]*outline-offset: -2px;/);
   });
+
+  it('工具列裡的下拉照內容的寬度：最窄 4.5rem，左右內距和旁邊的按鈕一樣', () => {
+    // Arrange / Act / Assert
+    expect(compact).toMatch(/\.toolbar\[data-scrollable\] \[data-width='content'\] \{[^}]*min-width: 4\.5rem;/);
+    expect(compact).toMatch(/\[data-width='content'\] \{[^}]*padding-inline: var\(--space-3\);/);
+  });
 });

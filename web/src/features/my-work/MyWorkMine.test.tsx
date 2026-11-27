@@ -172,6 +172,37 @@ describe('我的工作：我負責的／我建立的', () => {
     expect(requests.at(-1)?.searchParams.get('createdBy')).toBe('me');
   });
 
+  it('窄螢幕的範圍下拉是工具列的第一顆（在版面之前），頁列只剩標題', async () => {
+    // Arrange
+    stubCompactScreen();
+    arrange();
+    renderApp('/my-work');
+
+    // Act
+    const scope = await screen.findByRole('combobox', { name: '範圍' });
+    const layout = await screen.findByRole('combobox', { name: '版面' });
+
+    // Assert
+    const toolbar = scope.closest('[data-scrollable]');
+    expect(toolbar).not.toBeNull();
+    expect(toolbar).toContainElement(layout);
+    expect(scope.compareDocumentPosition(layout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(scope.closest('header')).toBeNull();
+  });
+
+  it('寬螢幕維持連結的分頁，不出現範圍的下拉', async () => {
+    // Arrange
+    arrange();
+    renderApp('/my-work');
+
+    // Act
+    const nav = await findToolbar();
+
+    // Assert
+    expect(nav.getByRole('link', { name: '我建立的' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '範圍' })).not.toBeInTheDocument();
+  });
+
   it('窄螢幕的清單看我建立的：第二行有負責人，沒有負責人的寫「沒有負責人」', async () => {
     // Arrange
     stubCompactScreen();

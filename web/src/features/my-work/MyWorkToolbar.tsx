@@ -64,7 +64,7 @@ function TableToolbarEnd({ message, widthStore, orderStore, onResetWidths }: Tab
 }
 
 /**
- * 工具列（internal/HANDOFF-my-work-views.md 5.1）：由左到右是版面、範圍（我負責的｜我建立的，只有寬螢幕；窄螢幕在頁列右邊，見 MyWorkPage）、
+ * 工具列（internal/HANDOFF-my-work-views.md 5.1）：由左到右是版面、範圍（我負責的｜我建立的；窄螢幕換成下拉、移到最前面）、
  * 「檢視」、篩選（寬螢幕整排、窄螢幕收進「篩選」）；
  * 右邊只有表格有：分組、「欄的順序」、「重設欄寬」、status。status 放在工具列上，訊息出現時下面的清單不會被推動。
  * 四種版面用同一個工具列，切換時版面的分頁是同一個元素（焦點與報讀軟體的位置不會跳走）。
@@ -76,6 +76,8 @@ export function MyWorkToolbar(props: MyWorkToolbarProps) {
   const [searchParams] = useSearchParams();
   return (
     <Toolbar isScrollable end={isTable ? <TableToolbarEnd {...props} /> : undefined}>
+      {/* 窄螢幕：範圍是工具列的第一顆（設計稿），版面在它後面；寬螢幕維持版面、範圍的順序。 */}
+      {isCompact && <MyWorkMineSwitch />}
       <MyWorkViewSwitch layout={layout} />
       {!isCompact && <MyWorkMineSwitch />}
       <MyWorkViewMenu current={{ layout, filters, grouping: groupingOf(searchParams), sort: myWorkSortOf(searchParams) }} />

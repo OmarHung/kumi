@@ -1,7 +1,7 @@
 import { useId, type ReactNode, type RefObject } from 'react';
 import { Link, useLocation, useMatch } from 'react-router';
 import { useUnreadCount } from '../../api/notificationQueries';
-import { CountBadge, CountDescription } from '../../components/CountBadge/CountBadge';
+import { CountDescription } from '../../components/CountBadge/CountBadge';
 import { Icon, type IconName } from '../../components/Icon/Icon';
 import { useIsCompact } from '../../lib/useMediaQuery';
 import { ASSISTANT_TAB_ID, closeAssistantPanel, toggleAssistantPanel, useIsAssistantPanelShown } from '../assistant-panel/panelControl';
@@ -53,6 +53,13 @@ function LinkTab({ to, isCurrent, describedBy, icon, label, children }: LinkTabP
   );
 }
 
+/** 壓在圖示角落的膠囊最多三個字：超過 99 寫「99+」，不然會伸出分頁格；報讀照舊唸完整的數字。 */
+const BADGE_MAX = 99;
+
+function badgeText(count: number): string {
+  return count > BADGE_MAX ? `${String(BADGE_MAX)}+` : String(count);
+}
+
 function InboxTab({ isCurrent }: { readonly isCurrent: boolean }) {
   const { data: count } = useUnreadCount();
   const descriptionId = useId();
@@ -60,8 +67,8 @@ function InboxTab({ isCurrent }: { readonly isCurrent: boolean }) {
   return (
     <LinkTab to="/inbox" icon="notifications" label="收件匣" isCurrent={isCurrent} describedBy={descriptionId}>
       {hasUnread && (
-        <span className={styles.badge}>
-          <CountBadge value={count} />
+        <span className={styles.badge} aria-hidden="true">
+          {badgeText(count)}
         </span>
       )}
       <CountDescription id={descriptionId} labels={hasUnread ? [`${String(count)} 則未讀`] : []} />

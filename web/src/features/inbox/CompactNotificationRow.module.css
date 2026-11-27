@@ -4,6 +4,7 @@
 }
 
 .link {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
@@ -23,24 +24,33 @@
   outline-offset: -2px;
 }
 
+/*
+ * 頭像（2026-11-27 使用者回報空間比例不協調後調整）：32px，和第一行文字同一個頂端；比 28px 的清單頭像大一點，
+ * 才配得上三到四行的內容。帳號通知的圖示一樣大，同一欄的列才對得齊。
+ */
 .leading {
-  position: relative;
   display: flex;
   flex: none;
 }
 
-/* 未讀的小圓點：壓在頭像的左上角，外圈用底色隔開（不只靠顏色：名稱最前面也有「未讀：」）。 */
+.leading > * {
+  width: 2rem;
+  height: 2rem;
+}
+
+/*
+ * 未讀的小圓點：放在列左邊的留白裡（16px 的左內距中間），和第一行文字垂直置中，不壓在頭像上
+ * （壓在頭像角落看起來像多出來的雜點）。不只靠顏色：名稱最前面也有「未讀：」。
+ */
 .dot {
-  --unread-dot-size: 0.625rem;
+  --unread-dot-size: 0.5rem;
 
   position: absolute;
-  top: calc(-1 * var(--space-0-5));
-  left: calc(-1 * var(--space-1));
+  top: calc(var(--space-3) + var(--text-sm) * var(--leading-tight) / 2 - var(--unread-dot-size) / 2);
+  left: var(--space-1);
   width: var(--unread-dot-size);
   height: var(--unread-dot-size);
-  border: 2px solid var(--color-surface);
   border-radius: var(--radius-pill);
-  box-sizing: content-box;
   background: var(--color-accent);
 }
 
@@ -65,6 +75,7 @@
   align-items: baseline;
   gap: var(--space-2);
   font-size: var(--text-sm);
+  line-height: var(--leading-tight);
   color: var(--color-text-muted);
 }
 

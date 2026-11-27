@@ -76,3 +76,16 @@ describe('清單一筆的左右內距', () => {
     expect(hover).toBe('transparent');
   });
 });
+
+describe('清單貼邊（isFlush）', () => {
+  it('只在 48rem 以下往左右伸出內容區的留白，寬螢幕不動', () => {
+    // Arrange
+    const css = readStyles('List/List.module.css');
+    const compact = css.slice(css.indexOf('@media (max-width: 48rem)'));
+
+    // Act / Assert
+    expect(css.indexOf('@media (max-width: 48rem)')).toBeGreaterThan(0);
+    expect(compact).toMatch(/\.frame\[data-flush\] \{[^}]*margin-inline: calc\(-1 \* var\(--page-gutter\)\);/);
+    expect(css.slice(0, css.indexOf('@media (max-width: 48rem)'))).not.toMatch(/data-flush/);
+  });
+});

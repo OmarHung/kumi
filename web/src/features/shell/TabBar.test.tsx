@@ -97,6 +97,22 @@ describe('底部分頁列', () => {
     });
   });
 
+  it('未讀超過 99 時膠囊寫「99+」，報讀照舊唸完整的數字', async () => {
+    // Arrange
+    stubCompactScreen();
+    signedInAs(exampleOwner, { unreadCount: 120 });
+
+    // Act
+    renderApp('/my-work');
+
+    // Assert
+    const link = within(await findTabBar()).getByRole('link', { name: '收件匣' });
+    await waitFor(() => {
+      expect(link).toHaveAccessibleDescription('120 則未讀');
+    });
+    expect(link.querySelector('[aria-hidden="true"]:not(svg)')).toHaveTextContent(/^99\+$/);
+  });
+
   it('未讀是 0 時不顯示數字', async () => {
     // Arrange
     stubCompactScreen();

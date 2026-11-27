@@ -191,7 +191,7 @@ function CompactHeader({ projectKey, isBusy, onChoose, conversationId, itemKey, 
         <IconButton icon="close" label="關閉" onClick={onClose} />
       </div>
       {typeof projectKey === 'string' && (
-        <div className={styles.contextRow}>
+        <div className={`${styles.contextRow} ${compactStyles.itemRow}`}>
           <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} />
         </div>
       )}

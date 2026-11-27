@@ -6,7 +6,7 @@
 
 /*
  * 工具列：一列，高度照 docs/DESIGN.md 第 14 節的預算——寬螢幕剛好 44px（含下面的細線，控制項是 --control-height-sm），
- * 觸控時控制項變成 44px，上下各留 2px，加細線不超過 56px（NavTabs 的軌道多 4px 也在內）。
+ * 觸控時控制項是 36px，上下各留 2px，工具列仍至少 44px（NavTabs 的軌道多 4px 也在內）。
  */
 .toolbar {
   --toolbar-height: 2.75rem;

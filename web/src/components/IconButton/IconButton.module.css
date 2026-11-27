@@ -1,6 +1,6 @@
 /*
  * 寬度和高度一樣的方形按鈕。用屬性選取提高權重，蓋過 Button 的左右內距（兩個檔案的載入先後不一定）。
- * 觸控時 --control-height 是 44px，點擊範圍跟著變大。
+ * 觸控時 --control-height 是 36px（tokens.css 寫了為什麼不是 44px），點擊範圍跟著變大。
  */
 .iconButton[data-size='md'] {
   width: var(--control-height);

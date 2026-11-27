@@ -17,7 +17,6 @@ import {
 } from '../../domain/myWorkView';
 import { updateThenFocus, type FocusTarget } from '../../lib/updateThenFocus';
 import { useArrivalNotice } from '../../lib/useArrivalNotice';
-import { useIsCompact } from '../../lib/useMediaQuery';
 import { useToday } from '../../lib/useToday';
 import { useWeekStart } from '../../lib/weekStart';
 import type { RovingGridHandle } from '../../lib/useRovingGrid';
@@ -28,7 +27,6 @@ import { flattenItemPages } from '../item-table/itemCache';
 import { createColumnOrderStore, MY_WORK_ORDER_KEY } from './myWorkColumnOrder';
 import { MY_WORK_WIDTHS_KEY } from './myWorkColumns';
 import { pruneToProject } from './myWorkChoices';
-import { MyWorkMineSwitch } from './MyWorkMineSwitch';
 import { MyWorkResults } from './MyWorkResults';
 import { myWorkStatus } from './myWorkStatus';
 import { MyWorkToolbar } from './MyWorkToolbar';
@@ -154,7 +152,6 @@ export function MyWorkPage() {
   const { layout, urlFilters, setFilters } = useMyWorkUrlState();
   const isTable = layout === 'table';
   // 窄螢幕的工具列已經排滿（版面、「檢視」、「篩選」），範圍的下拉放在頁列右邊：多一個下拉不會把工具列折成兩列。
-  const isCompact = useIsCompact();
   const controls = usePageControls(urlFilters, setFilters);
   const { headingRef, searchRef, filterButtonId, widthStore, orderStore, clearFilters } = controls;
   // 在項目面板裡刪除之後留在這裡：焦點到標題，「已刪除 …」填進一直掛著的 status。
@@ -180,7 +177,7 @@ export function MyWorkPage() {
     <StateAnnouncementContext value={setFill}>
       <PageLayout
         variant={isTable ? 'list' : 'workspace'}
-        bar={<PageBar title="我的工作" headingRef={headingRef} actions={isCompact ? <MyWorkMineSwitch /> : undefined} />}
+        bar={<PageBar title="我的工作" headingRef={headingRef} />}
         toolbar={isLoadFailed ? undefined : toolbar}
       >
         {/* 點標題在右邊開項目面板（跨專案：面板用那個項目自己的專案內容）。 */}

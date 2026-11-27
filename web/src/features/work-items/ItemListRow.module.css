@@ -17,6 +17,8 @@
     'code meta side'
     'title title title';
   grid-template-columns: auto minmax(0, 1fr) auto;
+  /* 第一行固定高：頭像（20px）、日期與屬性同高，每一列的節奏一樣（2026-11-27 使用者回報手機版空間比例不協調，照 4/8 的間距節奏重排）。 */
+  grid-template-rows: minmax(1.25rem, auto);
   align-items: center;
   gap: var(--space-1) var(--space-2);
   min-height: var(--row-height);
@@ -24,6 +26,14 @@
   color: var(--color-text);
   text-decoration: none;
   transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+/* 我的工作有專案名稱時才多第三行：沒有時不留空的軌道，否則多算一次行距，列的下內距比上面多 4px。 */
+.link:has(.project) {
+  grid-template-areas:
+    'code meta side'
+    'title title title'
+    'project project project';
 }
 
 .link:hover {
@@ -48,21 +58,49 @@
   white-space: nowrap;
 }
 
+/* 第一行的屬性一行不折：放不下時最後的（類型）被裁掉，編號旁邊的起點不會因為折行而亂跳。 */
 .meta {
   display: flex;
-  flex-wrap: wrap;
   grid-area: meta;
   align-items: center;
-  gap: var(--space-0-5) var(--space-2);
+  gap: var(--space-2);
   min-width: 0;
+  overflow: hidden;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .metaItem {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: var(--space-0-5);
+}
+
+/* DOM 的順序是狀態、類型、優先度（連結的名稱照它唸）；看得到的順序讓重要的先排：狀態、優先度、類型。 */
+.urgent {
+  order: 1;
+}
+
+/* 類型排最後、放不下時縮：省略號收尾，不把字切一半。 */
+.type {
+  flex: 0 1 auto;
+  order: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 我的工作的第三行：專案名稱，一行省略號。 */
+.project {
+  grid-area: project;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 標題最多兩行，完整的文字在 title 與詳細頁（第 3 節的截斷規則）。 */
@@ -84,6 +122,7 @@
 
 .side {
   display: flex;
+  flex: none;
   grid-area: side;
   align-items: center;
   gap: var(--space-2);

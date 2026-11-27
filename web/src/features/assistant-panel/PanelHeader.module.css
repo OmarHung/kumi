@@ -13,11 +13,15 @@
   min-width: 0;
 }
 
-/* 選對話的鈕：名稱左對齊、吃剩下的寬度；箭頭不縮。 */
+/*
+ * 選對話的鈕：名稱左對齊、吃剩下的寬度；箭頭不縮。左內距縮成 --space-2：加上頁首的 --space-2，名稱落在 16px，
+ * 和下面選的項目、面板內文的左緣同一條線（原本是 24px，三條線各在 8、16、24）。
+ */
 .conversationButton {
   flex: 1 1 0;
   justify-content: flex-start;
   min-width: 0;
+  padding-inline-start: var(--space-2);
   font-weight: var(--weight-semibold);
 }
 
@@ -33,6 +37,46 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   white-space: nowrap;
+}
+
+/*
+ * 專案選單鈕（2026-11-27 使用者回報空間比例不協調後調整）：和旁邊「新的對話」同一種輕——沒有外框與底色、字加箭頭，
+ * 滑過才有底色；原本有外框的大框和沒有外框的對話按鈕、三顆圖示按鈕放在一行，輕重不一。外框用 border: 0 拿掉
+ * （滑過時 Select 自己改外框顏色的規則就沒有東西可改）；焦點的光暈是 box-shadow，照樣看得到。
+ */
+button.projectSelect[data-width='content'] {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+button.projectSelect[data-width='content']:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+/*
+ * 選的項目那一列：縮成小膠囊（--text-sm、28px 高、只佔自己的寬度，最長到整列），左緣在 16px，和對話的名稱、面板內文對齊。
+ * 44px 的觸控範圍用 ::before 補在膠囊的下面，不是靠把膠囊撐高。
+ */
+.itemRow {
+  padding-block: 0;
+  padding-inline: var(--space-2);
+}
+
+.itemRow > button {
+  position: relative;
+  height: 1.75rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+}
+
+.itemRow > button::before {
+  content: '';
+  position: absolute;
+  /* 只往下補：上面緊接著頁首那一行的按鈕，往上補會蓋住它們的下緣、點到變成開項目選單。 */
+  inset: 0 0 calc(1.75rem - var(--target-min));
 }
 
 /* 專案選單鈕不撐到 Select 的 8rem 下限（比 Select 的選擇器多一個元素名，權重較高）。 */

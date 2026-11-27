@@ -23,7 +23,7 @@ interface CompactNotificationRowProps {
 
 /**
  * 窄螢幕的收件匣一則（docs/DESIGN.md 8.3「收件匣」，2026-11-27 使用者看過手機版設計稿後採用）：
- * 頭像（未讀時旁邊一個小圓點）、第一行「誰做了什麼」加時間、標題與摘要各最多兩行、最後是項目編號。
+ * 頭像（未讀時左邊留白裡一個小圓點）、第一行「誰做了什麼」加時間、標題與摘要各最多兩行、最後是項目編號。
  * 寬螢幕的一行式排法會把標題截成一行，手機上看不出是哪一件事，所以窄螢幕不沿用。
  * 未讀：小圓點只是裝飾，報讀軟體靠名稱最前面看不見的「未讀：」（和寬螢幕同一個做法，不只靠顏色）。
  */
@@ -32,10 +32,8 @@ export function CompactNotificationRow(props: CompactNotificationRowProps) {
   return (
     <li className={styles.row} data-content-start={isContentStart || undefined}>
       <Link to={to} state={linkState} className={styles.link} onClick={onLinkClick} onAuxClick={onLinkAuxClick}>
-        <span className={styles.leading}>
-          {leading}
-          {isUnread && <span className={styles.dot} aria-hidden="true" />}
-        </span>
+        {isUnread && <span className={styles.dot} aria-hidden="true" />}
+        <span className={styles.leading}>{leading}</span>
         <span className={styles.body}>
           <span className={styles.head}>
             {isUnread && <span className="visually-hidden">未讀：</span>}

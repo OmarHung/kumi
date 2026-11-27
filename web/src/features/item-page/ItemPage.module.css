@@ -63,6 +63,18 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * 窄螢幕（48rem 以下，2026-11-27 使用者回報手機版空間比例不協調後調整）：標題小一階（--text-lg，20px）。24px 時 390px 寬的畫面
+ * 一行只放得下十來個字，標題折成兩行、第二行只剩一個字；balance 讓折行時兩行長度接近。
+ */
+@media (max-width: 48rem) {
+  .heading {
+    font-size: var(--text-lg);
+    line-height: var(--leading-tight);
+    text-wrap: balance;
+  }
+}
+
 /* 格子裡的標題是中等字重；這裡是頁面的標題，跟著上面的字重。 */
 .heading span {
   font-weight: var(--weight-bold);

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useMarkAllRead, useMarkRead, useNotifications, useUnreadCount } from '../../api/notificationQueries';
 import type { Notification } from '../../api/types';
 import { Button } from '../../components/Button/Button';
+import { useIsCompact } from '../../lib/useMediaQuery';
 import { PageBar } from '../../components/PageBar/PageBar';
 import { PageLayout } from '../../components/PageLayout/PageLayout';
 import { Toolbar } from '../../components/Toolbar/Toolbar';
@@ -24,9 +25,12 @@ function statusMessage(markAll: ReturnType<typeof useMarkAllRead>, markOne: Retu
 function MarkAllButton({ markAll }: { readonly markAll: ReturnType<typeof useMarkAllRead> }) {
   const unreadCount = useUnreadCount();
   const isIdle = unreadCount.data === 0 || markAll.isPending;
+  // 窄螢幕：有外框的按鈕和左邊的標題比重不協調，改成沒有外框的輕按鈕（觸控時仍有 44px 的點擊範圍）。
+  const isCompact = useIsCompact();
   return (
     <Button
       size="sm"
+      variant={isCompact ? 'ghost' : 'secondary'}
       aria-disabled={isIdle || undefined}
       onClick={() => {
         if (!isIdle) markAll.mutate();

@@ -14,6 +14,16 @@
   overflow-y: auto;
 }
 
+/*
+ * 貼邊（isFlush，2026-11-27 使用者回報手機版空間比例不協調）：內容區左右已經有一層留白，清單的每一筆又有自己的內距，
+ * 文字就比標題與工具列多縮一層。窄螢幕讓清單往兩邊伸出留白，每一筆的內距就是文字到畫面邊的距離。
+ */
+@media (max-width: 48rem) {
+  .frame[data-flush] {
+    margin-inline: calc(-1 * var(--page-gutter));
+  }
+}
+
 .list {
   margin: 0;
   padding: 0;

@@ -27,6 +27,25 @@ describe('List', () => {
     expect(screen.getByText('已載入 2 個項目')).toBeInTheDocument();
   });
 
+  it('isFlush 時外層標上 data-flush（窄螢幕往左右伸出內容區的留白）；預設沒有', () => {
+    // Arrange / Act
+    const { container } = renderInRouter(
+      <>
+        <List label="一般">
+          <ListRow title="甲" />
+        </List>
+        <List label="貼邊" isFlush>
+          <ListRow title="乙" />
+        </List>
+      </>,
+    );
+
+    // Assert
+    const frames = container.querySelectorAll('[data-layout]');
+    expect(frames[0]).not.toHaveAttribute('data-flush');
+    expect(frames[1]).toHaveAttribute('data-flush');
+  });
+
   it('換條件時舊的結果先留著，清單標成忙碌', () => {
     // Arrange
     const ui = (

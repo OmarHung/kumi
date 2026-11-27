@@ -18,6 +18,11 @@ interface ListProps {
   readonly isBusy?: boolean;
   /** 清單下面的東西（「已載入 N 個項目」與「載入更多」）；fill 時跟著清單一起捲。 */
   readonly footer?: ReactNode;
+  /**
+   * 48rem 以下往左右伸出內容區的留白、細線畫到畫面的邊，每一筆自己的內距讓文字回到和標題、工具列同一條左緣
+   * （只給直接放在內容區的整頁清單用；放在卡片或設定頁右欄裡的不要）。寬螢幕不變。
+   */
+  readonly isFlush?: boolean;
   /** 一筆一個 ListRow。 */
   readonly children: ReactNode;
 }
@@ -26,9 +31,9 @@ interface ListProps {
  * 窄螢幕取代表格的清單（docs/DESIGN.md 7.1）：細線分隔、一筆至少 --row-height。
  * 外層是隱藏文字的定位基準（position: relative），絕對定位的隱藏文字不會把頁面撐寬。
  */
-export function List({ label, layout = 'page', isBusy = false, footer, children }: ListProps) {
+export function List({ label, layout = 'page', isBusy = false, isFlush = false, footer, children }: ListProps) {
   return (
-    <div className={styles.frame} data-layout={layout}>
+    <div className={styles.frame} data-layout={layout} data-flush={isFlush || undefined}>
       <ul className={styles.list} aria-label={label} aria-busy={isBusy}>
         {children}
       </ul>

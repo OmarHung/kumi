@@ -186,11 +186,16 @@
     0 4px 12px light-dark(rgb(23 23 42 / 8%), rgb(0 0 0 / 30%));
 }
 
-/* 觸控：同一份畫面，目標變大、輸入框的字不小於 16px（否則 iOS 聚焦時會放大整頁）。 */
+/*
+ * 觸控：同一份畫面，目標變大、輸入框的字不小於 16px（否則 iOS 聚焦時會放大整頁）。
+ * 按鈕、下拉、輸入框與圖示按鈕是 36px（--control-height），整列可點的東西（清單的一筆、選單項目、表格的格子）是 44px（--row-height、--target-min）。
+ * 控制項原本也是 44px，使用者 2026-11-27 看了手機版說「按鈕跟下拉選單、輸入框不用這麼高吧」：一排 44px 的外框在 390 寬的畫面上又粗又重，
+ * 工具列、搜尋列各吃掉一大段高度。36px 仍高於 WCAG 2.5.8 的 24px，相鄰的控制項之間另有 --space-2 的間距。
+ */
 @media (pointer: coarse) {
   :root {
-    --control-height: 2.75rem;
-    --control-height-sm: 2.75rem;
+    --control-height: 2.25rem;
+    --control-height-sm: 2.25rem;
     --row-height: 2.75rem;
     --target-min: 2.75rem;
     --text-control: 1rem;

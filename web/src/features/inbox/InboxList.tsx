@@ -121,7 +121,7 @@ export function InboxList({ result, filter, onOpen }: InboxListProps) {
       {notifications.length === 0 ? (
         <EmptyInbox filter={filter} />
       ) : (
-        <List label="通知" layout="page" footer={<Footer result={result} count={notifications.length} />}>
+        <List label="通知" layout="page" isFlush footer={<Footer result={result} count={notifications.length} />}>
           {notifications.map((entry, index) => (
             <NotificationRow
               key={entry.notificationId}

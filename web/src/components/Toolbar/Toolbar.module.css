@@ -56,6 +56,15 @@
     flex: none;
   }
 
+  /*
+   * 工具列裡的下拉（版面、範圍）照內容的寬度（Select 預設最窄 8rem，兩個字的值右邊會空一大塊），
+   * 左右內距和旁邊的按鈕一樣（--space-3）；2026-11-27 使用者回報手機版空間比例不協調。
+   */
+  .toolbar[data-scrollable] [data-width='content'] {
+    min-width: 4.5rem;
+    padding-inline: var(--space-3);
+  }
+
   .toolbar[data-scrollable] .end {
     flex: none;
     flex-wrap: nowrap;

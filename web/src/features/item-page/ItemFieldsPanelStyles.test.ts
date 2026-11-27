@@ -44,6 +44,8 @@ describe('欄位區的版面（docs/DESIGN.md 欄位面板）', () => {
     // Assert
     expect(narrow).toContain('grid-template-columns: minmax(0, 1fr)');
     expect(narrow).toContain('flex-wrap: nowrap');
+    // 一欄時列高 36px（使用者嫌 44px 的行距太寬），只在這張清單裡換掉。
+    expect(narrow).toMatch(/\.list \{[^}]*--row-height: 2\.25rem;[^}]*--target-min: 2\.25rem;/);
   });
 
   it('名稱淡色、和值同樣的字級；名稱最多佔四成，長的折行', () => {

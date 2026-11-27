@@ -68,10 +68,39 @@
   white-space: nowrap;
 }
 
-/* 未讀數壓在圖示的右上角。 */
+/*
+ * 未讀數（2026-11-27 使用者回報空間比例不協調後調整）：實心的小膠囊壓在圖示的右上角，只壓到圖示的角落。
+ * 和側欄的 CountBadge（淡底）不一樣：這裡壓在圖示上，淡底和分頁列的底色幾乎同色，數字看起來像浮著；
+ * 實心強調色才和底色、圖示都分得開。高度 18px、最小寬度等於高度（一位數是圓、兩位數是膠囊）。
+ */
 .badge {
+  --badge-size: 1.125rem;
+
   position: absolute;
   top: calc(-1 * var(--space-1));
-  left: calc(100% - var(--space-2));
+  left: calc(100% - var(--space-3));
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--badge-size);
+  height: var(--badge-size);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* 強制色彩模式會換掉底色：留住系統色的底與外框，數字才看得到。 */
+@media (forced-colors: active) {
+  .badge {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
 }

@@ -64,4 +64,18 @@ describe('窄螢幕的收件匣', () => {
     expect(read).not.toHaveAccessibleName(/未讀/);
     expect(read.querySelector('[class*="dot"]')).toBeNull();
   });
+
+  it('頁列的「全部標為已讀」在窄螢幕是沒有外框的輕按鈕，寬螢幕維持次要按鈕', async () => {
+    // Arrange
+    stubCompactScreen();
+    signedInAs(exampleOwner, { details: [smkDetail()] });
+    serveNotifications([notification({ itemKey: 'SMK-7' })]);
+
+    // Act
+    renderApp('/inbox');
+
+    // Assert
+    const button = await screen.findByRole('button', { name: '全部標為已讀' });
+    expect(button.className).toMatch(/ghost/);
+  });
 });
