@@ -101,7 +101,7 @@ function footerText(message: AssistantMessage, options: AiOptions): string | nul
 
 interface MessageViewProps {
   readonly message: AssistantMessage;
-  /** null 是不選專案的對話（沒有附件、不選項目、沒有變更集）。 */
+  /** null 是不選專案的對話（不選項目、沒有變更集；附件照常有）。 */
   readonly projectKey: AssistantScope;
   readonly options: AiOptions;
   /** 這一則正在長出來。 */
@@ -120,7 +120,7 @@ function UserMessage({ message, projectKey }: { readonly message: AssistantMessa
   const text = copyTextOf(message);
   return (
     <div className={styles.userBlock}>
-      {projectKey !== null && <MessageAttachments attachments={message.attachments} projectKey={projectKey} />}
+      <MessageAttachments attachments={message.attachments} projectKey={projectKey} />
       {(text !== '' || message.itemKey !== null) && (
         <div className={styles.userMessage}>
           {projectKey !== null && message.itemKey !== null && (

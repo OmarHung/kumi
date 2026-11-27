@@ -1,5 +1,5 @@
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { http } from 'msw';
 import { failure, signedInAs } from '../../test/api';
 import { agyDetail, exampleOwner, smkDetail } from '../../test/fixtures';
@@ -20,10 +20,16 @@ import {
   serveProjectProposal,
   serveReply,
 } from '../../test/assistant';
+import { aFile, installFakeUploads } from '../../test/attachments';
+import { uploadedAs } from '../assistant/assistantTestKit';
 import { PANEL_PROJECT_STORAGE_KEY } from './panelMemory';
 
-const DISMISS = '知道了';
 const NEW = makeConversationSummary({ id: 'conv-org' });
+
+// 附件的測試換掉了 XMLHttpRequest（上傳用它回報進度）。
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function openApp(path = '/projects') {
   signedInAs(exampleOwner, { details: [smkDetail(), agyDetail()] });
@@ -43,7 +49,7 @@ async function chooseNoProject(user: ReturnType<typeof renderApp>['user'], panel
 }
 
 describe('面板：不選專案', () => {
-  it('專案選單第一項是「不選專案」；選了之後沒有附加檔案、沒有項目選擇，提示字換成組織版', async () => {
+  it('專案選單第一項是「不選專案」；選了之後沒有項目選擇、照樣能附加檔案，提示字換成組織版', async () => {
     // Arrange
     const { user } = openApp();
     const panel = await openPanel(user);
@@ -54,7 +60,7 @@ describe('面板：不選專案', () => {
     // Assert
     const input = await within(panel).findByRole('textbox', { name: '訊息' });
     expect(input).toHaveAttribute('placeholder', '問模板、規劃，或請助理幫你開新專案…');
-    expect(within(panel).queryByRole('button', { name: '附加檔案' })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: '附加檔案' })).toBeInTheDocument();
     expect(within(panel).queryByRole('combobox', { name: '項目' })).not.toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: '不指定項目' })).not.toBeInTheDocument();
     expect(within(panel).getByRole('combobox', { name: '專案' })).toHaveTextContent('不選專案');
@@ -101,7 +107,7 @@ describe('面板：不選專案', () => {
     // Assert
     expect(await within(panel).findByRole('region', { name: '新專案建議 WEB' })).toBeInTheDocument();
     expect(within(panel).getByText('提出新專案')).toBeInTheDocument();
-    // 組織對話沒有項目與附件：送出的內容不帶 itemKey、attachmentIds。
+    // 組織對話沒有項目；這一則沒附檔案：送出的內容不帶 itemKey、attachmentIds。
     expect(reply.sent[0]?.body.itemKey ?? null).toBeNull();
     expect(reply.sent[0]?.body.attachmentIds ?? []).toEqual([]);
   });
@@ -126,6 +132,75 @@ describe('面板：不選專案', () => {
     expect(await within(panel).findByRole('combobox', { name: '專案' })).toHaveTextContent('接案測試');
     expect(await within(panel).findByRole('textbox', { name: '訊息' })).toHaveAttribute('placeholder', '描述你想做的事：建任務、指派、調整設定…');
   });
+  it('附件上傳到組織對話自己的端點；送出時帶上編號，訊息裡的附件連到組織的下載網址', async () => {
+    // Arrange
+    const uploads = installFakeUploads();
+    serveCreateConversation(null, NEW);
+    const attachment = uploadedAs('需求.md');
+    const reply = serveReply(null, 'conv-org', (stream) => {
+      stream.event('start', { userMessage: makeMessage({ parts: [{ type: 'text', text: '照這份開專案' }], attachments: [attachment] }), assistantMessageId: 'msg-a1' });
+      stream.event('done', { message: makeAssistantMessage({ parts: [{ type: 'text', text: '看過了。' }] }) });
+      stream.close();
+    });
+    const { user } = openApp();
+    const panel = await openPanel(user);
+    await chooseNoProject(user, panel);
+    const input = await within(panel).findByRole('textbox', { name: '訊息' });
+
+    // Act
+    await user.upload(within(panel).getByLabelText('選擇附件檔案'), [aFile('需求.md', 100, 'text/markdown')]);
+    await waitFor(() => {
+      expect(uploads).toHaveLength(1);
+    });
+    uploads[0]?.respond(201, attachment);
+    await user.type(input, '照這份開專案');
+    const send = within(panel).getByRole('button', { name: '送出' });
+    await waitFor(() => {
+      expect(send).toBeEnabled();
+    });
+    await user.click(send);
+
+    // Assert
+    expect(uploads[0]?.url).toBe('/v1/assistant/attachments');
+    await waitFor(() => {
+      expect(reply.sent).toHaveLength(1);
+    });
+    expect(reply.sent[0]?.body.attachmentIds).toEqual([attachment.id]);
+    const sent = await within(panel).findByRole('list', { name: '附件' });
+    expect(within(sent).getByRole('link')).toHaveAttribute('href', `/v1/assistant/attachments/${encodeURIComponent(attachment.id)}/content`);
+  });
+
+  it('組織對話移除還沒送出的附件：DELETE 走組織的端點', async () => {
+    // Arrange
+    const uploads = installFakeUploads();
+    const deleted: string[] = [];
+    server.use(
+      http.delete('/v1/assistant/attachments/:id', ({ params }) => {
+        deleted.push(String(params.id));
+        return new Response(null, { status: 204 });
+      }),
+    );
+    const { user } = openApp();
+    const panel = await openPanel(user);
+    await chooseNoProject(user, panel);
+    await within(panel).findByRole('textbox', { name: '訊息' });
+    await user.upload(within(panel).getByLabelText('選擇附件檔案'), [aFile('截圖.png', 100, 'image/png')]);
+    await waitFor(() => {
+      expect(uploads).toHaveLength(1);
+    });
+    uploads[0]?.respond(201, uploadedAs('截圖.png'));
+    const thumbnail = await within(panel).findByRole('presentation', { hidden: true });
+
+    // Act
+    await user.click(within(panel).getByRole('button', { name: '移除附件 截圖.png' }));
+
+    // Assert
+    expect(thumbnail).toHaveAttribute('src', `/v1/assistant/attachments/${encodeURIComponent('att-截圖.png')}/content`);
+    await waitFor(() => {
+      expect(deleted).toEqual(['att-截圖.png']);
+    });
+  });
+
 });
 
 describe('整頁：不選專案', () => {
@@ -145,7 +220,7 @@ describe('整頁：不選專案', () => {
       expect(currentPath(router)).toBe('/assistant/conv-org');
     });
     expect(await screen.findByText('好的。')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '附加檔案' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '附加檔案' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI 助理' })).not.toBeInTheDocument();
   });
 
@@ -176,34 +251,6 @@ describe('整頁：不選專案', () => {
     // Assert
     expect(await screen.findByText('AI 助理還不能用')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '回到專案清單' })).toHaveAttribute('href', '/projects');
-  });
-
-  it('不收附件：拖進輸入框擋下瀏覽器的預設並說明，貼上檔案也一樣', async () => {
-    // Arrange
-    const { user } = openApp();
-    const panel = await openPanel(user);
-    await chooseNoProject(user, panel);
-    const input = await within(panel).findByRole('textbox', { name: '訊息' });
-    const form = input.closest('form');
-    const file = new File(['x'], 'a.png', { type: 'image/png' });
-
-    // Act
-    const dragNotPrevented = fireEvent.dragOver(form as HTMLFormElement, { dataTransfer: { types: ['Files'], files: [file] } });
-    const dropNotPrevented = fireEvent.drop(form as HTMLFormElement, { dataTransfer: { types: ['Files'], files: [file] } });
-
-    // Assert
-    expect(dragNotPrevented).toBe(false);
-    expect(dropNotPrevented).toBe(false);
-    expect(await within(panel).findByText('不選專案的對話不收附件。')).toBeInTheDocument();
-
-    // Act
-    await user.click(within(panel).getByRole('button', { name: DISMISS }));
-    expect(within(panel).queryByText('不選專案的對話不收附件。')).not.toBeInTheDocument();
-    const pasteNotPrevented = fireEvent.paste(input, { clipboardData: { files: [file], types: ['Files'] } });
-
-    // Assert
-    expect(pasteNotPrevented).toBe(false);
-    expect(await within(panel).findByText('不選專案的對話不收附件。')).toBeInTheDocument();
   });
 
   it('回覆中專案選單停用，不能在回覆中換專案', async () => {

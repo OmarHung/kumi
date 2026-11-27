@@ -22,7 +22,7 @@ internal sealed partial class AssistantService
 
         // 檢查的順序見第 5.2 節；任何一項不過就什麼都不存。
         var attachmentIds = input.AttachmentIds ?? [];
-        if (CheckOrganizationInput(projectKey, input, attachmentIds) is { } unsupported)
+        if (CheckOrganizationInput(projectKey, input) is { } unsupported)
         {
             return unsupported;
         }
@@ -214,9 +214,9 @@ internal sealed partial class AssistantService
 
     private sealed record Reservation(Guid? HostJobId, bool CountsUsage);
 
-    /// <summary>不選專案的對話不收選的項目與附件。</summary>
-    private static Failure? CheckOrganizationInput(string? projectKey, AssistantMessageInput input, IReadOnlyList<Guid> attachmentIds) =>
-        projectKey is null && (input.ItemKey is not null || attachmentIds.Count > 0)
+    /// <summary>不選專案的對話不收選的項目（項目一定屬於某個專案）；附件照收，是組織對話自己的（<c>project_key</c> 是 null）。</summary>
+    private static Failure? CheckOrganizationInput(string? projectKey, AssistantMessageInput input) =>
+        projectKey is null && input.ItemKey is not null
             ? AssistantFailures.OrganizationChatUnsupported()
             : null;
 

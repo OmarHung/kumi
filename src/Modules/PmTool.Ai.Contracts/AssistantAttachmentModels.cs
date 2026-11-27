@@ -8,6 +8,8 @@ namespace PmTool.Ai;
 /// 只有上傳的人看得到；綁好之後跟著對話（對話看不到、刪掉了，附件一律當作不存在）。
 /// 檔案放在共用的儲存空間（<c>IFileStore</c>），容量算進組織與每人每日的上限（<c>StorageArea.AssistantAttachments</c>）。
 /// 專案看不到、沒有用助理的權限時和開對話一樣回失敗。
+/// <c>projectKey</c> 是 null 時是不選專案的組織對話的附件：不看任何專案的權限，和專案的附件分開
+/// （用錯一邊一律當作不存在，送出時是 <see cref="AiErrorCodes.AttachmentNotFound"/>）。
 /// </summary>
 public interface IAssistantAttachmentService
 {
@@ -19,13 +21,13 @@ public interface IAssistantAttachmentService
     /// 先在自己的交易裡拿儲存空間的鎖再檢查容量（<see cref="AiErrorCodes.AttachmentQuotaExceeded"/>、<see cref="AiErrorCodes.AttachmentDailyQuotaExceeded"/>）。
     /// </summary>
     Task<Result<AssistantAttachment>> UploadAsync(
-        Actor actor, string projectKey, NewAssistantAttachment upload, CancellationToken cancellationToken);
+        Actor actor, string? projectKey, NewAssistantAttachment upload, CancellationToken cancellationToken);
 
     /// <summary>刪掉自己一個待送的附件（使用者在輸入框按 ×）。已經送出的不能刪（跟著對話刪），一律 <see cref="AiErrorCodes.AttachmentNotFound"/>。</summary>
-    Task<Result<Unit>> DeletePendingAsync(Actor actor, string projectKey, Guid attachmentId, CancellationToken cancellationToken);
+    Task<Result<Unit>> DeletePendingAsync(Actor actor, string? projectKey, Guid attachmentId, CancellationToken cancellationToken);
 
     /// <summary>打開附件來讀（自己待送的，或自己看得到的對話裡的）。呼叫端負責 Dispose。看不到一律 <see cref="AiErrorCodes.AttachmentNotFound"/>。</summary>
-    Task<Result<AssistantAttachmentContent>> OpenAsync(Actor actor, string projectKey, Guid attachmentId, CancellationToken cancellationToken);
+    Task<Result<AssistantAttachmentContent>> OpenAsync(Actor actor, string? projectKey, Guid attachmentId, CancellationToken cancellationToken);
 }
 
 public enum AssistantAttachmentKind

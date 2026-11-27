@@ -12,6 +12,7 @@ namespace PmTool.Ai.Attachments;
 /// <summary>
 /// 助理訊息的附件（internal/HANDOFF-ai-attachments.md 第 4 節）。上傳的流程照項目與知識庫的附件：先檢查權限與數量（不合格就不讀內容）→
 /// 寫進儲存空間（上限是三種類型裡最大的）→ 看內容判斷類型、依類型的上限 → 交易裡重新確認並記下 → 沒記成功就盡量把檔案刪掉。
+/// 專案代號是 null 時是組織對話的附件（<c>project_key</c> 是 null）：不問工作引擎，和專案的附件分開。
 /// </summary>
 internal sealed partial class AssistantAttachmentService(
     IDbContextFactory<AiDbContext> contexts,
@@ -23,7 +24,7 @@ internal sealed partial class AssistantAttachmentService(
     ILogger<AssistantAttachmentService> logger) : IAssistantAttachmentService
 {
     public async Task<Result<AssistantAttachment>> UploadAsync(
-        Actor actor, string projectKey, NewAssistantAttachment upload, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, NewAssistantAttachment upload, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(upload);
@@ -35,7 +36,7 @@ internal sealed partial class AssistantAttachmentService(
             return rejected;
         }
 
-        var (name, project) = precheck.Value;
+        var (name, scope) = precheck.Value;
 
         // 第二步：寫進儲存空間。這時還沒有資料列，失敗或超過上限都只要清掉檔案。
         var id = Guid.CreateVersion7(clock.GetUtcNow());
@@ -67,7 +68,7 @@ internal sealed partial class AssistantAttachmentService(
             }
 
             // 第三步：交易裡重新確認並寫資料列。數量與容量在寫檔的這段時間裡可能變了。
-            var added = await RecordAsync(actor, project, id, name, sniffed, stored, cancellationToken);
+            var added = await RecordAsync(actor, scope, id, name, sniffed, stored, cancellationToken);
             committed = added.Succeeded;
             return added;
         }
@@ -80,14 +81,16 @@ internal sealed partial class AssistantAttachmentService(
         }
     }
 
-    public async Task<Result<Unit>> DeletePendingAsync(Actor actor, string projectKey, Guid attachmentId, CancellationToken cancellationToken)
+    public async Task<Result<Unit>> DeletePendingAsync(Actor actor, string? projectKey, Guid attachmentId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        var project = await AssistantAccess.OpenProjectAsync(projects, actor, projectKey, cancellationToken);
-        if (project.Failure is { } failure)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } failure)
         {
             return failure;
         }
+
+        var key = scope.Value.ProjectKey;
 
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
 
@@ -98,7 +101,7 @@ internal sealed partial class AssistantAttachmentService(
             .Where(a => a.Id == attachmentId
                 && a.OrganizationId == actor.OrganizationId
                 && a.PersonId == actor.PersonId
-                && a.ProjectKey == project.Value.Project.Key
+                && a.ProjectKey == key
                 && a.BoundAt == null)
             .ExecuteUpdateAsync(set => set.SetProperty(a => a.BoundAt, clock.GetUtcNow()), cancellationToken);
         if (claimed == 0)
@@ -118,23 +121,24 @@ internal sealed partial class AssistantAttachmentService(
     }
 
     public async Task<Result<AssistantAttachmentContent>> OpenAsync(
-        Actor actor, string projectKey, Guid attachmentId, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, Guid attachmentId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        var project = await AssistantAccess.OpenProjectAsync(projects, actor, projectKey, cancellationToken);
-        if (project.Failure is { } failure)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } failure)
         {
             return failure;
         }
 
+        var key = scope.Value.ProjectKey;
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var row = await db.Attachments.AsNoTracking().FirstOrDefaultAsync(
             a => a.Id == attachmentId
                 && a.OrganizationId == actor.OrganizationId
                 && a.PersonId == actor.PersonId
-                && a.ProjectKey == project.Value.Project.Key,
+                && a.ProjectKey == key,
             cancellationToken);
-        if (row is null || !await IsVisibleAsync(db, actor, project.Value, row, cancellationToken))
+        if (row is null || !await IsVisibleAsync(db, actor, scope.Value, row, cancellationToken))
         {
             return AttachmentFailures.NotFound();
         }
@@ -158,10 +162,10 @@ internal sealed partial class AssistantAttachmentService(
 
     /// <summary>
     /// 待送的自己看得到；已送出的要綁在還在的對話上（孤兒＝對話已經刪了，不給），而且那則對話現在還看得到
-    /// （在「看得到全部項目」時回覆過、現在只剩自己的項目的，對話整則當作不存在，附件也一樣）。
+    /// （在「看得到全部項目」時回覆過、現在只剩自己的項目的，對話整則當作不存在，附件也一樣）。組織對話的附件要綁在組織對話上。
     /// </summary>
     private static async Task<bool> IsVisibleAsync(
-        AiDbContext db, Actor actor, ProjectDetail project, AiAttachmentRow row, CancellationToken cancellationToken)
+        AiDbContext db, Actor actor, AttachmentScope scope, AiAttachmentRow row, CancellationToken cancellationToken)
     {
         if (row.BoundAt is null)
         {
@@ -173,22 +177,23 @@ internal sealed partial class AssistantAttachmentService(
             return false;
         }
 
-        var canSeeAll = AssistantAccess.CanReadAllItems(project);
+        var projectId = scope.ProjectId;
+        var canSeeAll = scope.CanReadAllItems;
         return await db.Conversations.AsNoTracking().AnyAsync(
             c => c.Id == conversationId
                 && c.OrganizationId == actor.OrganizationId
                 && c.PersonId == actor.PersonId
-                && c.ProjectId == project.Project.Id
+                && c.ProjectId == projectId
                 && (canSeeAll || !c.SawAllItems),
             cancellationToken);
     }
 
-    /// <summary>權限（先於檔名）與待送的數量；成功時回傳整理過的檔名與專案。</summary>
-    private async Task<Result<(string Name, ProjectDetail Project)>> CheckBeforeWritingAsync(
-        Actor actor, string projectKey, string? fileName, CancellationToken cancellationToken)
+    /// <summary>權限（先於檔名）與待送的數量；成功時回傳整理過的檔名與附件屬於哪一邊。</summary>
+    private async Task<Result<(string Name, AttachmentScope Scope)>> CheckBeforeWritingAsync(
+        Actor actor, string? projectKey, string? fileName, CancellationToken cancellationToken)
     {
-        var project = await AssistantAccess.OpenProjectAsync(projects, actor, projectKey, cancellationToken);
-        if (project.Failure is { } noProject)
+        var scope = await OpenScopeAsync(actor, projectKey, cancellationToken);
+        if (scope.Failure is { } noProject)
         {
             return noProject;
         }
@@ -217,7 +222,34 @@ internal sealed partial class AssistantAttachmentService(
             return AttachmentFailures.Quota(room);
         }
 
-        return (name.Value, project.Value);
+        return (name.Value, scope.Value);
+    }
+
+    /// <summary>
+    /// 專案的附件要看得到專案、有讀設定的權限（和開對話同一份檢查）；組織對話的附件不看任何專案（組織的有效成員都能開組織對話），
+    /// 組織有沒有開 AI 由呼叫的地方各自檢查。
+    /// </summary>
+    private async Task<Result<AttachmentScope>> OpenScopeAsync(Actor actor, string? projectKey, CancellationToken cancellationToken)
+    {
+        if (projectKey is null)
+        {
+            return new AttachmentScope(null);
+        }
+
+        var project = await AssistantAccess.OpenProjectAsync(projects, actor, projectKey, cancellationToken);
+        return project.Failure is { } failure ? failure : new AttachmentScope(project.Value);
+    }
+
+    /// <summary>附件屬於哪一邊：專案（<see cref="Project"/> 有值）或組織對話（null）。</summary>
+    private sealed record AttachmentScope(ProjectDetail? Project)
+    {
+        /// <summary>工作引擎回的專案代號（呼叫的人給的可能大小寫不同）；組織對話的是 null。</summary>
+        public string? ProjectKey => Project?.Project.Key;
+
+        public Guid? ProjectId => Project?.Project.Id;
+
+        // 組織對話不讀項目，沒有「看得到全部項目」的問題。
+        public bool CanReadAllItems => Project is null || AssistantAccess.CanReadAllItems(Project);
     }
 
     private async Task<SniffedFile?> SniffStoredAsync(string key, CancellationToken cancellationToken)
@@ -228,7 +260,7 @@ internal sealed partial class AssistantAttachmentService(
     }
 
     private async Task<Result<AssistantAttachment>> RecordAsync(
-        Actor actor, ProjectDetail project, Guid id, string fileName, SniffedFile sniffed, StoredFile stored, CancellationToken cancellationToken)
+        Actor actor, AttachmentScope scope, Guid id, string fileName, SniffedFile sniffed, StoredFile stored, CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
@@ -256,7 +288,7 @@ internal sealed partial class AssistantAttachmentService(
             Id = id,
             OrganizationId = actor.OrganizationId,
             PersonId = actor.PersonId,
-            ProjectKey = project.Project.Key,
+            ProjectKey = scope.ProjectKey,
             FileName = fileName,
             ContentType = sniffed.ContentType,
             Kind = AttachmentKinds.NameOf(sniffed.Kind),

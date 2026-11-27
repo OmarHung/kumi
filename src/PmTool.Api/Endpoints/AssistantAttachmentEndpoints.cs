@@ -9,13 +9,15 @@ using PmTool.Api.Security;
 namespace PmTool.Api.Endpoints;
 
 /// <summary>
-/// AI 助理訊息的附件：上傳（待送）、刪掉待送的、下載。權限、類型判斷、數量與容量的規則都在 AI 模組，
+/// AI 助理訊息的附件：上傳（待送）、刪掉待送的、下載。專案對話的在 <c>/projects/{key}/assistant/attachments</c>，
+/// 不選專案的組織對話的在 <c>/assistant/attachments</c>（交給模組的專案代號是 null），兩組的形狀完全一樣。權限、類型判斷、數量與容量的規則都在 AI 模組，
 /// 這裡只讀 multipart、轉換格式與寫下載的標頭（呈現的規則和項目的附件共用，<see cref="AttachmentDownload"/>）。
 /// 全部只能用 Cookie：不宣告權杖範圍。規格見 <c>internal/HANDOFF-ai-attachments.md</c> 第 3 節。
 /// </summary>
 internal static class AssistantAttachmentEndpoints
 {
     private const string Route = "/projects/{projectKey}/assistant/attachments";
+    private const string OrganizationRoute = "/assistant/attachments";
 
     /// <summary>請求的大小上限：檔案最大的那一種加上 multipart 的開銷。依類型的上限由模組判斷。</summary>
     private const long MaxRequestBytes = AssistantAttachmentRules.MaxUploadBytes + AttachmentUpload.MultipartOverheadBytes;
@@ -36,12 +38,37 @@ internal static class AssistantAttachmentEndpoints
         v1.MapGet(Route + "/{id}/content", DownloadAsync)
             .WithName("DownloadAssistantAttachment")
             .RequireRateLimiting(ApiRateLimiting.AttachmentDownloadPolicy);
+
+        // 組織對話的和專案的共用同一個依人的額度：分開的話換一組路徑就能多傳一倍。
+        v1.MapPost(OrganizationRoute, UploadOrganizationAsync)
+            .WithName("UploadOrganizationAssistantAttachment")
+            .RequireRateLimiting(ApiRateLimiting.AssistantAttachmentUploadPolicy);
+        v1.MapDelete(OrganizationRoute + "/{id}", DeleteOrganizationAsync).WithName("DeleteOrganizationAssistantAttachment");
+        v1.MapGet(OrganizationRoute + "/{id}/content", DownloadOrganizationAsync)
+            .WithName("DownloadOrganizationAssistantAttachment")
+            .RequireRateLimiting(ApiRateLimiting.AttachmentDownloadPolicy);
         return v1;
     }
 
+    private static Task<IResult> UploadOrganizationAsync(
+        HttpContext context, ClaimsPrincipal principal, [FromServices] IAssistantAttachmentService attachments, CancellationToken cancellationToken) =>
+        UploadAsync(null, context, principal, attachments, cancellationToken);
+
+    private static Task<IResult> DeleteOrganizationAsync(
+        string id, ClaimsPrincipal principal, [FromServices] IAssistantAttachmentService attachments, CancellationToken cancellationToken) =>
+        DeleteAsync(null, id, principal, attachments, cancellationToken);
+
+    private static Task<IResult> DownloadOrganizationAsync(
+        string id,
+        HttpContext context,
+        ClaimsPrincipal principal,
+        [FromServices] IAssistantAttachmentService attachments,
+        CancellationToken cancellationToken) =>
+        DownloadAsync(null, id, context, principal, attachments, cancellationToken);
+
     /// <summary>一次一個檔案，欄位 file。內容是串流，不放進記憶體；請求的大小上限只對這個端點放寬。</summary>
     private static async Task<IResult> UploadAsync(
-        string projectKey,
+        string? projectKey,
         HttpContext context,
         ClaimsPrincipal principal,
         [FromServices] IAssistantAttachmentService attachments,
@@ -89,7 +116,7 @@ internal static class AssistantAttachmentEndpoints
     }
 
     private static async Task<IResult> DeleteAsync(
-        string projectKey,
+        string? projectKey,
         string id,
         ClaimsPrincipal principal,
         [FromServices] IAssistantAttachmentService attachments,
@@ -105,7 +132,7 @@ internal static class AssistantAttachmentEndpoints
     }
 
     private static async Task<IResult> DownloadAsync(
-        string projectKey,
+        string? projectKey,
         string id,
         HttpContext context,
         ClaimsPrincipal principal,

@@ -10,7 +10,7 @@ namespace PmTool.Ai;
 /// 每個方法的 <c>projectKey</c> 是 null 時是「不選專案」的組織對話（<c>internal/HANDOFF-org-assistant.md</c>）：組織的有效成員（含訪客）
 /// 在組織能用 AI 時都能開；工具只有模板、看得到的專案清單與提出新專案（<see cref="IProjectProposalService"/>）。
 /// 組織對話與專案對話是分開的兩組：用專案代號讀不到組織對話，反之亦然（一律 <see cref="AiErrorCodes.ConversationNotFound"/>）。
-/// 組織對話不收選的項目與附件（<see cref="AiErrorCodes.OrganizationChatUnsupported"/>）。
+/// 組織對話不收選的項目（<see cref="AiErrorCodes.OrganizationChatUnsupported"/>）；附件照收，用組織對話自己上傳的。
 /// </para>
 /// </summary>
 public interface IAssistantService

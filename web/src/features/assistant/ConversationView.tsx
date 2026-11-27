@@ -23,7 +23,7 @@ const HTTP_NOT_FOUND = 404;
 const SKELETON_ROWS = 3;
 
 interface ConversationViewProps {
-  /** 專案代號；null 是不選專案（組織的對話：沒有附件、不選項目）。 */
+  /** 專案代號；null 是不選專案（組織的對話：不選項目，附件另有自己的端點）。 */
   readonly projectKey: AssistantScope;
   readonly conversationId: string | undefined;
   readonly options: AiOptions;
@@ -37,7 +37,7 @@ interface ConversationViewProps {
 }
 
 interface BodyProps {
-  /** 專案代號；null 是不選專案（組織的對話：沒有附件、不選項目）。 */
+  /** 專案代號；null 是不選專案（組織的對話：不選項目，附件另有自己的端點）。 */
   readonly projectKey: AssistantScope;
   readonly conversationId: string | undefined;
   readonly conversation: ReturnType<typeof useConversation>;

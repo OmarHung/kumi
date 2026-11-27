@@ -134,11 +134,11 @@ internal static class AssistantEndpoints
             return bodyFailure.ToResult();
         }
 
-        // 組織對話沒有專案：選項目與附件都沒有意義，在這裡就擋下（模組也會擋）。
-        if (projectKey is null && (request.ItemKey is not null || request.AttachmentIds is { Count: > 0 }))
+        // 組織對話沒有專案：選項目沒有意義，在這裡就擋下（模組也會擋）。附件照收（組織對話自己上傳的）。
+        if (projectKey is null && request.ItemKey is not null)
         {
             return EndpointResults.Fail(new Failure(
-                FailureKind.Invalid, AiErrorCodes.OrganizationChatUnsupported, "不選專案的對話不能指定項目或附上檔案。"));
+                FailureKind.Invalid, AiErrorCodes.OrganizationChatUnsupported, "不選專案的對話不能指定項目。"));
         }
 
         var started = await assistant.StartAsync(

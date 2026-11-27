@@ -5,7 +5,7 @@ using PmTool.Ai;
 namespace PmTool.Api.Tests.Support;
 
 /// <summary>一次上傳呼叫：伺服器交給附件服務的檔名、類型與讀到的內容。</summary>
-internal sealed record AssistantUploadCall(Actor Actor, string ProjectKey, string FileName, string? ContentType, byte[] Content);
+internal sealed record AssistantUploadCall(Actor Actor, string? ProjectKey, string FileName, string? ContentType, byte[] Content);
 
 /// <summary>測試用的助理附件服務：記住每次呼叫的參數，回傳值由測試設定。上傳時把內容讀完，像真的服務一樣。</summary>
 internal sealed class FakeAssistantAttachmentService : IAssistantAttachmentService
@@ -13,8 +13,8 @@ internal sealed class FakeAssistantAttachmentService : IAssistantAttachmentServi
     public static readonly Guid SampleId = Guid.Parse("0190a000-0000-7000-8000-0000000000b1");
 
     private readonly ConcurrentQueue<AssistantUploadCall> _uploadCalls = new();
-    private readonly ConcurrentQueue<(Actor Actor, string ProjectKey, Guid Id)> _deleteCalls = new();
-    private readonly ConcurrentQueue<(Actor Actor, string ProjectKey, Guid Id)> _openCalls = new();
+    private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey, Guid Id)> _deleteCalls = new();
+    private readonly ConcurrentQueue<(Actor Actor, string? ProjectKey, Guid Id)> _openCalls = new();
 
     public static AssistantAttachment Sample(
         Guid? id = null,
@@ -27,20 +27,20 @@ internal sealed class FakeAssistantAttachmentService : IAssistantAttachmentServi
     public Func<AssistantUploadCall, Result<AssistantAttachment>> OnUpload { get; set; } =
         call => Sample(fileName: call.FileName, size: call.Content.Length);
 
-    public Func<Actor, string, Guid, Result<Unit>> OnDelete { get; set; } = (_, _, _) => Unit.Value;
+    public Func<Actor, string?, Guid, Result<Unit>> OnDelete { get; set; } = (_, _, _) => Unit.Value;
 
     /// <summary>下載的內容；預設是 11 個位元組的 hello world、類型照 <see cref="Sample"/>。</summary>
-    public Func<Actor, string, Guid, Result<(AssistantAttachment Attachment, byte[] Content)>> OnOpen { get; set; } =
+    public Func<Actor, string?, Guid, Result<(AssistantAttachment Attachment, byte[] Content)>> OnOpen { get; set; } =
         (_, _, id) => (Sample(id), "hello world"u8.ToArray());
 
     public IReadOnlyList<AssistantUploadCall> UploadCalls => _uploadCalls.ToArray();
 
-    public IReadOnlyList<(Actor Actor, string ProjectKey, Guid Id)> DeleteCalls => _deleteCalls.ToArray();
+    public IReadOnlyList<(Actor Actor, string? ProjectKey, Guid Id)> DeleteCalls => _deleteCalls.ToArray();
 
-    public IReadOnlyList<(Actor Actor, string ProjectKey, Guid Id)> OpenCalls => _openCalls.ToArray();
+    public IReadOnlyList<(Actor Actor, string? ProjectKey, Guid Id)> OpenCalls => _openCalls.ToArray();
 
     public async Task<Result<AssistantAttachment>> UploadAsync(
-        Actor actor, string projectKey, NewAssistantAttachment upload, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, NewAssistantAttachment upload, CancellationToken cancellationToken)
     {
         using var buffer = new MemoryStream();
         await upload.Content.CopyToAsync(buffer, cancellationToken);
@@ -49,14 +49,14 @@ internal sealed class FakeAssistantAttachmentService : IAssistantAttachmentServi
         return OnUpload(call);
     }
 
-    public Task<Result<Unit>> DeletePendingAsync(Actor actor, string projectKey, Guid attachmentId, CancellationToken cancellationToken)
+    public Task<Result<Unit>> DeletePendingAsync(Actor actor, string? projectKey, Guid attachmentId, CancellationToken cancellationToken)
     {
         _deleteCalls.Enqueue((actor, projectKey, attachmentId));
         return Task.FromResult(OnDelete(actor, projectKey, attachmentId));
     }
 
     public Task<Result<AssistantAttachmentContent>> OpenAsync(
-        Actor actor, string projectKey, Guid attachmentId, CancellationToken cancellationToken)
+        Actor actor, string? projectKey, Guid attachmentId, CancellationToken cancellationToken)
     {
         _openCalls.Enqueue((actor, projectKey, attachmentId));
         var opened = OnOpen(actor, projectKey, attachmentId);

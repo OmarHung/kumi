@@ -17,8 +17,6 @@ import styles from './Assistant.module.css';
 
 const PROJECT_PLACEHOLDER = '描述你想做的事：建任務、指派、調整設定…';
 const ITEM_PLACEHOLDER = '問這個項目的事，或請助理建議怎麼改…';
-/** 不選專案的對話不收附件：拖放或貼上檔案時說明。 */
-const NO_ATTACHMENTS_NOTE = '不選專案的對話不收附件。';
 const ORGANIZATION_PLACEHOLDER = '問模板、規劃，或請助理幫你開新專案…';
 
 function placeholderOf(isOrganization: boolean, hasItem: boolean): string {
@@ -27,7 +25,7 @@ function placeholderOf(isOrganization: boolean, hasItem: boolean): string {
 }
 
 interface ComposerProps {
-  /** null 是不選專案（組織的對話）：沒有附件，附加檔案、拖進來、貼上都不開放。 */
+  /** null 是不選專案（組織的對話）：不選項目，附件上傳到組織對話自己的端點。 */
   readonly projectKey: AssistantScope;
   readonly options: AiOptions;
   /** 現在用哪一個；null 是組織沒有開放任何模型（不能送）。 */
@@ -62,8 +60,7 @@ interface ComposerBarProps extends Pick<ComposerProps, 'options' | 'selection' |
   readonly sendHint: string;
   readonly sendKey: SendKey;
   readonly isCompact: boolean;
-  /** null：這個對話不收附件，不畫迴紋針。 */
-  readonly onPickFiles: ((files: readonly File[]) => void) | null;
+  readonly onPickFiles: (files: readonly File[]) => void;
 }
 
 /** 沒有可選的模型：有主機來源現在不能用時，逐一說明原因（來源名稱加伺服器給的一句話）；都沒有才叫人去開放。 */
@@ -105,7 +102,7 @@ function AttachButton({ onPick }: { readonly onPick: (files: readonly File[]) =>
 function ComposerBar({ options, selection, onSelectionChange, isStreaming, canSend, sendHint, sendKey, isCompact, onStop, onPickFiles }: ComposerBarProps) {
   return (
     <div className={styles.composerBar}>
-      {onPickFiles !== null && <AttachButton onPick={onPickFiles} />}
+      <AttachButton onPick={onPickFiles} />
       <div className={styles.pickers}>
         {selection === null ? (
           // 只剩現在不能用的主機來源：說伺服器給的原因，不叫人去「AI 助理設定」開放（模型其實開著）。
@@ -212,7 +209,7 @@ function attachmentState(entries: readonly AttachmentEntry[], source: EngineSour
  * 檔案拖進輸入框：外框換成虛線，放開就附加；沒有檔案的拖曳（選取的文字）照舊。
  * 用 dragenter／dragleave 計數（進到裡面的子元素會先 enter 再 leave）：Safari 的 dragleave 常沒有 relatedTarget，不能靠它判斷離開。
  */
-function useFileDrop(onFiles: ((files: readonly File[]) => void) | null, onRejected: () => void) {
+function useFileDrop(onFiles: (files: readonly File[]) => void) {
   const [isDragging, setIsDragging] = useState(false);
   const depth = useRef(0);
   const reset = () => {
@@ -240,68 +237,23 @@ function useFileDrop(onFiles: ((files: readonly File[]) => void) | null, onRejec
       if (!hasFiles(event)) return;
       event.preventDefault();
       reset();
-      onFiles?.(Array.from(event.dataTransfer.files));
+      onFiles(Array.from(event.dataTransfer.files));
     },
   };
-  // 不收附件的對話（不選專案）：不顯示「放開以附加」，但一定要擋下瀏覽器的預設（不然整個分頁被導去開那個檔案，串流與草稿都丟了），放開時說明不收。
-  if (onFiles !== null) return { isDragging, dropProps };
-  const rejectProps = {
-    onDragOver: (event: DragEvent<HTMLFormElement>) => {
-      if (!hasFiles(event)) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'none';
-    },
-    onDrop: (event: DragEvent<HTMLFormElement>) => {
-      if (!hasFiles(event)) return;
-      event.preventDefault();
-      onRejected();
-    },
-  };
-  return { isDragging: false, dropProps: rejectProps };
+  return { isDragging, dropProps };
 }
 
-/**
- * 檔案怎麼進輸入框：選檔、拖進來、貼上。收附件的對話（專案）照常上傳；不收的（不選專案）一律擋下瀏覽器的預設，
- * 並在輸入框上方說明（用一般的提示，放在文字框上方的那一列）。
- */
-function useFileInput(acceptsFiles: boolean, add: (files: readonly File[]) => void) {
-  const [note, setNote] = useState<string | null>(null);
-  const addFiles = acceptsFiles ? add : null;
-  const { isDragging, dropProps } = useFileDrop(addFiles, () => {
-    setNote(NO_ATTACHMENTS_NOTE);
-  });
+/** 檔案怎麼進輸入框：選檔、拖進來、貼上，都先上傳（專案對話與不選專案的組織對話都收附件）。 */
+function useFileInput(add: (files: readonly File[]) => void) {
+  const { isDragging, dropProps } = useFileDrop(add);
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    if (addFiles !== null) {
-      pasteFiles(event, addFiles);
-    } else if (pastedFiles(event).length > 0) {
-      event.preventDefault();
-      setNote(NO_ATTACHMENTS_NOTE);
-    }
+    pasteFiles(event, add);
   };
-  return {
-    addFiles,
-    isDragging,
-    dropProps,
-    onPaste,
-    note,
-    dismissNote: () => {
-      setNote(null);
-    },
-  };
-}
-
-/** 不收附件的對話被拖放或貼上檔案時的說明（沒有時不畫）。 */
-function FilesNote({ note, onDismiss }: { readonly note: string | null; readonly onDismiss: () => void }) {
-  if (note === null) return null;
-  return (
-    <Notice tone="warning" onDismiss={onDismiss}>
-      {note}
-    </Notice>
-  );
+  return { addFiles: add, isDragging, dropProps, onPaste };
 }
 
 interface AttachmentAreaProps {
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   readonly attachments: ComposerAttachments;
   readonly source: EngineSource | null;
   readonly hasUnsupported: boolean;
@@ -330,9 +282,9 @@ function AttachmentArea({ projectKey, attachments, source, hasUnsupported, isLoc
  */
 export function Composer({ projectKey, options, selection, onSelectionChange, isStreaming, isSending, createdConversationId, isLoading, conversationId, error, onDismissError, onSend, onStop, fill, inputRef, hasItem, isCompact = false }: ComposerProps) {
   const { text, setText, clearSent, key } = useDrafts(conversationId, fill, createdConversationId);
-  const attachments = useComposerAttachments(projectKey ?? '', conversationId, createdConversationId, isSending);
+  const attachments = useComposerAttachments(projectKey, conversationId, createdConversationId, isSending);
   const formRef = useRef<HTMLFormElement>(null);
-  const files = useFileInput(projectKey !== null, attachments.add);
+  const files = useFileInput(attachments.add);
   const { isDragging, dropProps } = files;
   const sendKey = useSendKey();
   useRestoreFocus(isStreaming, formRef, inputRef);
@@ -362,8 +314,7 @@ export function Composer({ projectKey, options, selection, onSelectionChange, is
           {error}
         </Notice>
       )}
-      <FilesNote note={files.note} onDismiss={files.dismissNote} />
-      {projectKey !== null && <AttachmentArea projectKey={projectKey} attachments={attachments} source={source} hasUnsupported={hasUnsupported} isLocked={isSending} inputRef={inputRef} />}
+      <AttachmentArea projectKey={projectKey} attachments={attachments} source={source} hasUnsupported={hasUnsupported} isLocked={isSending} inputRef={inputRef} />
       <ComposerInput
         text={text}
         onChange={setText}

@@ -7,7 +7,7 @@ using PmTool.Work;
 
 namespace PmTool.Ai.Tests.Assistant;
 
-/// <summary>不選專案的組織對話：和專案對話分開、不碰專案的權限、不收項目與附件、工具與系統提示是組織版。</summary>
+/// <summary>不選專案的組織對話：和專案對話分開、不碰專案的權限、不收項目（附件見 OrganizationAttachmentTests）、工具與系統提示是組織版。</summary>
 [TestFixture]
 public sealed class OrganizationChatTests
 {
@@ -158,28 +158,6 @@ public sealed class OrganizationChatTests
         {
             Assert.That(started.Failure?.Code, Is.EqualTo(AiErrorCodes.OrganizationChatUnsupported));
             Assert.That(started.Failure?.Kind, Is.EqualTo(FailureKind.Invalid));
-            Assert.That((await _h.ConversationRowAsync(conversation.Id)).MessageCount, Is.Zero);
-        }
-    }
-
-    [Test]
-    public async Task Start_WithAttachments_IsRejectedAndStoresNothing()
-    {
-        // Arrange
-        var conversation = await _h.NewOrganizationConversationAsync();
-
-        // Act
-        var started = await _h.Service.StartAsync(
-            _h.Actor,
-            null,
-            conversation.Id,
-            new AssistantMessageInput("看看", _h.Selection) { AttachmentIds = [Guid.NewGuid()] },
-            CancellationToken.None);
-
-        // Assert
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(started.Failure?.Code, Is.EqualTo(AiErrorCodes.OrganizationChatUnsupported));
             Assert.That((await _h.ConversationRowAsync(conversation.Id)).MessageCount, Is.Zero);
         }
     }

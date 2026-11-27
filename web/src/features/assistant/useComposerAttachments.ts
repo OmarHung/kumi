@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { AssistantAttachment, AssistantAttachmentKind } from '../../api/aiTypes';
+import type { AssistantScope } from '../../api/assistant';
 import { deleteAssistantAttachment, releaseAssistantAttachment, uploadAssistantAttachment } from '../../api/assistantAttachments';
 import { errorMessage, isApiError } from '../../api/http';
 import { guessKind, rejectionReason } from './attachmentRules';
@@ -90,7 +91,7 @@ function buildEntries(files: readonly File[], existing: readonly AttachmentEntry
  * 一個檔案的上傳：進行中的請求記在 controllers（移除時中止），結果寫回那一張小卡。
  * 輸入框已經卸載才拿到回應（伺服器其實收下了）：馬上刪掉，不佔著「待送最多 5 個」。
  */
-function useUpload(projectKey: string, setState: SetState, controllers: RefObject<Map<string, AbortController>>, mountedRef: RefObject<boolean>) {
+function useUpload(projectKey: AssistantScope, setState: SetState, controllers: RefObject<Map<string, AbortController>>, mountedRef: RefObject<boolean>) {
   return (entry: AttachmentEntry) => {
     const controller = new AbortController();
     controllers.current.set(entry.id, controller);
@@ -117,7 +118,7 @@ function useUpload(projectKey: string, setState: SetState, controllers: RefObjec
  * 還在傳的不中止：SPA 換頁時請求會繼續，拿到回應再刪（useUpload）。只是換對話不算離開，草稿與小卡照舊保留；
  * 關掉浮動面板也不卸載（面板只是藏起來），草稿與小卡一樣留著。
  */
-function useReleaseOnUnmount(projectKey: string, state: State, isSending: boolean): RefObject<boolean> {
+function useReleaseOnUnmount(projectKey: AssistantScope, state: State, isSending: boolean): RefObject<boolean> {
   const mountedRef = useRef(true);
   const latest = useRef({ projectKey, state, isSending });
   // 和畫面同一次提交就更新：小卡一出現，離開（pagehide、卸載）時就要刪得到它，不能等被動的 effect 晚一步跑。
@@ -154,7 +155,7 @@ function useReleaseOnUnmount(projectKey: string, state: State, isSending: boolea
  * 輸入框的附件小卡，每個對話一份（和草稿的字一起分開，從「新的對話」送出時跟著過去）。
  * 選了就立刻上傳（先上傳、送出時只帶編號）。
  */
-export function useComposerAttachments(projectKey: string, conversationId: string | undefined, createdId: string | null, isSending: boolean): ComposerAttachments {
+export function useComposerAttachments(projectKey: AssistantScope, conversationId: string | undefined, createdId: string | null, isSending: boolean): ComposerAttachments {
   const key = conversationId ?? NEW_KEY;
   const [state, setState] = useState<State>({ key, byKey: {} });
   if (state.key !== key) setState(switchedTo(state, key, createdId));

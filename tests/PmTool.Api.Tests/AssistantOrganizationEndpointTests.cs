@@ -9,7 +9,7 @@ namespace PmTool.Api.Tests;
 
 /// <summary>
 /// 不選專案的組織對話端點（<c>/v1/assistant/conversations…</c>）：形狀和專案的對話一樣，交給模組的專案代號是 null，
-/// 選項目或附件在送到模組之前就 422，失敗代碼照模組的說法，只能用 Cookie。規則（權限、隔離）在 AI 模組的測試。
+/// 選項目在送到模組之前就 422（附件照收，見 AssistantOrganizationAttachmentEndpointTests），失敗代碼照模組的說法，只能用 Cookie。規則（權限、隔離）在 AI 模組的測試。
 /// </summary>
 [TestFixture]
 public sealed class AssistantOrganizationEndpointTests
@@ -201,20 +201,24 @@ public sealed class AssistantOrganizationEndpointTests
     }
 
     [Test]
-    public async Task Send_WithAttachments_Is422OrganizationChatUnsupportedAndNeverReachesTheModule()
+    public async Task Send_WithAttachments_PassesThemToTheModuleWithANullProject()
     {
         // Arrange
         using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
         using var client = await ProjectEndpointTests.SignedInClientAsync(factory, TestUsers.Member);
+        var attachmentId = Guid.Parse("0190a000-0000-7000-8000-0000000000c1");
 
         // Act
-        using var response = await SendAsync(client, Body(attachmentIds: new[] { Guid.NewGuid() }));
+        using var response = await SendAsync(client, Body(attachmentIds: new[] { attachmentId }));
+        await response.Content.ReadAsStringAsync();
 
         // Assert
+        var call = factory.Modules.Assistant.StartCalls.Single();
         using (Assert.EnterMultipleScope())
         {
-            await ApiRequests.AssertErrorEnvelopeAsync(response, HttpStatusCode.UnprocessableEntity, AiErrorCodes.OrganizationChatUnsupported);
-            Assert.That(factory.Modules.Assistant.StartCalls, Is.Empty);
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(call.ProjectKey, Is.Null);
+            Assert.That(call.Input.AttachmentIds, Is.EqualTo(new[] { attachmentId }));
         }
     }
 

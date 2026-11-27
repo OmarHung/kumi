@@ -105,7 +105,7 @@ public static class AiErrorCodes
     /// <summary>新專案建議已經建立或作廢（409）。</summary>
     public const string ProjectProposalClosed = "ai.project_proposal_closed";
 
-    /// <summary>不選專案的組織對話不收這個東西（選的項目、附件）（422）。</summary>
+    /// <summary>不選專案的組織對話不收這個東西（選的項目）（422）。</summary>
     public const string OrganizationChatUnsupported = "ai.organization_chat_unsupported";
 
     /// <summary>選的本機或主機來源的 kumi 太舊，做不了這件事（409）；訊息說要 <c>kumi update</c>。</summary>

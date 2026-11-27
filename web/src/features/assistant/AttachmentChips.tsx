@@ -1,4 +1,5 @@
 import { useState, type RefObject } from 'react';
+import type { AssistantScope } from '../../api/assistant';
 import { assistantAttachmentUrl } from '../../api/assistantAttachments';
 import { Button } from '../../components/Button/Button';
 import { Icon } from '../../components/Icon/Icon';
@@ -19,7 +20,7 @@ function nameOf(entry: AttachmentEntry): string {
  * 縮圖：上傳完成的圖片用伺服器的下載網址（內容安全政策只允許同網域與 data:，不能用 blob: 的本機預覽）；
  * 上傳中、失敗、被擋下的，或圖片載入失敗時，顯示檔案圖示。
  */
-function Thumbnail({ entry, projectKey }: { readonly entry: AttachmentEntry; readonly projectKey: string }) {
+function Thumbnail({ entry, projectKey }: { readonly entry: AttachmentEntry; readonly projectKey: AssistantScope }) {
   const [hasFailed, setHasFailed] = useState(false);
   const { attachment } = entry;
   const canShowImage = entry.status === 'ready' && attachment !== null && attachment.kind === 'image' && isInlineImage(attachment.contentType) && !hasFailed;
@@ -70,7 +71,7 @@ function ChipStatus({ entry, unreadableNote }: { readonly entry: AttachmentEntry
 
 interface ChipProps {
   readonly entry: AttachmentEntry;
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   /** 選的來源是本機或主機的引擎時是它（Codex 讀不到 PDF）；API 的模型是 null。 */
   readonly source: EngineSource | null;
   /** 送出中：訊息的請求正帶著這些附件，不能移除也不能重試。 */
@@ -142,7 +143,7 @@ function removeButtonsAround(event: React.MouseEvent<HTMLElement>) {
 }
 
 interface AttachmentChipsProps {
-  readonly projectKey: string;
+  readonly projectKey: AssistantScope;
   readonly entries: readonly AttachmentEntry[];
   readonly source: EngineSource | null;
   readonly isLocked: boolean;

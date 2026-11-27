@@ -1,4 +1,5 @@
 import type { AssistantAttachment } from '../../api/aiTypes';
+import type { AssistantScope } from '../../api/assistant';
 import { assistantAttachmentUrl } from '../../api/assistantAttachments';
 import { Icon } from '../../components/Icon/Icon';
 import { attachmentIcon, formatAttachmentSize, isInlineImage } from '../../domain/attachments';
@@ -7,7 +8,8 @@ import styles from './Assistant.module.css';
 
 interface AttachmentProps {
   readonly attachment: AssistantAttachment;
-  readonly projectKey: string;
+  /** null 是不選專案的組織對話（附件的網址不同）。 */
+  readonly projectKey: AssistantScope;
 }
 
 /** 圖片：固定大小的縮圖，點了在新分頁打開原圖（伺服器只讓四種點陣圖直接顯示）。 */
@@ -34,7 +36,7 @@ function FileAttachment({ attachment, projectKey }: AttachmentProps) {
 }
 
 /** 使用者訊息帶的附件：圖片縮圖與檔案小卡排成一列（太多時換行）。 */
-export function MessageAttachments({ attachments, projectKey }: { readonly attachments: readonly AssistantAttachment[]; readonly projectKey: string }) {
+export function MessageAttachments({ attachments, projectKey }: { readonly attachments: readonly AssistantAttachment[]; readonly projectKey: AssistantScope }) {
   if (attachments.length === 0) return null;
   return (
     <ul className={styles.attachedList} aria-label="附件">
