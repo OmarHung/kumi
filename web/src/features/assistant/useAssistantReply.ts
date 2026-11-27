@@ -8,6 +8,7 @@ import { queryKeys } from '../../api/queryKeys';
 import { assistantPagePath } from '../work-items/itemLinks';
 import type { ReplyPhase } from './replyPhase';
 import { applyStreamEvent, mergeStored } from './streamCache';
+import { refreshAfterWithdraw, withdrewProposal } from './withdrawRefresh';
 
 /** 正在收的那一則：哪個對話、哪一則助理的訊息（收到 start 才知道）、主機來源的排隊進度。 */
 export interface ActiveReply {
@@ -91,6 +92,7 @@ async function runStream(context: StreamContext, id: string, request: SendReques
         setActive({ conversationId: id, messageId, phase });
       }
       patch(event);
+      if (withdrewProposal(event)) void refreshAfterWithdraw(queryClient);
     },
   );
   setActive(null);
