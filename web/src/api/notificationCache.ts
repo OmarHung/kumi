@@ -43,13 +43,13 @@ export function markReadInCache(queryClient: QueryClient, notificationIds: reado
   void queryClient.invalidateQueries({ queryKey: queryKeys.unreadCount });
 }
 
-/** 全部標為已讀：「全部」的清單原位換掉，「未讀」的清單重抓（變成空的），未讀數歸零。 */
+/** 全部標為已讀：所有「全部」的清單（不分分類與搜尋）原位換掉，所有「未讀」的清單重抓（變成空的或剩沒讀到的），未讀數歸零。 */
 export function markAllReadInCache(queryClient: QueryClient, at: string): void {
-  queryClient.setQueryData<Pages>(queryKeys.notifications(false), (pages) =>
+  queryClient.setQueriesData<Pages>({ queryKey: queryKeys.notificationListsOf(false) }, (pages) =>
     pages === undefined ? pages : withRead(pages, null, at, new Set()),
   );
   queryClient.setQueryData<UnreadCount>(queryKeys.unreadCount, { count: 0 });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.notifications(true) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.notificationListsOf(true) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.unreadCount });
 }
 

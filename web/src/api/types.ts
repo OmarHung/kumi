@@ -523,6 +523,7 @@ export type {
   Notification,
   NotificationPage,
   NotificationQuery,
+  NotificationCategory,
   UnreadCount,
   UpdatedCount,
   SubscriptionReason,

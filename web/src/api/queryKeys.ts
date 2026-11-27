@@ -1,5 +1,5 @@
 import type { ActivityView } from './activityPages';
-import type { ItemQuery } from './types';
+import type { ItemQuery, NotificationCategory } from './types';
 
 /** 看板欄的查詢鍵的最後一段。 */
 export const BOARD_COLUMN = 'board-column';
@@ -136,7 +136,10 @@ export const queryKeys = {
   searchItems: (text: string, limit: number) => ['search', 'items', text, limit],
   searchProjects: (text: string, limit: number) => ['search', 'projects', text, limit],
   // 通知：清單（未讀、全部各一份）與未讀數放在同一個前綴底下，標成已讀時一起處理（notificationCache.ts）。
-  notifications: (unread: boolean) => ['notifications', 'list', unread ? 'unread' : 'all'],
+  // 清單依（未讀或全部、分類、搜尋字）各一份；markAllReadInCache 靠前兩段的前綴找「全部」與「未讀」的所有清單。
+  notifications: (unread: boolean, category?: NotificationCategory, q = '') =>
+    ['notifications', 'list', unread ? 'unread' : 'all', category ?? 'all', q],
+  notificationListsOf: (unread: boolean) => ['notifications', 'list', unread ? 'unread' : 'all'],
   notificationLists: ['notifications', 'list'],
   unreadCount: ['notifications', 'unread-count'],
   // 關注狀態在項目底下：項目被刪除、換成別人看時，跟著那個項目一起清掉。

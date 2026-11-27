@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
+using PmTool.Identity;
 using PmTool.Notifications.Persistence;
 using PmTool.Work;
 
@@ -10,7 +11,7 @@ namespace PmTool.Notifications;
 /// 被移出專案之後，舊的通知不再出現、也不算未讀；只看自己的角色在負責人換掉之後，那個項目的通知也一樣。
 /// </summary>
 internal sealed class NotificationInbox(
-    IDbContextFactory<NotificationsDbContext> contexts, NotificationVisibility visibility, TimeProvider time) : INotificationInbox
+    IDbContextFactory<NotificationsDbContext> contexts, NotificationVisibility visibility, IPeopleDirectory people, TimeProvider time) : INotificationInbox
 {
     public async Task<Result<NotificationPage>> ListAsync(Actor actor, NotificationQuery query, CancellationToken cancellationToken)
     {
@@ -22,11 +23,19 @@ internal sealed class NotificationInbox(
             return invalid;
         }
 
+        var search = NotificationFilters.NormalizeSearch(query.Search).Text;
+
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var notifications = await visibility.VisibleToAsync(db, actor, cancellationToken);
         if (query.UnreadOnly)
         {
             notifications = notifications.Where(n => n.ReadAt == null);
+        }
+
+        notifications = NotificationFilters.ByCategory(notifications, query.Category);
+        if (search is not null)
+        {
+            notifications = await NotificationFilters.BySearchAsync(notifications, people, actor.OrganizationId, search, cancellationToken);
         }
 
         if (query.Cursor is not null)
@@ -98,6 +107,11 @@ internal sealed class NotificationInbox(
         if (query.Cursor is not null && !NotificationCursor.TryDecode(query.Cursor, out _))
         {
             problems.Add(new FailureDetail(NotificationErrorCodes.QueryInvalid, "cursor", "cursor 不正確。"));
+        }
+
+        if (NotificationFilters.NormalizeSearch(query.Search).Problem is { } searchProblem)
+        {
+            problems.Add(new FailureDetail(NotificationErrorCodes.QueryInvalid, "q", searchProblem));
         }
 
         return problems.Count == 0

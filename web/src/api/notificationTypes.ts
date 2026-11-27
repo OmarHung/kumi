@@ -92,8 +92,17 @@ export interface NotificationPage {
   readonly nextCursor: string | null;
 }
 
+/** 分類：沒給是全部；mentions 是提及與回覆，assigned 是指派給我。 */
+export type NotificationCategory = 'mentions' | 'assigned';
+
+/** 搜尋字的長度上限（和後端的 NotificationRules.MaxSearchLength 一樣）。 */
+export const NOTIFICATION_SEARCH_MAX_LENGTH = 100;
+
 export interface NotificationQuery {
   readonly unread?: boolean;
+  readonly category?: NotificationCategory;
+  /** 搜尋字：項目、專案、摘要、狀態名稱、做事的人；空的不帶。 */
+  readonly q?: string;
   readonly cursor?: string;
   /** 1～100，預設 50。 */
   readonly limit?: number;

@@ -211,6 +211,29 @@ public sealed class NotificationEndpointTests
         Assert.That(factory.Modules.Notifications.ListCalls.Single().Query, Is.EqualTo(new NotificationQuery(true, "abc", 7)));
     }
 
+    [TestCase("category=mentions", NotificationCategory.Mentions, null)]
+    [TestCase("category=assigned", NotificationCategory.Assigned, null)]
+    [TestCase("q=%E7%8E%8B%20", NotificationCategory.All, "王 ")]
+    [TestCase("category=assigned&q=web-1", NotificationCategory.Assigned, "web-1")]
+    public async Task List_CategoryAndSearch_ArePassedToTheInbox(string query, NotificationCategory category, string? search)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync($"/v1/notifications?{query}");
+        await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        Assert.That(factory.Modules.Notifications.ListCalls.Single().Query,
+            Is.EqualTo(new NotificationQuery(false, null, NotificationRules.DefaultPageSize) { Category = category, Search = search }));
+    }
+
+    [TestCase("category=all", "category")]
+    [TestCase("category=Mentions2", "category")]
+    [TestCase("category=mentions&category=assigned", "category")]
+    [TestCase("q=a&q=b", "q")]
     [TestCase("unread=yes", "unread")]
     [TestCase("unread=true&unread=false", "unread")]
     [TestCase("limit=abc", "limit")]

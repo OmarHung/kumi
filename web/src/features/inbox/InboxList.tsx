@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { useNotifications } from '../../api/notificationQueries';
 import type { Notification } from '../../api/types';
 import { Button, buttonClassName } from '../../components/Button/Button';
@@ -16,22 +16,53 @@ type NotificationsResult = ReturnType<typeof useNotifications>;
 
 const SKELETON_ROWS = 6;
 
-function EmptyInbox({ filter }: { readonly filter: InboxFilter }) {
-  if (filter === 'all') {
-    return <EmptyState title="還沒有通知">被指派、被提及，或你關注的項目有留言、改了狀態時，會出現在這裡。</EmptyState>;
-  }
+const EMPTY_HINT = '被指派、被提及，或你關注的項目有留言、改了狀態時，會出現在這裡。';
+
+function ClearLink({ change, children }: { readonly change: Partial<InboxFilter>; readonly children: string }) {
+  const [searchParams] = useSearchParams();
   return (
-    <EmptyState
-      title="沒有未讀的通知"
-      action={
-        <Link to={{ search: inboxFilterSearch(new URLSearchParams(), 'all') }} className={buttonClassName('secondary')}>
-          看全部通知
-        </Link>
-      }
-    >
-      被指派、被提及，或你關注的項目有留言、改了狀態時，會出現在這裡。
-    </EmptyState>
+    <Link to={{ search: inboxFilterSearch(searchParams, change) }} className={buttonClassName('secondary')}>
+      {children}
+    </Link>
   );
+}
+
+/**
+ * 空的狀態：有搜尋字（說找不到、給「清除搜尋」；同時只看未讀時先說是「未讀」的找不到，並給「看全部通知」——
+ * 符合的可能是已讀的，不說的話會以為搜尋壞了）、只看未讀（給「看全部通知」）、什麼條件都沒有（照舊）。
+ */
+function EmptyInbox({ filter }: { readonly filter: InboxFilter }) {
+  if (filter.q !== '' && filter.unreadOnly) {
+    return (
+      <EmptyState
+        title={`沒有符合「${filter.q}」的未讀通知`}
+        action={
+          <>
+            <ClearLink change={{ unreadOnly: false }}>看全部通知</ClearLink>
+            <ClearLink change={{ q: '' }}>清除搜尋</ClearLink>
+          </>
+        }
+      >
+        已讀的通知可能有符合的，看全部通知就找得到。
+      </EmptyState>
+    );
+  }
+  if (filter.q !== '') {
+    return (
+      <EmptyState title={`找不到符合「${filter.q}」的通知`} action={<ClearLink change={{ q: '' }}>清除搜尋</ClearLink>}>
+        試試別的關鍵字，或換一個分類。
+      </EmptyState>
+    );
+  }
+  if (filter.unreadOnly) {
+    return (
+      <EmptyState title="沒有未讀的通知" action={<ClearLink change={{ unreadOnly: false }}>看全部通知</ClearLink>}>
+        {EMPTY_HINT}
+      </EmptyState>
+    );
+  }
+  if (filter.category !== 'all') return <EmptyState title="這個分類還沒有通知">{EMPTY_HINT}</EmptyState>;
+  return <EmptyState title="還沒有通知">{EMPTY_HINT}</EmptyState>;
 }
 
 /** 「載入更多」：載入中用 aria-disabled 而不是 disabled，有焦點的按鈕一停用焦點就掉回頁面本體。 */

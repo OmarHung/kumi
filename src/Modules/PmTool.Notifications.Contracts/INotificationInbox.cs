@@ -71,7 +71,30 @@ public enum NotificationKind
 /// <param name="UnreadOnly">只列未讀的。</param>
 /// <param name="Cursor">上一頁回傳的 <see cref="NotificationPage.NextCursor"/>；第一頁是 null。</param>
 /// <param name="Limit">1～<see cref="NotificationRules.MaxPageSize"/>。</param>
-public sealed record NotificationQuery(bool UnreadOnly, string? Cursor, int Limit);
+public sealed record NotificationQuery(bool UnreadOnly, string? Cursor, int Limit)
+{
+    /// <summary>分類；預設全部。</summary>
+    public NotificationCategory Category { get; init; }
+
+    /// <summary>
+    /// 搜尋的文字：比對項目編號、標題、專案代號、摘要、狀態名稱（從、到）與做這件事的人的顯示名稱，不分大小寫、包含即可。
+    /// 模組去掉前後空白，null 或空白是不搜尋；超過 <see cref="NotificationRules.MaxSearchLength"/> 字或含控制字元回 <see cref="NotificationErrorCodes.QueryInvalid"/>，細項的路徑是 <c>q</c>。
+    /// </summary>
+    public string? Search { get; init; }
+}
+
+/// <summary>收件匣的分類。</summary>
+public enum NotificationCategory
+{
+    /// <summary>全部。</summary>
+    All,
+
+    /// <summary>提及與回覆：<see cref="NotificationKind.Mentioned"/> 與 <see cref="NotificationKind.Replied"/>，都是有人直接對你說話。</summary>
+    Mentions,
+
+    /// <summary>指派給我：<see cref="NotificationKind.Assigned"/>。</summary>
+    Assigned,
+}
 
 public sealed record NotificationPage(IReadOnlyList<NotificationItem> Items, string? NextCursor);
 
@@ -157,6 +180,9 @@ public static class NotificationRules
 
     /// <summary>一次標成已讀最多幾個編號。</summary>
     public const int MaxMarkReadIds = 200;
+
+    /// <summary>搜尋文字（去掉前後空白之後）最多幾個字。</summary>
+    public const int MaxSearchLength = 100;
 }
 
 /// <summary>

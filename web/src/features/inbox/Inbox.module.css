@@ -59,6 +59,31 @@
   color: var(--color-text-muted);
 }
 
+/*
+ * 工具列的搜尋框：從這個寬度開始排、有空間才變寬到上限（窄螢幕換行時單獨佔一列的寬度由 flex-basis 決定），
+ * 和表格工具列的搜尋框同一個做法（item-table/ItemToolbar.module.css）。
+ */
+.search {
+  flex: 1 1 8rem;
+  min-width: 0;
+  max-width: 16rem;
+}
+
+/*
+ * 「只看未讀」切換：平常是一般的次要按鈕；按下時是選取的樣子（--color-selected 的底、強調色的字，和「關注」同一套），
+ * 沒有色條。名稱不變，狀態靠 aria-pressed。
+ */
+.unreadToggle[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--color-selected);
+  color: var(--color-accent);
+}
+
+.unreadToggle[aria-pressed='true']:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-selected);
+  color: var(--color-accent-hover);
+}
+
 /* 「已載入 N 則」對齊清單裡每一筆的內容（清單一筆左右的內距，components/List）。 */
 .footer {
   display: flex;

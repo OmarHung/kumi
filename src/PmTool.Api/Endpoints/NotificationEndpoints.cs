@@ -18,6 +18,8 @@ namespace PmTool.Api.Endpoints;
 internal static class NotificationEndpoints
 {
     private const string UnreadParameter = "unread";
+    private const string CategoryParameter = "category";
+    private const string SearchParameter = "q";
 
     public static RouteGroupBuilder MapNotificationEndpoints(this RouteGroupBuilder v1)
     {
@@ -180,9 +182,17 @@ internal static class NotificationEndpoints
         });
         var limit = QueryParameters.LimitOf(query, NotificationRules.DefaultPageSize);
         var cursor = QueryParameters.Single(query, QueryParameters.Cursor);
-        return QueryParameters.FailureOf(unread.Problem, limit.Problem, cursor.Problem) is { } failure
+        var category = QueryParameters.Single(query, CategoryParameter).Then(value => value switch
+        {
+            null => new Parsed<NotificationCategory>(NotificationCategory.All),
+            "mentions" => new Parsed<NotificationCategory>(NotificationCategory.Mentions),
+            "assigned" => new Parsed<NotificationCategory>(NotificationCategory.Assigned),
+            _ => Parsed<NotificationCategory>.Invalid(NotificationCategory.All, CategoryParameter, "category 要是 mentions 或 assigned。"),
+        });
+        var search = QueryParameters.Single(query, SearchParameter);
+        return QueryParameters.FailureOf(unread.Problem, limit.Problem, cursor.Problem, category.Problem, search.Problem) is { } failure
             ? failure
-            : new NotificationQuery(unread.Value, cursor.Value, limit.Value);
+            : new NotificationQuery(unread.Value, cursor.Value, limit.Value) { Category = category.Value, Search = search.Value };
     }
 
     /// <summary>通知清單的查詢參數不正確一律回 400（合約），不用工作引擎清單的 422。</summary>

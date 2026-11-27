@@ -10,7 +10,7 @@ import {
 import { isApiError } from './http';
 import { markAllReadInCache, markReadInCache } from './notificationCache';
 import { queryKeys } from './queryKeys';
-import type { ItemSubscription } from './types';
+import type { ItemSubscription, NotificationCategory } from './types';
 
 /** 後端的錯誤代碼：不是專案成員，不能關注（409）。 */
 export const NOT_MEMBER_CODE = 'subscription.not_member';
@@ -38,16 +38,20 @@ export function useUnreadCount() {
 /** 一頁最多這麼多則（合約的預設與上限之間，載入更多時再接下一頁）。 */
 export const NOTIFICATION_PAGE_SIZE = 50;
 
-/** 收件匣的通知，新的在前，一頁一頁往下接。unread 是「未讀」分頁。 */
-export function useNotifications(unread: boolean) {
+/** 收件匣的通知，新的在前，一頁一頁往下接。unread 是「只看未讀」；category 沒給是全部分類；q 是搜尋字（空的不搜尋）。 */
+export function useNotifications(unread: boolean, category?: NotificationCategory, q = '') {
   return useInfiniteQuery(
     infiniteQueryOptions({
-      queryKey: queryKeys.notifications(unread),
+      queryKey: queryKeys.notifications(unread, category, q),
       queryFn: ({ pageParam, signal }) =>
         listNotifications(
-          pageParam === null
-            ? { unread, limit: NOTIFICATION_PAGE_SIZE }
-            : { unread, limit: NOTIFICATION_PAGE_SIZE, cursor: pageParam },
+          {
+            unread,
+            category,
+            q,
+            limit: NOTIFICATION_PAGE_SIZE,
+            ...(pageParam === null ? {} : { cursor: pageParam }),
+          },
           signal,
         ),
       initialPageParam: null as string | null,

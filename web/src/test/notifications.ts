@@ -82,6 +82,21 @@ interface ServeOptions {
   readonly pageSize?: number;
 }
 
+/** 後端的分類：mentions 是提及與回覆，assigned 是指派；沒給（或不認得）是全部。 */
+function inCategory(entry: Notification, category: string | null): boolean {
+  if (category === 'mentions') return entry.kind === 'mentioned' || entry.kind === 'replied';
+  if (category === 'assigned') return entry.kind === 'assigned';
+  return true;
+}
+
+/** 後端的搜尋：項目編號、標題、專案代號、摘要、狀態名稱與做事的人的顯示名稱，不分大小寫、包含即可。 */
+function matchesSearch(entry: Notification, q: string | null): boolean {
+  if (q === null || q === '') return true;
+  const needle = q.toLowerCase();
+  const fields = [entry.itemKey, entry.itemTitle, entry.projectKey, entry.excerpt, entry.fromStateName, entry.toStateName, entry.actor.displayName];
+  return fields.some((field) => field !== null && field.toLowerCase().includes(needle));
+}
+
 /**
  * 有狀態的假收件匣：標成已讀之後清單與未讀數都跟著變，和後端一樣。新的在前，游標是「已經給了幾則」。
  * 之後的 server.use 蓋過它。
@@ -99,7 +114,11 @@ export function serveNotifications(initial: readonly Notification[], options: Se
     http.get('/v1/notifications', ({ request }) => {
       const url = new URL(request.url);
       requests.lists.push(url);
-      const source = url.searchParams.get('unread') === 'true' ? unread() : all;
+      const category = url.searchParams.get('category');
+      const q = url.searchParams.get('q');
+      const source = (url.searchParams.get('unread') === 'true' ? unread() : all).filter(
+        (entry) => inCategory(entry, category) && matchesSearch(entry, q),
+      );
       const start = Number(url.searchParams.get('cursor') ?? '0');
       const limit = Number(url.searchParams.get('limit') ?? String(pageSize));
       const size = Math.min(limit, pageSize);

@@ -5,6 +5,8 @@ import type { ItemSubscription, NotificationPage, NotificationQuery, UnreadCount
 function queryString(query: NotificationQuery): string {
   const params = new URLSearchParams();
   if (query.unread === true) params.append('unread', 'true');
+  if (query.category !== undefined) params.append('category', query.category);
+  if (query.q !== undefined && query.q !== '') params.append('q', query.q);
   if (query.cursor !== undefined) params.append('cursor', query.cursor);
   if (query.limit !== undefined) params.append('limit', String(query.limit));
   const text = params.toString();

@@ -207,18 +207,22 @@ describe('API 端點', () => {
     expect(captured).toEqual([{ method, path, search: '', body }]);
   });
 
-  it('通知清單：未讀與游標、筆數寫進查詢字串，沒給的不帶', async () => {
+  it('通知清單：未讀、分類、搜尋字、游標與筆數寫進查詢字串，沒給（或搜尋字是空的）的不帶', async () => {
     // Arrange
     const captured = captureRequests();
 
     // Act
     await listNotifications({});
     await listNotifications({ unread: true, cursor: 'c-1', limit: 50 });
+    await listNotifications({ category: 'mentions', q: '登入 流程' });
+    await listNotifications({ category: undefined, q: '' });
 
     // Assert
     expect(captured.map((request) => [request.method, request.path, request.search])).toEqual([
       ['GET', '/v1/notifications', ''],
       ['GET', '/v1/notifications', '?unread=true&cursor=c-1&limit=50'],
+      ['GET', '/v1/notifications', '?category=mentions&q=登入+流程'],
+      ['GET', '/v1/notifications', ''],
     ]);
   });
 

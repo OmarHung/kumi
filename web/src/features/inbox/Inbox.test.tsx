@@ -68,16 +68,17 @@ describe('收件匣', () => {
     expect(sidebarLink()).toHaveTextContent(/^收件匣$/);
   });
 
-  it('預設是「未讀」：只列未讀的，請求帶 unread=true；兩個分頁是 NavTabs，目前的標 aria-current', async () => {
+  it('預設只看未讀：只列未讀的，請求帶 unread=true；分類是 NavTabs（目前的標 aria-current），「只看未讀」是按下的切換', async () => {
     // Arrange & Act
     const { requests } = setup();
 
     // Assert
     const list = await screen.findByRole('list', { name: '通知' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
-    const tabs = screen.getByRole('navigation', { name: '收件匣的分頁' });
-    expect(within(tabs).getByRole('link', { name: '未讀' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: '全部' })).not.toHaveAttribute('aria-current');
+    const tabs = screen.getByRole('navigation', { name: '通知的分類' });
+    expect(within(tabs).getByRole('link', { name: '全部' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: '提及與回覆' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('button', { name: '只看未讀' })).toHaveAttribute('aria-pressed', 'true');
     expect(requests.lists[0]?.searchParams.get('unread')).toBe('true');
   });
 
@@ -101,7 +102,7 @@ describe('收件匣', () => {
     await screen.findByRole('list', { name: '通知' });
 
     // Act
-    await user.click(within(screen.getByRole('navigation', { name: '收件匣的分頁' })).getByRole('link', { name: '全部' }));
+    await user.click(screen.getByRole('button', { name: '只看未讀' }));
 
     // Assert
     const unread = await screen.findByRole('link', { name: /SMK-7/ });
@@ -110,13 +111,13 @@ describe('收件匣', () => {
     expect(screen.getByRole('link', { name: /SMK-9/ })).not.toHaveAccessibleName(/未讀/);
   });
 
-  it('「全部」分頁：網址是 ?show=all，已讀與未讀都在，請求不帶 unread', async () => {
+  it('放開「只看未讀」：網址是 ?show=all，已讀與未讀都在，請求不帶 unread', async () => {
     // Arrange
     const { user, router, requests } = setup();
     await screen.findByRole('list', { name: '通知' });
 
     // Act
-    await user.click(within(screen.getByRole('navigation', { name: '收件匣的分頁' })).getByRole('link', { name: '全部' }));
+    await user.click(screen.getByRole('button', { name: '只看未讀' }));
 
     // Assert
     await screen.findByRole('link', { name: /SMK-9/ });
@@ -125,16 +126,13 @@ describe('收件匣', () => {
     expect(requests.lists.at(-1)?.searchParams.has('unread')).toBe(false);
   });
 
-  it('網址直接帶 ?show=all 就是「全部」', async () => {
+  it('網址直接帶 ?show=all 就是沒有按下「只看未讀」', async () => {
     // Arrange & Act
     setup('/inbox?show=all');
 
     // Assert
     expect(await screen.findByRole('link', { name: /SMK-9/ })).toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: '收件匣的分頁' })).getByRole('link', { name: '全部' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    expect(screen.getByRole('button', { name: '只看未讀' })).toHaveAttribute('aria-pressed', 'false');
   });
 });
 
@@ -239,7 +237,7 @@ describe('收件匣：全部標為已讀', () => {
     expect(screen.getByRole('button', { name: '全部標為已讀' })).toHaveFocus();
   });
 
-  it('「已將 N 則通知標為已讀。」換分頁就清掉', async () => {
+  it('「已將 N 則通知標為已讀。」換條件就清掉', async () => {
     // Arrange
     const { user } = setup();
     await screen.findByRole('list', { name: '通知' });
@@ -247,7 +245,7 @@ describe('收件匣：全部標為已讀', () => {
     expect(await screen.findByText('已將 2 則通知標為已讀。')).toBeInTheDocument();
 
     // Act
-    await user.click(within(screen.getByRole('navigation', { name: '收件匣的分頁' })).getByRole('link', { name: '全部' }));
+    await user.click(screen.getByRole('button', { name: '只看未讀' }));
 
     // Assert
     await screen.findByRole('link', { name: /SMK-9/ });
