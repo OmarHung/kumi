@@ -478,6 +478,21 @@ public sealed class AssistantReplyTests
     }
 
     [Test]
+    public async Task Title_ShowsAMentionAsTheName_NotTheMentionSyntax()
+    {
+        // Arrange：輸入框的 @ 送出時是提及語法；標題照原文會變成「請 @[Ivan](mention:01a1…」。
+        var conversation = await _h.NewConversationAsync();
+        _h.Script.Reply("好");
+
+        // Act
+        await _h.SendAsync(conversation.Id, "請 @[Ivan](mention:019b2c3d-4e5f-7a6b-8c7d-9e0f1a2b3c4d) 負責換憑證");
+        var row = await _h.ConversationRowAsync(conversation.Id);
+
+        // Assert
+        Assert.That(row.Title, Is.EqualTo("請 @Ivan 負責換憑證"));
+    }
+
+    [Test]
     public async Task Title_IsTheFirstMessage_WithNewlinesFlattened_AndCutAtTheLimit()
     {
         // Arrange

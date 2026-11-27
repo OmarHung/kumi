@@ -13,6 +13,7 @@ import { ErrorState } from '../../components/StatusViews/StatusViews';
 import { formatRelativeTime } from '../../domain/time';
 import { assistantPagePath } from '../work-items/itemLinks';
 import styles from './Assistant.module.css';
+import { plainMentions } from './composer/userMentionText';
 
 const NEW_CONVERSATION = '新的對話';
 const SKELETON_ROWS = 4;
@@ -31,7 +32,8 @@ interface RowProps extends ConversationListProps {
 }
 
 function titleOf(conversation: AssistantConversationSummary): string {
-  return conversation.title ?? NEW_CONVERSATION;
+  // 早期的標題可能是提及的原始語法（伺服器之後才改成 @名稱）。
+  return conversation.title === null ? NEW_CONVERSATION : plainMentions(conversation.title);
 }
 
 function ConversationRow({ projectKey, currentId, conversation, now, onDelete, onNavigate }: RowProps) {

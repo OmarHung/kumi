@@ -11,6 +11,7 @@ import { assistantPagePath } from '../work-items/itemLinks';
 import { groupConversations } from './conversationGroups';
 import type { PanelScope } from './panelMemory';
 import styles from './AssistantPanel.module.css';
+import { plainMentions } from '../assistant/composer/userMentionText';
 
 const NEW_CONVERSATION = '新的對話';
 /** 還沒有標題的對話（標題要等第一輪回覆之後才有）：不能也叫「新的對話」，不然和上面開新對話的那一項分不出來。 */
@@ -84,7 +85,7 @@ function ConversationMenu({ projectKey, conversationId, isBusy, onSelect, onOpen
       group.conversations.map(
         (conversation, index): MenuItem => ({
           key: conversation.id,
-          label: `${conversation.title ?? UNTITLED_CONVERSATION}${conversation.isRunning ? '（回覆中）' : ''}`,
+          label: `${conversation.title === null ? UNTITLED_CONVERSATION : plainMentions(conversation.title)}${conversation.isRunning ? '（回覆中）' : ''}`,
           isChecked: conversation.id === conversationId,
           ...(index === 0 ? { groupLabel: nameOf(group.projectKey) } : {}),
           onSelect: () => {

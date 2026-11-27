@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using PmTool.Abstractions;
@@ -405,10 +406,14 @@ internal sealed partial class AssistantService
         };
     }
 
-    /// <summary>標題：第一則訊息的前幾個字，換行與 Tab 換成空白；不把一個字（代理對）切成兩半。</summary>
+    /// <summary>
+    /// 標題：第一則訊息的前幾個字，換行與 Tab 換成空白；不把一個字（代理對）切成兩半。
+    /// 提及語法換成「@名稱」：輸入框的 @ 送出時是 <c>@[名稱](mention:編號)</c>，照原文標題前半都是編號。
+    /// </summary>
     private static string TitleOf(string text)
     {
-        var flat = string.Concat(text.Select(c => c is '\n' or '\r' or '\t' ? ' ' : c)).Trim();
+        var plain = MentionPattern().Replace(text, "@$1");
+        var flat = string.Concat(plain.Select(c => c is '\n' or '\r' or '\t' ? ' ' : c)).Trim();
         if (flat.Length <= AiRules.MaxTitleLength)
         {
             return flat;
@@ -422,4 +427,7 @@ internal sealed partial class AssistantService
 
     private sealed record BegunRun(
         AiMessageRow User, IReadOnlyList<ChatMessage> History, DateTimeOffset LeaseUntil, IReadOnlySet<Guid> SkippedAttachmentIds);
+
+    [GeneratedRegex(@"@\[([^\]\r\n]{1,200})\]\(mention:[0-9a-fA-F-]{36}\)", RegexOptions.CultureInvariant)]
+    private static partial Regex MentionPattern();
 }
