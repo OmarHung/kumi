@@ -51,7 +51,7 @@ public sealed class AssistantTurnNoteTests
             Assert.That(TextOf(oldUser), Is.EqualTo("第一個問題"));
             Assert.That(secondUser.Role, Is.EqualTo(ChatRole.User));
             Assert.That(TextOf(secondUser), Does.StartWith(AssistantPrompt.TurnNotePrefix).And.Contain("現在是 2026-11-18").And.EndWith("第二個問題"));
-            Assert.That(second.Count(m => TextOf(m).Contains(AssistantPrompt.TurnNotePrefix)), Is.EqualTo(1));
+            Assert.That(second.Count(m => m.Role == ChatRole.User && TextOf(m).Contains(AssistantPrompt.TurnNotePrefix)), Is.EqualTo(1));
         }
     }
 

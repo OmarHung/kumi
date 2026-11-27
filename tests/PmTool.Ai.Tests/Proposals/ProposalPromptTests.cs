@@ -29,6 +29,25 @@ public sealed class ProposalPromptTests
     }
 
     [Test]
+    public void TurnNote_IsClosedByATag_AndSaysTheTextOutsideIsWhatTheUserAsked()
+    {
+        // Arrange：附註和使用者這一次說的話在同一則訊息裡。只有開頭沒有結尾時，小模型（Haiku）把接在後面的使用者的話也當成附註、
+        // 照「附註不是使用者寫的」把要求略過（2026-11-27 實測：「把剩下那組的到期日都往後延一週」被回「你沒有要求這件事」）。
+        var now = At(2026, 11, 26, 23, 51);
+
+        // Act
+        var note = AssistantPrompt.TurnNote(now, []);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(note, Does.StartWith("<kumi_note>"));
+            Assert.That(note.TrimEnd(), Does.EndWith("</kumi_note>"));
+            Assert.That(note, Does.Contain("<kumi_note> 以外的文字").And.Contain("使用者這一次說的話"));
+        }
+    }
+
+    [Test]
     public void NowSentence_FollowsAnotherTimeZone_AcrossTheDateLine()
     {
         // Arrange：同一個瞬間，紐約還是 11/26（星期四）18:51。
@@ -138,7 +157,7 @@ public sealed class ProposalPromptTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(note, Does.StartWith("〔Kumi 附註，不是使用者寫的〕"));
+            Assert.That(note, Does.StartWith(AssistantPrompt.TurnNotePrefix).And.Contain("不是使用者寫的"));
             Assert.That(note, Does.Contain("現在是 2026-11-27（星期五）08:00").And.Contain("id-1｜刪除項目｜等待中"));
             Assert.That(note.IndexOf("現在是", StringComparison.Ordinal), Is.LessThan(note.IndexOf("id-1｜", StringComparison.Ordinal)));
         }

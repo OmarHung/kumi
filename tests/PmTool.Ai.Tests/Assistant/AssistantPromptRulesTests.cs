@@ -147,6 +147,16 @@ public sealed class AssistantPromptRulesTests
     }
 
     [Test]
+    public void BothSystemPrompts_SayTheTextOutsideTheKumiNoteIsTheUsersRequest()
+    {
+        // Act
+        var prompts = new[] { AssistantPrompt.SystemPrompt, AssistantPrompt.OrganizationSystemPrompt };
+
+        // Assert：附註的說明寫在共用的規則裡，專案與組織對話（含本機、主機的引擎）都讀得到。
+        Assert.That(prompts, Has.All.Contain("<kumi_note>").And.All.Contain("標籤外的文字"));
+    }
+
+    [Test]
     public void OrganizationSystemPrompt_LeavesOutHowToWriteItems()
     {
         // Act

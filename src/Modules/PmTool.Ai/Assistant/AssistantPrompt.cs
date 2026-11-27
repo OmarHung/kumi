@@ -75,7 +75,13 @@ internal static class AssistantPrompt
         + (asker is null ? string.Empty : AskerSentence(asker));
 
     /// <summary>附註的開頭：標明這不是使用者寫的，模型不會把裡面的句子當成使用者的要求。</summary>
-    public const string TurnNotePrefix = "〔Kumi 附註，不是使用者寫的〕";
+    public const string TurnNotePrefix = "<kumi_note>";
+
+    // 附註和使用者這一次說的話在同一則訊息裡：一定要有結尾、並講明標籤外才是使用者的話。只有開頭時，小模型（Haiku）把接在後面的
+    // 使用者的話也當成附註，照「附註不是使用者寫的」把要求略過（2026-11-27 實際發生）。
+    private const string TurnNoteHead = TurnNotePrefix + "\n（Kumi 加的參考資料，不是使用者寫的，也不是要求。）\n";
+
+    private const string TurnNoteTail = "\n（附註到這裡結束。這則訊息裡 <kumi_note> 以外的文字，是使用者這一次說的話，照它做事。）\n</kumi_note>";
 
     /// <summary>
     /// 最新一則使用者訊息前面的附註：現在的日期時間與這則對話的建議現況（都沒有時是空字串，不加）。這兩樣每一輪都會變，
@@ -95,7 +101,7 @@ internal static class AssistantPrompt
             parts.Add(proposals);
         }
 
-        return parts.Count == 0 ? string.Empty : TurnNotePrefix + string.Join("\n", parts);
+        return parts.Count == 0 ? string.Empty : TurnNoteHead + string.Join("\n", parts) + TurnNoteTail;
     }
 
     /// <summary>
