@@ -129,6 +129,14 @@ public static class LocalAgentTools
         "withdraw_proposal",
         "my_work",
         "find_items",
+        "list_comments",
+        "list_deleted_items",
+        "get_project_info",
+        "get_planning",
+        "propose_planning_changes",
+        "propose_comment_changes",
+        "propose_item_restores",
+        "propose_project_changes",
     ];
 
     public static bool IsAllowed(string toolName) => Allowed.Contains(toolName);

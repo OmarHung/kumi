@@ -209,6 +209,11 @@ export interface AssistantToolPart {
   readonly itemDeletionProposalId: string | null;
   /** propose_bulk_item_changes 成功時，建立的批次修改建議（畫成有「全部套用」「不要」的卡片）。 */
   readonly itemBatchProposalId: string | null;
+  /**
+   * 週期與里程碑、專案、留言、復原項目這四種建議的編號（種類看工具名稱：propose_planning_changes、propose_project_changes、
+   * propose_comment_changes、propose_item_restores）。之後新增的種類都用這個欄位。
+   */
+  readonly proposalId: string | null;
 }
 
 export type AssistantPart = AssistantTextPart | AssistantToolPart;
@@ -317,6 +322,8 @@ export interface ItemProposal {
   readonly changes: readonly ItemFieldChange[];
   /** 要加的留言（Markdown）。 */
   readonly comment: string | null;
+  /** 留言回覆的是哪一則；不是回覆是 null。 */
+  readonly replyTo: ReplyTarget | null;
   readonly status: 'pending' | 'applied' | 'dismissed';
   readonly createdAt: string;
   readonly decidedAt: string | null;
@@ -324,8 +331,16 @@ export interface ItemProposal {
   readonly error: string | null;
 }
 
+/** 修改建議的留言回覆的那一則留言（建立建議時的作者與內容摘錄）。 */
+export interface ReplyTarget {
+  readonly commentId: string;
+  readonly authorName: string;
+  readonly excerpt: string;
+}
+
 /**
- * 一個欄位改成什麼。field：title、description、status、assignee、priority、startDate、dueDate、estimate、fields.<key>；
+ * 一個欄位改成什麼。field：title、description、status、assignee、priority、startDate、dueDate、estimate、type、parentKey（null 是移到最上層）、
+ * cycleId、milestoneId、fields.<key>；
  * value 照欄位的型別，null 是清掉。
  */
 export interface ItemFieldChange {
@@ -469,6 +484,104 @@ export interface ItemBatchEntry {
   readonly itemTitle: string;
   readonly changes: readonly ItemFieldChange[];
   readonly comment: string | null;
+  readonly replyTo: ReplyTarget | null;
   /** 套用後這一筆沒成功的部分。 */
+  readonly error: string | null;
+}
+
+/** 建議的狀態：applying 是正在套用（另一個分頁按的；套用的過程中斷了會讀成 applied 加 error）。 */
+export type ProposalStatus = 'pending' | 'applying' | 'applied' | 'dismissed';
+
+/** 週期或里程碑在建議裡的內容（改之前、改之後）；不屬於這一種的欄位是 null。 */
+export interface PlanningValues {
+  readonly name: string;
+  readonly startDate: string | null;
+  readonly endDate: string | null;
+  readonly dueDate: string | null;
+  readonly description: string | null;
+}
+
+export interface PlanningChange {
+  readonly target: 'cycle' | 'milestone';
+  readonly action: 'create' | 'update' | 'delete';
+  /** 新增的在套用之後才有。 */
+  readonly id: string | null;
+  readonly before: PlanningValues | null;
+  readonly after: PlanningValues | null;
+  /** 刪除時裡面的項目數（會變成沒有週期、里程碑）。 */
+  readonly itemCount: number | null;
+  /** 這一筆套用失敗的原因。 */
+  readonly error: string | null;
+}
+
+/** AI 助理提出的週期與里程碑建議：新增、修改、刪除，按「套用」才依序以自己的身分寫入。 */
+export interface PlanningProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly changes: readonly PlanningChange[];
+  readonly reason: string | null;
+  readonly status: ProposalStatus;
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  readonly error: string | null;
+}
+
+/** AI 助理提出的專案變更建議：名稱、封存、專案說明（資訊頁）。沒要改的欄位是 null（說明用 changesDescription 判斷）。 */
+export interface ProjectChangeProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly name: string | null;
+  readonly archived: boolean | null;
+  /** 這份建議有要改說明；description 是 null 時代表清掉。 */
+  readonly changesDescription: boolean;
+  readonly description: string | null;
+  readonly before: {
+    readonly name: string;
+    readonly archived: boolean;
+    readonly description: string | null;
+    readonly descriptionUpdatedAt: string | null;
+  };
+  readonly reason: string | null;
+  readonly status: ProposalStatus;
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  readonly error: string | null;
+}
+
+export interface CommentChange {
+  readonly itemKey: string;
+  readonly commentId: string;
+  readonly action: 'edit' | 'delete' | 'restore';
+  readonly authorName: string;
+  readonly commentedAt: string;
+  /** 建立建議時原本內容的摘錄；刪除的留言讀不到內容時是 null。 */
+  readonly excerpt: string | null;
+  /** edit 的新內容（Markdown）；其他是 null。 */
+  readonly body: string | null;
+  readonly error: string | null;
+}
+
+/** AI 助理提出的留言建議：編輯、刪除、復原自己（或有權限處理）的留言。 */
+export interface CommentProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly changes: readonly CommentChange[];
+  readonly status: ProposalStatus;
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  readonly error: string | null;
+}
+
+/** AI 助理提出的復原已刪除項目建議；標題是建立建議時的。 */
+export interface ItemRestoreProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly items: readonly { readonly itemKey: string; readonly title: string; readonly deletedAt: string }[];
+  readonly reason: string | null;
+  readonly status: ProposalStatus;
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  /** 套用之後真的復原的編號。 */
+  readonly restoredKeys: readonly string[];
   readonly error: string | null;
 }

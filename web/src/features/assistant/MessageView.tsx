@@ -10,7 +10,11 @@ import { effortLabel, toolLabel } from '../ai/aiLabels';
 import { changeSetPagePath, itemPagePath } from '../work-items/itemLinks';
 import { CopyMessageButton } from './CopyMessageButton';
 import { MessageAttachments } from './MessageAttachments';
+import { CommentProposalCard } from './CommentProposalCard';
 import { ItemBatchProposalCard } from './ItemBatchProposalCard';
+import { ItemRestoreProposalCard } from './ItemRestoreProposalCard';
+import { PlanningProposalCard } from './PlanningProposalCard';
+import { ProjectChangeProposalCard } from './ProjectChangeProposalCard';
 import { ItemDeletionProposalCard } from './ItemDeletionProposalCard';
 import { MemberProposalCard } from './MemberProposalCard';
 import { NewItemsProposalCard } from './NewItemsProposalCard';
@@ -32,6 +36,10 @@ const PROPOSE_NEW_ITEMS_TOOL = 'propose_new_items';
 const PROPOSE_MEMBERS_TOOL = 'propose_member_changes';
 const PROPOSE_DELETIONS_TOOL = 'propose_item_deletions';
 const PROPOSE_BATCH_TOOL = 'propose_bulk_item_changes';
+const PROPOSE_PLANNING_TOOL = 'propose_planning_changes';
+const PROPOSE_PROJECT_CHANGES_TOOL = 'propose_project_changes';
+const PROPOSE_COMMENTS_TOOL = 'propose_comment_changes';
+const PROPOSE_RESTORES_TOOL = 'propose_item_restores';
 const DEFAULT_FAILURE = '回覆失敗了，請再試一次。';
 
 function ToolRow({ tool }: { readonly tool: AssistantToolPart }) {
@@ -101,6 +109,22 @@ function AssistantText({ text, answer, isStreaming, draftKey }: AssistantTextPro
   );
 }
 
+/** 通用的 proposalId 欄位：種類看工具名稱（之後新增的種類都走這裡）。 */
+function GenericProposalCard({ name, proposalId }: { readonly name: string; readonly proposalId: string }) {
+  switch (name) {
+    case PROPOSE_PLANNING_TOOL:
+      return <PlanningProposalCard proposalId={proposalId} />;
+    case PROPOSE_PROJECT_CHANGES_TOOL:
+      return <ProjectChangeProposalCard proposalId={proposalId} />;
+    case PROPOSE_COMMENTS_TOOL:
+      return <CommentProposalCard proposalId={proposalId} />;
+    case PROPOSE_RESTORES_TOOL:
+      return <ItemRestoreProposalCard proposalId={proposalId} />;
+    default:
+      return null;
+  }
+}
+
 interface PartViewProps {
   readonly part: AssistantMessage['parts'][number];
   readonly projectKey: AssistantScope;
@@ -138,6 +162,7 @@ function PartView({ part, projectKey, answer, isStreaming, draftKey }: PartViewP
       {part.name === PROPOSE_BATCH_TOOL && part.status === 'done' && part.itemBatchProposalId !== null && (
         <ItemBatchProposalCard proposalId={part.itemBatchProposalId} />
       )}
+      {part.status === 'done' && part.proposalId !== null && <GenericProposalCard name={part.name} proposalId={part.proposalId} />}
     </>
   );
 }

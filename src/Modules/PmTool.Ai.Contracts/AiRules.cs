@@ -67,6 +67,13 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForFindItems = "0.19.0";
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放 list_comments、list_deleted_items、get_project_info、get_planning、
+    /// propose_planning_changes、propose_comment_changes、propose_item_restores、propose_project_changes（理由同 <see cref="MinAgentVersionForNewItemProposals"/>）。
+    /// 這個版本的 kumi 也才會把這四種建議的編號放在通用的 proposalId（<see cref="AssistantToolPart.ProposalId"/>）。
+    /// </summary>
+    public const string MinAgentVersionForProjectWrites = "0.20.0";
+
     /// <summary>find_items 一次最多回幾筆。</summary>
     public const int MaxFindItemsLimit = 50;
 
@@ -146,6 +153,26 @@ public static class AiRules
 
     /// <summary>一份批次修改建議最多幾個項目（每個項目各自最多 <see cref="MaxItemProposalChanges"/> 個欄位）。</summary>
     public const int MaxItemsPerBatchProposal = 20;
+
+    /// <summary>一份週期與里程碑的建議最多幾筆。</summary>
+    public const int MaxPlanningChangesPerProposal = 10;
+
+    /// <summary>一份留言建議最多幾筆。</summary>
+    public const int MaxCommentChangesPerProposal = 10;
+
+    /// <summary>留言建議的卡片顯示的原本內容最多幾個字。</summary>
+    public const int MaxCommentExcerptLength = 500;
+
+    /// <summary>
+    /// 助理讀專案說明（get_project_info）一次最多讀幾個字；現在的說明比這個長時不能用建議改說明（助理讀不到全文，會蓋掉後面的內容）。
+    /// </summary>
+    public const int MaxEditableProjectDescriptionLength = 20_000;
+
+    /// <summary>復原建議確認「是已刪除的項目」時，已刪除的清單最多往回翻幾頁（每頁 <c>DeletedItemQuery.MaxLimit</c> 筆）。</summary>
+    public const int MaxDeletedPagesScanned = 5;
+
+    /// <summary>list_comments、list_deleted_items 一頁最多幾筆。</summary>
+    public const int MaxReadPageLimit = 50;
 
     /// <summary>每次回覆前告訴模型的「這則對話的建議」最多幾份（最新的）。</summary>
     public const int MaxProposalsInLedger = 20;

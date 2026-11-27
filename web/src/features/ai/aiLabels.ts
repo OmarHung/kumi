@@ -57,6 +57,14 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   withdraw_proposal: '撤回建議',
   my_work: '讀我的工作',
   find_items: '查項目',
+  list_comments: '讀留言',
+  list_deleted_items: '看已刪除的項目',
+  get_project_info: '讀專案說明',
+  get_planning: '讀週期與里程碑',
+  propose_planning_changes: '提出週期與里程碑的變更',
+  propose_comment_changes: '提出留言的變更',
+  propose_item_restores: '提出復原項目',
+  propose_project_changes: '提出專案的變更',
 };
 
 /** itemKey：工具的段落帶得到編號時給（get_item 寫「讀取 WEB-12」）；沒有就寫「讀取項目」。 */

@@ -48,6 +48,7 @@ internal sealed record ItemProposalData(
     string ItemTitle,
     IReadOnlyList<ItemFieldChangeData> Changes,
     string? Comment,
+    CommentReplyTargetData? ReplyTo,
     ItemProposalStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset? DecidedAt,
@@ -60,6 +61,7 @@ internal sealed record ItemProposalData(
         proposal.ItemTitle,
         [.. proposal.Changes.Select(change => new ItemFieldChangeData(change.Field, change.Value))],
         proposal.Comment,
+        CommentReplyTargetData.From(proposal.ReplyTo),
         proposal.Status,
         proposal.CreatedAt,
         proposal.DecidedAt,
@@ -67,3 +69,10 @@ internal sealed record ItemProposalData(
 }
 
 internal sealed record ItemFieldChangeData(string Field, JsonElement Value);
+
+/// <summary>留言回覆的是哪一則（建立建議時的作者與摘錄）；新的一則是 null。修改建議與批次建議共用。</summary>
+internal sealed record CommentReplyTargetData(Guid CommentId, string AuthorName, string Excerpt)
+{
+    public static CommentReplyTargetData? From(CommentReplyTarget? target) =>
+        target is null ? null : new(target.CommentId, target.AuthorName, target.Excerpt);
+}

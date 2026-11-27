@@ -54,12 +54,23 @@ public sealed record ItemProposal(
 
     /// <summary>套用時有步驟沒有成功：說明哪些沒有套用，繁體中文。</summary>
     public string? Error { get; init; }
+
+    /// <summary>留言是回覆哪一則（建立建議時的作者與摘錄）；新的一則是 null。</summary>
+    public CommentReplyTarget? ReplyTo { get; init; }
 }
+
+/// <summary>留言要回覆的那一則。</summary>
+/// <param name="CommentId">那一則留言的 id。</param>
+/// <param name="AuthorName">它的作者的顯示名稱（建立建議時的）。</param>
+/// <param name="Excerpt">它的內容的摘錄，最多 <see cref="AiRules.MaxCommentExcerptLength"/> 字。</param>
+public sealed record CommentReplyTarget(Guid CommentId, string AuthorName, string Excerpt);
 
 /// <summary>
 /// 一個欄位改成什麼。<see cref="Field"/> 是 <c>title</c>、<c>description</c>（Markdown）、<c>status</c>（狀態的 key）、
 /// <c>assignee</c>（人員編號，null 是清掉）、<c>priority</c>（<c>none</c>、<c>low</c>、<c>medium</c>、<c>high</c>、<c>urgent</c>）、
 /// <c>startDate</c>／<c>dueDate</c>（<c>yyyy-MM-dd</c>，null 是清掉）、<c>estimate</c>（數字，null 是清掉），
+/// <c>type</c>（類型的 key；狀態可能回到新流程的起點，見 <c>IWorkItemService.ChangeTypeAsync</c>）、
+/// <c>parentKey</c>（上層的項目編號，null 是移到最上層）、<c>cycleId</c>／<c>milestoneId</c>（週期、里程碑的 id，null 是清掉），
 /// 或 <c>fields.&lt;自訂欄位的 key&gt;</c>（值照藍圖的欄位型別，null 是清掉）。同一個欄位在一份建議裡只出現一次。
 /// </summary>
 public sealed record ItemFieldChange(string Field, JsonElement Value);

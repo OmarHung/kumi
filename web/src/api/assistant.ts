@@ -15,6 +15,7 @@ import { ApiError, apiRequest, CSRF_HEADER, networkError, unwrapResponse } from 
 import { listItems } from './items';
 import { listCycles, listMilestones } from './planning';
 import type { Item } from './types';
+import { pollWhileApplying } from './proposalDecision';
 import { queryKeys } from './queryKeys';
 
 /**
@@ -404,14 +405,12 @@ export function dismissNewItemProposal(proposalId: string): Promise<NewItemPropo
   return apiRequest<NewItemProposal>(`${newItemProposalPath(proposalId)}/dismiss`, { method: 'POST', body: {} });
 }
 
-const APPLYING_POLL_MS = 2000;
-
 /** applying（別的分頁按了、正在建立）時每 2 秒重讀，直到不是 applying。 */
 export function useNewItemProposal(proposalId: string) {
   return useQuery({
     queryKey: queryKeys.newItemProposal(proposalId),
     queryFn: ({ signal }) => getNewItemProposal(proposalId, signal),
-    refetchInterval: (query) => (query.state.data?.status === 'applying' ? APPLYING_POLL_MS : false),
+    refetchInterval: pollWhileApplying,
   });
 }
 
@@ -480,5 +479,5 @@ export function useProposalPlanningNames(projectKey: string, needsCycles: boolea
     queryFn: ({ signal }) => listMilestones(projectKey, signal),
     enabled: needsMilestones,
   });
-  return { cycles: cycles.data, milestones: milestones.data };
+  return { cycles: cycles.data, milestones: milestones.data, cyclesFailed: cycles.isError, milestonesFailed: milestones.isError };
 }

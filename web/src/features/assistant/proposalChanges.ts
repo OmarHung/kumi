@@ -1,6 +1,7 @@
 import type { ItemFieldChange } from '../../api/aiTypes';
 import type { FieldValue, ItemDetail, Member, Priority, ProjectDetail } from '../../api/types';
-import { findState } from '../../domain/blueprint';
+import type { Cycle, Milestone } from '../../api/planning';
+import { findState, itemTypeName } from '../../domain/blueprint';
 import { formatDate } from '../../domain/dates';
 import { fieldDefinition, formatFieldValue, formatNumber, NOT_A_MEMBER } from '../../domain/fields';
 import { PRIORITY_LABELS } from '../../domain/labels';
@@ -13,7 +14,15 @@ function currentCoreText(field: string, item: ItemDetail, context: Context): str
 
 /** 卡片上的一列：欄位名稱、現在的值（讀不到項目時是 null）與建議的值。 */
 export type ChangeRow =
-  | { readonly kind: 'value'; readonly field: string; readonly label: string; readonly before: string | null; readonly after: string }
+  | {
+      readonly kind: 'value';
+      readonly field: string;
+      readonly label: string;
+      readonly before: string | null;
+      readonly after: string;
+      /** 這一列底下補一行小字（改類型：狀態可能會變）。 */
+      readonly note?: string;
+    }
   | {
       readonly kind: 'description';
       readonly field: string;
@@ -34,6 +43,10 @@ const CORE_LABELS: Readonly<Record<string, string>> = {
   description: '說明',
   status: '狀態',
   assignee: '負責人',
+  type: '類型',
+  parentKey: '上層',
+  cycleId: '週期',
+  milestoneId: '里程碑',
   priority: '優先度',
   startDate: '開始日',
   dueDate: '到期日',
@@ -41,10 +54,22 @@ const CORE_LABELS: Readonly<Record<string, string>> = {
 };
 
 const CUSTOM_PREFIX = 'fields.';
+const MOVE_TO_TOP = '移到最上層';
+const TOP_LEVEL = '最上層';
+const TYPE_CHANGE_NOTE = '狀態可能會變';
+
+/** 週期與里程碑的名稱；還沒讀到或讀不到時清單是 undefined（不把編號當值顯示），讀不到時另外標 failed。 */
+export interface PlanningNames {
+  readonly cycles?: readonly Cycle[];
+  readonly milestones?: readonly Milestone[];
+  readonly cyclesFailed?: boolean;
+  readonly milestonesFailed?: boolean;
+}
 
 interface Context {
   readonly detail: ProjectDetail | undefined;
   readonly item: ItemDetail | undefined;
+  readonly planning: PlanningNames;
 }
 
 /** 不認得的值（型別對不上）照原文顯示：物件寫成 JSON，不寫成 [object Object]。 */
@@ -75,6 +100,19 @@ function stateText(context: Context, key: unknown): string {
   return findState(detail.blueprint, item.type, stateKey)?.name ?? stateKey;
 }
 
+const LOADING_NAME = '（讀取中）';
+
+/** 名單還沒讀到寫「（讀取中）」、讀不到寫「（讀不到名稱）」；讀到了卻沒有這一筆是已經刪除的週期或里程碑。 */
+function planningName(
+  list: readonly { readonly id: string; readonly name: string }[] | undefined,
+  failed: boolean | undefined,
+  id: unknown,
+  noun: string,
+): string {
+  if (list === undefined) return failed === true ? '（讀不到名稱）' : LOADING_NAME;
+  return list.find((entry) => entry.id === id)?.name ?? `（已刪除的${noun}）`;
+}
+
 /** 核心欄位的值（建議的，或項目現在的）轉成人看得懂的字。 */
 function coreText(field: string, value: unknown, context: Context): string {
   if (value === null || value === undefined) return EMPTY_VALUE;
@@ -83,6 +121,14 @@ function coreText(field: string, value: unknown, context: Context): string {
       return stateText(context, value);
     case 'assignee':
       return personName(value, context.detail?.members ?? []);
+    case 'type':
+      return context.detail === undefined ? plain(value) : itemTypeName(context.detail.blueprint, plain(value));
+    case 'parentKey':
+      return plain(value);
+    case 'cycleId':
+      return planningName(context.planning.cycles, context.planning.cyclesFailed, value, '週期');
+    case 'milestoneId':
+      return planningName(context.planning.milestones, context.planning.milestonesFailed, value, '里程碑');
     case 'priority':
       return priorityText(value);
     case 'startDate':
@@ -103,6 +149,14 @@ function currentCore(field: string, item: ItemDetail): unknown {
       return item.state;
     case 'assignee':
       return item.assignee?.personId ?? null;
+    case 'type':
+      return item.type;
+    case 'parentKey':
+      return item.parentKey;
+    case 'cycleId':
+      return item.cycleId;
+    case 'milestoneId':
+      return item.milestoneId;
     case 'priority':
       return item.priority;
     case 'startDate':
@@ -153,18 +207,33 @@ function rowFor(change: ItemFieldChange, context: Context): ChangeRow {
       after: value === null ? CLEARED_VALUE : customText(key, value, context),
     };
   }
+  if (field === 'parentKey') {
+    return {
+      kind: 'value',
+      field,
+      label: CORE_LABELS.parentKey ?? field,
+      before: item === undefined ? null : (item.parentKey ?? TOP_LEVEL),
+      after: value === null ? MOVE_TO_TOP : plain(value),
+    };
+  }
   return {
     kind: 'value',
     field,
     label: CORE_LABELS[field] ?? field,
     before: item === undefined ? null : currentCoreText(field, item, context),
     after: value === null ? CLEARED_VALUE : coreText(field, value, context),
+    ...(field === 'type' ? { note: TYPE_CHANGE_NOTE } : {}),
   };
 }
 
 /** 建議裡每個欄位轉成一列；專案或項目還沒讀到時沒有「現在的值」，狀態、負責人先寫原本的編號。 */
-export function changeRows(changes: readonly ItemFieldChange[], detail: ProjectDetail | undefined, item: ItemDetail | undefined): readonly ChangeRow[] {
-  const context: Context = { detail, item };
+export function changeRows(
+  changes: readonly ItemFieldChange[],
+  detail: ProjectDetail | undefined,
+  item: ItemDetail | undefined,
+  planning: PlanningNames = {},
+): readonly ChangeRow[] {
+  const context: Context = { detail, item, planning };
   return changes.map((change) => rowFor(change, context));
 }
 

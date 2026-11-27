@@ -38,11 +38,20 @@ public sealed class McpToolCatalogTests
             ["propose_item_deletions"] = (AccessTokenScope.AgentRun, false),
             ["propose_bulk_item_changes"] = (AccessTokenScope.AgentRun, false),
             ["withdraw_proposal"] = (AccessTokenScope.AgentRun, false),
+            ["list_comments"] = (AccessTokenScope.ItemsRead, true),
+            ["list_deleted_items"] = (AccessTokenScope.ItemsRead, true),
+            ["get_project_info"] = (AccessTokenScope.ItemsRead, true),
+            ["get_planning"] = (AccessTokenScope.ItemsRead, true),
+            ["propose_planning_changes"] = (AccessTokenScope.AgentRun, false),
+            ["propose_comment_changes"] = (AccessTokenScope.AgentRun, false),
+            ["propose_item_restores"] = (AccessTokenScope.AgentRun, false),
+            ["propose_project_changes"] = (AccessTokenScope.AgentRun, false),
         };
 
     private static readonly string[] AgentOnlyTools =
     [
         "propose_item_changes", "propose_project", "propose_member_changes", "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
+        "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes",
     ];
 
     // CLAUDE.md：JSON Schema 只能用這幾個關鍵字（同一份 Schema 要能直接拿去約束語言模型的輸出），description 是說明，不算約束。

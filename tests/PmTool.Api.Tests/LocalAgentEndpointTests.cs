@@ -586,8 +586,30 @@ public sealed class LocalAgentEndpointTests
         Assert.That(factory.Modules.LocalAgents.ReportCalls.Single().Events.Single(), Is.EqualTo(new LocalAgentTool(expected)));
     }
 
+    [TestCase("propose_planning_changes")]
+    [TestCase("propose_project_changes")]
+    [TestCase("propose_comment_changes")]
+    [TestCase("propose_item_restores")]
+    public async Task Report_ToolEventWithTheGenericProposalId_IsPassedToTheModule(string toolName)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        var proposalId = Guid.Parse("cccccccc-0000-0000-0000-000000000004");
+        using var client = factory.CreateClient();
+        var tool = new Dictionary<string, object> { ["type"] = "tool", ["callId"] = "toolu_1", ["name"] = toolName, ["status"] = "done", ["proposalId"] = proposalId };
+
+        // Act
+        using var response = await client.SendAsync(Post(EventsRoute, AgentToken(factory), new { events = new object[] { tool } }));
+        await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        var expected = new AssistantToolPart("toolu_1", toolName, AssistantToolStatus.Done, null, null) { ProposalId = proposalId };
+        Assert.That(factory.Modules.LocalAgents.ReportCalls.Single().Events.Single(), Is.EqualTo(new LocalAgentTool(expected)));
+    }
+
     [TestCase("itemDeletionProposalId")]
     [TestCase("itemBatchProposalId")]
+    [TestCase("proposalId")]
     public async Task Report_TextEventWithARevisionProposalId_IsRefused(string property)
     {
         // Arrange

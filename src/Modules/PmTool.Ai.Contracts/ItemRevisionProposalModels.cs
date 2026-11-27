@@ -106,12 +106,20 @@ public sealed record ItemBatchProposalDraft(string ProjectKey, IReadOnlyList<Ite
 /// <param name="Changes">要改的欄位（規則同 <see cref="ItemFieldChange"/>）；可以是空的，只要有 <paramref name="Comment"/>。</param>
 /// <param name="ExpectedDescriptionRevision">改說明時必帶（get_item 回的 descriptionRevision）。</param>
 public sealed record ItemBatchEntryDraft(
-    string ItemKey, IReadOnlyList<ItemFieldChange> Changes, string? Comment, string? ExpectedDescriptionRevision);
+    string ItemKey, IReadOnlyList<ItemFieldChange> Changes, string? Comment, string? ExpectedDescriptionRevision)
+{
+    /// <summary>留言是回覆哪一則（規則同 <see cref="ItemProposalDraft.ReplyTo"/>）。</summary>
+    public Guid? ReplyTo { get; init; }
+}
 
 /// <param name="ItemTitle">建立建議時的標題。</param>
 /// <param name="Error">套用後這一筆沒成功的部分；還沒套用或全部成功是 null。</param>
 public sealed record ItemBatchEntry(
-    string ItemKey, string ItemTitle, IReadOnlyList<ItemFieldChange> Changes, string? Comment, string? Error);
+    string ItemKey, string ItemTitle, IReadOnlyList<ItemFieldChange> Changes, string? Comment, string? Error)
+{
+    /// <summary>留言是回覆哪一則；新的一則是 null。</summary>
+    public CommentReplyTarget? ReplyTo { get; init; }
+}
 
 public sealed record ItemBatchProposal(
     Guid Id, string ProjectKey, IReadOnlyList<ItemBatchEntry> Items, ItemProposalStatus Status, DateTimeOffset CreatedAt)
@@ -152,6 +160,10 @@ public enum ProposalKind
     ItemDeletions,
     Members,
     Project,
+    Planning,
+    Comments,
+    ItemRestores,
+    ProjectChanges,
 }
 
 public enum ProposalState

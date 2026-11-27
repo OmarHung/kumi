@@ -12,6 +12,10 @@ internal static class ProposalNames
         ProposalKind.ItemDeletions => "item_deletions",
         ProposalKind.Members => "members",
         ProposalKind.Project => "project",
+        ProposalKind.Planning => "planning",
+        ProposalKind.Comments => "comments",
+        ProposalKind.ItemRestores => "item_restores",
+        ProposalKind.ProjectChanges => "project_changes",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "不認得的建議種類。"),
     };
 
@@ -34,6 +38,10 @@ internal static class ProposalNames
         ProposalKind.ItemDeletions => "刪除項目",
         ProposalKind.Members => "成員變動",
         ProposalKind.Project => "新專案",
+        ProposalKind.Planning => "週期與里程碑",
+        ProposalKind.Comments => "留言",
+        ProposalKind.ItemRestores => "復原項目",
+        ProposalKind.ProjectChanges => "改專案",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "不認得的建議種類。"),
     };
 

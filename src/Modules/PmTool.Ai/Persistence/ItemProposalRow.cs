@@ -33,6 +33,9 @@ internal sealed record ItemProposalRow
     /// <summary>有改說明時，建立當下的說明版本（<c>DescriptionRevision</c>）；套用時用來偵測別人改過。</summary>
     public string? DescriptionRevision { get; init; }
 
+    /// <summary>jsonb：留言是回覆哪一則的 <c>{commentId, authorName, excerpt}</c>（<see cref="CommentReplyTarget"/>）；新的一則是 null。</summary>
+    public string? ReplyTo { get; init; }
+
     /// <summary>pending、applied、dismissed。</summary>
     public required string Status { get; init; }
 

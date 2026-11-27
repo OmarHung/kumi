@@ -158,8 +158,9 @@ internal sealed partial class LocalAgentService
     }
 
     /// <summary>
-    /// 回報的 itemProposalId、projectProposalId、newItemProposalId、memberProposalId、itemDeletionProposalId、itemBatchProposalId 要是這個人、這個組織的建議才記：不然本機代理（外部送來的）能讓網頁畫出別人的建議卡片。
-    /// 不是的當作沒有。
+    /// 回報的 itemProposalId、projectProposalId、newItemProposalId、memberProposalId、itemDeletionProposalId、itemBatchProposalId 與通用的 proposalId
+    /// 要是這個人、這個組織的建議才記：不然本機代理（外部送來的）能讓網頁畫出別人的建議卡片。不是的當作沒有。
+    /// 通用的 proposalId 照工具的名稱（<see cref="Proposals.ProposalTools"/>）到那一種的表裡找，名稱不是建議工具的一律當作沒有。
     /// </summary>
     internal static async Task<IReadOnlyList<LocalAgentEvent>> KeepOwnProposalsAsync(
         AiDbContext db, Actor actor, IReadOnlyList<LocalAgentEvent> events, CancellationToken cancellationToken)
@@ -171,8 +172,9 @@ internal sealed partial class LocalAgentService
         var claimedMembers = tools.Select(t => t.MemberProposalId).OfType<Guid>().Distinct().ToList();
         var claimedDeletions = tools.Select(t => t.ItemDeletionProposalId).OfType<Guid>().Distinct().ToList();
         var claimedBatches = tools.Select(t => t.ItemBatchProposalId).OfType<Guid>().Distinct().ToList();
+        var claimedGeneric = tools.Where(t => t.ProposalId is not null).ToList();
         if (claimedItems.Count == 0 && claimedProjects.Count == 0 && claimedNewItems.Count == 0 && claimedMembers.Count == 0
-            && claimedDeletions.Count == 0 && claimedBatches.Count == 0)
+            && claimedDeletions.Count == 0 && claimedBatches.Count == 0 && claimedGeneric.Count == 0)
         {
             return events;
         }
@@ -215,12 +217,48 @@ internal sealed partial class LocalAgentService
                 .Where(p => claimedBatches.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person)
                 .Select(p => p.Id)
                 .ToListAsync(cancellationToken)).ToHashSet();
-        var owned = new OwnProposals(ownItems, ownProjects, ownNewItems, ownMembers, ownDeletions, ownBatches);
+        var ownGeneric = await OwnGenericAsync(db, org, person, claimedGeneric, cancellationToken);
+        var owned = new OwnProposals(ownItems, ownProjects, ownNewItems, ownMembers, ownDeletions, ownBatches, ownGeneric);
         return [.. events.Select(e => e is LocalAgentTool tool ? new LocalAgentTool(KeepOwn(tool.Tool, owned)) : e)];
     }
 
     private sealed record OwnProposals(
-        HashSet<Guid> Items, HashSet<Guid> Projects, HashSet<Guid> NewItems, HashSet<Guid> Members, HashSet<Guid> Deletions, HashSet<Guid> Batches);
+        HashSet<Guid> Items,
+        HashSet<Guid> Projects,
+        HashSet<Guid> NewItems,
+        HashSet<Guid> Members,
+        HashSet<Guid> Deletions,
+        HashSet<Guid> Batches,
+        HashSet<(ProposalKind Kind, Guid Id)> Generic);
+
+    private static async Task<HashSet<(ProposalKind Kind, Guid Id)>> OwnGenericAsync(
+        AiDbContext db, Guid org, Guid person, IReadOnlyList<AssistantToolPart> tools, CancellationToken cancellationToken)
+    {
+        var claimed = tools
+            .Select(t => (Kind: Proposals.ProposalTools.GenericKindOf(t.Name), Id: t.ProposalId!.Value))
+            .Where(c => c.Kind is not null)
+            .GroupBy(c => c.Kind!.Value, c => c.Id)
+            .ToDictionary(g => g.Key, g => g.Distinct().ToList());
+        var own = new HashSet<(ProposalKind Kind, Guid Id)>();
+        foreach (var (kind, ids) in claimed)
+        {
+            var found = kind switch
+            {
+                ProposalKind.Planning => await db.PlanningProposals.AsNoTracking()
+                    .Where(p => ids.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person).Select(p => p.Id).ToListAsync(cancellationToken),
+                ProposalKind.Comments => await db.CommentProposals.AsNoTracking()
+                    .Where(p => ids.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person).Select(p => p.Id).ToListAsync(cancellationToken),
+                ProposalKind.ItemRestores => await db.ItemRestoreProposals.AsNoTracking()
+                    .Where(p => ids.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person).Select(p => p.Id).ToListAsync(cancellationToken),
+                ProposalKind.ProjectChanges => await db.ProjectChangeProposals.AsNoTracking()
+                    .Where(p => ids.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person).Select(p => p.Id).ToListAsync(cancellationToken),
+                _ => [],
+            };
+            own.UnionWith(found.Select(id => (kind, id)));
+        }
+
+        return own;
+    }
 
     private static AssistantToolPart KeepOwn(AssistantToolPart tool, OwnProposals own) => tool with
     {
@@ -230,6 +268,9 @@ internal sealed partial class LocalAgentService
         MemberProposalId = tool.MemberProposalId is { } members && own.Members.Contains(members) ? members : null,
         ItemDeletionProposalId = tool.ItemDeletionProposalId is { } deletion && own.Deletions.Contains(deletion) ? deletion : null,
         ItemBatchProposalId = tool.ItemBatchProposalId is { } batch && own.Batches.Contains(batch) ? batch : null,
+        ProposalId = tool.ProposalId is { } generic && Proposals.ProposalTools.GenericKindOf(tool.Name) is { } kind && own.Generic.Contains((kind, generic))
+            ? generic
+            : null,
     };
 
     private static Result<IReadOnlyList<LocalAgentEvent>> CleanEvents(IReadOnlyList<LocalAgentEvent> events)

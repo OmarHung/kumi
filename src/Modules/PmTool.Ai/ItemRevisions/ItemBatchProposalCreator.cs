@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Items;
 using PmTool.Ai.Persistence;
+using PmTool.Identity;
 using PmTool.Work;
 
 namespace PmTool.Ai.ItemRevisions;
@@ -11,8 +12,16 @@ namespace PmTool.Ai.ItemRevisions;
 /// <see cref="ItemChangeChecker"/>，只是細項的路徑前面多了 <c>items[n].</c>。
 /// </summary>
 internal sealed class ItemBatchProposalCreator(
-    IDbContextFactory<AiDbContext> contexts, IWorkItemService items, IProjectService projects, TimeProvider time) : IItemBatchProposalCreator
+    IDbContextFactory<AiDbContext> contexts,
+    IWorkItemService items,
+    IProjectService projects,
+    IPlanningService planning,
+    IItemActivityService activity,
+    IPeopleDirectory people,
+    TimeProvider time) : IItemBatchProposalCreator
 {
+    private readonly ItemChangeFactsLoader _facts = new(items, planning, activity, people);
+
     public async Task<Result<ItemBatchProposal>> CreateAsync(Actor actor, ItemBatchProposalDraft draft, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
@@ -102,7 +111,9 @@ internal sealed class ItemBatchProposalCreator(
             return null;
         }
 
-        var changes = ItemChangeChecker.Check(entry.Changes ?? [], entry.Comment, entry.ExpectedDescriptionRevision, item, project);
+        var facts = await _facts.LoadAsync(actor, item, entry.Changes ?? [], entry.Comment, entry.ReplyTo, cancellationToken);
+        var changes = ItemChangeChecker.Check(
+            entry.Changes ?? [], entry.Comment, entry.ExpectedDescriptionRevision, item, project, facts, entry.ReplyTo);
         if (changes.Failure is { } invalid)
         {
             issues.AddRange(invalid.Details.Select(d => d with { Path = $"{path}.{d.Path}" }));
@@ -111,7 +122,7 @@ internal sealed class ItemBatchProposalCreator(
 
         var revision = changes.Value.Any(c => c.Field == ItemFieldNames.Description) ? entry.ExpectedDescriptionRevision!.Trim() : null;
         return ItemBatchMapper.Store(
-            item.Key, AiText.Cut(item.Title, ItemProposalLimits.MaxItemTitleLength), changes.Value, ItemChangeChecker.NormalizeComment(entry.Comment), revision);
+            item.Key, AiText.Cut(item.Title, ItemProposalLimits.MaxItemTitleLength), changes.Value, ItemChangeChecker.NormalizeComment(entry.Comment), revision, facts.Reply);
     }
 
     private static Failure Invalid(IReadOnlyList<FailureDetail> issues) =>

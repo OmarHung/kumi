@@ -107,6 +107,58 @@ internal static class ProposalSummaries
         proposal.CreatedAt,
         proposal.DecidedAt);
 
+    public static ProposalStatusEntry Of(PlanningProposal proposal)
+    {
+        var parts = proposal.Changes
+            .GroupBy(c => (c.Target, c.Action))
+            .Select(g => $"{ActionLabel(g.Key.Action)} {g.Count()} 個{(g.Key.Target == PlanningTarget.Cycle ? "週期" : "里程碑")}");
+        var failed = proposal.Changes.Count(c => c.Error is not null);
+        var what = string.Join("、", parts) + (failed > 0 ? $"（有 {failed} 筆沒成功）" : string.Empty);
+        return Entry(proposal.Id.ToString(), ProposalKind.Planning, State(proposal.Status), Partial(what, proposal.Error), proposal.CreatedAt, proposal.DecidedAt);
+    }
+
+    public static ProposalStatusEntry Of(CommentProposal proposal)
+    {
+        var parts = proposal.Changes
+            .GroupBy(c => c.Action)
+            .Select(g => $"{CommentActionLabel(g.Key)} {g.Count()} 則留言");
+        var keys = KeyLists.Describe([.. proposal.Changes.Select(c => c.ItemKey).Distinct(StringComparer.Ordinal)]);
+        var failed = proposal.Changes.Count(c => c.Error is not null);
+        var what = $"{string.Join("、", parts)}（{keys}）" + (failed > 0 ? $"（有 {failed} 筆沒成功）" : string.Empty);
+        return Entry(proposal.Id.ToString(), ProposalKind.Comments, State(proposal.Status), Partial(what, proposal.Error), proposal.CreatedAt, proposal.DecidedAt);
+    }
+
+    public static ProposalStatusEntry Of(ItemRestoreProposal proposal)
+    {
+        var what = proposal.Status == ItemProposalStatus.Applied
+            ? $"復原了 {proposal.RestoredKeys.Count} 個項目：{KeyLists.Describe(proposal.RestoredKeys)}"
+            : $"復原 {proposal.Items.Count} 個項目：{KeyLists.Describe([.. proposal.Items.Select(i => i.ItemKey)])}";
+        return Entry(proposal.Id.ToString(), ProposalKind.ItemRestores, State(proposal.Status), Partial(what, proposal.Error), proposal.CreatedAt, proposal.DecidedAt);
+    }
+
+    // 名稱與說明是使用者寫的內容，不放進附註；只說改了哪幾樣。
+    public static ProposalStatusEntry Of(ProjectChangeProposal proposal)
+    {
+        var parts = new List<string>();
+        if (proposal.Name is not null)
+        {
+            parts.Add("改名稱");
+        }
+
+        if (proposal.Archived is { } archived)
+        {
+            parts.Add(archived ? "封存" : "取消封存");
+        }
+
+        if (proposal.ChangesDescription)
+        {
+            parts.Add(proposal.Description is null ? "清掉專案說明" : "改專案說明");
+        }
+
+        var what = $"專案 {proposal.ProjectKey}：{string.Join("、", parts)}";
+        return Entry(proposal.Id.ToString(), ProposalKind.ProjectChanges, State(proposal.Status), Partial(what, proposal.Error), proposal.CreatedAt, proposal.DecidedAt);
+    }
+
     public static ProposalStatusEntry Of(ChangeSetSummary changeSet) => Entry(
         ProposalReference.ChangeSetText(changeSet.Number),
         ProposalKind.ChangeSet,
@@ -124,6 +176,28 @@ internal static class ProposalSummaries
     // 自訂欄位的 key 是藍圖裡管理員寫的內容，不放進給模型的附註；標準欄位的名稱是固定的。
     private static List<string> Labels(IEnumerable<string> fields) =>
         [.. fields.Select(f => f.StartsWith(ItemFieldNames.CustomPrefix, StringComparison.Ordinal) ? "自訂欄位" : f).Distinct(StringComparer.Ordinal)];
+
+    private static ProposalState State(NewItemProposalStatus status) => status switch
+    {
+        NewItemProposalStatus.Pending => ProposalState.Pending,
+        NewItemProposalStatus.Applying => ProposalState.Applying,
+        NewItemProposalStatus.Applied => ProposalState.Applied,
+        _ => ProposalState.Dismissed,
+    };
+
+    private static string ActionLabel(PlanningAction action) => action switch
+    {
+        PlanningAction.Create => "新增",
+        PlanningAction.Update => "修改",
+        _ => "刪除",
+    };
+
+    private static string CommentActionLabel(CommentAction action) => action switch
+    {
+        CommentAction.Edit => "編輯",
+        CommentAction.Delete => "刪除",
+        _ => "復原",
+    };
 
     private static ProposalState State(ItemProposalStatus status) => status switch
     {

@@ -100,7 +100,8 @@ internal sealed record LocalAgentEventRequest(
     Guid? NewItemProposalId = null,
     Guid? MemberProposalId = null,
     Guid? ItemDeletionProposalId = null,
-    Guid? ItemBatchProposalId = null)
+    Guid? ItemBatchProposalId = null,
+    Guid? ProposalId = null)
 {
     /// <summary>
     /// 把一批進度全部轉換；有 null 的元素或內容不合規定時回第一個失敗，路徑是 <c>events[序號]</c>。
@@ -135,10 +136,10 @@ internal sealed record LocalAgentEventRequest(
         var path = $"events[{index}]";
         switch (Type)
         {
-            case "text" when Delta is not null && CallId is null && Name is null && Status is null && ChangeSetNumber is null && Error is null && ItemProposalId is null && ProjectProposalId is null && NewItemProposalId is null && MemberProposalId is null && ItemDeletionProposalId is null && ItemBatchProposalId is null:
+            case "text" when Delta is not null && CallId is null && Name is null && Status is null && ChangeSetNumber is null && Error is null && ItemProposalId is null && ProjectProposalId is null && NewItemProposalId is null && MemberProposalId is null && ItemDeletionProposalId is null && ItemBatchProposalId is null && ProposalId is null:
                 return new LocalAgentText(Delta);
             case "tool" when CallId is not null && Name is not null && Status is { } status && Delta is null:
-                return new LocalAgentTool(new AssistantToolPart(CallId, Name, status, ChangeSetNumber, Error) { ItemProposalId = ItemProposalId, ProjectProposalId = ProjectProposalId, NewItemProposalId = NewItemProposalId, MemberProposalId = MemberProposalId, ItemDeletionProposalId = ItemDeletionProposalId, ItemBatchProposalId = ItemBatchProposalId });
+                return new LocalAgentTool(new AssistantToolPart(CallId, Name, status, ChangeSetNumber, Error) { ItemProposalId = ItemProposalId, ProjectProposalId = ProjectProposalId, NewItemProposalId = NewItemProposalId, MemberProposalId = MemberProposalId, ItemDeletionProposalId = ItemDeletionProposalId, ItemBatchProposalId = ItemBatchProposalId, ProposalId = ProposalId });
             case "text":
             case "tool":
                 return Invalid(path, $"{Type} 的進度欄位不對：text 只能有 delta，tool 要有 callId、name、status。");

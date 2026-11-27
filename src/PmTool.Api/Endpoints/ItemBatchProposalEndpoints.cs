@@ -60,12 +60,13 @@ internal sealed record ItemBatchProposalData(
 }
 
 internal sealed record ItemBatchEntryData(
-    string ItemKey, string ItemTitle, IReadOnlyList<ItemFieldChangeData> Changes, string? Comment, string? Error)
+    string ItemKey, string ItemTitle, IReadOnlyList<ItemFieldChangeData> Changes, string? Comment, CommentReplyTargetData? ReplyTo, string? Error)
 {
     public static ItemBatchEntryData From(ItemBatchEntry entry) => new(
         entry.ItemKey,
         entry.ItemTitle,
         [.. entry.Changes.Select(change => new ItemFieldChangeData(change.Field, change.Value))],
         entry.Comment,
+        CommentReplyTargetData.From(entry.ReplyTo),
         entry.Error);
 }

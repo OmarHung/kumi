@@ -498,6 +498,63 @@ namespace PmTool.Ai.Persistence.Migrations
                     b.ToTable("settings", "ai");
                 });
 
+            modelBuilder.Entity("PmTool.Ai.Persistence.CommentProposalRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Changes")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("error");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_comment_proposals");
+
+                    b.HasIndex("OrganizationId", "PersonId")
+                        .HasDatabaseName("ix_comment_proposals_organization_id_person_id");
+
+                    b.ToTable("comment_proposals", "ai");
+                });
+
             modelBuilder.Entity("PmTool.Ai.Persistence.HostAgentRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1285,6 +1342,10 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("project_key");
 
+                    b.Property<string>("ReplyTo")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("reply_to");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1298,6 +1359,75 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasDatabaseName("ix_item_proposals_organization_id_person_id_created_at");
 
                     b.ToTable("item_proposals", "ai");
+                });
+
+            modelBuilder.Entity("PmTool.Ai.Persistence.ItemRestoreProposalRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("error");
+
+                    b.Property<string>("Items")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("items");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RestoredKeys")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("restored_keys")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_item_restore_proposals");
+
+                    b.HasIndex("OrganizationId", "PersonId")
+                        .HasDatabaseName("ix_item_restore_proposals_organization_id_person_id");
+
+                    b.ToTable("item_restore_proposals", "ai");
                 });
 
             modelBuilder.Entity("PmTool.Ai.Persistence.LocalAgentRow", b =>
@@ -1637,6 +1767,147 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasDatabaseName("ix_new_item_proposals_organization_id_person_id");
 
                     b.ToTable("new_item_proposals", "ai");
+                });
+
+            modelBuilder.Entity("PmTool.Ai.Persistence.PlanningProposalRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Changes")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("error");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_planning_proposals");
+
+                    b.HasIndex("OrganizationId", "PersonId")
+                        .HasDatabaseName("ix_planning_proposals_organization_id_person_id");
+
+                    b.ToTable("planning_proposals", "ai");
+                });
+
+            modelBuilder.Entity("PmTool.Ai.Persistence.ProjectChangeProposalRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool?>("Archived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("archived");
+
+                    b.Property<string>("Before")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("before");
+
+                    b.Property<bool>("ChangesDescription")
+                        .HasColumnType("boolean")
+                        .HasColumnName("changes_description");
+
+                    b.Property<Guid?>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("error");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_change_proposals");
+
+                    b.HasIndex("OrganizationId", "PersonId")
+                        .HasDatabaseName("ix_project_change_proposals_organization_id_person_id");
+
+                    b.ToTable("project_change_proposals", "ai");
                 });
 
             modelBuilder.Entity("PmTool.Ai.Persistence.ProjectProposalRow", b =>

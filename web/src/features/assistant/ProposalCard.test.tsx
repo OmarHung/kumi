@@ -8,6 +8,7 @@ import { makeItemProposal, serveItemProposal } from '../../test/assistant';
 import { failure, ok } from '../../test/api';
 import { exampleMember, smkDetail, smkItem } from '../../test/fixtures';
 import { detailOf, serveItem } from '../../test/items';
+import { cycleOf } from '../../test/planning';
 import { renderInRouter } from '../../test/renderInRouter';
 import { server } from '../../test/server';
 import { ProposalCard } from './ProposalCard';
@@ -481,5 +482,94 @@ describe('修改建議的卡片：說明的格子很高時', () => {
     const box = await view.findByRole('region', { name: '建議的說明' });
     expect(view.queryByText('內容較長，捲動看完整的說明')).not.toBeInTheDocument();
     expect(box).not.toHaveAttribute('tabindex');
+  });
+});
+
+describe('修改建議的卡片：上層、週期、里程碑、類型與回覆', () => {
+  it('上層寫項目編號或「移到最上層」，週期與里程碑寫名稱（找不到寫原值），改類型多一行「狀態可能會變」', async () => {
+    // Arrange
+    server.use(
+      http.get('/v1/projects/SMK/cycles', () => ok([cycleOf('十二月週期', '2026-12-01', '2026-12-14', { id: 'cy-1' })])),
+      http.get('/v1/projects/SMK/milestones', () => ok([])),
+    );
+    const proposal = makeItemProposal({
+      projectKey: 'SMK',
+      itemKey: 'SMK-12',
+      changes: [
+        { field: 'type', value: 'task' },
+        { field: 'parentKey', value: null },
+        { field: 'cycleId', value: 'cy-1' },
+        { field: 'milestoneId', value: 'ms-gone' },
+      ],
+    });
+
+    // Act
+    renderCard(proposal);
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText('十二月週期')).toBeInTheDocument();
+    expect(view.getByText('移到最上層')).toBeInTheDocument();
+    expect(await view.findByText('（已刪除的里程碑）')).toBeInTheDocument();
+    expect(view.getByText('狀態可能會變')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(view.getAllByText('任務')).toHaveLength(2);
+    });
+  });
+
+  it('上層改成某個項目時寫那個項目的編號；清掉週期寫「（清掉）」', async () => {
+    // Arrange
+    const proposal = makeItemProposal({
+      projectKey: 'SMK',
+      itemKey: 'SMK-12',
+      changes: [
+        { field: 'parentKey', value: 'SMK-3' },
+        { field: 'cycleId', value: null },
+      ],
+    });
+
+    // Act
+    renderCard(proposal);
+
+    // Assert
+    const view = within(await card());
+    expect(view.getByText('SMK-3')).toBeInTheDocument();
+    expect(view.getByText('（清掉）')).toBeInTheDocument();
+  });
+
+  it('週期的名單讀不到時寫「（讀不到名稱）」，不會一直寫讀取中', async () => {
+    // Arrange
+    server.use(http.get('/v1/projects/SMK/cycles', () => failure(403, 'project.forbidden', '沒有權限。')));
+    const proposal = makeItemProposal({
+      projectKey: 'SMK',
+      itemKey: 'SMK-12',
+      changes: [{ field: 'cycleId', value: 'cy-1' }],
+    });
+
+    // Act
+    renderCard(proposal);
+
+    // Assert
+    const view = within(await card());
+    expect(await view.findByText('（讀不到名稱）')).toBeInTheDocument();
+    expect(view.queryByText('cy-1')).not.toBeInTheDocument();
+  });
+
+  it('回覆留言時留言那一列寫「回覆 某某：摘錄」', async () => {
+    // Arrange
+    const proposal = makeItemProposal({
+      projectKey: 'SMK',
+      itemKey: 'SMK-12',
+      comment: '好的，我來處理',
+      replyTo: { commentId: 'c-9', authorName: '王小明', excerpt: '請問進度如何' },
+    });
+
+    // Act
+    renderCard(proposal);
+
+    // Assert
+    const view = within(await card());
+    expect(view.getByText('回覆 王小明：請問進度如何')).toBeInTheDocument();
+    expect(view.getByText('好的，我來處理')).toBeInTheDocument();
   });
 });

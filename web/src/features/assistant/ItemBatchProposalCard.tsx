@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import type { ItemBatchEntry, ItemBatchProposal } from '../../api/aiTypes';
+import type { ItemBatchEntry, ItemBatchProposal, ReplyTarget } from '../../api/aiTypes';
+import { useProposalPlanningNames } from '../../api/assistant';
 import { useDecideItemBatchProposal, useItemBatchProposal } from '../../api/itemRevisionProposals';
 import { errorMessage, isApiError } from '../../api/http';
 import { useItem, useProject } from '../../api/queries';
@@ -11,7 +12,7 @@ import { Notice } from '../../components/Notice/Notice';
 import { formatInstant } from '../../domain/time';
 import { itemPagePath } from '../work-items/itemLinks';
 import { changeRows, type ChangeRow } from './proposalChanges';
-import { DescriptionBox } from './ProposalCard';
+import { DescriptionBox, replyText } from './ProposalCard';
 import styles from './ProposalCard.module.css';
 
 const NO_MENTIONS: ReadonlyMap<string, string> = new Map();
@@ -52,6 +53,7 @@ function ValueLine({ row }: { readonly row: Extract<ChangeRow, { kind: 'value' }
         </>
       )}
       <span className={styles.after}>{row.after}</span>
+      {row.note !== undefined && <span className={styles.before}>{`（${row.note}）`}</span>}
     </p>
   );
 }
@@ -91,7 +93,7 @@ function DescriptionLine({ row, itemKey }: { readonly row: Extract<ChangeRow, { 
   );
 }
 
-function CommentLine({ text, itemKey }: { readonly text: string; readonly itemKey: string }) {
+function CommentLine({ text, itemKey, replyTo }: { readonly text: string; readonly itemKey: string; readonly replyTo: ReplyTarget | null }) {
   const [isOpen, setIsOpen] = useState(false);
   const quoteId = useId();
   return (
@@ -108,6 +110,7 @@ function CommentLine({ text, itemKey }: { readonly text: string; readonly itemKe
         {'加留言 '}
         <span className="visually-hidden">{itemKey}</span>
       </Button>
+      {replyTo !== null && <span className={styles.before}>{replyText(replyTo)}</span>}
       {isOpen && (
         <blockquote id={quoteId} className={styles.quote}>
           <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />
@@ -117,18 +120,28 @@ function CommentLine({ text, itemKey }: { readonly text: string; readonly itemKe
   );
 }
 
+/** 這一筆有排週期、里程碑時才讀名稱（同一個專案的各筆共用同一份快取）。 */
+function useEntryPlanningNames(entry: ItemBatchEntry, projectKey: string) {
+  return useProposalPlanningNames(
+    projectKey,
+    entry.changes.some((change) => change.field === 'cycleId' && change.value !== null),
+    entry.changes.some((change) => change.field === 'milestoneId' && change.value !== null),
+  );
+}
+
 /** 一個項目一個查詢（最多 20 個）：各讀各的，才知道每一個「現在」的值。 */
 function PendingEntry({ entry, projectKey }: { readonly entry: ItemBatchEntry; readonly projectKey: string }) {
   const project = useProject(projectKey);
   const item = useItem(entry.itemKey);
-  const rows = changeRows(entry.changes, project.data, item.data);
+  const planning = useEntryPlanningNames(entry, projectKey);
+  const rows = changeRows(entry.changes, project.data, item.data, planning);
   return (
     <li className={styles.entry}>
       <EntryHead entry={entry} projectKey={projectKey} />
       {rows.map((row) =>
         row.kind === 'description' ? <DescriptionLine key={row.field} row={row} itemKey={entry.itemKey} /> : <ValueLine key={row.field} row={row} />,
       )}
-      {entry.comment !== null && <CommentLine text={entry.comment} itemKey={entry.itemKey} />}
+      {entry.comment !== null && <CommentLine text={entry.comment} itemKey={entry.itemKey} replyTo={entry.replyTo} />}
     </li>
   );
 }
@@ -176,7 +189,8 @@ function PendingBody({ proposal }: { readonly proposal: ItemBatchProposal }) {
 /** 套用之後留著每個項目改了哪些欄位（建議的值）；說明很長只寫「改寫」。 */
 function AppliedEntry({ entry, projectKey }: { readonly entry: ItemBatchEntry; readonly projectKey: string }) {
   const project = useProject(projectKey);
-  const rows = changeRows(entry.changes, project.data, undefined);
+  const planning = useEntryPlanningNames(entry, projectKey);
+  const rows = changeRows(entry.changes, project.data, undefined, planning);
   return (
     <li className={styles.entry}>
       <EntryHead entry={entry} projectKey={projectKey} />

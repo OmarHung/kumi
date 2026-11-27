@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.AI;
 
 namespace PmTool.Ai.Assistant.Tools;
 
@@ -28,5 +29,31 @@ internal static class ItemChangeArguments
         }
 
         return (changes, null);
+    }
+
+    /// <summary>replyTo（留言 id 的字串）：沒給或 null 是新的一則；給了但不是 GUID 照實告訴模型。</summary>
+    public static (Guid? Value, string? Error) ReadReplyTo(AIFunctionArguments arguments, string path)
+    {
+        if (!arguments.TryGetValue(path, out var raw) || raw is null or JsonElement { ValueKind: JsonValueKind.Null })
+        {
+            return (null, null);
+        }
+
+        return ToolArguments.String(arguments, path) is { } text && Guid.TryParse(text, out var id)
+            ? (id, null)
+            : (null, $"參數 {path} 要是留言的 id（GUID）。");
+    }
+
+    /// <summary>批次修改某一筆裡的 replyTo。</summary>
+    public static (Guid? Value, string? Error) ReadReplyTo(JsonElement entry, string path)
+    {
+        if (!entry.TryGetProperty("replyTo", out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return (null, null);
+        }
+
+        return value.ValueKind == JsonValueKind.String && Guid.TryParse(value.GetString(), out var id)
+            ? (id, null)
+            : (null, $"{path}.replyTo 要是留言的 id（GUID）。");
     }
 }

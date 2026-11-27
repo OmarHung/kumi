@@ -357,12 +357,7 @@ public sealed class AssistantToolTests
         }
     }
 
-    private AIFunction NewProposeTool() => new PmTool.Ai.Assistant.Tools.ProposeChangeSetTool(new PmTool.Ai.Assistant.Tools.AssistantToolContext(
-        _h.Actor, "WEB", _h.Projects, _h.Changes, _h.Usage, new FakeTemplateLibrary(),
-        _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), _h.Host.Get<INewItemProposalCreator>(),
-        _h.Host.Get<IStaffingBriefService>(), _h.Host.Get<IMemberProposalCreator>(),
-        _h.Host.Get<IItemDeletionProposalCreator>(), _h.Host.Get<IItemBatchProposalCreator>(), _h.Host.Get<IAssistantProposalLedger>(), _h.ItemFinder, _h.Host.Get<IOrganizationClock>(), _h.Host.Get<TimeProvider>(), Guid.NewGuid(),
-        Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance));
+    private AIFunction NewProposeTool() => new PmTool.Ai.Assistant.Tools.ProposeChangeSetTool(_h.NewToolContext());
 
     [Test]
     public async Task ProposeChangeSet_WithoutProposePermission_SaysSoInPlainWords()
@@ -482,12 +477,7 @@ public sealed class AssistantToolTests
     {
         // Arrange
         var allowed = new HashSet<string> { "type", "properties", "required", "additionalProperties", "description", "items", "enum", "const", "$ref" };
-        var context = new PmTool.Ai.Assistant.Tools.AssistantToolContext(
-            _h.Actor, "WEB", _h.Projects, _h.Changes, _h.Usage, new FakeTemplateLibrary(),
-            _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), _h.Host.Get<INewItemProposalCreator>(),
-        _h.Host.Get<IStaffingBriefService>(), _h.Host.Get<IMemberProposalCreator>(),
-        _h.Host.Get<IItemDeletionProposalCreator>(), _h.Host.Get<IItemBatchProposalCreator>(), _h.Host.Get<IAssistantProposalLedger>(), _h.ItemFinder, _h.Host.Get<IOrganizationClock>(), _h.Host.Get<TimeProvider>(), Guid.NewGuid(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        var context = _h.NewToolContext();
 
         // Act
         var tools = PmTool.Ai.Assistant.Tools.AssistantToolSet.Create(context).OfType<AIFunction>().ToList();
@@ -495,7 +485,7 @@ public sealed class AssistantToolTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(tools, Has.Count.EqualTo(18));
+            Assert.That(tools, Has.Count.EqualTo(26));
             foreach (var tool in tools)
             {
                 Assert.That(KeywordsOf(tool.JsonSchema).Except(allowed), Is.Empty, tool.Name);

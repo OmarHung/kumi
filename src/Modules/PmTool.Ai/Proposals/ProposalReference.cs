@@ -79,5 +79,10 @@ internal sealed record ProposalReference(ProposalKind Kind, Guid? Id, long? Numb
         {
             yield return (ProposalKind.Project, project);
         }
+
+        if (tool.ProposalId is { } generic && ProposalTools.GenericKindOf(tool.Name) is { } kind)
+        {
+            yield return (kind, generic);
+        }
     }
 }

@@ -61,6 +61,29 @@ internal sealed class AssistantHarness : IAsyncDisposable
 
     public FakeItemFinder ItemFinder => (FakeItemFinder)Host.Get<IAssistantItemFinder>();
 
+    public FakeProjectDescriptions Descriptions => (FakeProjectDescriptions)Host.Get<PmTool.Work.IProjectDescriptionService>();
+
+    public FakeAttachments Attachments => (FakeAttachments)Host.Get<PmTool.Work.IAttachmentService>();
+
+    /// <summary>直接測單一工具時用的上下文：服務都是這個主機的（工作引擎是假的、建議的建立者是真的）。</summary>
+    public PmTool.Ai.Assistant.Tools.AssistantToolContext NewToolContext(string? projectKey = "WEB", Guid? conversationId = null) =>
+        new(
+            Actor, projectKey, Projects, Changes, Usage, new FakeTemplateLibrary(),
+            WorkItems, Activity, new FakePeopleDirectory(), Host.Get<IItemProposalCreator>(), Host.Get<IProjectProposalCreator>(), Host.Get<INewItemProposalCreator>(),
+            Host.Get<IStaffingBriefService>(), Host.Get<IMemberProposalCreator>(),
+            Host.Get<IItemDeletionProposalCreator>(), Host.Get<IItemBatchProposalCreator>(), Host.Get<IAssistantProposalLedger>(), ItemFinder,
+            Host.Get<PmTool.Abstractions.IOrganizationClock>(), Host.Get<TimeProvider>(), conversationId ?? Guid.NewGuid(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance)
+        {
+            Planning = Planning,
+            Descriptions = Descriptions,
+            Attachments = Attachments,
+            PlanningProposals = Host.Get<IPlanningProposalCreator>(),
+            CommentProposals = Host.Get<ICommentProposalCreator>(),
+            RestoreProposals = Host.Get<IItemRestoreProposalCreator>(),
+            ProjectChangeProposals = Host.Get<IProjectChangeProposalCreator>(),
+        };
+
     public ManualClock Clock => (ManualClock)Host.Get<TimeProvider>();
 
     /// <param name="timings">換成短的逾時，測試不必真的等五分鐘。</param>
@@ -83,6 +106,8 @@ internal sealed class AssistantHarness : IAsyncDisposable
             services.AddSingleton<PmTool.Work.ITemplateLibrary>(new FakeTemplateLibrary());
             services.AddSingleton<PmTool.Work.IProjectStaffingQueries>(new FakeStaffingQueries());
             services.AddSingleton<PmTool.Work.IPlanningService>(new FakePlanning());
+            services.AddSingleton<PmTool.Work.IProjectDescriptionService>(new FakeProjectDescriptions());
+            services.AddSingleton<PmTool.Work.IAttachmentService>(new FakeAttachments());
             services.AddSingleton<PmTool.Work.IBulkItemService>(new FakeBulkStub());
             services.AddSingleton<IAssistantItemFinder>(new FakeItemFinder());
             if (timings is not null)

@@ -43,7 +43,17 @@ internal static class ItemShapes
         assignee = item.AssigneeId is { } id ? new { id, name = names.NameOf(id) } : null,
     };
 
-    public static object Detail(WorkItem item, PersonNames names) => new
+    /// <summary>附件清單最多回幾個（只給中繼資料，不給內容）。</summary>
+    public const int MaxAttachments = 50;
+
+    /// <param name="cycle">項目排進的週期（id 與名稱）；沒有或讀不到名稱時 name 是 null，沒有週期傳 null。</param>
+    /// <param name="attachments">項目的附件，最多 <see cref="MaxAttachments"/> 個；沒傳是空的。</param>
+    public static object Detail(
+        WorkItem item,
+        PersonNames names,
+        PlanningRef? cycle = null,
+        PlanningRef? milestone = null,
+        IReadOnlyList<Attachment>? attachments = null) => new
     {
         key = item.Key,
         projectKey = item.ProjectKey,
@@ -58,6 +68,17 @@ internal static class ItemShapes
         dueDate = item.DueDate?.ToString("yyyy-MM-dd"),
         estimate = item.Estimate,
         parentKey = item.ParentKey,
+        cycle = cycle is { } c ? new { id = c.Id, name = c.Name } : null,
+        milestone = milestone is { } m ? new { id = m.Id, name = m.Name } : null,
+        attachments = (attachments ?? []).Take(MaxAttachments).Select(a => new
+        {
+            id = a.Id,
+            fileName = a.FileName,
+            contentType = a.ContentType,
+            sizeBytes = a.SizeBytes,
+            uploadedAt = a.UploadedAt,
+        }),
+        attachmentsTruncated = attachments?.Count > MaxAttachments,
         fields = item.Fields,
         description = item.Description is { } text ? AiText.Cut(text, ItemProposalLimits.MaxEditableDescriptionLength) : null,
         descriptionTruncated = item.Description?.Length > ItemProposalLimits.MaxEditableDescriptionLength,
@@ -66,8 +87,12 @@ internal static class ItemShapes
         updatedAt = item.UpdatedAt,
     };
 
-    public static object Activity(ItemActivity activity, PersonNames names) => new
+    /// <param name="currentPerson">問的人；活動是他自己做的 <c>mine</c> 才是 true（編輯、刪除自己的留言要靠它判斷）。</param>
+    public static object Activity(ItemActivity activity, PersonNames names, Guid? currentPerson = null) => new
     {
+        id = activity.Id,
+        replyToId = activity.ReplyToId,
+        mine = currentPerson is { } me && activity.ActorId == me,
         kind = activity.Kind,
         actor = new { id = activity.ActorId, name = names.NameOf(activity.ActorId) },
         at = activity.At,
@@ -80,6 +105,9 @@ internal static class ItemShapes
         edited = activity.EditedAt is not null,
         deleted = activity.DeletedAt is not null,
     };
+
+    /// <summary>週期或里程碑的 id 與名稱；名稱讀不到時是 null。</summary>
+    public sealed record PlanningRef(Guid Id, string? Name);
 
     internal sealed class PersonNames(IReadOnlyDictionary<Guid, PersonSummary> people)
     {

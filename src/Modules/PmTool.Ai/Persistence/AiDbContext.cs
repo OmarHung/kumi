@@ -38,6 +38,14 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
     public DbSet<ProjectProposalRow> ProjectProposals => Set<ProjectProposalRow>();
 
+    public DbSet<PlanningProposalRow> PlanningProposals => Set<PlanningProposalRow>();
+
+    public DbSet<ProjectChangeProposalRow> ProjectChangeProposals => Set<ProjectChangeProposalRow>();
+
+    public DbSet<CommentProposalRow> CommentProposals => Set<CommentProposalRow>();
+
+    public DbSet<ItemRestoreProposalRow> ItemRestoreProposals => Set<ItemRestoreProposalRow>();
+
     public DbSet<LocalAgentRow> LocalAgents => Set<LocalAgentRow>();
 
     public DbSet<LocalEngineRow> LocalEngines => Set<LocalEngineRow>();
@@ -160,10 +168,13 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
             proposal.Property(p => p.ItemTitle).HasMaxLength(ItemProposalLimits.MaxItemTitleLength);
             proposal.Property(p => p.Changes).HasColumnType(Jsonb);
             proposal.Property(p => p.DescriptionRevision).HasMaxLength(MaxEnumLength);
+            proposal.Property(p => p.ReplyTo).HasColumnType(Jsonb);
             proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
             proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
             proposal.HasIndex(p => new { p.OrganizationId, p.PersonId, p.CreatedAt });
         });
+
+        ConfigureProjectWriteProposals(modelBuilder);
 
         modelBuilder.Entity<NewItemProposalRow>(proposal =>
         {

@@ -33,6 +33,23 @@ internal sealed record AssistantToolContext(
     Guid ConversationId,
     ILogger Logger)
 {
+    /// <summary>週期與里程碑（get_planning、修改建議的 cycleId／milestoneId 檢查）。</summary>
+    public required IPlanningService Planning { get; init; }
+
+    /// <summary>專案說明（get_project_info）。</summary>
+    public required IProjectDescriptionService Descriptions { get; init; }
+
+    /// <summary>項目的附件清單（get_item）。</summary>
+    public required IAttachmentService Attachments { get; init; }
+
+    public required IPlanningProposalCreator PlanningProposals { get; init; }
+
+    public required ICommentProposalCreator CommentProposals { get; init; }
+
+    public required IItemRestoreProposalCreator RestoreProposals { get; init; }
+
+    public required IProjectChangeProposalCreator ProjectChangeProposals { get; init; }
+
     /// <summary>專案對話的工具用：專案對話一定有專案代號（不選專案的對話只組得出組織版的工具，碰不到這裡）。</summary>
     public string RequiredProjectKey => ProjectKey ?? throw new InvalidOperationException("不選專案的對話沒有專案代號。");
 }

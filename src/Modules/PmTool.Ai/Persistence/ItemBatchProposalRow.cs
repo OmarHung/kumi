@@ -21,7 +21,8 @@ internal sealed record ItemBatchProposalRow
     public required string ProjectKey { get; init; }
 
     /// <summary>
-    /// jsonb：每一筆的 <c>{itemKey, title, changes:[{field,value}], comment, expectedDescriptionRevision, error}</c>，依套用的順序；
+    /// jsonb：每一筆的 <c>{itemKey, title, changes:[{field,value}], comment, replyTo, expectedDescriptionRevision, error}</c>，依套用的順序
+    /// （<c>replyTo</c> 是 <see cref="CommentReplyTarget"/> 的形狀，沒有是 null；之前存的沒有這個屬性）；
     /// <c>error</c> 套用後才有。
     /// </summary>
     public required string Items { get; init; }

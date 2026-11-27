@@ -46,6 +46,20 @@ internal sealed class McpServices(IServiceProvider provider)
     public TimeProvider Time => provider.GetService<TimeProvider>() ?? TimeProvider.System;
 
     public IProjectProposalCreator ProjectProposals => provider.GetRequiredService<IProjectProposalCreator>();
+
+    public IProjectDescriptionService Descriptions => provider.GetRequiredService<IProjectDescriptionService>();
+
+    public IPlanningService Planning => provider.GetRequiredService<IPlanningService>();
+
+    public IAttachmentService Attachments => provider.GetRequiredService<IAttachmentService>();
+
+    public IPlanningProposalCreator PlanningProposals => provider.GetRequiredService<IPlanningProposalCreator>();
+
+    public IProjectChangeProposalCreator ProjectChangeProposals => provider.GetRequiredService<IProjectChangeProposalCreator>();
+
+    public ICommentProposalCreator CommentProposals => provider.GetRequiredService<ICommentProposalCreator>();
+
+    public IItemRestoreProposalCreator ItemRestoreProposals => provider.GetRequiredService<IItemRestoreProposalCreator>();
 }
 
 /// <summary>

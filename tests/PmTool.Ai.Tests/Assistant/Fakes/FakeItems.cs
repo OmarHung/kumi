@@ -55,12 +55,14 @@ internal sealed class FakeWorkItemService : IWorkItemService
     public Task<Result<WorkItem>> UpdateAsync(Actor actor, string itemKey, WorkItemPatch patch, CancellationToken cancellationToken)
     {
         _updates.Add((actor, itemKey, patch));
+        Steps.Add("update");
         return Task.FromResult(OnUpdate?.Invoke(itemKey, patch) ?? Items[itemKey]);
     }
 
     public Task<Result<WorkItem>> TransitionAsync(Actor actor, string itemKey, string toState, CancellationToken cancellationToken)
     {
         _transitions.Add((actor, itemKey, toState));
+        Steps.Add("transition");
         return Task.FromResult(OnTransition?.Invoke(itemKey, toState) ?? Items[itemKey]);
     }
 
@@ -91,11 +93,29 @@ internal sealed class FakeWorkItemService : IWorkItemService
     public Task<Result<WorkItem>> RestoreAsync(Actor actor, string itemKey, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
-    public Task<Result<DeletedItemPage>> ListDeletedAsync(
-        Actor actor, string projectKey, DeletedItemQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+    /// <summary>設了就用它回已刪除項目的清單（參數是專案代號與條件）；沒設時不支援。</summary>
+    public Func<string, DeletedItemQuery, Result<DeletedItemPage>>? OnListDeleted { get; set; }
 
-    public Task<Result<WorkItem>> ChangeTypeAsync(Actor actor, string itemKey, string type, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+    public Task<Result<DeletedItemPage>> ListDeletedAsync(
+        Actor actor, string projectKey, DeletedItemQuery query, CancellationToken cancellationToken) =>
+        OnListDeleted is { } handler ? Task.FromResult(handler(projectKey, query)) : throw new NotSupportedException();
+
+    private readonly List<(Actor Actor, string Key, string Type)> _typeChanges = [];
+
+    /// <summary>設了就用它決定改類型的結果；沒設時回項目現在的樣子。</summary>
+    public Func<string, string, Result<WorkItem>>? OnChangeType { get; set; }
+
+    public IReadOnlyList<(Actor Actor, string Key, string Type)> TypeChanges => _typeChanges;
+
+    public Task<Result<WorkItem>> ChangeTypeAsync(Actor actor, string itemKey, string type, CancellationToken cancellationToken)
+    {
+        _typeChanges.Add((actor, itemKey, type));
+        Steps.Add("type");
+        return Task.FromResult(OnChangeType?.Invoke(itemKey, type) ?? Items[itemKey]);
+    }
+
+    /// <summary>每次寫入（改類型、改欄位、改狀態、留言）依發生的順序記下步驟名稱，測套用的順序用。</summary>
+    public List<string> Steps { get; } = [];
 
     public Task<IReadOnlyList<WorkItem>> ListAssignedToMeAsync(Actor actor, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
@@ -131,13 +151,32 @@ internal sealed class FakeItemActivityService : IItemActivityService
 
     public IReadOnlyList<(Actor Actor, string Key, string Body)> Comments => _comments;
 
-    public Task<Result<ItemActivityPage>> ListAsync(Actor actor, string itemKey, ActivityQuery query, CancellationToken cancellationToken) =>
-        Task.FromResult<Result<ItemActivityPage>>(new ItemActivityPage(Activities, null));
+    /// <summary>設成 <see cref="FakeWorkItemService.Steps"/>，留言就會記在同一份依序的紀錄裡。</summary>
+    public List<string>? StepLog { get; set; }
+
+    /// <summary>每次留言的 replyTo，和 <see cref="Comments"/> 同一個順序。</summary>
+    public List<Guid?> ReplyTos { get; } = [];
+
+    /// <summary>每次讀活動的條件；測 list_comments 有沒有只要留言與翻頁用。</summary>
+    public List<ActivityQuery> Queries { get; } = [];
+
+    // 照 Kind 篩、游標是下一筆的位置、一頁最多 Limit 筆：和真的服務同一個形狀，沒給條件時還是全部。
+    public Task<Result<ItemActivityPage>> ListAsync(Actor actor, string itemKey, ActivityQuery query, CancellationToken cancellationToken)
+    {
+        Queries.Add(query);
+        var all = Activities.Where(a => query.Kind is null || a.Kind == query.Kind).ToList();
+        var start = int.TryParse(query.Cursor, out var parsed) ? parsed : 0;
+        var page = all.Skip(start).Take(query.Limit).ToList();
+        var next = start + page.Count < all.Count ? (start + page.Count).ToString() : null;
+        return Task.FromResult<Result<ItemActivityPage>>(new ItemActivityPage(page, next));
+    }
 
     public Task<Result<ItemActivity>> AddCommentAsync(
         Actor actor, string itemKey, string body, Guid? replyTo, CancellationToken cancellationToken)
     {
         _comments.Add((actor, itemKey, body));
+        ReplyTos.Add(replyTo);
+        StepLog?.Add("comment");
         return Task.FromResult(OnComment?.Invoke(body)
             ?? new ItemActivity(Guid.NewGuid(), itemKey, ActivityKind.Commented, actor.PersonId, DateTimeOffset.UnixEpoch) { Comment = body });
     }

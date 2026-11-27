@@ -83,6 +83,10 @@ export const queryKeys = {
   memberProposal: (proposalId: string) => ['ai', 'member-proposals', proposalId],
   itemDeletionProposal: (proposalId: string) => ['ai', 'item-deletion-proposals', proposalId],
   itemBatchProposal: (proposalId: string) => ['ai', 'item-batch-proposals', proposalId],
+  planningProposal: (proposalId: string) => ['ai', 'planning-proposals', proposalId],
+  projectChangeProposal: (proposalId: string) => ['ai', 'project-change-proposals', proposalId],
+  commentProposal: (proposalId: string) => ['ai', 'comment-proposals', proposalId],
+  itemRestoreProposal: (proposalId: string) => ['ai', 'item-restore-proposals', proposalId],
   // 變更集放在專案底下：套用之後讓整個專案失效時，清單與每一份的內容也一起重抓。
   changeSets: (projectKey: string) => ['project', projectKey, 'changesets'],
   changeSet: (projectKey: string, number: number) => ['project', projectKey, 'changesets', number],

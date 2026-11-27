@@ -19,6 +19,8 @@ internal static class McpToolCatalog
         .. StaffingTools.All,
         .. ItemRevisionTools.All,
         .. ProjectProposalTools.All,
+        .. ProjectDetailReadTools.All,
+        .. ProjectWriteProposalTools.All,
     ];
 
     private static readonly FrozenDictionary<string, McpTool> ByName = All.ToFrozenDictionary(tool => tool.Name, StringComparer.Ordinal);

@@ -34,6 +34,8 @@ internal static partial class JobValidation
         "get_project", "list_people", "propose_member_changes",
         "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
         "list_projects", "propose_project", "my_work", "find_items",
+        "list_comments", "list_deleted_items", "get_project_info", "get_planning",
+        "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes",
     ];
 
     private const string McpPath = "/mcp";

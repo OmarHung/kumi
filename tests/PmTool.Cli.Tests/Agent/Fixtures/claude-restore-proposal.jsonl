@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","tools":["mcp__kumi__get_planning","mcp__kumi__propose_item_restores"],"mcp_servers":[{"name":"kumi","status":"connected"}]}
+{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__kumi__get_planning","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"{\"proposalId\": \"3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0eff\"}"}]}]}}
+{"type":"assistant","message":{"id":"m2","role":"assistant","content":[{"type":"tool_use","id":"toolu_2","name":"mcp__kumi__propose_item_restores","input":{"projectKey":"DEMO"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_2","content":"{\"proposalId\": \"3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e44\", \"projectKey\": \"DEMO\"}"}]}}
+{"type":"result","subtype":"success","is_error":false,"result":"好了","usage":{"input_tokens":10,"output_tokens":5}}

@@ -50,11 +50,12 @@ internal static partial class LocalPromptBuilder
         bool supportsStaffing = true,
         bool supportsRevision = true,
         bool supportsMyWork = true,
-        bool supportsFindItems = true) =>
+        bool supportsFindItems = true,
+        bool supportsProjectWrites = true) =>
         Join(
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            ToolSection("local-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"),
+            ToolSection("local-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems, supportsProjectWrites), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty);
 
     /// <summary>主機代理（組織來源）的版本：工具的說法和本機相同，只是引擎跑在 Kumi 主機上、代替發問的人操作，不提「你的電腦」。</summary>
@@ -67,18 +68,19 @@ internal static partial class LocalPromptBuilder
         bool supportsStaffing = true,
         bool supportsRevision = true,
         bool supportsMyWork = true,
-        bool supportsFindItems = true) =>
+        bool supportsFindItems = true,
+        bool supportsProjectWrites = true) =>
         Join(
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            ToolSection("host-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"),
+            ToolSection("host-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems, supportsProjectWrites), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty);
 
     // 沒有的段落（沒選項目、沒有建議）是空字串，不留空行。
     private static string Join(params string[] sections) => string.Join("\n\n", sections.Where(section => section.Length > 0));
 
     /// <summary>kumi 的版本放得進哪些較新的工具（<see cref="AgentToolLists"/>）；舊版少了的工具，提示裡也要拿掉。</summary>
-    private readonly record struct ToolSupport(bool NewItems, bool Staffing, bool Revision, bool MyWork, bool FindItems);
+    private readonly record struct ToolSupport(bool NewItems, bool Staffing, bool Revision, bool MyWork, bool FindItems, bool ProjectWrites = true);
 
     private static readonly string[] StaffingToolLines =
         [AssistantToolNames.GetProject, AssistantToolNames.ListPeople, AssistantToolNames.ProposeMemberChanges];
@@ -86,15 +88,27 @@ internal static partial class LocalPromptBuilder
     private static readonly string[] RevisionToolLines =
         [AssistantToolNames.WithdrawProposal, AssistantToolNames.ProposeItemDeletions, AssistantToolNames.ProposeBulkItemChanges];
 
+    private static readonly string[] ProjectWriteToolLines =
+    [
+        AssistantToolNames.ListComments,
+        AssistantToolNames.ListDeletedItems,
+        AssistantToolNames.GetProjectInfo,
+        AssistantToolNames.GetPlanning,
+        AssistantToolNames.ProposePlanningChanges,
+        AssistantToolNames.ProposeCommentChanges,
+        AssistantToolNames.ProposeItemRestores,
+        AssistantToolNames.ProposeProjectChanges,
+    ];
+
     /// <summary>
     /// 工具的說明段落。kumi 太舊時工作的工具清單少了新工具（沒有 propose_new_items；沒有 get_project、list_people、propose_member_changes；
-    /// 沒有 withdraw_proposal、propose_item_deletions、propose_bulk_item_changes；沒有 my_work；沒有 find_items）：這裡也拿掉它們那幾行，
+    /// 沒有 withdraw_proposal、propose_item_deletions、propose_bulk_item_changes；沒有 my_work；沒有 find_items；沒有 list_comments 等八個專案讀寫的工具）：這裡也拿掉它們那幾行，
     /// 並說明前面提到的地方這一次都不適用，使用者需要時請他更新。
     /// </summary>
     private static string ToolSection(string resource, ToolSupport support, string updateAdvice)
     {
         var text = AssistantPrompt.ReadResource(resource).Trim();
-        if (support is { NewItems: true, Staffing: true, Revision: true, MyWork: true, FindItems: true })
+        if (support is { NewItems: true, Staffing: true, Revision: true, MyWork: true, FindItems: true, ProjectWrites: true })
         {
             return text;
         }
@@ -130,6 +144,11 @@ internal static partial class LocalPromptBuilder
             }
         }
 
+        if (!support.ProjectWrites)
+        {
+            removed.AddRange(ProjectWriteToolLines);
+        }
+
         var lines = text.Split('\n').Where(line => !removed.Any(tool => line.StartsWith($"- {tool}：", StringComparison.Ordinal)));
         var builder = new StringBuilder(string.Join("\n", lines));
         if (!support.NewItems)
@@ -161,6 +180,13 @@ internal static partial class LocalPromptBuilder
         {
             builder.Append(
                 $"\n\n這一次沒有 {AssistantToolNames.FindItems} 這個工具（前面提到它的地方都不適用）：使用者問別人的工作、或要跨專案查某個條件的項目時，告訴他{updateAdvice}。");
+        }
+
+        if (!support.ProjectWrites)
+        {
+            builder.Append(
+                $"\n\n這一次沒有 {string.Join("、", ProjectWriteToolLines)} 這 {ProjectWriteToolLines.Length} 個工具（前面提到它們的地方都不適用）：" +
+                $"要讀完整的留言、已刪除的項目、專案說明、週期與里程碑，或提出週期與里程碑、留言、復原項目、專案名稱與說明的建議時，告訴使用者{updateAdvice}。");
         }
 
         return builder.ToString();

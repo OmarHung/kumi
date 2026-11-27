@@ -131,7 +131,7 @@ public sealed record AssistantTextPart(string Text) : AssistantPart;
 /// <param name="CallId">這則回覆裡的編號。</param>
 /// <param name="Name">
 /// 工具的名稱：get_blueprint、list_templates、get_template、describe_usage、preview_changeset、propose_changeset、get_changeset、
-/// get_item、search_items、propose_item_changes、propose_new_items、get_project、list_people、propose_member_changes、propose_item_deletions、propose_bulk_item_changes、withdraw_proposal、my_work、find_items；組織對話是 list_templates、get_template、list_projects、propose_project、withdraw_proposal、my_work、find_items、list_people。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
+/// get_item、search_items、propose_item_changes、propose_new_items、get_project、list_people、propose_member_changes、propose_item_deletions、propose_bulk_item_changes、withdraw_proposal、my_work、find_items、list_comments、list_deleted_items、get_project_info、get_planning、propose_planning_changes、propose_comment_changes、propose_item_restores、propose_project_changes；組織對話是 list_templates、get_template、list_projects、propose_project、withdraw_proposal、my_work、find_items、list_people。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
 /// </param>
 /// <param name="ChangeSetNumber">propose_changeset 成功時，提出的變更集編號（網頁畫成「變更集 #12」的卡片）。</param>
 /// <param name="Error">失敗時給人看的原因，繁體中文。</param>
@@ -155,6 +155,14 @@ public sealed record AssistantToolPart(
 
     /// <summary>propose_project 成功時，建立的新專案建議（<see cref="IProjectProposalService"/>；網頁畫成有「建立專案」「不要」的卡片）。</summary>
     public Guid? ProjectProposalId { get; init; }
+
+    /// <summary>
+    /// 建議工具成功時建立的建議編號，種類看 <see cref="AssistantToolPart.Name"/>：propose_planning_changes（<see cref="IPlanningProposalService"/>）、
+    /// propose_comment_changes（<see cref="ICommentProposalService"/>）、propose_item_restores（<see cref="IItemRestoreProposalService"/>）、
+    /// propose_project_changes（<see cref="IProjectChangeProposalService"/>）。之後新增的建議種類都放在這裡，不再每種加一個欄位；
+    /// 上面六個欄位是之前的種類，照舊。
+    /// </summary>
+    public Guid? ProposalId { get; init; }
 }
 
 /// <summary>一則訊息。</summary>

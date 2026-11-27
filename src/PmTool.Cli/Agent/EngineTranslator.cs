@@ -36,6 +36,10 @@ internal static class TranslatorSupport
     public const string ProposeItemDeletions = "propose_item_deletions";
     public const string ProposeBulkItemChanges = "propose_bulk_item_changes";
     public const string ProposeProject = "propose_project";
+    public const string ProposePlanningChanges = "propose_planning_changes";
+    public const string ProposeProjectChanges = "propose_project_changes";
+    public const string ProposeCommentChanges = "propose_comment_changes";
+    public const string ProposeItemRestores = "propose_item_restores";
 
     public static JsonDocument? TryParse(string line)
     {
@@ -101,6 +105,12 @@ internal static class TranslatorSupport
 
     /// <summary>propose_bulk_item_changes 成功時同樣帶 proposalId，同樣只認 GUID。</summary>
     public static string? ItemBatchProposalId(string text) => ProposalIdOf(text);
+
+    /// <summary>
+    /// 之後新增的建議種類共用的 proposalId：只有這四個建議工具成功時才從結果讀，別的工具一律 null，同樣只認 GUID。
+    /// </summary>
+    public static string? GenericProposalId(string toolName, string text) =>
+        toolName is ProposePlanningChanges or ProposeProjectChanges or ProposeCommentChanges or ProposeItemRestores ? ProposalIdOf(text) : null;
 
     private static string? ProposalIdOf(string text)
     {

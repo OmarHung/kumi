@@ -41,5 +41,13 @@ internal static class AssistantToolSet
         new ProposeItemDeletionsTool(context),
         new ProposeBulkItemChangesTool(context),
         new WithdrawProposalTool(context),
+        new ListCommentsTool(context),
+        new ListDeletedItemsTool(context),
+        new GetProjectInfoTool(context),
+        new GetPlanningTool(context),
+        new ProposePlanningChangesTool(context),
+        new ProposeCommentChangesTool(context),
+        new ProposeItemRestoresTool(context),
+        new ProposeProjectChangesTool(context),
     ];
 }

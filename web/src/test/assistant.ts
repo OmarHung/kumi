@@ -9,7 +9,11 @@ import type {
   AssistantMessage,
   AssistantMessageInput,
   ItemBatchEntry,
+  CommentProposal,
   ItemBatchProposal,
+  ItemRestoreProposal,
+  PlanningProposal,
+  ProjectChangeProposal,
   ItemDeletionProposal,
   ItemProposal,
   MemberChange,
@@ -236,6 +240,7 @@ export function makeItemProposal(overrides: Partial<ItemProposal> = {}): ItemPro
     itemTitle: '修正登入頁',
     changes: [{ field: 'status', value: 'done' }],
     comment: null,
+    replyTo: null,
     status: 'pending',
     createdAt: '2026-11-23T02:00:00Z',
     decidedAt: null,
@@ -507,6 +512,7 @@ export function makeItemBatchEntry(overrides: Partial<ItemBatchEntry> = {}): Ite
     itemTitle: '修正登入頁',
     changes: [{ field: 'dueDate', value: '2026-12-15' }],
     comment: null,
+    replyTo: null,
     error: null,
     ...overrides,
   };
@@ -551,4 +557,170 @@ export function serveItemBatchProposal(
     }),
   );
   return { applied: () => applyCount, dismissed: () => dismissCount };
+}
+
+/** 四種新建議（週期與里程碑、專案、留言、復原項目）共用的假端點：apply 成功時換成 applied（applied 可蓋掉結果）；onApply 可回失敗。 */
+function serveProposal<T extends { readonly id: string; readonly status: string }>(
+  path: string,
+  proposal: T,
+  onApply: () => Response | null,
+  applied: Partial<T>,
+): ProposalBackend {
+  let current = proposal;
+  let applyCount = 0;
+  let dismissCount = 0;
+  server.use(
+    http.get(path, () => ok(current)),
+    http.post(`${path}/apply`, () => {
+      applyCount += 1;
+      const failed = onApply();
+      if (failed !== null) return failed;
+      current = { ...current, status: 'applied', decidedAt: '2026-11-27T02:05:00Z', ...applied };
+      return ok(current);
+    }),
+    http.post(`${path}/dismiss`, () => {
+      dismissCount += 1;
+      current = { ...current, status: 'dismissed', decidedAt: '2026-11-27T02:05:00Z' };
+      return ok(current);
+    }),
+  );
+  return { applied: () => applyCount, dismissed: () => dismissCount };
+}
+
+export function makePlanningProposal(overrides: Partial<PlanningProposal> = {}): PlanningProposal {
+  return {
+    id: 'pl-1',
+    projectKey: 'SMK',
+    changes: [
+      {
+        target: 'cycle',
+        action: 'create',
+        id: null,
+        before: null,
+        after: { name: '十二月週期', startDate: '2026-12-01', endDate: '2026-12-14', dueDate: null, description: null },
+        itemCount: null,
+        error: null,
+      },
+      {
+        target: 'milestone',
+        action: 'delete',
+        id: 'ms-1',
+        before: { name: '第一版上線', startDate: null, endDate: null, dueDate: '2026-12-31', description: null },
+        after: null,
+        itemCount: 3,
+        error: null,
+      },
+    ],
+    reason: null,
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+export function servePlanningProposal(
+  proposal: PlanningProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<PlanningProposal> = {},
+): ProposalBackend {
+  return serveProposal(`/v1/ai/planning-proposals/${proposal.id}`, proposal, onApply, applied);
+}
+
+export function makeProjectChangeProposal(overrides: Partial<ProjectChangeProposal> = {}): ProjectChangeProposal {
+  return {
+    id: 'pc-1',
+    projectKey: 'SMK',
+    name: '新的名稱',
+    archived: null,
+    changesDescription: false,
+    description: null,
+    before: { name: '舊的名稱', archived: false, description: null, descriptionUpdatedAt: null },
+    reason: null,
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+export function serveProjectChangeProposal(
+  proposal: ProjectChangeProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<ProjectChangeProposal> = {},
+): ProposalBackend {
+  return serveProposal(`/v1/ai/project-change-proposals/${proposal.id}`, proposal, onApply, applied);
+}
+
+export function makeCommentProposal(overrides: Partial<CommentProposal> = {}): CommentProposal {
+  return {
+    id: 'cm-1',
+    projectKey: 'SMK',
+    changes: [
+      {
+        itemKey: 'SMK-12',
+        commentId: 'c-1',
+        action: 'edit',
+        authorName: '王小明',
+        commentedAt: '2026-11-26T03:00:00Z',
+        excerpt: '先等客戶回覆',
+        body: '客戶已經回覆，可以開始了',
+        error: null,
+      },
+      {
+        itemKey: 'SMK-13',
+        commentId: 'c-2',
+        action: 'delete',
+        authorName: '王小明',
+        commentedAt: '2026-11-26T04:00:00Z',
+        excerpt: '貼錯地方了',
+        body: null,
+        error: null,
+      },
+    ],
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+export function serveCommentProposal(
+  proposal: CommentProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<CommentProposal> = {},
+): ProposalBackend {
+  return serveProposal(`/v1/ai/comment-proposals/${proposal.id}`, proposal, onApply, applied);
+}
+
+export function makeItemRestoreProposal(overrides: Partial<ItemRestoreProposal> = {}): ItemRestoreProposal {
+  return {
+    id: 'ir-1',
+    projectKey: 'SMK',
+    items: [
+      { itemKey: 'SMK-45', title: '重複的任務甲', deletedAt: '2026-11-26T05:00:00Z' },
+      { itemKey: 'SMK-46', title: '重複的任務乙', deletedAt: '2026-11-26T05:00:00Z' },
+    ],
+    reason: null,
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    restoredKeys: [],
+    error: null,
+    ...overrides,
+  };
+}
+
+export function serveItemRestoreProposal(
+  proposal: ItemRestoreProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<ItemRestoreProposal> = {},
+): ProposalBackend {
+  return serveProposal(`/v1/ai/item-restore-proposals/${proposal.id}`, proposal, onApply, {
+    restoredKeys: proposal.items.map((item) => item.itemKey),
+    ...applied,
+  });
 }

@@ -81,6 +81,14 @@ internal sealed class FakeModules
 
     public FakeItemBatchProposals ItemBatchProposals { get; } = new();
 
+    public FakePlanningProposals PlanningProposals { get; } = new();
+
+    public FakeProjectChangeProposals ProjectChangeProposals { get; } = new();
+
+    public FakeCommentProposals CommentProposals { get; } = new();
+
+    public FakeItemRestoreProposals ItemRestoreProposals { get; } = new();
+
     public FakeProposalLedger ProposalLedger { get; } = new();
 
     public FakeStaffingBrief Staffing { get; } = new();

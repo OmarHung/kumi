@@ -27,4 +27,10 @@ public sealed record ItemProposalDraft(string ProjectKey, string ItemKey, IReadO
     /// 讀了之後說明被別人改過就整份不套用。沒有改說明時不用給。
     /// </summary>
     public string? DescriptionRevision { get; init; }
+
+    /// <summary>
+    /// <see cref="ItemProposalDraft.Comment"/> 是回覆哪一則留言（留言的 id，get_item 或 list_comments 回的）；null 是新的一則。
+    /// 要是這個項目的、沒刪除的留言（回覆一則回覆等於回覆它的那一則最上層留言）；沒有 comment 時給了是錯誤。
+    /// </summary>
+    public Guid? ReplyTo { get; init; }
 }

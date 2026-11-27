@@ -180,7 +180,7 @@ internal sealed class ItemBatchProposalService(
         try
         {
             return await applier.ApplyAsync(
-                actor, entry.ItemKey, ItemBatchMapper.ChangesOf(entry), entry.Comment, entry.ExpectedDescriptionRevision, cancellationToken);
+                actor, entry.ItemKey, ItemBatchMapper.ChangesOf(entry), entry.Comment, entry.ExpectedDescriptionRevision, entry.ReplyTo?.CommentId, cancellationToken);
         }
         catch (Exception exception) when (somethingDone && exception is not (OutOfMemoryException or OperationCanceledException))
         {

@@ -24,6 +24,9 @@ internal sealed record ToolOutcome(string RawResult, bool IsOk, string? Error, l
     /// <summary>propose_bulk_item_changes 成功時結果裡的 proposalId。</summary>
     public Guid? ItemBatchProposalId { get; init; }
 
+    /// <summary>用通用編號的建議工具（<see cref="Proposals.ProposalTools"/>）成功時結果裡的 proposalId。</summary>
+    public Guid? ProposalId { get; init; }
+
     private const string UnreadableError = "工具沒有回傳可以讀的結果。";
 
     /// <summary>
@@ -53,7 +56,7 @@ internal sealed record ToolOutcome(string RawResult, bool IsOk, string? Error, l
                 return new ToolOutcome(raw, false, string.IsNullOrWhiteSpace(error) ? "工具回報失敗。" : error, null);
             }
 
-            return new ToolOutcome(raw, true, null, ChangeSetNumberOf(root)) { ItemProposalId = ProposalIdOf(root), ProjectProposalId = ProposalIdOf(root), NewItemProposalId = ProposalIdOf(root), MemberProposalId = ProposalIdOf(root), ItemDeletionProposalId = ProposalIdOf(root), ItemBatchProposalId = ProposalIdOf(root) };
+            return new ToolOutcome(raw, true, null, ChangeSetNumberOf(root)) { ItemProposalId = ProposalIdOf(root), ProjectProposalId = ProposalIdOf(root), NewItemProposalId = ProposalIdOf(root), MemberProposalId = ProposalIdOf(root), ItemDeletionProposalId = ProposalIdOf(root), ItemBatchProposalId = ProposalIdOf(root), ProposalId = ProposalIdOf(root) };
         }
         catch (JsonException)
         {

@@ -1,7 +1,7 @@
 import { useId, useRef } from 'react';
 import { Link } from 'react-router';
-import type { ItemProposal } from '../../api/aiTypes';
-import { useDecideItemProposal, useItemProposal } from '../../api/assistant';
+import type { ItemProposal, ReplyTarget } from '../../api/aiTypes';
+import { useDecideItemProposal, useItemProposal, useProposalPlanningNames } from '../../api/assistant';
 import { errorMessage, isApiError } from '../../api/http';
 import { useItem, useProject } from '../../api/queries';
 import { Button } from '../../components/Button/Button';
@@ -107,16 +107,23 @@ function ValueRow({ row }: { readonly row: Extract<ChangeRow, { kind: 'value' }>
           </>
         )}
         <span className={styles.after}>{row.after}</span>
+        {row.note !== undefined && <p className={styles.commentNote}>{row.note}</p>}
       </dd>
     </div>
   );
 }
 
-function CommentRow({ text }: { readonly text: string }) {
+/** 「回覆 某某：摘錄」：留言是回覆哪一則。 */
+export function replyText(replyTo: ReplyTarget): string {
+  return `回覆 ${replyTo.authorName}：${replyTo.excerpt}`;
+}
+
+function CommentRow({ text, replyTo }: { readonly text: string; readonly replyTo: ReplyTarget | null }) {
   return (
     <div className={styles.row}>
       <dt className={styles.label}>留言</dt>
       <dd className={styles.value}>
+        {replyTo !== null && <p className={styles.commentNote}>{replyText(replyTo)}</p>}
         <blockquote className={styles.quote}>
           <Markdown text={text} mentionNames={NO_MENTIONS} hasAttachments={false} linkHosts="always" />
         </blockquote>
@@ -147,7 +154,7 @@ function PendingBody({ proposal, rows }: PendingProps) {
     <>
       <dl className={styles.rows}>
         {rows.map((row) => (row.kind === 'description' ? <DescriptionRow key={row.field} row={row} /> : <ValueRow key={row.field} row={row} />))}
-        {proposal.comment !== null && <CommentRow text={proposal.comment} />}
+        {proposal.comment !== null && <CommentRow text={proposal.comment} replyTo={proposal.replyTo} />}
       </dl>
       <div className={styles.actions}>
         <Button
@@ -197,7 +204,12 @@ function ClosedBody({ proposal, summary }: { readonly proposal: ItemProposal; re
 function LoadedCard({ proposal }: { readonly proposal: ItemProposal }) {
   const project = useProject(proposal.projectKey);
   const item = useItem(proposal.itemKey, proposal.status === 'pending');
-  const rows = changeRows(proposal.changes, project.data, item.data);
+  const planning = useProposalPlanningNames(
+    proposal.projectKey,
+    proposal.changes.some((change) => change.field === 'cycleId' && change.value !== null),
+    proposal.changes.some((change) => change.field === 'milestoneId' && change.value !== null),
+  );
+  const rows = changeRows(proposal.changes, project.data, item.data, planning);
   const summary = changedLabels(proposal.changes, project.data, proposal.comment !== null);
   return (
     <section className={styles.card} aria-label={`修改建議 ${proposal.itemKey}`}>

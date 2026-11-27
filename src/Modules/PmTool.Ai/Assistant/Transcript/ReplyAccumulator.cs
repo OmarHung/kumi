@@ -231,6 +231,7 @@ internal sealed class ReplyAccumulator : IReplyRecorder
             MemberProposalId = outcome.IsOk && running.Name == AssistantToolNames.ProposeMemberChanges ? outcome.MemberProposalId : null,
             ItemDeletionProposalId = outcome.IsOk && running.Name == AssistantToolNames.ProposeItemDeletions ? outcome.ItemDeletionProposalId : null,
             ItemBatchProposalId = outcome.IsOk && running.Name == AssistantToolNames.ProposeBulkItemChanges ? outcome.ItemBatchProposalId : null,
+            ProposalId = outcome.IsOk && Proposals.ProposalTools.UsesGenericId(running.Name) ? outcome.ProposalId : null,
             Error = outcome.IsOk ? null : outcome.Error,
         };
         _parts[index] = finished;

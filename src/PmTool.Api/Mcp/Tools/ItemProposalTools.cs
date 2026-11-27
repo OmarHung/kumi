@@ -19,9 +19,9 @@ internal static class ItemProposalTools
     [
         new("propose_item_changes",
             "對一個項目提出修改建議（不會真的改）：使用者在 Kumi 網頁上看到後按「套用」才會寫入。changes 是 [{field, value}]，" +
-            $"field 可以是 title、description（Markdown）、status（狀態的 key）、assignee（人員編號，null 清掉）、priority（none、low、medium、high、urgent）、" +
+            $"field 可以是 title、description（Markdown）、status（狀態的 key）、type（項目類型的 key；改類型可能讓狀態回到新流程的起點）、parentKey（上層項目編號，null 移到最上層）、cycleId、milestoneId（get_project 或 get_planning 回的 id，null 清掉）、assignee（人員編號，null 清掉）、priority（none、low、medium、high、urgent）、" +
             $"startDate、dueDate（yyyy-MM-dd，null 清掉）、estimate（數字，null 清掉）、fields.<自訂欄位的 key>；同一個欄位只能出現一次，最多 {AiRules.MaxItemProposalChanges} 個。" +
-            "comment 是要一併加上的留言。改說明時一定要帶 descriptionRevision（get_item 回的那個），沒帶會被擋下；說明超過 20000 字的項目不能改說明，請改用留言。assignee 的值寫 get_item 回的 members 裡的 id，或 me、none、專案成員的 Email。留言裡要提及成員時寫成 @[名稱](mention:<members 裡的 id>)。提出之後告訴使用者「請按套用」，不要說已經改好了。",
+            "comment 是要一併加上的留言；replyTo 是回覆哪一則留言（list_comments 或 get_item 回的留言 id），沒給是新的一則。改說明時一定要帶 descriptionRevision（get_item 回的那個），沒帶會被擋下；說明超過 20000 字的項目不能改說明，請改用留言。assignee 的值寫 get_item 回的 members 裡的 id，或 me、none、專案成員的 Email。留言裡要提及成員時寫成 @[名稱](mention:<members 裡的 id>)。提出之後告訴使用者「請按套用」，不要說已經改好了。",
             McpSchemas.Object(
                 required: ["projectKey", "itemKey"],
                 ("projectKey", McpSchemas.Text("這一則對話的專案代號，項目要在這個專案裡。")),
@@ -33,7 +33,8 @@ internal static class ItemProposalTools
                         ("field", McpSchemas.Text("欄位名稱。")),
                         ("value", McpSchemas.Any("新的值，形狀依欄位；null 是清掉。"))))),
                 ("descriptionRevision", McpSchemas.Text("改說明時必填：get_item 回的 descriptionRevision。")),
-                ("comment", McpSchemas.Text("要加的留言（Markdown）。"))),
+                ("comment", McpSchemas.Text("要加的留言（Markdown）。")),
+                ("replyTo", McpSchemas.Text("回覆哪一則留言（留言的 id）；要有 comment 才能給。"))),
             AccessTokenScope.AgentRun, ReadOnly: false, ProposeAsync),
         new("propose_new_items",
             $"建議新增項目（不會真的建立）：使用者在 Kumi 網頁上看到後按「全部建立」才會以他自己的身分建立。一份建議 1 到 {AiRules.MaxNewItemsPerProposal} 個項目，依順序建立；" +
@@ -107,6 +108,7 @@ internal static class ItemProposalTools
             projectKey, context.Item(arguments.RequiredPlain("itemKey")), changes, arguments.OptionalString("comment"))
         {
             DescriptionRevision = arguments.OptionalPlain("descriptionRevision"),
+            ReplyTo = ProjectWriteProposalTools.OptionalGuid(arguments, "replyTo"),
             ConversationId = context.ConversationId,
         };
         var created = await context.Services.ItemProposals.CreateAsync(context.Actor, draft, cancellationToken);

@@ -129,6 +129,33 @@ public static class AiErrorCodes
     /// <summary>新專案建議已經建立或作廢（409）。</summary>
     public const string ProjectProposalClosed = "ai.project_proposal_closed";
 
+    /// <summary>週期與里程碑的建議不存在或不是自己的（404）。</summary>
+    public const string PlanningProposalNotFound = "ai.planning_proposal_not_found";
+
+    /// <summary>週期與里程碑的建議已經套用、作廢或正在建立（409）。</summary>
+    public const string PlanningProposalClosed = "ai.planning_proposal_closed";
+
+    /// <summary>改專案的建議不存在或不是自己的（404）。</summary>
+    public const string ProjectChangeProposalNotFound = "ai.project_change_proposal_not_found";
+
+    /// <summary>改專案的建議已經套用或作廢（409）。</summary>
+    public const string ProjectChangeProposalClosed = "ai.project_change_proposal_closed";
+
+    /// <summary>改專案說明的建議：專案說明在建立建議之後被別人改過，整份沒有套用（409）。</summary>
+    public const string ProjectChangeConflict = "ai.project_change_conflict";
+
+    /// <summary>留言建議不存在或不是自己的（404）。</summary>
+    public const string CommentProposalNotFound = "ai.comment_proposal_not_found";
+
+    /// <summary>留言建議已經套用或作廢（409）。</summary>
+    public const string CommentProposalClosed = "ai.comment_proposal_closed";
+
+    /// <summary>復原項目的建議不存在或不是自己的（404）。</summary>
+    public const string ItemRestoreProposalNotFound = "ai.item_restore_proposal_not_found";
+
+    /// <summary>復原項目的建議已經套用或作廢（409）。</summary>
+    public const string ItemRestoreProposalClosed = "ai.item_restore_proposal_closed";
+
     /// <summary>不選專案的組織對話不收這個東西（選的項目）（422）。</summary>
     public const string OrganizationChatUnsupported = "ai.organization_chat_unsupported";
 

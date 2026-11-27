@@ -250,6 +250,22 @@ public sealed class EngineSpecTests
     }
 
     [Test]
+    public void KnownTools_IncludeTheProjectWriteTools_SoAJobWithThemIsNotRefused()
+    {
+        // Assert：不認得的工具會讓整件工作不跑（kumi 0.20.0 起的八個）。
+        string[] tools =
+        [
+            "list_comments", "list_deleted_items", "get_project_info", "get_planning",
+            "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes",
+        ];
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(JobValidation.KnownTools, Is.SupersetOf(tools));
+            Assert.That(JobValidation.Check(TestJobs.Make() with { AllowedTools = ["get_item", .. tools] }, Server), Is.Null);
+        }
+    }
+
+    [Test]
     public void KnownTools_IncludeMyWork_SoAJobWithItIsNotRefused()
     {
         // Assert：不認得的工具會讓整件工作不跑。

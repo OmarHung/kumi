@@ -79,9 +79,9 @@ describe('整頁的 AI 助理：選項目', () => {
         makeAssistantMessage({
           id: 'a1',
           parts: [
-            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null },
-            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null },
-            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null },
+            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null, proposalId: null },
+            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null, proposalId: null },
+            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null, proposalId: null },
           ],
         }),
       ],
@@ -104,7 +104,7 @@ describe('整頁的 AI 助理：選項目', () => {
     const proposal = makeNewItemProposal();
     serveNewItemProposal(proposal);
     server.use(http.get('/v1/projects/SMK', () => ok(smkDetail())));
-    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null } as const;
+    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null, proposalId: null } as const;
     serveConversation('SMK', {
       conversation: makeConversationSummary({ id: 'conv-1', messageCount: 2 }),
       messages: [
@@ -126,7 +126,7 @@ describe('整頁的 AI 助理：選項目', () => {
     // Arrange
     const proposal = makeMemberProposal();
     serveMemberProposal(proposal);
-    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null } as const;
+    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null, proposalId: null } as const;
     serveConversation('SMK', {
       conversation: makeConversationSummary({ id: 'conv-1', messageCount: 2 }),
       messages: [
@@ -151,7 +151,7 @@ describe('整頁的 AI 助理：選項目', () => {
     serveItemDeletionProposal(deletion);
     serveItemBatchProposal(batch);
     server.use(http.get('/v1/projects/SMK', () => ok(smkDetail())));
-    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null } as const;
+    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null, proposalId: null } as const;
     serveConversation('SMK', {
       conversation: makeConversationSummary({ id: 'conv-1', messageCount: 2 }),
       messages: [

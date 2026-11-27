@@ -4,7 +4,7 @@ using PmTool.Work;
 namespace PmTool.Ai.Proposals;
 
 /// <summary>
-/// 七種建議的服務，依種類讀現在的狀態與作廢，結果都換成同一個 <see cref="ProposalStatusEntry"/>。
+/// 十一種建議的服務，依種類讀現在的狀態與作廢，結果都換成同一個 <see cref="ProposalStatusEntry"/>。
 /// 讀與作廢都用發問的人的 <see cref="Actor"/>：每個服務自己判斷「是不是他的、專案還看不看得到」。
 /// </summary>
 internal sealed class ProposalServices(
@@ -14,6 +14,10 @@ internal sealed class ProposalServices(
     IItemDeletionProposalService deletions,
     IMemberProposalService members,
     IProjectProposalService projects,
+    IPlanningProposalService planning,
+    ICommentProposalService comments,
+    IItemRestoreProposalService restores,
+    IProjectChangeProposalService projectChanges,
     IBlueprintChangeService changes)
 {
     private static readonly HashSet<string> NotFoundCodes = new(StringComparer.Ordinal)
@@ -24,6 +28,10 @@ internal sealed class ProposalServices(
         AiErrorCodes.ItemDeletionProposalNotFound,
         AiErrorCodes.MemberProposalNotFound,
         AiErrorCodes.ProjectProposalNotFound,
+        AiErrorCodes.PlanningProposalNotFound,
+        AiErrorCodes.CommentProposalNotFound,
+        AiErrorCodes.ItemRestoreProposalNotFound,
+        AiErrorCodes.ProjectChangeProposalNotFound,
     };
 
     private static readonly HashSet<string> ClosedCodes = new(StringComparer.Ordinal)
@@ -34,6 +42,10 @@ internal sealed class ProposalServices(
         AiErrorCodes.ItemDeletionProposalClosed,
         AiErrorCodes.MemberProposalClosed,
         AiErrorCodes.ProjectProposalClosed,
+        AiErrorCodes.PlanningProposalClosed,
+        AiErrorCodes.CommentProposalClosed,
+        AiErrorCodes.ItemRestoreProposalClosed,
+        AiErrorCodes.ProjectChangeProposalClosed,
     };
 
     /// <param name="projectKey">變更集要用；其他種類不看。</param>
@@ -54,6 +66,10 @@ internal sealed class ProposalServices(
             ProposalKind.ItemDeletions => Map(await deletions.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.Members => Map(await members.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.Project => Map(await projects.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.Planning => Map(await planning.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.Comments => Map(await comments.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.ItemRestores => Map(await restores.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.ProjectChanges => Map(await projectChanges.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             _ => ProposalFailures.NotFound(),
         };
     }
@@ -70,6 +86,10 @@ internal sealed class ProposalServices(
             ProposalKind.ItemDeletions => Map(await deletions.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.Members => Map(await members.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.Project => Map(await projects.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.Planning => Map(await planning.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.Comments => Map(await comments.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.ItemRestores => Map(await restores.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.ProjectChanges => Map(await projectChanges.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             _ => ProposalFailures.NotWithdrawable(),
         };
         return result.Failure is { } failure ? Translate(failure) : result;

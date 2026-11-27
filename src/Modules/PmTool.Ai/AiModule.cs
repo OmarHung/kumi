@@ -137,6 +137,16 @@ public static class AiModule
         services.TryAddScoped<IProjectProposalCreator, ProjectProposalCreator>();
         services.TryAddScoped<IProjectProposalService, ProjectProposalService>();
 
+        // 週期與里程碑、改專案、留言、復原項目的建議（internal/HANDOFF-ai-coverage.md）：同樣只建立建議，使用者按下去才以自己的身分寫入。
+        services.TryAddScoped<IPlanningProposalCreator, PlanningProposals.PlanningProposalCreator>();
+        services.TryAddScoped<IPlanningProposalService, PlanningProposals.PlanningProposalService>();
+        services.TryAddScoped<IProjectChangeProposalCreator, ProjectChangeProposals.ProjectChangeProposalCreator>();
+        services.TryAddScoped<IProjectChangeProposalService, ProjectChangeProposals.ProjectChangeProposalService>();
+        services.TryAddScoped<ICommentProposalCreator, CommentProposals.CommentProposalCreator>();
+        services.TryAddScoped<ICommentProposalService, CommentProposals.CommentProposalService>();
+        services.TryAddScoped<IItemRestoreProposalCreator, ItemRestoreProposals.ItemRestoreProposalCreator>();
+        services.TryAddScoped<IItemRestoreProposalService, ItemRestoreProposals.ItemRestoreProposalService>();
+
         // 這則對話的建議與現在的狀態（每次回覆前告訴模型）、撤回：從對話存下的工具段落讀編號，問各服務。
         services.TryAddScoped<Proposals.ProposalServices>();
         services.TryAddScoped<IAssistantProposalLedger, Proposals.AssistantProposalLedger>();

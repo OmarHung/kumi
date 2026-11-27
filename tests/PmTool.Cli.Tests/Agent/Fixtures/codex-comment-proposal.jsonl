@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"t1"}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"get_planning","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"kumi","tool":"get_planning","status":"completed","result":{"content":[{"type":"text","text":"{\"proposalId\": \"3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0eff\"}"}]}}}
+{"type":"item.started","item":{"id":"item_2","type":"mcp_tool_call","server":"kumi","tool":"propose_comment_changes","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"mcp_tool_call","server":"kumi","tool":"propose_comment_changes","status":"completed","result":{"content":[{"type":"text","text":"{\"proposalId\": \"3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e43\", \"projectKey\": \"DEMO\"}"}]}}}
+{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}

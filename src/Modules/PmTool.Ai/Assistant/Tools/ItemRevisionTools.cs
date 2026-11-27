@@ -55,12 +55,13 @@ internal sealed class ProposeItemDeletionsTool(AssistantToolContext context) : A
 internal sealed class ProposeBulkItemChangesTool(AssistantToolContext context) : AssistantTool(
     AssistantToolNames.ProposeBulkItemChanges,
     $"對兩個以上的項目一次提出修改建議（不會真的改）：每個項目各自一組欄位修改（值可以不同，例如六個任務各自的到期日）與一則留言，一張卡片，使用者按一次「全部套用」才會寫入。"
-    + $"items 是 [{{itemKey, changes, comment?, expectedDescriptionRevision?}}]（1 到 {AiRules.MaxItemsPerBatchProposal} 個項目，同一個項目只出現一次）；changes 的寫法和 propose_item_changes 完全一樣"
-    + "（field 可以是 title、description、status、assignee、priority、startDate、dueDate、estimate、fields.<自訂欄位的 key>；每個項目最多 "
+    + $"items 是 [{{itemKey, changes, comment?, replyTo?, expectedDescriptionRevision?}}]（1 到 {AiRules.MaxItemsPerBatchProposal} 個項目，同一個項目只出現一次）；changes 的寫法和 propose_item_changes 完全一樣"
+    + "（field 可以是 title、description、status、assignee、priority、startDate、dueDate、estimate、type、parentKey、cycleId、milestoneId、fields.<自訂欄位的 key>；每個項目最多 "
     + $"{AiRules.MaxItemProposalChanges} 個欄位）。改某個項目的說明時，那一筆一定要帶 expectedDescriptionRevision（get_item 回的 descriptionRevision）。"
+    + "改 type 可能讓那個項目的狀態回到新流程的起點，同一筆裡的 status 與 fields.* 照新的類型檢查；要回覆某一則留言，那一筆帶 replyTo（留言 id，要和 comment 一起給）。"
     + "要改兩個以上的項目時用它，不要一個一個提 propose_item_changes。提出之後告訴使用者「請按全部套用」，不要說已經改好了。",
     $$$$"""
-    {"type":"object","properties":{"items":{"type":"array","description":"要改的項目，最多 {{{{AiRules.MaxItemsPerBatchProposal}}}} 個","items":{"type":"object","properties":{"itemKey":{"type":"string","description":"項目編號，例如 WEB-12"},"changes":{"type":"array","description":"這個項目要改的欄位，寫法同 propose_item_changes","items":{"type":"object","properties":{"field":{"type":"string","description":"欄位名稱"},"value":{"description":"新的值，形狀依欄位；null 是清掉"}},"required":["field","value"],"additionalProperties":false}},"comment":{"type":"string","description":"要加的留言（Markdown）"},"expectedDescriptionRevision":{"type":"string","description":"改說明時必填：get_item 回的 descriptionRevision"}},"required":["itemKey"],"additionalProperties":false}}},"required":["items"],"additionalProperties":false}
+    {"type":"object","properties":{"items":{"type":"array","description":"要改的項目，最多 {{{{AiRules.MaxItemsPerBatchProposal}}}} 個","items":{"type":"object","properties":{"itemKey":{"type":"string","description":"項目編號，例如 WEB-12"},"changes":{"type":"array","description":"這個項目要改的欄位，寫法同 propose_item_changes","items":{"type":"object","properties":{"field":{"type":"string","description":"欄位名稱"},"value":{"description":"新的值，形狀依欄位；null 是清掉"}},"required":["field","value"],"additionalProperties":false}},"comment":{"type":"string","description":"要加的留言（Markdown）"},"replyTo":{"type":"string","description":"要回覆的留言 id（要和 comment 一起給）"},"expectedDescriptionRevision":{"type":"string","description":"改說明時必填：get_item 回的 descriptionRevision"}},"required":["itemKey"],"additionalProperties":false}}},"required":["items"],"additionalProperties":false}
     """,
     context)
 {
@@ -134,7 +135,16 @@ internal sealed class ProposeBulkItemChangesTool(AssistantToolContext context) :
             }
         }
 
-        return (new ItemBatchEntryDraft(itemKey, changes, Text(element, "comment"), Text(element, "expectedDescriptionRevision")), null);
+        var replyTo = ItemChangeArguments.ReadReplyTo(element, path);
+        if (replyTo.Error is { } replyError)
+        {
+            return (null, replyError);
+        }
+
+        return (new ItemBatchEntryDraft(itemKey, changes, Text(element, "comment"), Text(element, "expectedDescriptionRevision"))
+        {
+            ReplyTo = replyTo.Value,
+        }, null);
     }
 
     private static string? Text(JsonElement element, string name) =>

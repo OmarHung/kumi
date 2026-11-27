@@ -24,6 +24,7 @@ docs/CLI.md                                 url-credential   :\/\/帳號:密碼@
 src/PmTool.Cli/Settings/Credentials.cs      url-credential   :\/\/帳號:密碼@
 
 # 測試：私鑰的標頭（測「會擋下私鑰」，只有標頭、沒有金鑰本體）
+tests/PmTool.Ai.Tests/ProjectChangeProposals/ProjectChangeProposalCreateTests.cs  private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
 tests/PmTool.Api.Tests/RealStack/ProjectDescriptionFlowTests.cs    private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
 tests/PmTool.Knowledge.Tests/Pages/PageCreationTests.cs            private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----
 tests/PmTool.Knowledge.Tests/Pages/PageUpdateTests.cs              private-key  -----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----

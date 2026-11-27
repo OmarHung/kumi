@@ -10,7 +10,13 @@ internal static class ItemBatchMapper
 
     /// <summary>存起來的一筆。<c>Error</c> 套用後才有；<c>ExpectedDescriptionRevision</c> 只有改說明的才有。</summary>
     internal sealed record StoredEntry(
-        string ItemKey, string Title, List<StoredChange> Changes, string? Comment, string? ExpectedDescriptionRevision, string? Error);
+        string ItemKey,
+        string Title,
+        List<StoredChange> Changes,
+        string? Comment,
+        string? ExpectedDescriptionRevision,
+        string? Error,
+        CommentReplyTarget? ReplyTo = null);
 
     internal sealed record StoredChange(string Field, JsonElement Value);
 
@@ -20,8 +26,13 @@ internal static class ItemBatchMapper
         JsonSerializer.Deserialize<List<StoredEntry>>(json, Options) ?? [];
 
     public static StoredEntry Store(
-        string itemKey, string title, IEnumerable<ItemFieldChange> changes, string? comment, string? descriptionRevision) =>
-        new(itemKey, title, [.. changes.Select(c => new StoredChange(c.Field, c.Value))], comment, descriptionRevision, null);
+        string itemKey,
+        string title,
+        IEnumerable<ItemFieldChange> changes,
+        string? comment,
+        string? descriptionRevision,
+        CommentReplyTarget? replyTo = null) =>
+        new(itemKey, title, [.. changes.Select(c => new StoredChange(c.Field, c.Value))], comment, descriptionRevision, null, replyTo);
 
     public static IReadOnlyList<ItemFieldChange> ChangesOf(StoredEntry entry) =>
         [.. entry.Changes.Select(c => new ItemFieldChange(c.Field, c.Value))];
@@ -29,7 +40,7 @@ internal static class ItemBatchMapper
     public static ItemBatchProposal ToProposal(ItemBatchProposalRow row) => new(
         row.Id,
         row.ProjectKey,
-        [.. Read(row.Items).Select(e => new ItemBatchEntry(e.ItemKey, e.Title, ChangesOf(e), e.Comment, e.Error))],
+        [.. Read(row.Items).Select(e => new ItemBatchEntry(e.ItemKey, e.Title, ChangesOf(e), e.Comment, e.Error) { ReplyTo = e.ReplyTo })],
         row.Status switch
         {
             ItemBatchProposalRow.AppliedStatus => ItemProposalStatus.Applied,

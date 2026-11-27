@@ -16,7 +16,7 @@ public sealed class ItemProposalEndpointTests
     private const string PendingJson = """
         {"id":"44444444-4444-4444-4444-444444444444","projectKey":"WEB","itemKey":"WEB-12","itemTitle":"改版首頁",
          "changes":[{"field":"status","value":"done"},{"field":"dueDate","value":null}],
-         "comment":"做完了","status":"pending","createdAt":"2026-11-23T03:00:00Z","decidedAt":null,"error":null}
+         "comment":"做完了","replyTo":null,"status":"pending","createdAt":"2026-11-23T03:00:00Z","decidedAt":null,"error":null}
         """;
 
     [Test]
@@ -35,6 +35,28 @@ public sealed class ItemProposalEndpointTests
         {
             Assert.That(JsonNode.DeepEquals(data, JsonNode.Parse(PendingJson)), Is.True, data?.ToJsonString());
             Assert.That(factory.Modules.ItemProposals.Calls.Single(), Is.EqualTo(("get", TestUsers.Member.ToActor(), FakeItemProposals.ProposalId)));
+        }
+    }
+
+    [Test]
+    public async Task Get_ProposalThatRepliesToAComment_CarriesTheReplyTarget()
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        var commentId = Guid.Parse("44444444-0000-0000-0000-0000000000c1");
+        factory.Modules.ItemProposals.OnGet = _ => FakeItemProposals.Proposal() with { ReplyTo = new CommentReplyTarget(commentId, "測試者", "請先確認") };
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync(Route);
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(data?["replyTo"]?["commentId"]?.GetValue<Guid>(), Is.EqualTo(commentId));
+            Assert.That(data?["replyTo"]?["authorName"]?.GetValue<string>(), Is.EqualTo("測試者"));
+            Assert.That(data?["replyTo"]?["excerpt"]?.GetValue<string>(), Is.EqualTo("請先確認"));
         }
     }
 

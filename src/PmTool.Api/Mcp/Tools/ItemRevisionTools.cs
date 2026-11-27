@@ -20,7 +20,7 @@ internal static class ItemRevisionTools
 
     private static readonly HashSet<string> EntryProperties = new(StringComparer.Ordinal)
     {
-        "itemKey", "changes", "comment", "expectedDescriptionRevision",
+        "itemKey", "changes", "comment", "replyTo", "expectedDescriptionRevision",
     };
 
     public static IEnumerable<McpTool> All { get; } =
@@ -38,7 +38,7 @@ internal static class ItemRevisionTools
         new("propose_bulk_item_changes",
             "建議一次修改好幾個項目（不會真的改）：每個項目各自一組欄位修改（值可以不同，例如六個任務各自的到期日）與一則留言，一張卡片、使用者按一次「全部套用」才會以他自己的身分寫入。" +
             $"一份 1 到 {AiRules.MaxItemsPerBatchProposal} 個項目、同一個項目只能出現一次；要改兩個以上的項目時用這個，不要一個一個提 propose_item_changes。" +
-            $"每個項目的 changes 寫法和 propose_item_changes 完全一樣（[{{field, value}}]，最多 {AiRules.MaxItemProposalChanges} 個欄位，assignee 寫 me、none、專案成員的 Email 或人員編號）；" +
+            $"每個項目的 changes 寫法和 propose_item_changes 完全一樣（[{{field, value}}]，欄位也包括 type、parentKey、cycleId、milestoneId，最多 {AiRules.MaxItemProposalChanges} 個欄位，assignee 寫 me、none、專案成員的 Email 或人員編號）；" +
             "改說明的項目一定要帶 expectedDescriptionRevision（get_item 回的 descriptionRevision）。已經套用的建議要修改時，用它改建出來的項目，不要再提一份新增項目的建議。" +
             "提出之後告訴使用者「請按全部套用」，不要說已經改好了。",
             McpSchemas.Object(
@@ -56,6 +56,7 @@ internal static class ItemRevisionTools
                                 ("field", McpSchemas.Text("欄位名稱。")),
                                 ("value", McpSchemas.Any("新的值，形狀依欄位；null 是清掉。"))))),
                         ("comment", McpSchemas.Text("要加在這個項目的留言（Markdown）。")),
+                        ("replyTo", McpSchemas.Text("回覆哪一則留言（list_comments 或 get_item 回的留言 id）；要有 comment 才能給。")),
                         ("expectedDescriptionRevision", McpSchemas.Text("改說明時必填：get_item 回的 descriptionRevision。")))))),
             AccessTokenScope.AgentRun, ReadOnly: false, ProposeBulkChangesAsync),
         new("withdraw_proposal",
@@ -189,7 +190,10 @@ internal static class ItemRevisionTools
                 context.Item(entry.RequiredPlain("itemKey")),
                 changes,
                 entry.OptionalString("comment"),
-                entry.OptionalPlain("expectedDescriptionRevision"));
+                entry.OptionalPlain("expectedDescriptionRevision"))
+            {
+                ReplyTo = ProjectWriteProposalTools.OptionalGuid(entry, "replyTo"),
+            };
         }
         catch (McpArgumentException exception)
         {

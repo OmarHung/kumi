@@ -161,7 +161,16 @@ internal sealed class AssistantReplyRunner(
             provider.GetRequiredService<IOrganizationClock>(),
             time,
             request.ConversationId,
-            logger);
+            logger)
+        {
+            Planning = provider.GetRequiredService<IPlanningService>(),
+            Descriptions = provider.GetRequiredService<IProjectDescriptionService>(),
+            Attachments = provider.GetRequiredService<IAttachmentService>(),
+            PlanningProposals = provider.GetRequiredService<IPlanningProposalCreator>(),
+            CommentProposals = provider.GetRequiredService<ICommentProposalCreator>(),
+            RestoreProposals = provider.GetRequiredService<IItemRestoreProposalCreator>(),
+            ProjectChangeProposals = provider.GetRequiredService<IProjectChangeProposalCreator>(),
+        };
         var selection = request.Selection.Selection;
         var options = AiRequestOptions.Create(request.Selection.Endpoint.Kind, selection.Model, selection.Effort);
         options.Tools = AssistantToolSet.Create(context);

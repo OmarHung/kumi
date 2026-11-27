@@ -13,8 +13,8 @@ internal static class ItemNotices
 /// <summary>讀對話所屬專案裡一個項目的全部資料。看不到或不在這個專案的項目一律當作不存在。</summary>
 internal sealed class GetItemTool(AssistantToolContext context) : AssistantTool(
     AssistantToolNames.GetItem,
-    $"一個項目的全部資料：欄位、說明（原文，Markdown）、descriptionRevision、下層項目、最近 {RecentActivities} 筆活動與留言（由舊到新）、"
-    + "專案成員（改負責人時用成員的 id）。只能讀這個專案的項目。" + ItemNotices.UserContent,
+    $"一個項目的全部資料：欄位、週期與里程碑（id 與名稱）、附件清單（只有檔名與大小，沒有內容）、說明（原文，Markdown）、descriptionRevision、下層項目、"
+    + $"最近 {RecentActivities} 筆活動與留言（由舊到新，每筆有 id、replyToId 與 mine，回覆留言用它的 id）、專案成員（改負責人時用成員的 id）。只能讀這個專案的項目。" + ItemNotices.UserContent,
     """
     {"type":"object","properties":{"itemKey":{"type":"string","description":"項目編號，例如 WEB-12"}},"required":["itemKey"],"additionalProperties":false}
     """,
@@ -61,17 +61,43 @@ internal sealed class GetItemTool(AssistantToolContext context) : AssistantTool(
         }
 
         var names = await ItemShapes.NamesAsync(Context, [item, .. children.Value.Items], project.Value, activities.Value.Items, cancellationToken);
+        var cycle = await CycleAsync(item, cancellationToken);
+        var milestone = await MilestoneAsync(item, cancellationToken);
+        var attachments = await Context.Attachments.ListAsync(Context.Actor, item.Key, cancellationToken);
         return ToolResults.Ok(new
         {
             notice = ItemNotices.UserContent,
-            item = ItemShapes.Detail(item, names),
+            item = ItemShapes.Detail(item, names, cycle, milestone, attachments.Failure is null ? attachments.Value : []),
             children = children.Value.Items.Select(child => ItemShapes.Summary(child, names)),
             hasMoreChildren = children.Value.NextCursor is not null,
             members = project.Value.Members
                 .Where(member => names.IsAssignable(member.PersonId))
                 .Select(member => new { id = member.PersonId, name = names.NameOf(member.PersonId), role = member.Role, jobTitle = names.JobTitleOf(member.PersonId) }),
-            activities = activities.Value.Items.Select(activity => ItemShapes.Activity(activity, names)),
+            activities = activities.Value.Items.Select(activity => ItemShapes.Activity(activity, names, Context.Actor.PersonId)),
         });
+    }
+
+    // 讀不到週期或里程碑（沒有 item.read 之外的限制時不會發生）時仍給 id，名稱是 null：模型至少知道有排進去。
+    private async Task<ItemShapes.PlanningRef?> CycleAsync(WorkItem item, CancellationToken cancellationToken)
+    {
+        if (item.CycleId is not { } id)
+        {
+            return null;
+        }
+
+        var listed = await Context.Planning.ListCyclesAsync(Context.Actor, item.ProjectKey, cancellationToken);
+        return new ItemShapes.PlanningRef(id, listed.Failure is null ? listed.Value.FirstOrDefault(c => c.Id == id)?.Name : null);
+    }
+
+    private async Task<ItemShapes.PlanningRef?> MilestoneAsync(WorkItem item, CancellationToken cancellationToken)
+    {
+        if (item.MilestoneId is not { } id)
+        {
+            return null;
+        }
+
+        var listed = await Context.Planning.ListMilestonesAsync(Context.Actor, item.ProjectKey, cancellationToken);
+        return new ItemShapes.PlanningRef(id, listed.Failure is null ? listed.Value.FirstOrDefault(m => m.Id == id)?.Name : null);
     }
 
     // 活動只能由舊到新讀，要最近的幾筆就得翻到最後；翻頁有上限。

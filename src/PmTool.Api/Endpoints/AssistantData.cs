@@ -104,7 +104,7 @@ internal abstract record AssistantPartData
     public static AssistantPartData From(AssistantPart part) => part switch
     {
         AssistantTextPart text => new AssistantTextPartData(text.Text),
-        AssistantToolPart tool => new AssistantToolPartData(tool.CallId, tool.Name, tool.Status, tool.ChangeSetNumber, tool.Error, tool.ItemProposalId, tool.ProjectProposalId, tool.NewItemProposalId, tool.MemberProposalId, tool.ItemDeletionProposalId, tool.ItemBatchProposalId),
+        AssistantToolPart tool => new AssistantToolPartData(tool.CallId, tool.Name, tool.Status, tool.ChangeSetNumber, tool.Error, tool.ItemProposalId, tool.ProjectProposalId, tool.NewItemProposalId, tool.MemberProposalId, tool.ItemDeletionProposalId, tool.ItemBatchProposalId, tool.ProposalId),
         _ => throw new InvalidOperationException($"不認得的訊息段落：{part.GetType().Name}。"),
     };
 }
@@ -112,7 +112,7 @@ internal abstract record AssistantPartData
 internal sealed record AssistantTextPartData(string Text) : AssistantPartData;
 
 internal sealed record AssistantToolPartData(
-    string CallId, string Name, AssistantToolStatus Status, long? ChangeSetNumber, string? Error, Guid? ItemProposalId = null, Guid? ProjectProposalId = null, Guid? NewItemProposalId = null, Guid? MemberProposalId = null, Guid? ItemDeletionProposalId = null, Guid? ItemBatchProposalId = null)
+    string CallId, string Name, AssistantToolStatus Status, long? ChangeSetNumber, string? Error, Guid? ItemProposalId = null, Guid? ProjectProposalId = null, Guid? NewItemProposalId = null, Guid? MemberProposalId = null, Guid? ItemDeletionProposalId = null, Guid? ItemBatchProposalId = null, Guid? ProposalId = null)
     : AssistantPartData;
 
 /// <summary>串流的第一個事件：使用者的訊息已經存下，以及回覆存下來時的編號。</summary>

@@ -1,14 +1,23 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Abstractions;
 using PmTool.Ai.Persistence;
+using PmTool.Identity;
 using PmTool.Work;
 
 namespace PmTool.Ai.Items;
 
 /// <summary>建立修改建議（<see cref="IItemProposalCreator"/>）。只存、不改項目。</summary>
 internal sealed class ItemProposalCreator(
-    IDbContextFactory<AiDbContext> contexts, IWorkItemService items, IProjectService projects, TimeProvider time) : IItemProposalCreator
+    IDbContextFactory<AiDbContext> contexts,
+    IWorkItemService items,
+    IProjectService projects,
+    IPlanningService planning,
+    IItemActivityService activity,
+    IPeopleDirectory people,
+    TimeProvider time) : IItemProposalCreator
 {
+    private readonly ItemChangeFactsLoader _facts = new(items, planning, activity, people);
+
     public async Task<Result<ItemProposal>> CreateAsync(Actor actor, ItemProposalDraft draft, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
@@ -32,7 +41,9 @@ internal sealed class ItemProposalCreator(
             return permission;
         }
 
-        var changes = ItemChangeChecker.Check(draft.Changes ?? [], draft.Comment, draft.DescriptionRevision, item, project.Value);
+        var facts = await _facts.LoadAsync(actor, item, draft.Changes ?? [], draft.Comment, draft.ReplyTo, cancellationToken);
+        var changes = ItemChangeChecker.Check(
+            draft.Changes ?? [], draft.Comment, draft.DescriptionRevision, item, project.Value, facts, draft.ReplyTo);
         if (changes.Failure is { } invalid)
         {
             return invalid;
@@ -50,6 +61,7 @@ internal sealed class ItemProposalCreator(
             Changes = ItemProposalMapper.WriteChanges(changes.Value),
             Comment = ItemChangeChecker.NormalizeComment(draft.Comment),
             DescriptionRevision = changes.Value.Any(c => c.Field == ItemFieldNames.Description) ? draft.DescriptionRevision!.Trim() : null,
+            ReplyTo = ItemProposalMapper.WriteReply(facts.Reply),
             Status = ItemProposalRow.PendingStatus,
             CreatedAt = time.GetUtcNow(),
         };

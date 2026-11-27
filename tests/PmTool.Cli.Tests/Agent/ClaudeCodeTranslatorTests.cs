@@ -109,6 +109,27 @@ public sealed class ClaudeCodeTranslatorTests
         }
     }
 
+    [TestCase("claude-planning-proposal.jsonl", "propose_planning_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e41")]
+    [TestCase("claude-project-change-proposal.jsonl", "propose_project_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e42")]
+    [TestCase("claude-comment-proposal.jsonl", "propose_comment_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e43")]
+    [TestCase("claude-restore-proposal.jsonl", "propose_item_restores", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e44")]
+    public void ProjectWriteProposal_Claude_CarriesTheGenericProposalIdOnlyOnTheFinishedProposalTool(string fixture, string toolName, string proposalId)
+    {
+        // Act
+        var tools = Play(fixture).Tools;
+        var done = tools.Last();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((done.Name, done.Status), Is.EqualTo((toolName, "done")));
+            Assert.That(done.ProposalId, Is.EqualTo(proposalId));
+            Assert.That(done.ItemProposalId, Is.Null);
+            Assert.That(done.ItemBatchProposalId, Is.Null);
+            Assert.That(tools.Take(tools.Count - 1).All(tool => tool.ProposalId is null), Is.True, "開始時與讀取工具（結果裡就算有 proposalId）都不帶");
+        }
+    }
+
     [TestCase("claude-deletion-proposal.jsonl", "propose_item_deletions", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e22")]
     [TestCase("claude-bulk-proposal.jsonl", "propose_bulk_item_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e33")]
     public void RevisionProposal_Claude_CarriesItsOwnProposalIdOnTheFinishedTool(string fixture, string toolName, string proposalId)

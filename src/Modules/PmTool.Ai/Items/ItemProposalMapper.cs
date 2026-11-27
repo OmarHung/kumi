@@ -14,6 +14,12 @@ internal static class ItemProposalMapper
     public static IReadOnlyList<ItemFieldChange> ReadChanges(string json) =>
         [.. (JsonSerializer.Deserialize<List<Stored>>(json, Options) ?? []).Select(s => new ItemFieldChange(s.Field, s.Value))];
 
+    /// <summary>回覆的留言存成 <c>{commentId, authorName, excerpt}</c>；新的一則留言是 null。</summary>
+    public static string? WriteReply(CommentReplyTarget? reply) => reply is null ? null : JsonSerializer.Serialize(reply, Options);
+
+    public static CommentReplyTarget? ReadReply(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<CommentReplyTarget>(json, Options);
+
     public static string StatusName(ItemProposalStatus status) => status switch
     {
         ItemProposalStatus.Pending => ItemProposalRow.PendingStatus,
@@ -39,6 +45,7 @@ internal static class ItemProposalMapper
     {
         DecidedAt = row.DecidedAt,
         Error = row.Error,
+        ReplyTo = ReadReply(row.ReplyTo),
     };
 
     private sealed record Stored(string Field, JsonElement Value);

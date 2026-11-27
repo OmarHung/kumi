@@ -16,8 +16,8 @@ public sealed class ItemBatchProposalEndpointTests
     private const string PendingJson = """
         {"id":"bbbbbbbb-0000-0000-0000-000000000001","projectKey":"WEB",
          "items":[
-           {"itemKey":"WEB-12","itemTitle":"改版首頁","changes":[{"field":"dueDate","value":"2026-12-05"}],"comment":"順延一週","error":null},
-           {"itemKey":"WEB-13","itemTitle":"整理文案","changes":[{"field":"dueDate","value":null}],"comment":null,"error":null}],
+           {"itemKey":"WEB-12","itemTitle":"改版首頁","changes":[{"field":"dueDate","value":"2026-12-05"}],"comment":"順延一週","replyTo":null,"error":null},
+           {"itemKey":"WEB-13","itemTitle":"整理文案","changes":[{"field":"dueDate","value":null}],"comment":null,"replyTo":null,"error":null}],
          "status":"pending","createdAt":"2026-11-27T04:10:00Z","decidedAt":null,"error":null}
         """;
 
@@ -39,6 +39,33 @@ public sealed class ItemBatchProposalEndpointTests
         {
             Assert.That(JsonNode.DeepEquals(data, JsonNode.Parse(PendingJson)), Is.True, data?.ToJsonString());
             Assert.That(factory.Modules.ItemBatchProposals.Calls.Single(), Is.EqualTo(("get", TestUsers.Member.ToActor(), FakeItemBatchProposals.ProposalId)));
+        }
+    }
+
+    [Test]
+    public async Task Get_EntryThatRepliesToAComment_CarriesTheReplyTarget()
+    {
+        // Arrange
+        using var factory = NewFactory();
+        var commentId = Guid.Parse("bbbbbbbb-0000-0000-0000-0000000000c1");
+        var proposal = FakeItemBatchProposals.Proposal();
+        factory.Modules.ItemBatchProposals.OnGet = _ => proposal with
+        {
+            Items = [proposal.Items[0] with { ReplyTo = new CommentReplyTarget(commentId, "測試者", "請先確認") }, proposal.Items[1]],
+        };
+        using var client = await ProjectEndpointTests.SignedInClientAsync(factory);
+
+        // Act
+        using var response = await client.GetAsync(Route);
+        var data = await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(data?["items"]?[0]?["replyTo"]?["commentId"]?.GetValue<Guid>(), Is.EqualTo(commentId));
+            Assert.That(data?["items"]?[0]?["replyTo"]?["authorName"]?.GetValue<string>(), Is.EqualTo("測試者"));
+            Assert.That(data?["items"]?[0]?["replyTo"]?["excerpt"]?.GetValue<string>(), Is.EqualTo("請先確認"));
+            Assert.That(data?["items"]?[1]?["replyTo"], Is.Null);
         }
     }
 
