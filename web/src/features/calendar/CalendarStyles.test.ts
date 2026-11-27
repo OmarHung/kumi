@@ -15,12 +15,12 @@ function narrowBlock(): string {
 }
 
 describe('窄螢幕行事曆的高度', () => {
-  it('月份那一列拿掉上下內距，按鈕的 44px 觸控高度不動', () => {
+  it('月份那一列上下各 12px，不另外設高度', () => {
     // Arrange & Act
     const block = narrowBlock();
 
     // Assert
-    expect(block).toMatch(/\.bar\s*\{[^}]*padding-block:\s*0;/);
+    expect(block).toMatch(/\.bar\s*\{[^}]*padding-block:\s*var\(--space-3\);/);
     expect(block).not.toMatch(/min-height|height:/);
   });
 

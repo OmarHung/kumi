@@ -19,6 +19,16 @@
   background: var(--color-surface);
 }
 
+/*
+ * 觸控時上下各 8px（工具列 52px 加細線）：只留 2px 時 36px 的控制項貼著頁列與下面內容的線，三塊黏在一起
+ * （2026-11-28 使用者回報）。寬螢幕的 44px 不變（高度預算最緊的是寬螢幕的表格）。
+ */
+@media (pointer: coarse) {
+  .toolbar {
+    padding-block: var(--space-2);
+  }
+}
+
 .toolbar > * {
   flex: 1 1 auto;
   min-width: 0;

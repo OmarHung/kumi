@@ -28,11 +28,11 @@ describe('條的命中範圍', () => {
 });
 
 describe('窄螢幕時間軸的高度', () => {
-  it('控制列拿掉上下內距', () => {
+  it('控制列上下各留 12px，和工具列、下面的內容分得開（2026-11-28 使用者回報三塊黏在一起）', () => {
     // Arrange & Act
     const bar = ruleOf('.compactBar');
 
     // Assert
-    expect(bar).not.toMatch(/padding-block:\s*var/);
+    expect(bar).toMatch(/padding-block: var\(--space-3\);/);
   });
 });

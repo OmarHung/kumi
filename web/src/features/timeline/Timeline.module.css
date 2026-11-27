@@ -130,10 +130,12 @@
   white-space: nowrap;
 }
 
+/* 上下各 12px：和工具列、下面的列表分得開（2026-11-28 使用者回報三塊黏在一起）。 */
 .compactBar {
   display: flex;
   flex: none;
   flex-direction: column;
+  padding-block: var(--space-3);
 }
 
 .compactRow {
