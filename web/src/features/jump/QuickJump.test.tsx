@@ -175,7 +175,7 @@ describe('快速跳轉：combobox', () => {
     expect(input).toHaveAttribute('aria-expanded', 'true');
     expect(input).toHaveAttribute('aria-autocomplete', 'list');
     const groups = within(listbox).getAllByRole('group');
-    expect(groups.map((group) => within(group).getAllByRole('option').length)).toEqual([1, 2, 13]);
+    expect(groups.map((group) => within(group).getAllByRole('option').length)).toEqual([1, 2, 14]);
     expect(within(listbox).getByRole('group', { name: '最近看過' })).toHaveTextContent('AGY-3 首頁設計稿');
     expect(within(listbox).getByRole('group', { name: '專案' })).toBeInTheDocument();
     expect(within(listbox).getByRole('group', { name: '頁面' })).toBeInTheDocument();
@@ -557,7 +557,7 @@ describe('快速跳轉：在專案裡', () => {
       within(pages)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual([...HUB_OPTIONS_OWNER_BEFORE_PROJECT, '成員 接案測試']);
+    ).toEqual([...HUB_OPTIONS_OWNER_BEFORE_PROJECT, '使用說明', '成員 接案測試']);
   });
 
   it('選「成員」在原地打開成員對話框，關上後焦點回到打開快速跳轉前的元素', async () => {
@@ -601,7 +601,7 @@ describe('快速跳轉：在專案裡', () => {
       within(pages)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_HUB_OPTIONS]);
+    ).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_HUB_OPTIONS, '使用說明']);
   });
 });
 

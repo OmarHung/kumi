@@ -1,0 +1,145 @@
+/*
+ * 使用說明（docs/DESIGN.md 6.2「使用說明」）：閱讀頁，64rem 以上內容區分兩欄，左邊是章節的次導覽（和設定中心同一個 SubNav），
+ * 右邊是這一章；不到 64rem 只有內容（次導覽換成工具列上的下拉）。
+ */
+.help {
+  --help-nav-width: 11rem;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.help[data-has-nav='true'] {
+  grid-template-columns: var(--help-nav-width) minmax(0, 1fr);
+}
+
+/*
+ * 這一章的文字：一行最寬 --reading-max。標題是頁面真正的結構（h1 在頁列，章裡的節是 h2、小節是 h3），
+ * 和說明、留言裡的 Markdown 不同（那裡的標題壓在 h4 以下）；清單、表格、行內程式碼的長相照 Markdown（7.4），同一件事一種長相。
+ */
+.article {
+  max-width: var(--reading-max);
+  min-width: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.lead {
+  margin: 0 0 var(--space-6);
+  color: var(--color-text-muted);
+}
+
+.section + .section {
+  margin-top: var(--space-8);
+}
+
+/* 錨點連結捲過去時不被黏住的頁列蓋住。 */
+.section {
+  scroll-margin-top: calc(var(--page-bar-height) + var(--space-4));
+}
+
+.article h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.article h3 {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.article p,
+.article ul,
+.article ol,
+.article .scroll {
+  margin: var(--space-3) 0;
+}
+
+.article ul,
+.article ol {
+  padding-left: var(--space-6);
+}
+
+.article li + li {
+  margin-top: var(--space-1);
+}
+
+.article a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.article a:hover {
+  color: var(--color-accent-hover);
+}
+
+.article code,
+.article kbd {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+}
+
+/* 提醒：灰字加縮排，和 Markdown 的引用同一種，不畫色條（第 9 節）。 */
+.note {
+  margin: var(--space-3) 0;
+  padding-left: var(--space-4);
+  color: var(--color-text-muted);
+}
+
+/* 表格：細線外框、表頭凹下去的底，太寬時在框裡橫向捲動（和 Markdown 的表格一樣）。 */
+.scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.article table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+.article th,
+.article td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.article th {
+  background: var(--color-surface-sunken);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.article tr:last-child td {
+  border-bottom: 0;
+}
+
+/* 第一欄是名稱（側欄的項目）：不折行，第二欄的說明才有寬度。 */
+.article td:first-child {
+  white-space: nowrap;
+}
+
+.question {
+  margin: var(--space-4) 0 var(--space-1);
+  font-weight: var(--weight-semibold);
+}
+
+.answer {
+  margin: 0;
+}

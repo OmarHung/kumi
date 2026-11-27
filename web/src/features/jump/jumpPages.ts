@@ -32,6 +32,8 @@ const GLOBAL_PAGES: readonly JumpOption[] = [
   { key: 'page:projects', label: '專案', icon: 'projects', action: { kind: 'navigate', to: '/projects' } },
 ];
 
+const HELP_PAGE: JumpOption = { key: 'page:help', label: '使用說明', icon: 'help', action: { kind: 'navigate', to: '/help' } };
+
 const PEOPLE_PAGE: JumpOption = { key: 'page:people', label: '人員', icon: 'people', action: { kind: 'navigate', to: '/people' } };
 
 const SETTINGS_HUB_ICONS: Readonly<Record<SettingsHubPageKey, IconName>> = {
@@ -83,12 +85,13 @@ function projectPages(detail: ProjectDetail): readonly JumpOption[] {
   return canReadSettings ? [settings, members, changeSets] : [members];
 }
 
-/** 「頁面」分組：我的工作、專案、人員（組織管理員）、設定中心的各頁（照權限），以及目前專案的設定、成員、變更集。 */
+/** 「頁面」分組：我的工作、專案、人員（組織管理員）、設定中心的各頁（照權限）、使用說明，以及目前專案的設定、成員、變更集。 */
 export function jumpPages({ user, project }: JumpPagesContext): readonly JumpOption[] {
   return [
     ...GLOBAL_PAGES,
     ...(isOrganizationAdmin(user) ? [PEOPLE_PAGE] : []),
     ...settingsHubPages(user),
+    HELP_PAGE,
     ...(project === null ? [] : projectPages(project)),
   ];
 }

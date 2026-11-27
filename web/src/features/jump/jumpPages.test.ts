@@ -37,7 +37,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleMember, project: null });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_PAGES]);
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_PAGES, '使用說明']);
     expect(pages.slice(0, 3).map((page) => page.action)).toEqual([
       { kind: 'navigate', to: '/my-work' },
       { kind: 'navigate', to: '/knowledge' },
@@ -65,7 +65,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleAdmin, project: null });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', '儲存空間', 'AI 助理設定']);
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', '人員', ...PERSONAL_PAGES, '說明格式', '寄信設定', '儲存空間', 'AI 助理設定', '使用說明']);
     expect(pages.map((page) => page.action)).toContainEqual({ kind: 'navigate', to: '/people' });
   });
 
@@ -74,7 +74,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleOwner, project: null });
 
     // Assert
-    expect(pages.at(-1)).toMatchObject({ label: 'AI 助理主機代理', action: { kind: 'navigate', to: '/ai-settings/host' } });
+    expect(pages.at(-2)).toMatchObject({ label: 'AI 助理主機代理', action: { kind: 'navigate', to: '/ai-settings/host' } });
   });
 
   it('在專案裡、看得到設定：設定、成員、變更集，旁邊寫出是哪個專案', () => {
@@ -82,7 +82,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleMember, project: agyDetail() });
 
     // Assert
-    expect(pages.slice(3 + PERSONAL_PAGES.length).map((page) => [page.label, page.hint, page.action])).toEqual([
+    expect(pages.slice(3 + PERSONAL_PAGES.length + 1).map((page) => [page.label, page.hint, page.action])).toEqual([
       ['設定', '接案測試', { kind: 'navigate', to: '/projects/AGY/settings' }],
       ['成員', '接案測試', { kind: 'members', projectKey: 'AGY' }],
       ['變更集', '接案測試', { kind: 'navigate', to: '/projects/AGY/changesets' }],
@@ -97,7 +97,7 @@ describe('jumpPages', () => {
     const pages = jumpPages({ user: exampleMember, project });
 
     // Assert
-    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_PAGES, '成員']);
+    expect(pages.map((page) => page.label)).toEqual(['我的工作', '知識庫', '專案', ...PERSONAL_PAGES, '使用說明', '成員']);
   });
 
   it('每一頁都有圖示，鍵在全部頁面裡不重複', () => {

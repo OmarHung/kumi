@@ -31,6 +31,7 @@ import {
   LazyHostAgentsPage,
   LazyIntegrationsPage,
   LazyItemImportPage,
+  LazyHelpPage,
   LazyInboxPage,
   LazyKnowledgeHomePage,
   LazyKnowledgeSpacePage,
@@ -99,6 +100,8 @@ export const routes: RouteObject[] = [
               { path: 'projects/:projectKey/changesets', element: <LazyChangeSetListPage /> },
               { path: 'projects/:projectKey/changesets/:number', element: <LazyChangeSetPage /> },
               { path: 'people', element: <PeoplePage /> },
+              // 使用說明：章節可有可無（/help 是第一章），換章時同一個路由、頁面不重新掛上。
+              { path: 'help/:chapter?', element: <LazyHelpPage /> },
               {
                 // 設定中心（features/settings-hub）：外層的版面路由畫頁列與次導覽，換頁時它們不重新掛上（次導覽上的焦點不掉）；
                 // 各頁只畫內容。網址沿用改版前的，舊的連結照樣能用。說明格式的新增與編輯頁（填滿畫面的編輯器）不在裡面。

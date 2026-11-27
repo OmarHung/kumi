@@ -85,6 +85,7 @@
   - **輸入**：Email 存 NFKC 加小寫（`EmailAddress.TryNormalize`；既有資料由 `IdentityMigrator` 每次啟動用同一個函式改寫，會撞就啟動失敗——不要改成用 SQL 做，資料庫和 .NET 對某些字元的大小寫規則不同）；Email、顯示名稱、電腦名稱、權杖名稱都擋看不見的字元（`InputText.HasInvisibleCharacters`）。密碼雜湊 21 萬次（`IdentityRules.PasswordHashIterations`）。
   - **新增端點時**：`tests/PmTool.Api.Tests/EndpointInventoryTests.cs` 把每個端點寫死在四類之一（匿名、機器憑證、只能用 Cookie、宣告了範圍），沒加進去測試會失敗。
 - `web/` 是網頁版（React、TypeScript、Vite），建置出來的靜態檔由 API 主機一起提供。
+- 使用說明（給使用者的手冊）做在網頁裡：`web/src/features/help/`，側欄最下面的「使用說明」，`/help/:chapter`，一章一個元件（`chapters/`，不是 Markdown，裡面提到的頁面是站內連結）。章裡寫的按鈕與頁面名稱要和畫面一致：改了畫面上的名稱或流程，同一個提交裡改說明；新增一章加進 `helpChapters.ts` 的組裡。
 - 部署以容器為主。
 
 ## 規矩

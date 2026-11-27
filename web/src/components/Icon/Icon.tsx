@@ -20,6 +20,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleDashed,
+  CircleQuestionMark,
   CircleSlash,
   Columns3,
   CircleUserRound,
@@ -146,6 +147,8 @@ const ICONS = {
   sparkles: Sparkles,
   members: UsersRound,
   settings: Settings,
+  // 使用說明（側欄、快速跳轉）。
+  help: CircleQuestionMark,
   table: Table2,
   board: SquareKanban,
   signOut: LogOut,

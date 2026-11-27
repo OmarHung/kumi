@@ -65,6 +65,17 @@ const KnowledgeSpaceSettingsPage = lazy(() =>
   import('../features/knowledge/settings/KnowledgeSpaceSettingsPage').then((module) => ({ default: module.KnowledgeSpaceSettingsPage })),
 );
 
+// 使用說明只有要查的人才打開，也延後下載。
+const HelpPage = lazy(() => import('../features/help/HelpPage').then((module) => ({ default: module.HelpPage })));
+
+export function LazyHelpPage() {
+  return (
+    <Suspense fallback={<StatusPage title="使用說明"><LoadingState label="正在載入使用說明…" /></StatusPage>}>
+      <HelpPage />
+    </Suspense>
+  );
+}
+
 export function LazyKnowledgeHomePage() {
   return (
     <Suspense fallback={<StatusPage title="知識庫"><LoadingState label="正在載入知識庫…" /></StatusPage>}>

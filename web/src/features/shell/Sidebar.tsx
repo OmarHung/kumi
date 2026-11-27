@@ -159,6 +159,7 @@ export function Sidebar({ ref, id, isOpen, isCollapsed, onClose }: SidebarProps)
         </div>
         {isOrganizationAdmin(user) && <MainLink to="/people" icon="people" label="人員" />}
         <SettingsLink />
+        <MainLink to="/help" icon="help" label="使用說明" />
       </nav>
       <AccountMenu />
     </aside>
