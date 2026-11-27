@@ -19,7 +19,7 @@ public sealed class MondayTitleRuleMappingTests
                 project: MNT
                 type: change
                 cycle: monthly
-                fields: { client: client_ntinv }
+                fields: { client: client_example }
               group_y:
                 project: MNT
                 type: change
@@ -64,7 +64,7 @@ public sealed class MondayTitleRuleMappingTests
             Assert.That(board.TitleRules[2].Project, Is.Null);
             Assert.That(board.TitleRules[2].Fields["tags"], Is.EqualTo("t1, t2"));
             Assert.That(board.Groups["group_x"].Cycle!.Monthly, Is.True);
-            Assert.That(board.Groups["group_x"].Fields, Is.EqualTo(new Dictionary<string, string> { ["client"] = "client_ntinv" }));
+            Assert.That(board.Groups["group_x"].Fields, Is.EqualTo(new Dictionary<string, string> { ["client"] = "client_example" }));
             Assert.That(board.Groups["group_y"].Cycle!.Monthly, Is.False);
             Assert.That(board.Groups["group_y"].Cycle!.Name, Is.EqualTo("2026 年 11 月"));
             Assert.That(board.Groups["group_y"].Fields, Is.Empty);
@@ -96,7 +96,7 @@ public sealed class MondayTitleRuleMappingTests
             }
 
             Assert.That(again.Groups["group_x"].Cycle!.Monthly, Is.True);
-            Assert.That(again.Groups["group_x"].Fields, Is.EqualTo(new Dictionary<string, string> { ["client"] = "client_ntinv" }));
+            Assert.That(again.Groups["group_x"].Fields, Is.EqualTo(new Dictionary<string, string> { ["client"] = "client_example" }));
             Assert.That(again.Groups["group_y"].Cycle, Is.EqualTo(original.Boards["1"].Groups["group_y"].Cycle));
         }
     }
