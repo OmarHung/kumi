@@ -36,3 +36,37 @@ describe('窄螢幕時間軸的高度', () => {
     expect(bar).toMatch(/padding-block: var\(--space-3\);/);
   });
 });
+
+describe('窄螢幕的軌道', () => {
+  it('軌道 8px 高、膠囊形、凹下去的底；條的顏色照狀態類別，過期的多一圈危險色外框', () => {
+    // Arrange & Act
+    const track = ruleOf('.lane');
+
+    // Assert
+    expect(track).toMatch(/block-size: 8px;/);
+    expect(track).toMatch(/border-radius: var\(--radius-pill\);/);
+    expect(track).toMatch(/background: var\(--color-surface-sunken\);/);
+    expect(ruleOf(".trackBar[data-category='done']")).toMatch(/--color-state-done/);
+    expect(ruleOf(".trackBar[data-category='in_progress']")).toMatch(/--color-state-active/);
+    expect(ruleOf('.trackBar')).toMatch(/--color-state-idle/);
+    expect(ruleOf('.trackOverdue')).toMatch(/box-shadow: 0 0 0 1\.5px var\(--color-danger\);/);
+  });
+
+  it('刻度列 28px 高、左右和清單同一條邊；今天的線 1.5px 的強調色、膠囊是實心強調色', () => {
+    // Arrange & Act & Assert
+    expect(ruleOf('.scale')).toMatch(/block-size: 1\.75rem;/);
+    expect(ruleOf('.scale')).toMatch(/margin-inline: var\(--space-4\);/);
+    expect(ruleOf('.todayLine')).toMatch(/inline-size: 1\.5px;/);
+    expect(ruleOf('.todayLine')).toMatch(/background: var\(--color-accent\);/);
+    expect(ruleOf('.todayPill')).toMatch(/background: var\(--color-accent-solid\);/);
+  });
+
+  it('條的位置與寬度用天數的比例換算，不寫死 px', () => {
+    // Arrange & Act
+    const bar = ruleOf('.trackBar');
+
+    // Assert
+    expect(bar).toMatch(/inset-inline-start: calc\(var\(--col\) \/ var\(--days\) \* 100%\);/);
+    expect(bar).toMatch(/inline-size: calc\(var\(--span\) \/ var\(--days\) \* 100%\);/);
+  });
+});

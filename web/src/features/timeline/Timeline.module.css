@@ -145,13 +145,6 @@
   align-items: center;
 }
 
-.compactNote {
-  margin: 0;
-  padding-block: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
 .labelList {
   margin: 0;
   padding: 0;
@@ -602,4 +595,198 @@
   .cell[data-today='true'] {
     color: Highlight;
   }
+}
+
+/*
+ * 窄螢幕的軌道清單：自己直向捲（工作區頁），刻度與清單的左右各留 --space-4，和標題、工具列同一條邊。
+ * 今天的線畫在 trackBody 上（刻度與清單共同的定位基準），所以會從刻度列貫穿到最後一筆。
+ */
+/* 往左右伸出內容區的留白（和其他貼邊的清單一樣）：細線畫到畫面的邊，刻度與每一筆自己的 16px 讓字回到工具列那一條左緣。 */
+.trackFrame {
+  flex: 1;
+  min-height: 0;
+  margin-inline: calc(-1 * var(--page-gutter));
+  overflow-y: auto;
+}
+
+.trackBody {
+  position: relative;
+}
+
+.scale {
+  position: relative;
+  box-sizing: border-box;
+  block-size: 1.75rem;
+  margin-inline: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+}
+
+/* 刻線在標籤左邊：6px 的小線畫在刻度列的底，標籤貼著它右邊。 */
+.tick {
+  inset-block: 0;
+  inset-inline-start: calc(var(--col) / var(--days) * 100%);
+  inline-size: auto;
+  display: flex;
+  align-items: center;
+  padding-inline-start: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.tick::before {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  block-size: 6px;
+  content: '';
+  border-inline-start: 1px solid var(--color-border-strong);
+}
+
+.todayPill {
+  inset-block-start: 50%;
+  inset-inline-start: calc((var(--col) + 0.5) / var(--days) * 100%);
+  inline-size: auto;
+  z-index: 1;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.25rem;
+  color: var(--color-accent-contrast);
+  white-space: nowrap;
+  background: var(--color-accent-solid);
+  border-radius: var(--radius-pill);
+  transform: translate(-50%, -50%);
+}
+
+.todayLayer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: var(--space-4);
+  pointer-events: none;
+}
+
+.todayLine {
+  inset-block: 0;
+  inset-inline-start: calc((var(--col) + 0.5) / var(--days) * 100%);
+  inline-size: 1.5px;
+  background: var(--color-accent);
+  transform: translateX(-50%);
+}
+
+.trackList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.trackItem + .trackItem {
+  border-block-start: 1px solid var(--color-border);
+}
+
+/* 上 10、下 12、軌道上方 10：一筆約 78px。 */
+.trackLink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  padding: 10px var(--space-4) var(--space-3);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.trackLink:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.trackLink:focus-visible {
+  outline-offset: -2px;
+}
+
+.trackHead {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.trackCode {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.trackTitle {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trackMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.trackOverdueText {
+  color: var(--color-danger);
+}
+
+.trackDates {
+  min-width: 0;
+}
+
+.trackAssignee {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.lane {
+  position: relative;
+  display: block;
+  block-size: 8px;
+  margin-block-start: 10px;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.trackBar {
+  inset-block: 0;
+  inset-inline-start: calc(var(--col) / var(--days) * 100%);
+  inline-size: calc(var(--span) / var(--days) * 100%);
+  min-inline-size: var(--space-2);
+  background: var(--color-state-idle);
+  border-radius: var(--radius-pill);
+}
+
+.trackBar[data-category='done'] {
+  background: var(--color-state-done);
+}
+
+.trackBar[data-category='in_progress'] {
+  background: var(--color-state-active);
+}
+
+.trackBar[data-flat-start] {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+.trackBar[data-flat-end] {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+/* 過期不只靠顏色：旁邊有「已過期」的字；外框再多一個形狀上的線索。 */
+.trackOverdue {
+  box-shadow: 0 0 0 1.5px var(--color-danger);
 }

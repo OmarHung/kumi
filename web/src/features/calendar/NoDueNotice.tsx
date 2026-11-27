@@ -16,7 +16,7 @@ interface NoDueMessageProps {
   readonly mode: CalendarDateMode;
   /** 連到表格（條件照舊再加 due=none）。 */
   readonly to: To;
-  /** 'bottom'：窄螢幕放在議程最下面（上面的高度預算留給月份與第一天，Calendar.module.css 的 .bar）。 */
+  /** 'bottom'：窄螢幕放在小月曆與選的那一天的最下面。 */
   readonly placement: 'top' | 'bottom';
 }
 

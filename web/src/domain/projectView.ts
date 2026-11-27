@@ -22,10 +22,10 @@ export function isFilteredView(value: string | null): value is FilteredView {
 const VIEW_PARAM = 'view';
 
 /**
- * 行事曆與時間軸各自記在網址上的參數（月份、刻度、第一天）。換篩選條件時留著：
+ * 行事曆與時間軸各自記在網址上的參數（月份、手機上選的那一天、刻度、第一天）。換篩選條件時留著：
  * 看著十二月調一下負責人，不該跳回今天所在的月份；切換版面時不帶（那是另一個版面的位置）。
  */
-export const DATE_VIEW_PARAMS: readonly string[] = ['month', 'scale', 'from'];
+export const DATE_VIEW_PARAMS: readonly string[] = ['month', 'day', 'scale', 'from'];
 
 /** 一欄一次讀這麼多個，往下用「載入更多」。和表格一樣。 */
 export const BOARD_PAGE_SIZE = 50;

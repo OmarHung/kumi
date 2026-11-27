@@ -293,7 +293,7 @@ describe('期間排法：沒有日期的提示', () => {
 });
 
 describe('期間排法：窄螢幕', () => {
-  it('偏好是「期間」也照到期日排成議程：讀 dueFrom、dueTo，沒有條', async () => {
+  it('偏好是「期間」也照到期日排在小月曆：讀 dueFrom、dueTo，沒有條', async () => {
     // Arrange
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query === COMPACT_QUERY,
@@ -306,7 +306,7 @@ describe('期間排法：窄螢幕', () => {
     const { server } = await openSpanCalendar([item(1, '2026-11-24', '2026-11-26')]);
 
     // Assert
-    expect(await screen.findByRole('link', { name: /^AGY-1\s?項目1$/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '11 月 26 日，1 個項目，1 個里程碑或週期標示' })).toBeInTheDocument();
     expect(server.requests.some((url) => url.searchParams.get('dueFrom') === '2026-10-26')).toBe(true);
     expect(server.requests.some((url) => url.searchParams.has('datesFrom'))).toBe(false);
     expect(screen.queryByRole('group', { name: '排法' })).not.toBeInTheDocument();

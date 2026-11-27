@@ -8,13 +8,13 @@ import { useCalendarDateMode, type CalendarDateMode } from '../../lib/calendarDa
 import { useIsCompact } from '../../lib/useMediaQuery';
 import { useWeekStart, type WeekStart } from '../../lib/weekStart';
 import { useItemSequence } from '../item-page/ItemPanelContext';
-import { Agenda } from './Agenda';
 import { CalendarBar } from './CalendarBar';
 import { CALENDAR_ITEM_LIMIT, itemsByDay, markersByDay } from './calendarData';
 import { monthGrid, monthOf, monthTitle, type MonthGrid } from './calendarMonth';
 import { CalendarScopeContext, type CalendarScope } from './calendarScope';
 import { itemSequence, layoutWeeks } from './calendarSpans';
 import type { DateViewSource } from './dateViewSource';
+import { CompactCalendar } from './CompactCalendar';
 import { MonthTable, type MonthTableProps } from './MonthGrid';
 import { useAllItems } from './useAllItems';
 import styles from './Calendar.module.css';
@@ -52,7 +52,7 @@ export interface CalendarFrameProps {
   readonly isDueNoneFilter?: boolean;
   /** 項目的名稱與提示多一句負責人（「我的工作」看「我建立的」時）。 */
   readonly isAssigneeShown?: boolean;
-  /** 沒有日期的提示（依到期日：「N 個項目沒有到期日」；期間：「…沒有開始日也沒有到期日」）；窄螢幕放在議程最下面。0 個時它自己回 null。 */
+  /** 沒有日期的提示（依到期日：「N 個項目沒有到期日」；期間：「…沒有開始日也沒有到期日」）；窄螢幕放在最下面。0 個時它自己回 null。 */
   readonly renderNoDue: (placement: 'top' | 'bottom', mode: CalendarDateMode) => ReactNode;
 }
 
@@ -66,18 +66,13 @@ interface CalendarBodyProps {
   readonly title: string;
 }
 
-/** 月曆本體：說明原因、載入失敗、載入中，或月曆（窄螢幕是議程，沒有到期日的說明放在最下面）。 */
+/** 月曆本體：說明原因、載入失敗、載入中，或月曆（窄螢幕是小月曆加選的那一天，沒有到期日的說明放在最下面）。 */
 function CalendarBody({ problem, all, isFirstLoad, isCompact, noDue, content, title }: CalendarBodyProps) {
   if (problem !== null) return problem;
   if (all.isError) return <ErrorState error={all.error} title="項目載入失敗" onRetry={all.retry} />;
   if (isFirstLoad) return <LoadingState label="正在載入行事曆…" />;
   if (isCompact) {
-    return (
-      <>
-        <Agenda {...content} />
-        {noDue}
-      </>
-    );
+    return <CompactCalendar {...content} title={title} noDue={noDue} />;
   }
   return (
     <div className={styles.scroll} aria-busy={all.isStale || all.isLoading}>
@@ -87,7 +82,7 @@ function CalendarBody({ problem, all, isFirstLoad, isCompact, noDue, content, ti
 }
 
 /**
- * 行事曆的畫面：一個月一頁，項目排在到期日那一天（或從開始日畫到到期日，個人偏好；窄螢幕的議程一律依到期日），唯讀。專案頁（CalendarView）與「我的工作」（MyWorkCalendar）共用，
+ * 行事曆的畫面：一個月一頁，項目排在到期日那一天（或從開始日畫到到期日，個人偏好；窄螢幕的小月曆一律依到期日），唯讀。專案頁（CalendarView）與「我的工作」（MyWorkCalendar）共用，
  * 兩邊差在去哪裡讀項目、有沒有週期與里程碑的標示、沒有到期日的連結去哪，都由上層傳進來。
  * 月份在網址的 month（YYYY-MM），沒有就是今天所在的月；讀的範圍是畫面上看得到的那幾週（含頭尾上下個月的日子）。
  */
@@ -107,7 +102,7 @@ export function CalendarFrame({
   const [searchParams] = useSearchParams();
   const isCompact = useIsCompact();
   const preferredMode = useCalendarDateMode();
-  // 窄螢幕的議程本來就依日期列出，不放切換，也不管偏好。
+  // 窄螢幕的小月曆本來就依到期日，不放切換，也不管偏好。
   const mode: CalendarDateMode = isCompact ? 'due' : preferredMode;
   const weekStart = useWeekStart();
   const month = monthOf(searchParams.get('month'), todayDate);

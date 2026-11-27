@@ -23,14 +23,6 @@ describe('窄螢幕行事曆的高度', () => {
     expect(block).toMatch(/\.bar\s*\{[^}]*padding-block:\s*var\(--space-3\);/);
     expect(block).not.toMatch(/min-height|height:/);
   });
-
-  it('議程第一段不再有上方留白，左右與下方照舊', () => {
-    // Arrange & Act
-    const block = narrowBlock();
-
-    // Assert
-    expect(block).toMatch(/\.agenda\s*\{[^}]*padding-block-start:\s*0;/);
-  });
 });
 
 describe('期間排法的條', () => {

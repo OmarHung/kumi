@@ -14,7 +14,7 @@ export type SegmentLook = Pick<WeekSegment, 'isBar' | 'continuesBefore' | 'conti
 
 interface CalendarItemProps {
   readonly item: Item;
-  /** 月曆的格子很窄：只顯示標題，編號放在名稱與 title。議程與浮層寬，照舊顯示編號。 */
+  /** 月曆的格子很窄：只顯示標題，編號放在名稱與 title。浮層與選的那一天的清單寬，照舊顯示編號。 */
   readonly isTitleOnly?: boolean;
   /** 期間排法裡跨天的項目的日期範圍（「11/2～11/6」）：寫進連結的名稱與 title；浮層裡也看得到。 */
   readonly range?: string | null;

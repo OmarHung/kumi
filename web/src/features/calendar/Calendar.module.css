@@ -23,10 +23,8 @@
  * 內容區上方的一列：月份標題與三顆換月份的按鈕。窄螢幕（390 觸控）排在同一行，不折行：
  * 高度 = 上下內距 2 × 8 + 按鈕 44 = 60；按鈕的字縮短成「‹ 上月」「今天」「下月 ›」，
  * 三顆約 69 + 54 + 69 + 間距 8 = 200px，加上標題約 100px 與間距 12px，小於 390 扣掉左右留白後的 358px。
- * 窄螢幕拿掉這一列的上下內距（高度 = 按鈕 44），議程第一段的上內距也拿掉（.agenda 的 padding-block-start: 0）。
- * contentStart 的算式（390 觸控）：頁面上方的一切（頁列 48 ＋ 工具列兩列）＋ 這一列 44 ＋ 議程第一段標題上方 0；
- * 「N 個項目沒有到期日」不在上面（放議程最下面）。實測 225 = 保留內距時的 60 ＋ 議程上內距 12 ＋ 其餘 153；
- * 拿掉 16 與 12 之後是 197，預算 200（待實測）。
+ * 窄螢幕（48rem 以下）的這一列在下面另外設上下內距；
+ * 「N 個項目沒有到期日」不在上面（放小月曆與選的那一天的最下面）。
  */
 .bar {
   display: flex;
@@ -79,10 +77,10 @@
   color: var(--color-text-muted);
 }
 
-/* 窄螢幕放在議程最下面：和議程的內距對齊。 */
+/* 窄螢幕放在最下面：和清單的左緣對齊。 */
 .noDueBottom {
   margin: 0;
-  padding: var(--space-3);
+  padding: var(--space-3) 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
@@ -404,47 +402,6 @@ a.marker:hover {
   color: var(--color-text-muted);
 }
 
-/* 窄螢幕的議程：這個月有項目的日子，一天一段。 */
-.agenda {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-3);
-}
-
-@media (max-width: 48rem) {
-  .agenda {
-    padding-block-start: 0;
-  }
-}
-
-.agendaDay {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.agendaHeading {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
-.agendaToday .agendaHeading {
-  align-self: flex-start;
-  padding: var(--space-0-5) var(--space-2);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-pill);
-  color: var(--color-accent);
-}
-
-.agendaEmpty {
-  margin: 0;
-  padding: var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-}
-
 /*
  * 強制色彩（Windows 高對比）：背景色與文字色都被換掉，只剩形狀與系統色。
  * 選取的項目（面板開著的那一筆）本來只靠底色，改畫外框；今天的外框用 Highlight；
@@ -456,8 +413,7 @@ a.marker:hover {
     outline-offset: -2px;
   }
 
-  .today .dayNumberText,
-  .agendaToday .agendaHeading {
+  .today .dayNumberText {
     border-color: Highlight;
     border-width: 2px;
   }

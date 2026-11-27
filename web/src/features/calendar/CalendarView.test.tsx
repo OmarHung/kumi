@@ -271,6 +271,18 @@ describe('行事曆的月份', () => {
     // Assert
     expect(currentPath(router)).toBe('/projects/AGY?view=calendar&q=%E9%A6%96%E9%A0%81&month=2026-12');
   });
+
+  it('換篩選條件時手機上選的那一天也留著', async () => {
+    // Arrange
+    const { user, router } = await openCalendar([], '/projects/AGY?view=calendar&month=2026-12&day=2026-12-09');
+    const search = screen.getByRole('searchbox', { name: '搜尋' });
+
+    // Act
+    await user.type(search, '首頁{Enter}');
+
+    // Assert
+    expect(currentPath(router)).toBe('/projects/AGY?view=calendar&q=%E9%A6%96%E9%A0%81&month=2026-12&day=2026-12-09');
+  });
 });
 
 describe('沒有到期日的項目', () => {
@@ -466,26 +478,114 @@ describe('行事曆的點擊與項目面板', () => {
   });
 });
 
-describe('窄螢幕的議程', () => {
-  it('換成議程：只列這個月有項目（或里程碑）的日子，沒有的不列，也不列頭尾補的日子', async () => {
+describe('窄螢幕的小月曆', () => {
+  /** 小月曆上某一天的按鈕：名稱以「11 月 18 日」開頭（今天多一句「（今天）」，後面接項目數）。 */
+  function dayButton(label: string): HTMLElement {
+    return screen.getByRole('button', { name: new RegExp(`^${label}[（，]`) });
+  }
+
+  it('換成小月曆：整個月的格子都是按鈕，預設選今天，下面是今天的項目', async () => {
     // Arrange
     stubCompactScreen();
-    const items = [
-      agyItem({ number: 1, title: '本月的', dueDate: '2026-11-18' }),
-      agyItem({ number: 2, title: '補的日子', dueDate: '2026-12-02' }),
-    ];
-    const milestones = [milestoneOf('里程碑', '2026-11-25', { id: V1 })];
+    const items = [agyItem({ number: 1, title: '今天的', dueDate: '2026-11-18' }), agyItem({ number: 2, title: '別天的', dueDate: '2026-11-20' })];
 
     // Act
-    await openCalendar(items, undefined, { milestones });
+    await openCalendar(items);
 
     // Assert
     await screen.findByRole('link', { name: /AGY-1/ });
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['11 月 18 日（週三）（今天）', '11 月 25 日（週三）']);
+    expect(screen.getAllByRole('button', { name: /^\d+ 月 \d+ 日/ })).toHaveLength(30);
+    expect(screen.getByRole('button', { name: '11 月 18 日（今天），1 個項目' })).toHaveAttribute('aria-pressed', 'true');
+    expect(dayButton('11 月 20 日')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('heading', { level: 3, name: '11 月 18 日（週三） · 今天' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /AGY-2/ })).not.toBeInTheDocument();
-    // 議程裡項目照舊有編號（不像月曆的格子那麼窄）。
-    expect(screen.getByRole('link', { name: /AGY-1/ }).querySelector('.visually-hidden')).toBeNull();
+  });
+
+  it('點另一天：下面換成那一天的項目，網址記著 day', async () => {
+    // Arrange
+    stubCompactScreen();
+    const items = [agyItem({ number: 1, dueDate: '2026-11-18' }), agyItem({ number: 2, title: '別天的', dueDate: '2026-11-20' })];
+    const { user, router } = await openCalendar(items);
+    await screen.findByRole('link', { name: /AGY-1/ });
+
+    // Act
+    await user.click(dayButton('11 月 20 日'));
+
+    // Assert
+    expect(await screen.findByRole('link', { name: /AGY-2/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /AGY-1/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: '11 月 20 日（週五）' })).toBeInTheDocument();
+    expect(dayButton('11 月 20 日')).toHaveAttribute('aria-pressed', 'true');
+    expect(currentPath(router)).toContain('day=2026-11-20');
+  });
+
+  it('網址帶 day 就選那一天；換月回到預設（別的月是 1 號）', async () => {
+    // Arrange
+    stubCompactScreen();
+    const { user, router } = await openCalendar([], '/projects/AGY?view=calendar&day=2026-11-05');
+    expect(dayButton('11 月 5 日')).toHaveAttribute('aria-pressed', 'true');
+
+    // Act
+    await user.click(screen.getByRole('link', { name: '下月 ›' }));
+
+    // Assert
+    expect(await screen.findByRole('heading', { level: 3, name: '12 月 1 日（週二）' })).toBeInTheDocument();
+    expect(currentPath(router)).not.toContain('day=');
+  });
+
+  it('每一格底下的點：過期的排前面，最多三個，格子自己的名稱帶項目數', async () => {
+    // Arrange
+    stubCompactScreen();
+    const items = [
+      agyItem({ number: 1, dueDate: '2026-11-10', stateCategory: 'in_progress' }),
+      agyItem({ number: 2, dueDate: '2026-11-10', stateCategory: 'done' }),
+      agyItem({ number: 3, dueDate: '2026-11-10', stateCategory: 'not_started' }),
+      agyItem({ number: 4, dueDate: '2026-11-10', stateCategory: 'in_progress' }),
+    ];
+
+    // Act
+    await openCalendar(items);
+
+    // Assert
+    const cell = await screen.findByRole('button', { name: '11 月 10 日，4 個項目' });
+    expect(cell.querySelectorAll('[class*="_dot_"]')).toHaveLength(3);
+    expect(cell.querySelector('[class*="overdue"]')).not.toBeNull();
+    // 超過三個時留前面的：過期的先、完成的排在最後被略過。
+    expect(cell.querySelector('[class*="done"]')).toBeNull();
+  });
+
+  it('選的那一天有里程碑時列在項目上面；什麼都沒有時說一句', async () => {
+    // Arrange
+    stubCompactScreen();
+    const milestones = [milestoneOf('第一版上線', '2026-11-25', { id: V1 })];
+    const { user } = await openCalendar([], undefined, { milestones });
+    expect(await screen.findByText('這一天沒有項目。')).toBeInTheDocument();
+
+    // Act
+    await user.click(screen.getByRole('button', { name: '11 月 25 日，沒有項目，1 個里程碑或週期標示' }));
+
+    // Assert
+    expect(await screen.findByRole('link', { name: '第一版上線' })).toBeInTheDocument();
+    expect(screen.queryByText('這一天沒有項目。')).not.toBeInTheDocument();
+  });
+
+  it('方向鍵移動選的日子：左右一天、上下一週，焦點跟著走，只有選的那一格在 Tab 的順序裡', async () => {
+    // Arrange
+    stubCompactScreen();
+    const { user } = await openCalendar([]);
+    screen.getByRole('button', { name: /^11 月 18 日/ }).focus();
+
+    // Act
+    await user.keyboard('{ArrowRight}');
+    await user.keyboard('{ArrowDown}');
+
+    // Assert
+    const moved = dayButton('11 月 26 日');
+    expect(moved).toHaveFocus();
+    expect(moved).toHaveAttribute('aria-pressed', 'true');
+    expect(moved).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('button', { name: /^11 月 18 日/ })).toHaveAttribute('tabindex', '-1');
   });
 
   it('換月份的三顆按鈕縮短成「上月」「今天」「下月」，排得進一行', async () => {
@@ -500,7 +600,7 @@ describe('窄螢幕的議程', () => {
     expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['‹ 上月', '今天', '下月 ›']);
   });
 
-  it('「沒有到期日」的提示放在議程最下面；沒有東西要說時不留空的容器', async () => {
+  it('「沒有到期日」的提示放在最下面；沒有東西要說時不留空的容器', async () => {
     // Arrange
     stubCompactScreen();
     const items = [agyItem({ number: 1, dueDate: '2026-11-18' }), agyItem({ number: 2, dueDate: null })];
@@ -510,19 +610,8 @@ describe('窄螢幕的議程', () => {
 
     // Assert
     const notice = await screen.findByRole('link', { name: '1 個項目沒有到期日' });
-    const lastDay = screen.getAllByRole('heading', { level: 3 }).at(-1) as HTMLElement;
-    expect(lastDay.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const dayList = screen.getByRole('list', { name: '11 月 18 日（週三）的項目' });
+    expect(dayList.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(region.querySelectorAll('div:empty')).toHaveLength(0);
-  });
-
-  it('這個月沒有任何項目時說一句', async () => {
-    // Arrange
-    stubCompactScreen();
-
-    // Act
-    await openCalendar([]);
-
-    // Assert
-    expect(await screen.findByText('這個月沒有項目。')).toBeInTheDocument();
   });
 });

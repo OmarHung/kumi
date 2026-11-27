@@ -12,6 +12,7 @@ import { formatRangeIn, fromFromSearchParams, scaleFromSearchParams, stepDaysFor
 import { TimelineControls } from './TimelineControls';
 import { TimelineGrid } from './TimelineGrid';
 import { TimelineNotes } from './TimelineNotes';
+import { TimelineTrackContext } from './TimelineTrackContext';
 import { useTimelineData, type TimelineData, type TimelineQueries } from './useTimelineData';
 import styles from './Timeline.module.css';
 
@@ -102,8 +103,10 @@ export function TimelineFrame({
 }: TimelineFrameProps) {
   const [searchParams] = useSearchParams();
   const weekStart = useWeekStart();
-  const window = windowOf(scaleFromSearchParams(searchParams), fromFromSearchParams(searchParams, todayDate, weekStart));
   const isCompact = useIsCompact();
+  // 手機一律是週：月的範圍（182 天）在 358px 寬裡刻度疊在一起、條只剩幾 px，手機上也沒有切換刻度的控制項。
+  const scale = isCompact ? 'week' : scaleFromSearchParams(searchParams);
+  const window = windowOf(scale, fromFromSearchParams(searchParams, todayDate, weekStart));
   const data = useTimelineData(source, queriesFor(window, weekStart), !isWaiting && blocker === null);
   const rows = timelineRows(data.dated.visible, window, todayDate, isAssigneeShown);
   const segments = cycleSegments(cycles, window);
@@ -116,8 +119,7 @@ export function TimelineFrame({
       {isCompact ? (
         <>
           <TimelineControls window={window} todayDate={todayDate} stepDays={stepDaysFor(window.scale, null)} layout="bar" />
-          {message ?? renderList(rows)}
-          <p className={styles.compactNote}>時間軸在寬螢幕上看。</p>
+          <TimelineTrackContext.Provider value={{ window, todayDate }}>{message ?? renderList(rows)}</TimelineTrackContext.Provider>
         </>
       ) : (
         <>

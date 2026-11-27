@@ -15,9 +15,11 @@ import { setWeekStart, useWeekStart, WEEK_START_LABELS, WEEK_STARTS, type WeekSt
 import { shiftMonth, monthTitle, type MonthKey } from './calendarMonth';
 import styles from './Calendar.module.css';
 
-/** 換月份只動 month：其他參數（篩選、開著的項目面板）照舊。是今天所在的月就不寫，網址短一點、「今天」那天之後還是當月。 */
+/** 換月份只動 month（與選的那一天 day）：其他參數（篩選、開著的項目面板）照舊。是今天所在的月就不寫，網址短一點、「今天」那天之後還是當月。 */
 function paramsWithMonth(current: URLSearchParams, month: MonthKey, todayDate: CalendarDate): string {
   const next = new URLSearchParams(current);
+  // 窄螢幕選的那一天（day）屬於原本的月份：換月就回到預設（本月今天、別的月 1 號）。
+  next.delete('day');
   if (month === todayDate.slice(0, 7)) {
     next.delete('month');
   } else {
@@ -74,7 +76,7 @@ interface CalendarBarProps {
 /**
  * 內容區上方的一列：「2026 年 11 月」（h2）與「‹ 上個月」「今天」「下個月 ›」。
  * 寬螢幕換月按鈕旁多「排法」（到期日／期間）的切換與「一週從」的下拉：都是同一列的控制項，這一列本來就有按鈕，所以不會變高，
- * contentStart 的預算不受影響（1440 是 165、預算 176）；窄螢幕的議程依到期日、依日期列出，和排法、一週從哪天開始都無關，不放。
+ * contentStart 的預算不受影響（1440 是 165、預算 176）；窄螢幕的小月曆依到期日排，和排法、一週從哪天開始都無關，不放。
  * 月份是網址的一部分，所以切換是連結（不多一筆瀏覽紀錄：和換篩選條件一樣，上一頁回到上一個畫面，不是上一個月）。
  */
 export function CalendarBar({ month, todayDate }: CalendarBarProps) {

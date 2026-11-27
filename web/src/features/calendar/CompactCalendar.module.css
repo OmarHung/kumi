@@ -1,0 +1,157 @@
+/*
+ * 窄螢幕（48rem 以下）的行事曆：小月曆加選的那一天（docs/design/08-interaction.md 的「行事曆」）。
+ * 一格 44px 高（--row-height，觸控）、整格是按鈕；日期數字 15px 放在 30px 的圓裡，圓下面最多三個 5px 的點。
+ */
+.month {
+  padding: 0 var(--space-2) var(--space-3);
+}
+
+.weekdays,
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekday {
+  padding-block: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--row-height);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--color-focus-ring, var(--color-accent));
+  outline-offset: -2px;
+  border-radius: var(--radius-md);
+}
+
+/* 頭尾補的上下個月的日子：只留位置與淡淡的數字，不能選（選了要換月，月份在上面那一列換）。 */
+.outside {
+  cursor: default;
+  color: var(--color-text-muted);
+  opacity: 0.45;
+}
+
+.number {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.today .number {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.selected .number {
+  border-color: var(--color-accent-solid);
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+}
+
+/* 點的位置永遠留著，有沒有點格子都一樣高。 */
+.dots {
+  display: flex;
+  gap: 3px;
+  height: 5px;
+}
+
+.dot {
+  box-sizing: border-box;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.overdue {
+  background: var(--color-danger);
+}
+
+.active {
+  background: var(--color-state-active);
+}
+
+.done {
+  background: var(--color-success);
+}
+
+.marker {
+  border: 1px solid var(--color-text-muted);
+  background: transparent;
+}
+
+.day {
+  border-top: 1px solid var(--color-border);
+}
+
+/* 小標題、標示、空白的說明不另外加左右內距：內容區的留白已經是 16px，和工具列、清單裡每一筆的字同一條左緣（清單貼邊、自己內縮 16px）。 */
+.dayHeading {
+  margin: 0;
+  padding: var(--space-3) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.markers {
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  list-style: none;
+}
+
+.markerLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-2) 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+@media (forced-colors: active) {
+  .selected .number {
+    border-color: Highlight;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .today .number {
+    border-color: Highlight;
+  }
+
+  .dot {
+    background: CanvasText;
+  }
+
+  .marker {
+    border-color: CanvasText;
+    background: transparent;
+  }
+}
