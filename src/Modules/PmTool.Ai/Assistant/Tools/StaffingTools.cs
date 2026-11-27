@@ -50,7 +50,7 @@ internal sealed class GetProjectTool(AssistantToolContext context) : AssistantTo
 /// <summary>組織裡的人（不含 Email）。專案成員以外的人要加進專案、或使用者指定的人不在成員裡時用。</summary>
 internal sealed class ListPeopleTool(AssistantToolContext context) : AssistantTool(
     AssistantToolNames.ListPeople,
-    $"列出組織裡的人（帳號沒停用的）：人員 id、名稱、組織角色、職稱、負責範圍，以及在這個專案的角色（不是成員是 null）。text 可以只找名稱、職稱或負責範圍包含它的人，最多 {AiRules.MaxPeopleListed} 個。"
+    $"列出組織裡的人（帳號沒停用的）：人員 id、名稱、組織角色、職稱、負責範圍，以及在這個專案的角色（不是成員、或這則對話不屬於任何專案時是 null）。text 可以只找名稱、職稱或負責範圍包含它的人，最多 {AiRules.MaxPeopleListed} 個。"
     + StaffingNotices.UserContent,
     $$$"""
     {"type":"object","properties":{"text":{"type":"string","description":"只列名稱、職稱或負責範圍包含這段文字的人"},"limit":{"type":"integer","description":"最多回幾個，1 到 {{{AiRules.MaxPeopleListed}}}，預設 {{{AiRules.MaxPeopleListed}}}"}},"additionalProperties":false}
@@ -67,7 +67,7 @@ internal sealed class ListPeopleTool(AssistantToolContext context) : AssistantTo
 
         var limit = Math.Clamp(ToolArguments.Int(arguments, "limit") ?? AiRules.MaxPeopleListed, 1, AiRules.MaxPeopleListed);
         var result = await Context.Staffing.ListPeopleAsync(
-            Context.Actor, new PeopleQuery(Context.RequiredProjectKey, string.IsNullOrEmpty(text) ? null : text, limit), cancellationToken);
+            Context.Actor, new PeopleQuery(Context.ProjectKey, string.IsNullOrEmpty(text) ? null : text, limit), cancellationToken);
         if (result.Failure is { } failure)
         {
             return ToolResults.FromFailure(failure);

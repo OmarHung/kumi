@@ -21,7 +21,8 @@ internal sealed partial class AssistantAttachmentService(
     IFileStore store,
     IStorageQuota quota,
     TimeProvider clock,
-    ILogger<AssistantAttachmentService> logger) : IAssistantAttachmentService
+    ILogger<AssistantAttachmentService> logger,
+    ItemFinding.ConversationReadGuard readGuard) : IAssistantAttachmentService
 {
     public async Task<Result<AssistantAttachment>> UploadAsync(
         Actor actor, string? projectKey, NewAssistantAttachment upload, CancellationToken cancellationToken)
@@ -162,9 +163,9 @@ internal sealed partial class AssistantAttachmentService(
 
     /// <summary>
     /// 待送的自己看得到；已送出的要綁在還在的對話上（孤兒＝對話已經刪了，不給），而且那則對話現在還看得到
-    /// （在「看得到全部項目」時回覆過、現在只剩自己的項目的，對話整則當作不存在，附件也一樣）。組織對話的附件要綁在組織對話上。
+    /// （在「看得到全部項目」時回覆過、或讀過別人項目的專案（find_items）現在只剩自己的項目的，對話整則當作不存在，附件也一樣）。組織對話的附件要綁在組織對話上。
     /// </summary>
-    private static async Task<bool> IsVisibleAsync(
+    private async Task<bool> IsVisibleAsync(
         AiDbContext db, Actor actor, AttachmentScope scope, AiAttachmentRow row, CancellationToken cancellationToken)
     {
         if (row.BoundAt is null)
@@ -179,13 +180,20 @@ internal sealed partial class AssistantAttachmentService(
 
         var projectId = scope.ProjectId;
         var canSeeAll = scope.CanReadAllItems;
-        return await db.Conversations.AsNoTracking().AnyAsync(
+        var visible = await db.Conversations.AsNoTracking().AnyAsync(
             c => c.Id == conversationId
                 && c.OrganizationId == actor.OrganizationId
                 && c.PersonId == actor.PersonId
                 && c.ProjectId == projectId
                 && (canSeeAll || !c.SawAllItems),
             cancellationToken);
+        if (!visible)
+        {
+            return false;
+        }
+
+        var stale = await readGuard.DeleteStaleAsync(db, actor, conversationId, clock.GetUtcNow(), cancellationToken);
+        return !stale.Contains(conversationId);
     }
 
     /// <summary>權限（先於檔名）與待送的數量；成功時回傳整理過的檔名與附件屬於哪一邊。</summary>

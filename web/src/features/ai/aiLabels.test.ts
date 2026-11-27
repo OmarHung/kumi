@@ -30,6 +30,11 @@ describe('工具的說法', () => {
     expect(toolLabel('my_work')).toBe('讀我的工作');
   });
 
+  it('跨專案查項目', () => {
+    // Arrange / Act / Assert
+    expect(toolLabel('find_items')).toBe('查項目');
+  });
+
   it('不選專案的兩個工具', () => {
     // Arrange / Act / Assert
     expect(toolLabel('list_projects')).toBe('查看你的專案清單');

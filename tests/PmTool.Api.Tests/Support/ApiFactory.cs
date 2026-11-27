@@ -277,6 +277,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<IItemBatchProposalCreator>();
         services.RemoveAll<IAssistantProposalLedger>();
         services.RemoveAll<IStaffingBriefService>();
+        services.RemoveAll<IAssistantItemFinder>();
         services.RemoveAll<IProjectProposalService>();
         services.RemoveAll<IProjectProposalCreator>();
         services.RemoveAll<ILocalAgentService>();
@@ -339,6 +340,7 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<IItemBatchProposalCreator>(Modules.ItemBatchProposals);
         services.AddSingleton<IAssistantProposalLedger>(Modules.ProposalLedger);
         services.AddSingleton<IStaffingBriefService>(Modules.Staffing);
+        services.AddSingleton<IAssistantItemFinder>(Modules.ItemFinder);
         services.AddSingleton<IProjectProposalService>(Modules.ProjectProposals);
         services.AddSingleton<IProjectProposalCreator>(Modules.ProjectProposals);
         services.AddSingleton<ILocalAgentService>(Modules.LocalAgents);

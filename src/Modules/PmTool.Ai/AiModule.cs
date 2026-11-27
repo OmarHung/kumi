@@ -56,6 +56,10 @@ public static class AiModule
         services.TryAddScoped<ConnectionUsageLedger>();
         services.TryAddScoped<IAssistantService, AssistantService>();
 
+        // 跨專案查項目（find_items；內建助理與 MCP 共用）與對話讀過的專案的檢查。
+        services.TryAddScoped<ItemFinding.ConversationReadGuard>();
+        services.TryAddScoped<IAssistantItemFinder, ItemFinding.AssistantItemFinder>();
+
         // 派工用的專案摘要與人員名單（get_project、list_people；內建助理與 MCP 共用）。
         services.TryAddScoped<IStaffingBriefService, Staffing.StaffingBriefService>();
 

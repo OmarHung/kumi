@@ -62,6 +62,17 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForMyWork = "0.18.0";
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放 find_items（理由同 <see cref="MinAgentVersionForNewItemProposals"/>）。
+    /// </summary>
+    public const string MinAgentVersionForFindItems = "0.19.0";
+
+    /// <summary>find_items 一次最多回幾筆。</summary>
+    public const int MaxFindItemsLimit = 50;
+
+    /// <summary>find_items 的關鍵字最長幾個字。</summary>
+    public const int MaxFindItemsTextLength = 100;
+
     public const int MaxMachineNameLength = 60;
 
     /// <summary>一個引擎最多列幾個模型。</summary>

@@ -8,13 +8,15 @@ internal static class AssistantToolSet
     public static IList<AITool> Create(AssistantToolContext context) =>
         context.ProjectKey is null ? CreateForOrganization(context) : CreateForProject(context);
 
-    /// <summary>不選專案的組織對話：只有模板、看得到的專案清單、自己的工作（my_work）與提出新專案；讀不到專案的設定與別人的項目。</summary>
+    /// <summary>不選專案的組織對話：只有模板、看得到的專案清單、自己的工作（my_work）、跨專案查項目（find_items，照使用者的權限）、找人（list_people）與提出新專案；讀不到專案的設定。</summary>
     private static IList<AITool> CreateForOrganization(AssistantToolContext context) =>
     [
         new ListTemplatesTool(context),
         new GetTemplateTool(context),
         new ListProjectsTool(context),
         new MyWorkTool(context),
+        new FindItemsTool(context),
+        new ListPeopleTool(context),
         new ProposeProjectTool(context),
         new WithdrawProposalTool(context),
     ];
@@ -34,6 +36,7 @@ internal static class AssistantToolSet
         new GetProjectTool(context),
         new ListPeopleTool(context),
         new MyWorkTool(context),
+        new FindItemsTool(context),
         new ProposeMemberChangesTool(context),
         new ProposeItemDeletionsTool(context),
         new ProposeBulkItemChangesTool(context),

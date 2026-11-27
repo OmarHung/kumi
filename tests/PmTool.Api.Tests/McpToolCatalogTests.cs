@@ -17,6 +17,7 @@ public sealed class McpToolCatalogTests
             ["search_items"] = (AccessTokenScope.ItemsRead, true),
             ["list_items"] = (AccessTokenScope.ItemsRead, true),
             ["my_work"] = (AccessTokenScope.ItemsRead, true),
+            ["find_items"] = (AccessTokenScope.ItemsRead, true),
             ["get_item"] = (AccessTokenScope.ItemsRead, true),
             ["create_item"] = (AccessTokenScope.ItemsWrite, false),
             ["update_item"] = (AccessTokenScope.ItemsWrite, false),

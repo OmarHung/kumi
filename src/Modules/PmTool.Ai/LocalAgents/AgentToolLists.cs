@@ -18,6 +18,7 @@ internal static class AgentToolLists
         [AssistantToolNames.ProposeBulkItemChanges] = AiRules.MinAgentVersionForRevisionTools,
         [AssistantToolNames.WithdrawProposal] = AiRules.MinAgentVersionForRevisionTools,
         [AssistantToolNames.MyWork] = AiRules.MinAgentVersionForMyWork,
+        [AssistantToolNames.FindItems] = AiRules.MinAgentVersionForFindItems,
     };
 
     public static bool SupportsNewItems(string? agentVersion) => Supports(AssistantToolNames.ProposeNewItems, agentVersion);
@@ -27,6 +28,8 @@ internal static class AgentToolLists
     public static bool SupportsRevision(string? agentVersion) => Supports(AssistantToolNames.WithdrawProposal, agentVersion);
 
     public static bool SupportsMyWork(string? agentVersion) => Supports(AssistantToolNames.MyWork, agentVersion);
+
+    public static bool SupportsFindItems(string? agentVersion) => Supports(AssistantToolNames.FindItems, agentVersion);
 
     public static IReadOnlyList<string> For(string? projectKey, string? agentVersion)
     {

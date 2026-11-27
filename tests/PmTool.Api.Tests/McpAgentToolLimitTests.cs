@@ -13,7 +13,7 @@ public sealed class McpAgentToolLimitTests
     private static readonly string[] AgentTools =
     [
         "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset", "get_changeset",
-        "get_item", "search_items", "propose_item_changes", "propose_new_items", "my_work",
+        "get_item", "search_items", "propose_item_changes", "propose_new_items", "my_work", "find_items",
         "get_project", "list_people", "propose_member_changes",
         "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
     ];
@@ -123,7 +123,7 @@ public sealed class McpAgentToolLimitTests
         {
             Assert.That(tools, Does.Contain("update_item").And.Contain("list_projects").And.Contain("my_work"));
             Assert.That(tools, Does.Not.Contain("propose_item_changes"));
-            Assert.That(tools, Has.Length.EqualTo(18));
+            Assert.That(tools, Has.Length.EqualTo(19));
         }
     }
 }

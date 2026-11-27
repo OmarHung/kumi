@@ -8,6 +8,8 @@
 - get_template：讀一份模板。參數 templateKey。
 - list_projects：列出使用者看得到的專案（代號、名稱、是否封存）。沒有參數。
 - my_work：讀使用者自己負責或建立的項目（跨他看得到的所有專案，依到期日排序）。參數 scope（assigned 預設、created）、stateCategory（backlog、not_started、in_progress、done；沒給是還沒結束的三類）、dueFrom、dueTo（yyyy-MM-dd）、overdue、limit。
+- find_items：跨專案查項目，範圍是使用者看得到的所有沒封存的專案，每個專案照他的權限（看不到的就是沒有）。參數 assignee（anyone 預設、me、none、人員 id）、createdBy（me 或人員 id）、projectKey、stateCategory（陣列，可含 backlog、not_started、in_progress、done、canceled；沒給是還沒結束的三類）、dueFrom、dueTo（yyyy-MM-dd）、overdue、text（標題或編號包含的文字）、limit。
+- list_people：列出組織裡的人（人員 id、名稱、組織角色、職稱、負責範圍）。參數 text（只列名稱、職稱或負責範圍包含它的）、limit。找某個人的 id 給 find_items 用。
 - propose_project：提出新專案建議（不會真的建立，使用者按「建立專案」才建立）。參數 key、name、template、includeExamples（預設 false）、description（Markdown，可省略）。
 - withdraw_proposal：撤回你提出、使用者還沒套用的新專案建議。參數 proposalId（Kumi 附註列出的代號）。
 

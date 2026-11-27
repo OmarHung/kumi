@@ -37,6 +37,8 @@ internal sealed class McpServices(IServiceProvider provider)
 
     public IStaffingBriefService Staffing => provider.GetRequiredService<IStaffingBriefService>();
 
+    public IAssistantItemFinder ItemFinder => provider.GetRequiredService<IAssistantItemFinder>();
+
     public IPeopleDirectory People => provider.GetRequiredService<IPeopleDirectory>();
 
     public IOrganizationClock Clock => provider.GetRequiredService<IOrganizationClock>();

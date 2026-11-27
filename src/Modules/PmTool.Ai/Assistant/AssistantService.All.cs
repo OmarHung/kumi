@@ -20,12 +20,14 @@ internal sealed partial class AssistantService
         var now = time.GetUtcNow();
         var scopes = await OpenProjectScopesAsync(db, actor, cancellationToken);
         await DeleteSeenAllWhereOnlyOwnAsync(db, actor, scopes.Values, now, cancellationToken);
+        var stale = await readGuard.DeleteStaleAsync(db, actor, null, now, cancellationToken);
 
         var seesAll = scopes.Where(s => s.Value.CanReadAllItems).Select(s => s.Key).ToList();
         var onlyOwn = scopes.Where(s => !s.Value.CanReadAllItems).Select(s => s.Key).ToList();
         var rows = await db.Conversations
             .AsNoTracking()
             .Where(c => c.OrganizationId == actor.OrganizationId && c.PersonId == actor.PersonId
+                && !stale.Contains(c.Id)
                 && (c.ProjectId == null
                     || seesAll.Contains(c.ProjectId.Value)
                     || (onlyOwn.Contains(c.ProjectId.Value) && !c.SawAllItems)))

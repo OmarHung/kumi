@@ -38,6 +38,9 @@ internal static class AssistantToolNames
     /// <summary>使用者自己負責或建立的項目，跨他看得到的所有專案（只回他本來就看得到的，所以專案對話與組織對話都能用）。</summary>
     public const string MyWork = "my_work";
 
+    /// <summary>跨專案查項目，照使用者的權限（<see cref="IAssistantItemFinder"/>）。</summary>
+    public const string FindItems = "find_items";
+
     public const string ListProjects = "list_projects";
 
     public const string ProposeProject = "propose_project";

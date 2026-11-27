@@ -19,6 +19,9 @@ internal sealed class McpArguments(IDictionary<string, JsonElement>? values)
 
     public bool IsNull(string name) => _values.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.Null;
 
+    /// <summary>這個參數給的是 JSON 字串（不是陣列、物件）。</summary>
+    public bool IsString(string name) => _values.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.String;
+
     public string RequiredString(string name) =>
         OptionalString(name) is { Length: > 0 } text ? text : throw new McpArgumentException($"缺少參數 {name}。");
 

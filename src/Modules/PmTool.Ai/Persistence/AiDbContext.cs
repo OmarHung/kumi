@@ -24,6 +24,8 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
     public DbSet<AiMessageRow> Messages => Set<AiMessageRow>();
 
+    public DbSet<ItemFinding.ConversationReadRow> ConversationReads => Set<ItemFinding.ConversationReadRow>();
+
     public DbSet<ItemProposalRow> ItemProposals => Set<ItemProposalRow>();
 
     public DbSet<NewItemProposalRow> NewItemProposals => Set<NewItemProposalRow>();
@@ -113,6 +115,16 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
             // 保存期限的清理：依最後更新的時間找過期的對話。
             conversation.HasIndex(c => c.UpdatedAt);
+        });
+
+        modelBuilder.Entity<ItemFinding.ConversationReadRow>(read =>
+        {
+            read.ToTable("conversation_reads");
+            read.HasKey(r => new { r.ConversationId, r.ProjectId });
+            read.HasOne<AiConversationRow>().WithMany().HasForeignKey(r => r.ConversationId).OnDelete(DeleteBehavior.Cascade);
+
+            // 檢查時一次找出這個人所有對話讀過的專案。
+            read.HasIndex(r => new { r.OrganizationId, r.PersonId });
         });
 
         modelBuilder.Entity<AiMessageRow>(message =>

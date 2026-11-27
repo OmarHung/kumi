@@ -23,6 +23,37 @@ namespace PmTool.Ai.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("PmTool.Ai.ItemFinding.ConversationReadRow", b =>
+                {
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("person_id");
+
+                    b.HasKey("ConversationId", "ProjectId")
+                        .HasName("pk_conversation_reads");
+
+                    b.HasIndex("OrganizationId", "PersonId")
+                        .HasDatabaseName("ix_conversation_reads_organization_id_person_id");
+
+                    b.ToTable("conversation_reads", "ai");
+                });
+
             modelBuilder.Entity("PmTool.Ai.Persistence.AiAttachmentRow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1684,6 +1715,16 @@ namespace PmTool.Ai.Persistence.Migrations
                         .HasDatabaseName("ix_project_proposals_organization_id_person_id_created_at");
 
                     b.ToTable("project_proposals", "ai");
+                });
+
+            modelBuilder.Entity("PmTool.Ai.ItemFinding.ConversationReadRow", b =>
+                {
+                    b.HasOne("PmTool.Ai.Persistence.AiConversationRow", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_conversation_reads_conversations_conversation_id");
                 });
 
             modelBuilder.Entity("PmTool.Ai.Persistence.AiAttachmentRow", b =>

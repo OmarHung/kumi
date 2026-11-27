@@ -28,7 +28,8 @@ internal sealed partial class AssistantService(
     IPeopleDirectory people,
     TimeProvider time,
     AssistantTimings timings,
-    HostTimings hostTimings) : IAssistantService
+    HostTimings hostTimings,
+    ItemFinding.ConversationReadGuard readGuard) : IAssistantService
 {
     public async Task<Result<IReadOnlyList<AssistantConversationSummary>>> ListAsync(
         Actor actor, string? projectKey, CancellationToken cancellationToken)
@@ -49,10 +50,12 @@ internal sealed partial class AssistantService(
             await DeleteSeenAllAsync(db, actor, projectId, null, now, cancellationToken);
         }
 
+        // 讀過別人項目的專案現在看不到或只剩自己的：那幾則整則刪掉（回覆中的這次只是不列）。
+        var stale = await readGuard.DeleteStaleAsync(db, actor, null, now, cancellationToken);
         var rows = await db.Conversations
             .AsNoTracking()
             .Where(c => c.OrganizationId == actor.OrganizationId && c.ProjectId == projectId && c.PersonId == actor.PersonId
-                && (canSeeAll || !c.SawAllItems))
+                && (canSeeAll || !c.SawAllItems) && !stale.Contains(c.Id))
             .OrderByDescending(c => c.UpdatedAt)
             .ThenByDescending(c => c.Id)
             .Take(AiRules.MaxConversationsListed)
@@ -188,13 +191,21 @@ internal sealed partial class AssistantService(
         AiDbContext db, Actor actor, ConversationScope scope, Guid conversationId, CancellationToken cancellationToken)
     {
         var conversation = await FindConversationAsync(db, actor, scope.ProjectId, conversationId, cancellationToken);
-        if (conversation is null || !conversation.SawAllItems || scope.CanReadAllItems)
+        if (conversation is null)
         {
-            return conversation;
+            return null;
         }
 
-        await DeleteSeenAllAsync(db, actor, scope.ProjectId, conversationId, time.GetUtcNow(), cancellationToken);
-        return null;
+        var now = time.GetUtcNow();
+        if (conversation.SawAllItems && !scope.CanReadAllItems)
+        {
+            await DeleteSeenAllAsync(db, actor, scope.ProjectId, conversationId, now, cancellationToken);
+            return null;
+        }
+
+        // 讀過別人項目的專案（find_items）現在看不到或只剩自己的：同一套，整則刪掉、回覆中的這次當作不存在。
+        var stale = await readGuard.DeleteStaleAsync(db, actor, conversationId, now, cancellationToken);
+        return stale.Contains(conversationId) ? null : conversation;
     }
 
     private static Task<int> DeleteSeenAllAsync(

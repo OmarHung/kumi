@@ -4,7 +4,6 @@ using PmTool.Abstractions;
 using PmTool.Ai.Assistant;
 using PmTool.Ai.LocalAgents;
 using PmTool.Ai.Tests.Assistant.Fakes;
-using PmTool.Blueprint.Model;
 using PmTool.Work;
 
 namespace PmTool.Ai.Tests.Assistant;
@@ -16,24 +15,19 @@ public sealed class MyWorkToolTests
     private AssistantHarness _h = null!;
 
     [SetUp]
-    public async Task StartAsync()
-    {
-        _h = await AssistantHarness.StartAsync();
-        _h.Projects.OnList = _ => [Project("WEB", "網站改版"), Project("OPS", "維運")];
-        _h.WorkItems.OnListAcross = (_, _) => new WorkItemPage([], null);
-    }
+    public async Task StartAsync() => _h = await AssistantHarness.StartAsync();
 
     [TearDown]
     public async Task StopAsync() => await _h.DisposeAsync();
 
     [TestCase(false)]
     [TestCase(true)]
-    public async Task MyWork_InProjectAndOrganizationConversations_ReturnsTheUsersItemsWithProjectNames(bool organization)
+    public async Task MyWork_InProjectAndOrganizationConversations_ReturnsTheFoundItemsInTheSameShape(bool organization)
     {
         // Arrange
-        _h.WorkItems.OnListAcross = (_, _) => new WorkItemPage(
-            [Item("OPS-3", "OPS", new DateOnly(2026, 11, 19)) with { AssigneeId = _h.Actor.PersonId, Priority = Priority.High }], null);
-        _h.People.Set(_h.OrganizationId, _h.Actor.PersonId, PmTool.Identity.OrganizationRole.Member, name: "小明");
+        var me = new FoundPerson(_h.Actor.PersonId, "小明");
+        _h.ItemFinder.OnFind = _ => new ItemFindResult(
+            [Found("OPS-3", new DateOnly(2026, 11, 19)) with { Assignee = me, Priority = "high" }], false);
 
         // Act
         var result = await RunAsync(new { }, organization);
@@ -48,51 +42,47 @@ public sealed class MyWorkToolTests
             Assert.That(item.GetProperty("projectKey").GetString(), Is.EqualTo("OPS"));
             Assert.That(item.GetProperty("projectName").GetString(), Is.EqualTo("維運"));
             Assert.That(item.GetProperty("dueDate").GetString(), Is.EqualTo("2026-11-19"));
+            Assert.That(item.GetProperty("priority").GetString(), Is.EqualTo("high"));
             Assert.That(item.GetProperty("assignee").GetProperty("name").GetString(), Is.EqualTo("小明"));
             Assert.That(item.TryGetProperty("title", out _) && item.TryGetProperty("type", out _) && item.TryGetProperty("state", out _), Is.True);
-            Assert.That(item.TryGetProperty("stateCategory", out _) && item.TryGetProperty("priority", out _), Is.True);
+            Assert.That(item.TryGetProperty("stateCategory", out _), Is.True);
+            Assert.That(item.TryGetProperty("createdBy", out _), Is.False);
             Assert.That(result.GetProperty("hasMore").GetBoolean(), Is.False);
         }
     }
 
     [Test]
-    public async Task MyWork_ByDefault_AsksForMyOpenAssignedItemsSortedByDueDateAcrossAllProjects()
+    public async Task MyWork_ByDefault_AsksTheFinderForMyItemsWithoutAConversation()
     {
         // Act
         await RunAsync(new { });
 
-        // Assert
-        var call = _h.WorkItems.AcrossCalls.Single();
+        // Assert：只會是自己的項目，所以不帶對話編號（不記讀過的專案）。
+        var call = _h.ItemFinder.Calls.Single();
         using (Assert.EnterMultipleScope())
         {
             Assert.That(call.Actor, Is.EqualTo(_h.Actor));
-            Assert.That(call.Scope, Is.SameAs(CrossProjectScope.All));
-            Assert.That(call.Query.AssigneeId, Is.EqualTo(_h.Actor.PersonId));
+            Assert.That(call.ConversationId, Is.Null);
+            Assert.That(call.Query.Assignee, Is.EqualTo(ItemFindAssignee.Me));
             Assert.That(call.Query.CreatedBy, Is.Null);
-            Assert.That(call.Query.StateCategories, Is.EqualTo(new[] { StateCategory.Backlog, StateCategory.NotStarted, StateCategory.InProgress }));
-            Assert.That(call.Query.SortBy, Is.EqualTo(WorkItemSortField.DueDate));
-            Assert.That(call.Query.Limit, Is.EqualTo(MyWorkTestLimits.DefaultPlusOne));
+            Assert.That(call.Query.StateCategories, Is.Empty);
+            Assert.That(call.Query.Overdue, Is.False);
+            Assert.That(call.Query.Limit, Is.EqualTo(MyWorkTestLimits.Default));
         }
     }
 
     [Test]
     public async Task MyWork_Created_FiltersByCreatorInsteadOfAssignee()
     {
-        // Arrange
-        var other = Guid.NewGuid();
-        _h.WorkItems.OnListAcross = (_, _) => new WorkItemPage([Item("WEB-1", "WEB", null) with { AssigneeId = other }], null);
-        _h.People.Set(_h.OrganizationId, other, PmTool.Identity.OrganizationRole.Member, name: "小華");
-
         // Act
-        var result = await RunAsync(new { scope = "created" });
+        await RunAsync(new { scope = "created" });
 
         // Assert
-        var query = _h.WorkItems.AcrossCalls.Single().Query;
+        var query = _h.ItemFinder.Calls.Single().Query;
         using (Assert.EnterMultipleScope())
         {
             Assert.That(query.CreatedBy, Is.EqualTo(_h.Actor.PersonId));
-            Assert.That(query.AssigneeId, Is.Null);
-            Assert.That(result.GetProperty("items")[0].GetProperty("assignee").GetProperty("name").GetString(), Is.EqualTo("小華"));
+            Assert.That(query.Assignee, Is.EqualTo(ItemFindAssignee.Anyone));
         }
     }
 
@@ -103,7 +93,7 @@ public sealed class MyWorkToolTests
         await RunAsync(new { dueFrom = "2026-11-19", dueTo = "2026-11-20" });
 
         // Assert
-        var query = _h.WorkItems.AcrossCalls.Single().Query;
+        var query = _h.ItemFinder.Calls.Single().Query;
         using (Assert.EnterMultipleScope())
         {
             Assert.That(query.DueFrom, Is.EqualTo(new DateOnly(2026, 11, 19)));
@@ -112,81 +102,56 @@ public sealed class MyWorkToolTests
     }
 
     [Test]
-    public async Task MyWork_Overdue_MeansDueBeforeTodayInTheOrganizationTimeZone()
+    public async Task MyWork_Overdue_LeavesTheTodayMathAndTheOpenCategoriesToTheFinder()
     {
-        // Arrange：UTC 11-18 08:00 是台北 16:00；再過 9 小時，UTC 還是 11-18、台北已經是 11-19。
-        _h.Clock.Advance(TimeSpan.FromHours(9));
-
         // Act
-        await RunAsync(new { overdue = true });
+        await RunAsync(new { overdue = true, stateCategory = "in_progress", dueTo = "2026-11-10" });
 
         // Assert
-        var query = _h.WorkItems.AcrossCalls.Single().Query;
+        var query = _h.ItemFinder.Calls.Single().Query;
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(query.DueTo, Is.EqualTo(new DateOnly(2026, 11, 18)));
-            Assert.That(query.StateCategories, Is.EqualTo(new[] { StateCategory.Backlog, StateCategory.NotStarted, StateCategory.InProgress }));
+            Assert.That(query.Overdue, Is.True);
+            Assert.That(query.DueTo, Is.EqualTo(new DateOnly(2026, 11, 10)));
+            Assert.That(query.StateCategories, Is.Empty);
         }
     }
 
-    [Test]
-    public async Task MyWork_OverdueWithAnEarlierDueTo_KeepsTheEarlierDay()
+    [TestCase("done", "done")]
+    [TestCase("in_progress", "in_progress")]
+    [TestCase("not_started", "not_started")]
+    public async Task MyWork_StateCategory_AsksForThatCategoryOnly(string category, string expected)
     {
         // Act
-        await RunAsync(new { overdue = true, dueTo = "2026-11-10" });
+        await RunAsync(new { stateCategory = category });
 
         // Assert
-        Assert.That(_h.WorkItems.AcrossCalls.Single().Query.DueTo, Is.EqualTo(new DateOnly(2026, 11, 10)));
+        Assert.That(_h.ItemFinder.Calls.Single().Query.StateCategories, Is.EqualTo(new[] { expected }));
     }
 
-    [Test]
-    public async Task MyWork_Done_AsksForTheDoneCategoryOnly()
-    {
-        // Act
-        await RunAsync(new { stateCategory = "done", dueFrom = "2026-11-16", dueTo = "2026-11-22" });
-
-        // Assert
-        Assert.That(_h.WorkItems.AcrossCalls.Single().Query.StateCategories, Is.EqualTo(new[] { StateCategory.Done }));
-    }
-
-    [Test]
-    public async Task MyWork_InProgressCategory_AsksForThatCategoryOnly()
-    {
-        // Act
-        await RunAsync(new { stateCategory = "in_progress" });
-
-        // Assert
-        Assert.That(_h.WorkItems.AcrossCalls.Single().Query.StateCategories, Is.EqualTo(new[] { StateCategory.InProgress }));
-    }
-
-    [TestCase(999, 51)]
-    [TestCase(0, 2)]
-    [TestCase(5, 6)]
-    public async Task MyWork_Limit_IsClampedToOneToFifty(int limit, int expectedQueryLimit)
+    [TestCase(999, 50)]
+    [TestCase(0, 1)]
+    [TestCase(5, 5)]
+    public async Task MyWork_Limit_IsClampedToOneToFifty(int limit, int expected)
     {
         // Act
         await RunAsync(new { limit });
 
-        // Assert：多要一筆，才知道還有沒有。
-        Assert.That(_h.WorkItems.AcrossCalls.Single().Query.Limit, Is.EqualTo(expectedQueryLimit));
+        // Assert
+        Assert.That(_h.ItemFinder.Calls.Single().Query.Limit, Is.EqualTo(expected));
     }
 
     [Test]
-    public async Task MyWork_MoreThanTheLimit_ReturnsOnlyTheLimitAndSaysThereIsMore()
+    public async Task MyWork_HasMoreFromTheFinder_IsPassedOn()
     {
         // Arrange
-        _h.WorkItems.OnListAcross = (_, _) => new WorkItemPage(
-            [Item("WEB-1", "WEB", null), Item("WEB-2", "WEB", null), Item("WEB-3", "WEB", null)], null);
+        _h.ItemFinder.OnFind = _ => new ItemFindResult([Found("WEB-1", null)], true);
 
         // Act
-        var result = await RunAsync(new { limit = 2 });
+        var result = await RunAsync(new { limit = 1 });
 
         // Assert
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(result.GetProperty("items").GetArrayLength(), Is.EqualTo(2));
-            Assert.That(result.GetProperty("hasMore").GetBoolean(), Is.True);
-        }
+        Assert.That(result.GetProperty("hasMore").GetBoolean(), Is.True);
     }
 
     [TestCase("""{"scope":"everyone"}""")]
@@ -197,7 +162,7 @@ public sealed class MyWorkToolTests
     [TestCase("""{"dueTo":"2026-02-30"}""")]
     [TestCase("""{"overdue":true,"stateCategory":"done"}""")]
     [TestCase("{\"scope\":\"assigned\\n\"}")]
-    public async Task MyWork_BadArguments_AreAToolErrorAndNeverReachTheWorkEngine(string json)
+    public async Task MyWork_BadArguments_AreAToolErrorAndNeverReachTheFinder(string json)
     {
         // Act
         var result = await RunAsync(JsonDocument.Parse(json).RootElement);
@@ -207,15 +172,15 @@ public sealed class MyWorkToolTests
         {
             Assert.That(result.GetProperty("ok").GetBoolean(), Is.False);
             Assert.That(result.GetProperty("error").GetString(), Is.Not.Empty);
-            Assert.That(_h.WorkItems.AcrossCalls, Is.Empty);
+            Assert.That(_h.ItemFinder.Calls, Is.Empty);
         }
     }
 
     [Test]
-    public async Task MyWork_WorkEngineFailure_IsReportedAsAToolError()
+    public async Task MyWork_FinderFailure_IsReportedAsAToolError()
     {
         // Arrange
-        _h.WorkItems.OnListAcross = (_, _) => WorkSamples.Failure(FailureKind.Invalid, WorkErrorCodes.QueryInvalid, "條件不對。");
+        _h.ItemFinder.OnFind = _ => WorkSamples.Failure(FailureKind.Invalid, AiErrorCodes.FieldInvalid, "條件不對。");
 
         // Act
         var result = await RunAsync(new { });
@@ -301,11 +266,8 @@ public sealed class MyWorkToolTests
         }
     }
 
-    private static ProjectSummary Project(string key, string name) =>
-        new(Guid.NewGuid(), key, name, 1, "member", DateTimeOffset.UnixEpoch);
-
-    private static WorkItem Item(string key, string project, DateOnly? due) =>
-        ItemSamples.Item(key, "寫報告", project) with { DueDate = due };
+    private static FoundItem Found(string key, DateOnly? due) =>
+        new(key, key.Split('-')[0], "維運", "寫報告", "task", "todo", "not_started", due, "none", null, new FoundPerson(Guid.NewGuid(), "建立者"));
 
     private async Task<JsonElement> RunAsync(object arguments, bool organization = false)
     {
@@ -328,6 +290,6 @@ public sealed class MyWorkToolTests
 
 internal static class MyWorkTestLimits
 {
-    /// <summary>預設 30 筆，工具多要一筆來判斷還有沒有。</summary>
-    public const int DefaultPlusOne = 31;
+    /// <summary>沒給 limit 時的筆數。</summary>
+    public const int Default = 30;
 }

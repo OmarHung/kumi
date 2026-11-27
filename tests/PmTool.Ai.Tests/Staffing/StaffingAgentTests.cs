@@ -35,13 +35,17 @@ public sealed class StaffingAgentTests
     }
 
     [Test]
-    public void OrganizationChat_NeverGetsTheStaffingTools()
+    public void OrganizationChat_NeverGetsTheProjectStaffingToolsButCanFindPeople()
     {
         // Act
-        var tools = AgentToolLists.For(null, NewVersion);
+        var tools = AgentToolLists.For(null, AiRules.MinAgentVersionForFindItems);
 
-        // Assert
-        Assert.That(StaffingTools.Any(tools.Contains), Is.False);
+        // Assert：get_project 與 propose_member_changes 要專案；list_people 在組織對話只用來找人（find_items 的人員編號）。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(tools, Does.Not.Contain("get_project").And.Not.Contain("propose_member_changes"));
+            Assert.That(tools, Does.Contain("list_people"));
+        }
     }
 
     [Test]

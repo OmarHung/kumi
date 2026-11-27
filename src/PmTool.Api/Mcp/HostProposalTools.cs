@@ -7,9 +7,9 @@ internal static class HostProposalTools
 {
     private static readonly HashSet<string> Names = new(StringComparer.Ordinal) { "propose_changeset", "propose_item_changes", "propose_new_items", "propose_member_changes", "propose_item_deletions", "propose_bulk_item_changes", "propose_project" };
 
-    /// <summary>撤回（withdraw_proposal）不算提出、不佔名額，但要知道這件工作的對話，所以主機授權也要找到對話編號。</summary>
+    /// <summary>撤回（withdraw_proposal）不算提出、不佔名額，但要知道這件工作的對話，所以主機授權也要找到對話編號；查項目（find_items）要記下對話讀過的專案，也一樣。</summary>
     /// <summary>提出類的建議也要記下對話：撤回要用建議自己的對話編號，才撤得掉同一則回覆裡剛提出、對話的工具段落還沒存下的那一份。</summary>
-    public static bool NeedsConversation(string toolName) => toolName == "withdraw_proposal" || IsProposal(toolName);
+    public static bool NeedsConversation(string toolName) => toolName is "withdraw_proposal" or "find_items" || IsProposal(toolName);
 
     public static bool IsProposal(string toolName) => Names.Contains(toolName);
 }

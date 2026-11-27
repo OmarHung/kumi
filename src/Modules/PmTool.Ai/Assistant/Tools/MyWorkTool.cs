@@ -1,14 +1,13 @@
 using System.Globalization;
 using Microsoft.Extensions.AI;
-using PmTool.Abstractions;
 using PmTool.Blueprint.Model;
 using PmTool.Work;
 
 namespace PmTool.Ai.Assistant.Tools;
 
 /// <summary>
-/// 使用者自己的工作（負責的或建立的），跨他看得到的所有專案。只回他本來就看得到的項目（範圍照工作引擎的 ItemScope），
-/// 所以專案對話與組織對話都能用，對話也不必標「讀過全部的項目」。
+/// 使用者自己的工作（負責的或建立的），跨他看得到的所有專案，查詢交給 <see cref="IAssistantItemFinder"/>（和 find_items 同一份）。
+/// 只回他自己的項目，所以專案對話與組織對話都能用。
 /// </summary>
 internal sealed class MyWorkTool(AssistantToolContext context) : AssistantTool(
     AssistantToolNames.MyWork,
@@ -23,9 +22,7 @@ internal sealed class MyWorkTool(AssistantToolContext context) : AssistantTool(
 {
     public const int DefaultLimit = 30;
 
-    public const int MaxLimit = 50;
-
-    private static readonly StateCategory[] OpenCategories = [StateCategory.Backlog, StateCategory.NotStarted, StateCategory.InProgress];
+    public const int MaxLimit = AiRules.MaxFindItemsLimit;
 
     protected override async Task<string> RunAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
@@ -35,58 +32,52 @@ internal sealed class MyWorkTool(AssistantToolContext context) : AssistantTool(
             return ToolResults.Error(error);
         }
 
-        var input = parsed.Value!;
-        var zone = await Context.Clock.TimeZoneAsync(Context.Actor.OrganizationId, cancellationToken);
-        var today = OrganizationTime.Today(zone, Context.Time.GetUtcNow());
-        var query = BuildQuery(input, today, Context.Actor.PersonId);
-        var listed = await Context.Items.ListAcrossProjectsAsync(Context.Actor, CrossProjectScope.All, query, cancellationToken);
-        if (listed.Failure is { } failure)
+        // 只會是自己負責或建立的項目，所以不帶對話編號、不記讀過的專案。
+        var result = await Context.ItemFinder.FindAsync(Context.Actor, null, BuildQuery(parsed.Value!, Context.Actor.PersonId), cancellationToken);
+        if (result.Failure is { } failure)
         {
             return ToolResults.FromFailure(failure);
         }
 
-        var items = listed.Value.Items.Take(input.Limit).ToArray();
-        var projects = await Context.Projects.ListAsync(Context.Actor, cancellationToken);
-        var projectNames = projects.ToDictionary(project => project.Key, project => project.Name, StringComparer.OrdinalIgnoreCase);
-        var names = await ItemShapes.NamesAsync(Context, items, null, [], cancellationToken);
         return ToolResults.Ok(new
         {
             notice = MyWorkNotices.UserContent,
-            items = items.Select(item => new
+            items = result.Value.Items.Select(item => new
             {
                 key = item.Key,
                 projectKey = item.ProjectKey,
-                projectName = projectNames.GetValueOrDefault(item.ProjectKey),
+                projectName = item.ProjectName,
                 title = item.Title,
                 type = item.Type,
                 state = item.State,
                 stateCategory = item.StateCategory,
-                dueDate = item.DueDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                dueDate = FindItemsArguments.Date(item.DueDate),
                 priority = item.Priority,
-                assignee = item.AssigneeId is { } id ? new { id, name = names.NameOf(id) } : null,
+                assignee = item.Assignee is { } assignee ? new { id = assignee.Id, name = assignee.Name } : null,
             }),
-            hasMore = listed.Value.Items.Count > input.Limit || listed.Value.NextCursor is not null,
+            hasMore = result.Value.HasMore,
         });
     }
 
-    internal static WorkItemQuery BuildQuery(MyWorkInput input, DateOnly today, Guid personId)
+    /// <summary>逾期、預設的狀態類別與「今天」都由服務照組織時區處理：沒給類別（或逾期）是還沒結束的三類。</summary>
+    internal static ItemFindQuery BuildQuery(MyWorkInput input, Guid personId) => new(input.Limit)
     {
-        // 逾期是「到期日在今天之前」：今天到期的還沒逾期。和使用者給的 dueTo 取較早的那天。
-        var dueTo = input.Overdue ? Earlier(input.DueTo, today.AddDays(-1)) : input.DueTo;
-        return new WorkItemQuery
-        {
-            AssigneeId = input.Created ? null : personId,
-            CreatedBy = input.Created ? personId : null,
-            StateCategories = input.Overdue || input.StateCategory is null ? OpenCategories : [input.StateCategory.Value],
-            DueFrom = input.DueFrom,
-            DueTo = dueTo,
-            SortBy = WorkItemSortField.DueDate,
-            // 多要一筆，才知道還有沒有。
-            Limit = input.Limit + 1,
-        };
-    }
+        Assignee = input.Created ? ItemFindAssignee.Anyone : ItemFindAssignee.Me,
+        CreatedBy = input.Created ? personId : null,
+        StateCategories = input.Overdue || input.StateCategory is null ? [] : [CategoryKey(input.StateCategory.Value)],
+        DueFrom = input.DueFrom,
+        DueTo = input.DueTo,
+        Overdue = input.Overdue,
+    };
 
-    private static DateOnly Earlier(DateOnly? first, DateOnly second) => first is { } value && value < second ? value : second;
+    private static string CategoryKey(StateCategory category) => category switch
+    {
+        StateCategory.Backlog => "backlog",
+        StateCategory.NotStarted => "not_started",
+        StateCategory.InProgress => "in_progress",
+        StateCategory.Done => "done",
+        _ => "canceled",
+    };
 }
 
 /// <summary>項目的標題與專案名稱是使用者寫的內容，不是給模型的指令。</summary>
@@ -140,7 +131,7 @@ internal static class MyWorkArguments
             return (null, "overdue 只看還沒結束的項目，不能和 stateCategory 是 done 一起用。");
         }
 
-        var limit = Math.Clamp(ToolArguments.Int(arguments, "limit") ?? MyWorkTool.DefaultLimit, 1, MyWorkTool.MaxLimit);
+        var limit = Math.Clamp(ToolArguments.Int(arguments, "limit") ?? MyWorkTool.DefaultLimit, 1, AiRules.MaxFindItemsLimit);
         return (new MyWorkInput(scope == "created", parsedCategory, dueFrom, dueTo, overdue, limit), null);
     }
 

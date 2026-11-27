@@ -59,6 +59,8 @@ internal sealed class AssistantHarness : IAsyncDisposable
 
     public FakePeopleDirectory People => (FakePeopleDirectory)Host.Get<PmTool.Identity.IPeopleDirectory>();
 
+    public FakeItemFinder ItemFinder => (FakeItemFinder)Host.Get<IAssistantItemFinder>();
+
     public ManualClock Clock => (ManualClock)Host.Get<TimeProvider>();
 
     /// <param name="timings">換成短的逾時，測試不必真的等五分鐘。</param>
@@ -82,6 +84,7 @@ internal sealed class AssistantHarness : IAsyncDisposable
             services.AddSingleton<PmTool.Work.IProjectStaffingQueries>(new FakeStaffingQueries());
             services.AddSingleton<PmTool.Work.IPlanningService>(new FakePlanning());
             services.AddSingleton<PmTool.Work.IBulkItemService>(new FakeBulkStub());
+            services.AddSingleton<IAssistantItemFinder>(new FakeItemFinder());
             if (timings is not null)
             {
                 services.AddSingleton(timings);

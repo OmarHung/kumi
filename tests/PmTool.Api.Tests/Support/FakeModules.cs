@@ -85,6 +85,8 @@ internal sealed class FakeModules
 
     public FakeStaffingBrief Staffing { get; } = new();
 
+    public FakeAssistantItemFinder ItemFinder { get; } = new();
+
     public FakeProjectProposals ProjectProposals { get; } = new();
 
     public FakeAiSettingsService AiSettings { get; } = new();

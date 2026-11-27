@@ -180,7 +180,7 @@ public sealed class OrganizationChatTests
             Assert.That(system, Has.Count.EqualTo(2));
             Assert.That(system[0], Is.EqualTo(AssistantPrompt.OrganizationSystemPrompt));
             Assert.That(system[1], Does.StartWith("這則對話不屬於任何專案。使用者能開新專案"));
-            Assert.That(call.Options!.Tools!.Select(t => t.Name), Is.EquivalentTo(new[] { "list_templates", "get_template", "list_projects", "my_work", "propose_project", "withdraw_proposal" }));
+            Assert.That(call.Options!.Tools!.Select(t => t.Name), Is.EquivalentTo(new[] { "list_templates", "get_template", "list_projects", "my_work", "find_items", "list_people", "propose_project", "withdraw_proposal" }));
             Assert.That(_h.Projects.Gets, Is.Empty);
         }
     }

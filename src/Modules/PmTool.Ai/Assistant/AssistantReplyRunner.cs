@@ -157,6 +157,7 @@ internal sealed class AssistantReplyRunner(
             provider.GetRequiredService<IItemDeletionProposalCreator>(),
             provider.GetRequiredService<IItemBatchProposalCreator>(),
             provider.GetRequiredService<IAssistantProposalLedger>(),
+            provider.GetRequiredService<IAssistantItemFinder>(),
             provider.GetRequiredService<IOrganizationClock>(),
             time,
             request.ConversationId,

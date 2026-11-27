@@ -11,6 +11,7 @@ internal static class McpToolCatalog
     public static IReadOnlyList<McpTool> All { get; } =
     [
         .. ItemReadTools.All,
+        .. FindItemsTools.All,
         .. ItemWriteTools.All,
         .. BlueprintReadTools.All,
         .. ChangeSetTools.All,

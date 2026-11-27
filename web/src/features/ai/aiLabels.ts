@@ -56,6 +56,7 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   propose_bulk_item_changes: '建議修改多個項目',
   withdraw_proposal: '撤回建議',
   my_work: '讀我的工作',
+  find_items: '查項目',
 };
 
 /** itemKey：工具的段落帶得到編號時給（get_item 寫「讀取 WEB-12」）；沒有就寫「讀取項目」。 */
