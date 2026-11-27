@@ -410,12 +410,24 @@
   gap: var(--space-2);
 }
 
+/*
+ * 最窄也留一個選單的寬度（Select 的 width="content" 下限是 8rem）：原本是 0，320px 寬時這一格被壓到比選單還窄，
+ * 選單溢出去疊在「送出的按法」上面。留了寬度之後，放不下時是送出那一組換到下一行。
+ */
 .pickers {
   display: flex;
   flex: 1;
   flex-wrap: wrap;
   gap: var(--space-2);
-  min-width: 0;
+  min-width: min(100%, 8rem);
+}
+
+/* 送出的按法與送出鈕是一組：換行時一起換、靠右，送出鈕不會和它的按法分開。 */
+.sendGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
 }
 
 .noModels {

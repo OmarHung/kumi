@@ -114,17 +114,19 @@ function ComposerBar({ options, selection, onSelectionChange, isStreaming, canSe
           <ModelPicker options={options} selection={selection} onChange={onSelectionChange} />
         )}
       </div>
-      <SendKeyPicker sendKey={sendKey} isCompact={isCompact} />
-      {isStreaming ? (
-        <Button className={styles.sendButton} onClick={onStop}>
-          <Icon name="stop" />
-          停止
-        </Button>
-      ) : (
-        <Button type="submit" variant="primary" className={styles.sendButton} disabled={!canSend} title={sendHint}>
-          送出
-        </Button>
-      )}
+      <div className={styles.sendGroup}>
+        <SendKeyPicker sendKey={sendKey} isCompact={isCompact} />
+        {isStreaming ? (
+          <Button className={styles.sendButton} onClick={onStop}>
+            <Icon name="stop" />
+            停止
+          </Button>
+        ) : (
+          <Button type="submit" variant="primary" className={styles.sendButton} disabled={!canSend} title={sendHint}>
+            送出
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

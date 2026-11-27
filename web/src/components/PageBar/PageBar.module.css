@@ -14,12 +14,20 @@
   background: var(--color-surface);
 }
 
+/*
+ * 放不下時裁掉，不溢到右邊的動作上：麵包屑的連結有 --target-min 的最小寬度縮不下去，320px 寬、右邊有兩顆按鈕時
+ * （AI 助理的「項目」與「對話」）原本會疊在按鈕底下。四周多留 4px（焦點框 2px 加間距 2px）再用負的外距抵掉，
+ * 鍵盤焦點的框不會被裁掉、版面的尺寸也不變。
+ */
 .location {
   display: flex;
   flex: 1;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
+  margin: -4px;
+  padding: 4px;
+  overflow: hidden;
 }
 
 .title {
