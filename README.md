@@ -281,6 +281,7 @@ Dockerfile、compose.yaml   容器映像檔與本機執行的設定
 
 | 我想… | 從這裡開始 |
 | --- | --- |
+| 第一次在網頁上用 Kumi | [docs/guide/quick-start.md](docs/guide/quick-start.md) · [使用手冊](docs/guide/) |
 | 在自己的電腦上跑起來、備份、還原 | [快速開始](#快速開始) · [docs/OPERATIONS.md](docs/OPERATIONS.md) |
 | 架到雲端或自己的主機 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) · [docs/deployment/vm.md](docs/deployment/vm.md) |
 | 用命令列、寫腳本、接 CI | [docs/CLI.md](docs/CLI.md) |
