@@ -7,6 +7,7 @@ import { Icon } from '../../components/Icon/Icon';
 import { Menu, type MenuItem } from '../../components/Menu/Menu';
 import { ORGANIZATION_ROLE_LABELS } from '../../domain/labels';
 import { useThemeChoice, type ThemeChoice } from '../../lib/theme';
+import { useIsCompact } from '../../lib/useMediaQuery';
 import { useLauncherPosition } from '../assistant-panel/launcherPosition';
 import { resetLauncherPositionAndFocus, showLauncherAndFocus, useLauncherHidden } from '../assistant-panel/launcherPreference';
 import { useHasAssistantEntry } from '../assistant-panel/useAssistantEntry';
@@ -63,10 +64,12 @@ function accountItem(open: () => void): MenuItem {
  * 藏起來又移動過的兩項都列）。點兩下按鈕不當作放回：點一下就會打開面板。
  */
 function useAssistantLauncherItems(): MenuItem[] {
+  const isCompact = useIsCompact();
   const isLauncherHidden = useLauncherHidden();
   const isMoved = useLauncherPosition() !== null;
   const hasAssistant = useHasAssistantEntry();
-  if (!hasAssistant) return [];
+  // 窄螢幕沒有右下角的按鈕（入口在底部分頁列），叫回來、放回右下角都沒有意義。
+  if (!hasAssistant || isCompact) return [];
   const items: MenuItem[] = [];
   if (isLauncherHidden) items.push({ key: 'show-assistant', label: '顯示 AI 助理按鈕', icon: 'sparkles', onSelect: showLauncherAndFocus });
   if (isMoved) {

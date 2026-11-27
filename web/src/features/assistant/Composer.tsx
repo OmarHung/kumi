@@ -10,6 +10,8 @@ import type { MentionInput } from '../item-page/mentions/useMentionInput';
 import { AttachmentChips } from './AttachmentChips';
 import { useComposerMentions, useListContinuation } from './composer/useComposerInput';
 import { engineSourceOf, FILE_ACCEPT, isUnreadable, PASTED_IMAGE_NAME, unreadableNote, type EngineSource } from './attachmentRules';
+import { useIsCompact } from '../../lib/useMediaQuery';
+import { ComposerSettings } from './ComposerSettings';
 import { ModelPicker } from './ModelPicker';
 import { SendKeyPicker } from './SendKeyPicker';
 import { isSendKeystroke, sendKeyHint, useSendKey, type SendKey } from './sendKey';
@@ -101,21 +103,27 @@ function AttachButton({ onPick }: { readonly onPick: (files: readonly File[]) =>
   );
 }
 
-/** 輸入框下面一列：附加檔案、模型與思考深度、送出（回覆中是停止）。 */
+/** 輸入框下面一列：附加檔案、模型與思考深度、送出（回覆中是停止）。窄螢幕的三個選單收成一顆設定鈕（ComposerSettings）。 */
 function ComposerBar({ options, selection, onSelectionChange, isStreaming, canSend, sendHint, sendKey, isCompact, onStop, onPickFiles }: ComposerBarProps) {
+  const isNarrowScreen = useIsCompact();
+  const showSettings = isNarrowScreen && selection !== null;
   return (
-    <div className={styles.composerBar}>
+    <div className={styles.composerBar} data-settings={showSettings ? 'true' : undefined}>
       <AttachButton onPick={onPickFiles} />
-      <div className={styles.pickers}>
-        {selection === null ? (
-          // 只剩現在不能用的主機來源：說伺服器給的原因，不叫人去「AI 助理設定」開放（模型其實開著）。
+      {selection === null && (
+        <div className={styles.pickers}>
+          {/* 只剩現在不能用的主機來源：說伺服器給的原因，不叫人去「AI 助理設定」開放（模型其實開著）。 */}
           <NoModels options={options} />
-        ) : (
+        </div>
+      )}
+      {selection !== null && showSettings && <ComposerSettings options={options} selection={selection} onChange={onSelectionChange} sendKey={sendKey} />}
+      {selection !== null && !showSettings && (
+        <div className={styles.pickers}>
           <ModelPicker options={options} selection={selection} onChange={onSelectionChange} />
-        )}
-      </div>
+        </div>
+      )}
       <div className={styles.sendGroup}>
-        <SendKeyPicker sendKey={sendKey} isCompact={isCompact} />
+        {!showSettings && <SendKeyPicker sendKey={sendKey} isCompact={isCompact} />}
         {isStreaming ? (
           <Button className={styles.sendButton} onClick={onStop}>
             <Icon name="stop" />

@@ -23,3 +23,41 @@
   gap: var(--space-2);
   margin-left: auto;
 }
+
+/*
+ * 窄螢幕的一行工具列（isScrollable）：不折行、左右滑，捲軸藏起來（手指滑得動就夠，右邊露出一半的控制項就是提示）。
+ * position: relative 是隱藏文字（絕對定位）的定位基準，不然它們會把捲動範圍撐寬（docs/DESIGN.md 第 5 節）。
+ * 焦點外框畫在裡面：捲動容器會裁掉外面的那一圈，控制項捲到邊時外框不能被切掉。
+ */
+@media (max-width: 48rem) {
+  .toolbar[data-scrollable] {
+    position: relative;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .toolbar[data-scrollable]::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar[data-scrollable] :focus-visible {
+    outline-offset: -2px;
+  }
+
+  .toolbar[data-scrollable] .start {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+
+  .toolbar[data-scrollable] .start > *,
+  .toolbar[data-scrollable] .end > * {
+    flex: none;
+  }
+
+  .toolbar[data-scrollable] .end {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+}

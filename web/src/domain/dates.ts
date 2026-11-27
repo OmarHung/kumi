@@ -30,6 +30,14 @@ export function formatDate(date: CalendarDate): string {
   return date.replaceAll('-', '/');
 }
 
+/**
+ * 窄螢幕清單用的簡短寫法：和今天同一年的只寫月與日（11/05），別的年份照完整的寫。
+ * 清單一列右邊的欄放「已過期 2026/11/17」會吃掉標題的寬度，年份在今年時是多餘的。
+ */
+export function formatShortDate(date: CalendarDate, todayDate: CalendarDate): string {
+  return date.slice(0, 4) === todayDate.slice(0, 4) ? date.slice(5).replace('-', '/') : formatDate(date);
+}
+
 /** 我的工作照急迫程度分的組，順序固定（docs/DESIGN.md 8.2：先看最急的）。 */
 export type DueGroup = 'overdue' | 'today' | 'thisWeek' | 'later' | 'none';
 

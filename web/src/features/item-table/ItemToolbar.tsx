@@ -1,7 +1,6 @@
 import { Button } from '../../components/Button/Button';
 import { hasActiveFilters, type ItemFilters } from '../../domain/itemFilters';
 import { useIsCompact } from '../../lib/useMediaQuery';
-import { AddItemButton } from './AddItemDialog';
 import { ColumnPicker } from './ColumnPicker';
 import { hideableColumns } from './columns';
 import { CompactFilters } from './CompactFilters';
@@ -44,15 +43,10 @@ export function ItemToolbarControls({ table }: { readonly table: ItemTableState 
 }
 
 /**
- * 工具列靠右：寬螢幕是「顯示的欄位」（裡面也有「重設欄寬」），窄螢幕是「新增項目」（快速新增那一列在窄螢幕放不下）。
- * 對話框本身由內容區（ItemTableView）依 table.quickAdd 畫：視窗變寬、這顆按鈕不見了，對話框照樣開著。
+ * 工具列靠右（只有寬螢幕）：「顯示的欄位」，裡面也有「重設欄寬」。窄螢幕的新增是右下角的圓形按鈕（NewItemFab），沒有靠右的東西。
+ * 對話框本身由專案頁（ProjectWorkspace）依 table.quickAdd 畫：視窗變寬、按鈕不見了，對話框照樣開著。
  */
 export function ItemToolbarEnd({ table }: { readonly table: ItemTableState }) {
-  const isCompact = useIsCompact();
-  const { can } = useProjectTable();
-  if (isCompact) {
-    return can.create ? <AddItemButton onOpen={() => { table.quickAdd.setIsDialogOpen(true); }} /> : null;
-  }
   return (
     <ColumnPicker
       columns={hideableColumns(table.columns)}

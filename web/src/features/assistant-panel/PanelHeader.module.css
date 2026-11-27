@@ -1,0 +1,41 @@
+/*
+ * 窄螢幕（48rem 以下）的頁首，一行：對話的名稱（吃剩下的寬度、放不下用省略號）、專案代號、新對話、關閉。
+ * 樣式跟 PanelHeader 的 CompactHeader 一起，不放進 AssistantPanel.module.css（那份是浮動面板自己的外框）。
+ */
+.header {
+  padding: var(--space-1) var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* 選對話的鈕：名稱左對齊、吃剩下的寬度；箭頭不縮。 */
+.conversationButton {
+  flex: 1 1 0;
+  justify-content: flex-start;
+  min-width: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.conversationName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 專案：只有代號（等寬字），名稱在選單裡。 */
+.projectCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+/* 專案選單鈕不撐到 Select 的 8rem 下限（比 Select 的選擇器多一個元素名，權重較高）。 */
+button.projectSelect[data-width='content'] {
+  --select-content-min: 0;
+}

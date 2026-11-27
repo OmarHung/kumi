@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type SetStateAction, type SubmitEvent } from 'react';
 import { queryKeys } from '../../api/queryKeys';
 import type { ProjectDetail } from '../../api/types';
@@ -50,8 +51,9 @@ export function useQuickAddState(detail: ProjectDetail, filters: ItemFilters, st
  * 負責人帶篩選的負責人（「我」或某個成員），優先度、「今天到期」的到期日、篩的週期與里程碑也一樣；新的項目不符合目前的條件時，「已新增」的訊息多說一句。
  * 草稿由 useQuickAddState 保管；送出的狀態（送出中、錯誤、「已新增」）跟著畫面上的那一個表單。
  */
-export function useQuickAdd(filters: ItemFilters, state: QuickAddState) {
+export function useQuickAdd(filters: ItemFilters, state: QuickAddState, { refetchesAll = false }: { readonly refetchesAll?: boolean } = {}) {
   const { detail, todayDate } = useProjectTable();
+  const queryClient = useQueryClient();
   const me = useCurrentUser().personId;
   const { cycles, milestones } = usePlanning(detail.project.key);
   const weekStart = useWeekStart();
@@ -80,6 +82,9 @@ export function useQuickAdd(filters: ItemFilters, state: QuickAddState) {
     event.preventDefault();
     create.submit(draft, () => {
       setDraft((current) => ({ ...current, title: '' }));
+      // 看板、行事曆、時間軸的清單和表格的不是同一份快取：新的項目只插得進表格那一份，其餘要重新讀才看得到
+      //（自己的寫入不會由即時更新補上）。
+      if (refetchesAll) void queryClient.invalidateQueries({ queryKey: queryKeys.items(detail.project.key) });
     });
   }
 

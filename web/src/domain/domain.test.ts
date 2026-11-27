@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectBlueprint } from '../api/blueprint';
 import { exampleBlueprint } from '../test/fixtures';
 import { itemTypeName, stateLabel } from './blueprint';
-import { formatDate, isOverdue, sortByDueDate, toCalendarDate } from './dates';
+import { formatDate, formatShortDate, isOverdue, sortByDueDate, toCalendarDate } from './dates';
 import { projectRoleLabel } from './labels';
 
 describe('stateLabel', () => {
@@ -96,6 +96,16 @@ describe('dates', () => {
   it('顯示用斜線分隔', () => {
     // Arrange / Act / Assert
     expect(formatDate('2026-11-13')).toBe('2026/11/13');
+  });
+
+  it('簡短的寫法：今年的只寫月與日，別的年份照完整的寫', () => {
+    // Arrange
+    const todayDate = '2026-11-27';
+
+    // Act / Assert
+    expect(formatShortDate('2026-11-05', todayDate)).toBe('11/05');
+    expect(formatShortDate('2025-12-31', todayDate)).toBe('2025/12/31');
+    expect(formatShortDate('2027-01-02', todayDate)).toBe('2027/01/02');
   });
 });
 

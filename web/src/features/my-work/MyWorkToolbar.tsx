@@ -75,7 +75,7 @@ export function MyWorkToolbar(props: MyWorkToolbarProps) {
   const isTable = layout === 'table';
   const [searchParams] = useSearchParams();
   return (
-    <Toolbar end={isTable ? <TableToolbarEnd {...props} /> : undefined}>
+    <Toolbar isScrollable end={isTable ? <TableToolbarEnd {...props} /> : undefined}>
       <MyWorkViewSwitch layout={layout} />
       {!isCompact && <MyWorkMineSwitch />}
       <MyWorkViewMenu current={{ layout, filters, grouping: groupingOf(searchParams), sort: myWorkSortOf(searchParams) }} />

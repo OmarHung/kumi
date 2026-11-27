@@ -53,15 +53,37 @@ function usePublishCorner(size: PanelSize, isOpen: boolean, isCompact: boolean):
   }, [isOpen, placement]);
 }
 
+/** 底部分頁列的標記：全螢幕的面板開著時它要照樣按得到（features/shell/TabBar.tsx）。 */
+export const TAB_BAR_ATTRIBUTE = 'data-tab-bar';
+
+/** 從 start 一路往上到 body，每一層的兄弟（不含走過的那條路、不含已經 inert 或標了例外的）。 */
+function siblingsAlong(start: Element | null, panel: Element | null): Element[] {
+  const found: Element[] = [];
+  let node = start;
+  while (node !== null && node !== document.body) {
+    const parent: Element | null = node.parentElement;
+    if (parent === null) break;
+    for (const sibling of Array.from(parent.children)) {
+      const isExcluded = sibling === node || sibling.contains(panel) || sibling.hasAttribute('inert') || sibling.hasAttribute(INERT_EXEMPT_ATTRIBUTE);
+      if (!isExcluded) found.push(sibling);
+    }
+    node = parent;
+  }
+  return found;
+}
+
 /**
  * 窄螢幕的全螢幕面板當成 modal：背後的內容不能操作（inert，和 ModalFrame 同一套：帶 INERT_EXEMPT_ATTRIBUTE 的跳過）、
  * 也不能捲動（根元素的 data-assistant-modal）。面板自己掛在 body 底下，才不會連自己一起 inert。
+ * 底部分頁列在外框裡面（不是 body 的直接子元素），所以從它往上把「路上每一層的兄弟」標成 inert，而不是整個外框：分頁列留著能按。
  */
 function useModalBackground(panelRef: RefObject<HTMLElement | null>, isModal: boolean): void {
   useLayoutEffect(() => {
     if (!isModal) return undefined;
-    const marked = Array.from(document.body.children).filter(
-      (element) => !element.contains(panelRef.current) && !element.hasAttribute('inert') && !element.hasAttribute(INERT_EXEMPT_ATTRIBUTE),
+    const panel = panelRef.current;
+    const tabBar = document.querySelector(`[${TAB_BAR_ATTRIBUTE}]`);
+    const marked = Array.from(new Set([...siblingsAlong(panel, panel), ...siblingsAlong(tabBar, panel)])).filter(
+      (element) => !element.contains(tabBar),
     );
     marked.forEach((element) => {
       element.setAttribute('inert', '');

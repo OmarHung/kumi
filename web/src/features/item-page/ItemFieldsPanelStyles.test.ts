@@ -37,6 +37,15 @@ describe('欄位區的版面（docs/DESIGN.md 欄位面板）', () => {
     expect(css).not.toMatch(/repeat\([23],/);
   });
 
+  it('窄螢幕（48rem 以下）一列一組，到期日與「已過期」不折行', () => {
+    // Arrange / Act
+    const narrow = css.slice(css.indexOf('@media (max-width: 48rem)'));
+
+    // Assert
+    expect(narrow).toContain('grid-template-columns: minmax(0, 1fr)');
+    expect(narrow).toContain('flex-wrap: nowrap');
+  });
+
   it('名稱淡色、和值同樣的字級；名稱最多佔四成，長的折行', () => {
     // Arrange / Act
     const label = ruleBody('.label');

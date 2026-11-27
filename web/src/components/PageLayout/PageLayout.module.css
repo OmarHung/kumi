@@ -33,8 +33,9 @@
  * 工作區：整頁剛好一個畫面高，內容區撐滿剩下的高度、自己不捲，上方不留白（內容緊接工具列，第 14 節的預算）；
  * 裡面的表格或看板用 flex: 1; min-height: 0; overflow: auto 自己捲，橫向捲軸才一直在畫面裡。
  */
+/* 窄螢幕的底部分頁列另外佔掉 --tab-bar-height（內容區的下內距讓出它），不扣掉的話整頁會比畫面高一截（寬螢幕是 0）。 */
 .layout[data-variant='workspace'] {
-  height: 100dvh;
+  height: calc(100dvh - var(--tab-bar-height));
 }
 
 .layout[data-variant='workspace'] .content {

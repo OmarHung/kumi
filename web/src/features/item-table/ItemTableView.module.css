@@ -52,3 +52,11 @@
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
 }
+
+/*
+ * 窄螢幕有右下角的圓形按鈕時，「已載入 N 個項目」與「載入更多」下面多留一個按鈕的高度加上它的上下間距：
+ * 捲到最底時最後一列與「載入更多」不被蓋住（按鈕 3.5rem，位置見 NewItemFab.module.css）。
+ */
+.view[data-has-fab] .footer {
+  padding-bottom: calc(3.5rem + 2 * var(--space-4));
+}

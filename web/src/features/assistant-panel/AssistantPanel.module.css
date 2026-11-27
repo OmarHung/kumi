@@ -142,10 +142,10 @@
   }
 }
 
-/* 窄螢幕（48rem 以下）：全螢幕，沒有調大小的把手。 */
+/* 窄螢幕（48rem 以下）：全螢幕（底下讓出分頁列，分頁列的安全區域已經算在 --tab-bar-height），沒有調大小的把手。 */
 @media (max-width: 48rem) {
   .panel {
-    inset: 0;
+    inset: 0 0 var(--tab-bar-height) 0;
     width: auto;
     height: auto;
     min-width: 0;
@@ -153,7 +153,7 @@
     border: 0;
     border-radius: 0;
     padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: 0;
   }
 
   .resizer {

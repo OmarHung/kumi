@@ -12,6 +12,7 @@ import { useNotificationToasts } from '../notification-toasts/useNotificationToa
 import { AssistantPanel } from '../assistant-panel/AssistantPanel';
 import { JumpProvider } from '../jump/JumpProvider';
 import { Sidebar } from './Sidebar';
+import { TabBar } from './TabBar';
 import { useSidebarCollapsed } from './sidebarPreference';
 import { useDrawer } from './useDrawer';
 import styles from './AppShell.module.css';
@@ -26,7 +27,7 @@ interface BarStartProps {
 }
 
 /**
- * 疊在頁列左上角的按鈕（docs/DESIGN.md 6.1）：寬螢幕是收起／展開側欄的「側欄」，窄螢幕是打開抽屜的「選單」，
+ * 疊在頁列左上角的按鈕（docs/DESIGN.md 6.1）：寬螢幕是收起／展開側欄的「側欄」，窄螢幕不顯示（改由底部分頁列的「更多」打開抽屜，TabBar.tsx），
  * 兩顆都用 aria-expanded 說明開著沒有，名稱固定。
  * 放在外框而不是頁列裡：沒有頁列的頁面（程式出錯的畫面）也按得到。兩顆都在 DOM 裡，CSS 依寬度只顯示一顆。
  */
@@ -66,10 +67,11 @@ export function AppShell() {
   useLiveUpdates(toasts.live);
   const [panelRegistry] = useState(createItemPanelRegistry);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isCompact = useIsCompact();
-  const drawer = useDrawer({ buttonRef: menuButtonRef, drawerRef, isCompact });
+  const drawer = useDrawer({ buttonRef: menuButtonRef, compactButtonRef: moreButtonRef, drawerRef, isCompact });
   const [isCollapsed, toggleCollapsed] = useSidebarCollapsed();
   // 收合只在寬螢幕有意義：窄螢幕的側欄一律是抽屜，記著收起來也照樣打得開。
   const isSidebarHidden = isCollapsed && !isCompact;
@@ -78,7 +80,7 @@ export function AppShell() {
   useFaviconBadge(unreadCount !== undefined && unreadCount > 0);
 
   return (
-    // 抽屜裡按「搜尋或跳到…」（或抽屜開著時按 ⌘K）：先收起抽屜、焦點交給「選單」，對話框不疊在抽屜上，關上後焦點回到「選單」。
+    // 抽屜裡按「搜尋或跳到…」（或抽屜開著時按 ⌘K）：先收起抽屜、焦點交給「選單」（窄螢幕是分頁列的「更多」），對話框不疊在抽屜上，關上後焦點回到那裡。
     <DocumentTitleCountContext value={unreadCount}>
       <ItemPanelRegistryContext value={panelRegistry}>
         <JumpProvider mainRef={mainRef} onOpen={drawer.isOpen ? drawer.closeAndRefocus : undefined}>
@@ -98,6 +100,7 @@ export function AppShell() {
             <main ref={mainRef} id="main-content" tabIndex={-1} className={styles.main}>
               <Outlet />
             </main>
+            <TabBar isDrawerOpen={drawer.isOpen} onToggleDrawer={drawer.toggle} onCloseDrawer={drawer.close} moreButtonRef={moreButtonRef} sidebarId={SIDEBAR_ID} />
             <NotificationToasts view={toasts.view} />
             <AssistantPanel />
           </div>

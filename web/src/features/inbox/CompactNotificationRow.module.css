@@ -1,0 +1,109 @@
+/* 窄螢幕的一則（CompactNotificationRow.tsx）：細線、滑過的底色與焦點外框和 components/List 一樣。 */
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+.link {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.link:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.link:focus-visible {
+  outline-offset: -2px;
+}
+
+.leading {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
+/* 未讀的小圓點：壓在頭像的左上角，外圈用底色隔開（不只靠顏色：名稱最前面也有「未讀：」）。 */
+.dot {
+  --unread-dot-size: 0.625rem;
+
+  position: absolute;
+  top: calc(-1 * var(--space-0-5));
+  left: calc(-1 * var(--space-1));
+  width: var(--unread-dot-size);
+  height: var(--unread-dot-size);
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-pill);
+  box-sizing: content-box;
+  background: var(--color-accent);
+}
+
+/* 強制色彩模式會換掉底色，圓點就不見了：保留成系統的文字色（未讀的報讀說法另外在名稱裡）。 */
+@media (forced-colors: active) {
+  .dot {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  flex: none;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 標題與摘要各最多兩行；完整的內容在項目裡。未讀的標題是半粗體（和寬螢幕一樣只差字重）。 */
+.title,
+.excerpt {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.title[data-unread='true'] {
+  font-weight: var(--weight-semibold);
+}
+
+.excerpt {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.where {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}

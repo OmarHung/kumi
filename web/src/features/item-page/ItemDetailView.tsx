@@ -4,6 +4,7 @@ import type { ItemDetail, ProjectDetail } from '../../api/types';
 import { PageBar } from '../../components/PageBar/PageBar';
 import { PageLayout } from '../../components/PageLayout/PageLayout';
 import { useArrivalNotice } from '../../lib/useArrivalNotice';
+import { useIsCompact } from '../../lib/useMediaQuery';
 import { UndoableArrival } from '../bulk-edit/UndoableArrival';
 import { ProjectTableProvider } from '../item-table/ProjectTableContext';
 import { ArchivedNotice } from '../projects/ArchivedNotice';
@@ -44,6 +45,8 @@ export function ItemDetailView({ detail, item, notices }: ItemDetailViewProps) {
   const arrival = useArrivalNotice(headingRef);
   const projectLink = useProjectCrumbLink(item.projectKey);
   const entry: unknown = useLocation().state;
+  // 窄螢幕頁列只留圖示（390px 寬時位置才不會被動作擠掉）；名稱、說明、做的事都一樣。
+  const isCompact = useIsCompact();
   useRecordRecentItem(item);
   // 從清單連進來的：用上一頁回去時焦點放回清單上的這一筆。
   useEffect(() => {
@@ -60,8 +63,8 @@ export function ItemDetailView({ detail, item, notices }: ItemDetailViewProps) {
             crumbs={itemCrumbs(item, detail.project.name, projectLink)}
             actions={
               <>
-                <FollowButton itemKey={item.key} />
-                <ShareItemButton item={item} />
+                <FollowButton itemKey={item.key} isCompact={isCompact} />
+                <ShareItemButton item={item} isCompact={isCompact} />
                 <ItemActions item={item} />
               </>
             }

@@ -3,13 +3,13 @@ import { useParams, useSearchParams } from 'react-router';
 import type { AssistantScope } from '../../api/assistant';
 import type { AiOptions } from '../../api/aiTypes';
 import type { ProjectDetail } from '../../api/types';
-import { IconButton } from '../../components/IconButton/IconButton';
+import { IconButton, IconLink } from '../../components/IconButton/IconButton';
 import { Dialog } from '../../components/Dialog/Dialog';
 import { PageBar } from '../../components/PageBar/PageBar';
 import { PageLayout } from '../../components/PageLayout/PageLayout';
 import { useUnsavedChangesGuard } from '../../lib/useUnsavedChangesGuard';
 import { useIsCompact } from '../../lib/useMediaQuery';
-import { panelItemOf } from '../work-items/itemLinks';
+import { assistantPagePath, panelItemOf } from '../work-items/itemLinks';
 import { useProjectPageLink } from '../projects/projectViewPreference';
 import { ConversationList } from './ConversationList';
 import { ItemPicker } from './ItemPicker';
@@ -73,7 +73,7 @@ interface PageActionsProps {
   readonly onOpenList: () => void;
 }
 
-/** 頁列右邊：選項目；窄螢幕多一顆「對話」（打開對話清單）。 */
+/** 頁列右邊：選項目；窄螢幕多「對話」（打開對話清單）與「新對話」，一行放得下（2026-11-27 手機版）。 */
 function PageActions({ projectKey, itemKey, onChooseItem, isCompact, onOpenList }: PageActionsProps) {
   return (
     <>
@@ -82,6 +82,7 @@ function PageActions({ projectKey, itemKey, onChooseItem, isCompact, onOpenList 
         // 只留圖示：麵包屑在 320px 寬時才有地方放。
         <IconButton icon="bulletList" label="對話" variant="secondary" onClick={onOpenList} />
       )}
+      {isCompact && <IconLink to={assistantPagePath(projectKey)} icon="add" label="新對話" variant="secondary" />}
     </>
   );
 }
@@ -94,7 +95,10 @@ function WorkspaceBar({ detail, actions }: { readonly detail: ProjectDetail | nu
 
 function ProjectWorkspaceBar({ detail, actions }: { readonly detail: ProjectDetail; readonly actions: ReactNode }) {
   const to = useProjectPageLink(detail.project.key);
-  return <PageBar title="AI 助理" crumbs={[{ label: detail.project.name, to }]} actions={actions} />;
+  // 窄螢幕只顯示專案代號：名稱長，會把「對話」「新對話」擠掉。
+  const isCompact = useIsCompact();
+  const crumb = isCompact ? { label: detail.project.key, to, mono: true } : { label: detail.project.name, to };
+  return <PageBar title="AI 助理" crumbs={[crumb]} actions={actions} />;
 }
 
 /**

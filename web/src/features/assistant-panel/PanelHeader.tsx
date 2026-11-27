@@ -5,12 +5,14 @@ import { Icon } from '../../components/Icon/Icon';
 import { IconButton, IconLink } from '../../components/IconButton/IconButton';
 import { Menu, type MenuItem } from '../../components/Menu/Menu';
 import { Select, type SelectOption } from '../../components/Select/Select';
+import { useIsCompact } from '../../lib/useMediaQuery';
 import { NO_PROJECT_LABEL } from '../ai/aiLabels';
 import { ItemPicker } from '../assistant/ItemPicker';
 import { assistantPagePath } from '../work-items/itemLinks';
 import { groupConversations } from './conversationGroups';
 import type { PanelScope } from './panelMemory';
 import styles from './AssistantPanel.module.css';
+import compactStyles from './PanelHeader.module.css';
 import { plainTitle } from '../assistant/composer/userMentionText';
 
 const NEW_CONVERSATION = '新的對話';
@@ -34,6 +36,7 @@ interface ProjectPickerProps {
  */
 function ProjectPicker({ projectKey, isBusy, onChoose }: ProjectPickerProps) {
   const projects = useProjects();
+  const isCompact = useIsCompact();
   const listed = (projects.data ?? []).filter((project) => project.archivedAt === null || project.key === projectKey);
   // 第一項「不選專案」：問模板、規劃，請助理開新專案（組織的對話）。
   const options: readonly SelectOption[] = [
@@ -54,6 +57,8 @@ function ProjectPicker({ projectKey, isBusy, onChoose }: ProjectPickerProps) {
       options={options}
       placeholder="選一個專案"
       disabled={isBusy}
+      // 窄螢幕只顯示代號（名稱在選單裡）：頁首一行放得下對話的名稱。
+      {...(isCompact ? { display: <span className={compactStyles.projectCode}>{projectKey === null ? NO_PROJECT_LABEL : (projectKey ?? '選專案')}</span>, showChevron: true, className: compactStyles.projectSelect } : {})}
       onChange={(value) => {
         onChoose(value === NO_PROJECT_VALUE ? null : value);
       }}
@@ -76,6 +81,9 @@ interface ConversationMenuProps {
 function ConversationMenu({ projectKey, conversationId, isBusy, onSelect, onOpen }: ConversationMenuProps) {
   const conversations = useAllConversations();
   const projects = useProjects();
+  const isCompact = useIsCompact();
+  const currentTitle = conversations.data?.find((conversation) => conversation.id === conversationId)?.title;
+  const currentName = conversationId === undefined ? NEW_CONVERSATION : currentTitle === null || currentTitle === undefined ? UNTITLED_CONVERSATION : plainTitle(currentTitle);
   const nameOf = (key: string | null) =>
     key === null ? NO_PROJECT_LABEL : (projects.data?.find((project) => project.key === key)?.name ?? key);
   const blocked = isBusy ? { disabledReason: BUSY_REASON } : {};
@@ -102,12 +110,20 @@ function ConversationMenu({ projectKey, conversationId, isBusy, onSelect, onOpen
       menuLabel="對話"
       align="end"
       items={items}
-      renderTrigger={(trigger) => (
-        <Button {...trigger} size="sm">
-          <Icon name="menu" />
-          對話
-        </Button>
-      )}
+      renderTrigger={(trigger) =>
+        isCompact ? (
+          // 窄螢幕：鈕上是目前對話的名稱（放不下用省略號），名稱前面帶「對話」讓報讀軟體知道這是選對話的鈕。
+          <Button {...trigger} variant="ghost" className={compactStyles.conversationButton} aria-label={`對話：${currentName}`}>
+            <span className={compactStyles.conversationName}>{currentName}</span>
+            <Icon name="chevronDown" />
+          </Button>
+        ) : (
+          <Button {...trigger} size="sm">
+            <Icon name="menu" />
+            對話
+          </Button>
+        )
+      }
     />
   );
 }
@@ -139,8 +155,55 @@ export interface PanelHeaderProps extends ProjectPickerProps {
   readonly onClose: () => void;
 }
 
-/** 頁首：標題與「開成整頁」「關閉」；下面一列是專案與對話選單。 */
-export function PanelHeader({ projectKey, isBusy, onChoose, conversationId, itemKey, onChooseItem, onSelectConversation, onOpenConversation, onClose }: PanelHeaderProps) {
+/** 窄螢幕的「新對話」：和對話選單裡「新的對話」同一件事，回覆中不能換。 */
+function NewConversationButton({ isBusy, onSelect }: { readonly isBusy: boolean; readonly onSelect: (id: string | undefined) => void }) {
+  return (
+    <IconButton
+      icon="add"
+      label="新對話"
+      description={isBusy ? BUSY_REASON : undefined}
+      aria-disabled={isBusy || undefined}
+      onClick={() => {
+        if (!isBusy) onSelect(undefined);
+      }}
+    />
+  );
+}
+
+/**
+ * 窄螢幕（48rem 以下）的頁首，一行：對話（選對話的下拉，名稱放不下用省略號）、專案（只有代號）、新對話、關閉
+ * （2026-11-27 使用者看過手機版設計稿後採用）。標題只留給報讀軟體與對話框的名稱；「開成整頁」留在同一行（只有圖示）。
+ * 選項目放在下面細細的一列，只有選了專案才有。
+ */
+function CompactHeader({ projectKey, isBusy, onChoose, conversationId, itemKey, onChooseItem, onSelectConversation, onOpenConversation, onClose }: PanelHeaderProps) {
+  return (
+    <header className={`${styles.header} ${compactStyles.header}`}>
+      <h2 className="visually-hidden" id="assistant-panel-title" tabIndex={-1}>
+        AI 助理
+      </h2>
+      <div className={compactStyles.row}>
+        {projectKey !== undefined && (
+          <ConversationMenu projectKey={projectKey} conversationId={conversationId} isBusy={isBusy} onSelect={onSelectConversation} onOpen={onOpenConversation} />
+        )}
+        <ProjectPicker projectKey={projectKey} isBusy={isBusy} onChoose={onChoose} />
+        {projectKey !== undefined && <NewConversationButton isBusy={isBusy} onSelect={onSelectConversation} />}
+        {projectKey !== undefined && <OpenPageLink projectKey={projectKey} conversationId={conversationId} itemKey={itemKey} isBusy={isBusy} />}
+        <IconButton icon="close" label="關閉" onClick={onClose} />
+      </div>
+      {typeof projectKey === 'string' && (
+        <div className={styles.contextRow}>
+          <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} />
+        </div>
+      )}
+    </header>
+  );
+}
+
+/** 頁首：標題與「開成整頁」「關閉」；下面一列是專案與對話選單。窄螢幕換成一行的 CompactHeader。 */
+export function PanelHeader(props: PanelHeaderProps) {
+  const isCompact = useIsCompact();
+  if (isCompact) return <CompactHeader {...props} />;
+  const { projectKey, isBusy, onChoose, conversationId, itemKey, onChooseItem, onSelectConversation, onOpenConversation, onClose } = props;
   return (
     <header className={styles.header}>
       <div className={styles.titleRow}>

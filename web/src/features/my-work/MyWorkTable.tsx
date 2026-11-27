@@ -1,15 +1,14 @@
 import type { ReactNode, Ref } from 'react';
 import { useSearchParams } from 'react-router';
 import { useProjectDetails } from '../../api/queries';
-import type { CalendarDate, Item, ProjectDetail } from '../../api/types';
+import type { CalendarDate, Item } from '../../api/types';
 import type { ColumnWidthStore } from '../../components/Table/columnWidths';
-import { List, ListRow, type ListMeta } from '../../components/List/List';
+import { List } from '../../components/List/List';
 import { myWorkMineOf } from '../../domain/myWorkView';
 import { useIsCompact } from '../../lib/useMediaQuery';
 import type { RovingGridHandle } from '../../lib/useRovingGrid';
 import { useItemSequence } from '../item-page/ItemPanelContext';
-import { assigneeMeta, dueMeta, priorityMeta, projectMeta, stateMeta } from '../work-items/itemListMeta';
-import { itemPagePath, useItemPageEntry } from '../work-items/itemLinks';
+import { ItemListRow } from '../work-items/ItemListRow';
 import { MyWorkGrid, type MyWorkViewProps } from './MyWorkGrid';
 import { MyWorkGroupSection } from './MyWorkGroupSection';
 import type { ColumnOrderStore } from './myWorkColumnOrder';
@@ -20,25 +19,10 @@ import styles from './MyWork.module.css';
 import { useWeekStart } from '../../lib/weekStart';
 
 /**
- * 窄螢幕的第二行：狀態、專案（依專案分組時組名就是專案，不重複）、優先度與到期日（後兩個有設才有）。
- * 整筆是連結，名稱會把這一行唸出來，所以每一個欄位都帶著說法；欄位在 work-items/itemListMeta.tsx。
- */
-function myWorkMeta(item: Item, project: ProjectDetail | undefined, todayDate: CalendarDate, { showProject, showAssignee }: Pick<MyWorkViewProps, 'showProject' | 'showAssignee'>): ListMeta[] {
-  return [
-    stateMeta(item, project?.blueprint),
-    ...(showProject ? [projectMeta(item, project)] : []),
-    ...(showAssignee ? [assigneeMeta(item)] : []),
-    ...priorityMeta(item),
-    ...dueMeta(item, todayDate),
-  ];
-}
-
-/**
  * 窄螢幕：和專案的清單同一套（components/List，一筆兩行），跟著整頁捲；每一組一個標題與一份清單。
  * 就地編輯留在詳細頁（docs/DESIGN.md 7.1）：整筆是連到項目頁的連結，狀態在那裡改。
  */
 function MyWorkList({ groups, projects, todayDate, showProject, showAssignee, isLeaving, footer }: MyWorkViewProps & { readonly footer?: ReactNode }) {
-  const entry = useItemPageEntry();
   // 窄螢幕不用面板；登記順序是為了從整頁用上一頁回來時，焦點放回這一筆。
   useItemSequence(groups.flatMap((group) => group.items.map((row) => row.key)));
   const firstKey = groups[0]?.items[0]?.key;
@@ -49,15 +33,15 @@ function MyWorkList({ groups, projects, todayDate, showProject, showAssignee, is
           <MyWorkGroupSection key={group.key} group={group}>
             <List label={group.label}>
               {group.items.map(({ item }) => (
-                <ListRow
+                <ItemListRow
                   key={item.key}
-                  to={itemPagePath(item.projectKey, item.key)}
-                  linkState={entry}
-                  code={item.key}
+                  item={item}
+                  blueprint={projects.get(item.projectKey)?.blueprint}
+                  todayDate={todayDate}
+                  projectName={showProject ? (projects.get(item.projectKey)?.project.name ?? item.projectKey) : undefined}
+                  showAssignee={showAssignee}
                   // 剛改成完成或取消的（視窗從寬螢幕變窄時）：標題劃掉，和表格一樣。
-                  title={isLeaving(item) ? <span className={styles.settledTitle}>{item.title}</span> : item.title}
-                  titleText={item.title}
-                  meta={myWorkMeta(item, projects.get(item.projectKey), todayDate, { showProject, showAssignee })}
+                  isSettled={isLeaving(item)}
                   isContentStart={item.key === firstKey}
                 />
               ))}

@@ -430,6 +430,27 @@
   margin-inline-start: auto;
 }
 
+/*
+ * 窄螢幕（48rem 以下）：模型、思考深度與送出的按法收成一顆設定鈕（ComposerSettings），一列只有
+ * 附加檔案、設定鈕、送出，不換行；設定鈕吃剩下的寬度，模型名稱放不下時用省略號，不會壓到送出鈕。
+ */
+.composerBar[data-settings='true'] {
+  flex-wrap: nowrap;
+}
+
+.settingsButton {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-inline-end: auto;
+}
+
+.settingsName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .noModels {
   margin: 0;
   font-size: var(--text-sm);

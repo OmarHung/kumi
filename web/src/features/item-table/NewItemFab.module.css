@@ -1,0 +1,42 @@
+/*
+ * 右下角的圓形按鈕：固定在畫面上，讓出底部分頁列（--tab-bar-height，寬螢幕是 0）。
+ * 只在 48rem 以下出現：寬螢幕時呼叫端（ProjectWorkspace）不畫它。
+ * 在對話框與選單下面、分頁列上面：浮層打開時蓋住它。
+ */
+.fab {
+  --fab-size: 3.5rem;
+  --fab-icon-size: 1.5rem;
+
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(var(--tab-bar-height) + var(--space-4));
+  z-index: var(--z-sticky);
+  display: grid;
+  place-items: center;
+  width: var(--fab-size);
+  height: var(--fab-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+  box-shadow: var(--shadow-popover);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.fab:hover {
+  background: var(--color-accent-solid-hover);
+}
+
+/* 強制色彩模式換掉底色之後，沒有外框的圓形按鈕就看不見邊界。 */
+@media (forced-colors: active) {
+  .fab {
+    border: 2px solid ButtonText;
+  }
+}
+
+.fab svg {
+  width: var(--fab-icon-size);
+  height: var(--fab-icon-size);
+}

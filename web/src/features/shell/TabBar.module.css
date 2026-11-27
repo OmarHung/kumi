@@ -1,0 +1,77 @@
+/*
+ * 窄螢幕底部的主要分頁（docs/DESIGN.md 6.1「外框」）：只在 48rem 以下渲染（TabBar.tsx 用 useIsCompact）。
+ * 高度是 --tab-bar-content 加手機的安全區域（合起來就是 --tab-bar-height，黏在底部的東西都從它往上算）。
+ * 在抽屜（--z-drawer）上面：抽屜與背板的下緣停在分頁列上，「更多」一直按得到、能把抽屜收起來。
+ */
+.bar {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: calc(var(--z-drawer) + 1);
+  display: flex;
+  box-sizing: border-box;
+  height: var(--tab-bar-height);
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.tab {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-0-5);
+  min-width: 0;
+  min-height: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* 目前所在：連結是 aria-current，「更多」與「AI 助理」是 aria-expanded（抽屜、面板開著）。 */
+/* 字重是顏色以外的差別（和側欄的目前所在同一個理由，docs/DESIGN.md 6.1）：強制色彩模式拿掉顏色時也分得出來。 */
+.tab[aria-current='page'],
+.tab[aria-expanded='true'] {
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+@media (forced-colors: active) {
+  .tab[aria-current='page'],
+  .tab[aria-expanded='true'] {
+    color: Highlight;
+  }
+}
+
+.iconSlot {
+  position: relative;
+  display: inline-flex;
+}
+
+.icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 未讀數壓在圖示的右上角。 */
+.badge {
+  position: absolute;
+  top: calc(-1 * var(--space-1));
+  left: calc(100% - var(--space-2));
+  display: inline-flex;
+}

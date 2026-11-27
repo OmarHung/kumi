@@ -4,7 +4,7 @@
 }
 
 /*
- * 新通知的提示：右下角疊成一欄（新的在下面），窄螢幕（48rem 以下）在下方、左右留頁面的邊距。
+ * 新通知的提示：右下角疊成一欄（新的在下面），窄螢幕（48rem 以下）在下方（讓出底部分頁列）、左右留頁面的邊距。
  * 外框是 popover="manual"（top layer，和 Floating 一樣）：蓋掉瀏覽器給 [popover] 的預設（置中、inset: 0、外框與底色）。
  * 外框本身不接滑鼠（提示之間的空隙點得到後面的東西），每一則自己接。
  */
@@ -26,7 +26,8 @@
   gap: var(--space-2);
   box-sizing: border-box;
   width: min(calc(var(--toast-width) + 2 * var(--region-pad)), calc(100% - 2 * var(--page-gutter) + 2 * var(--region-pad)));
-  max-height: calc(100% - var(--space-4) - env(safe-area-inset-bottom));
+  /* 分頁列（窄螢幕）已經含安全區域，兩者取大的，不重複扣。 */
+  max-height: calc(100% - var(--space-4) - max(env(safe-area-inset-bottom), var(--tab-bar-height)));
   height: auto;
   margin: 0;
   padding: var(--region-pad);
@@ -39,7 +40,7 @@
 
 @media (max-width: 48rem) {
   .region {
-    inset: auto calc(var(--page-gutter) - var(--region-pad)) calc(var(--space-4) - var(--region-pad) + env(safe-area-inset-bottom) + var(--reserve-bottom));
+    inset: auto calc(var(--page-gutter) - var(--region-pad)) calc(var(--space-4) - var(--region-pad) + var(--tab-bar-height) + var(--reserve-bottom));
     width: auto;
   }
 }

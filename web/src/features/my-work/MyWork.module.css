@@ -274,8 +274,7 @@ div.groupsScroll[data-overflowing='true'] thead .pinTitle {
   color: var(--color-text-muted);
 }
 
-.row[data-settled='true'] .title,
-.settledTitle {
+.row[data-settled='true'] .title {
   color: var(--color-text-muted);
   text-decoration: line-through;
 }

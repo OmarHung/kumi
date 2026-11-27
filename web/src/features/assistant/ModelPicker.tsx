@@ -5,7 +5,7 @@ import { findModel, withModel } from './selection';
 
 const SEPARATOR = '|';
 const PERSONAL_SUFFIX = '（我的）';
-const DEFAULT_EFFORT_VALUE = '';
+export const DEFAULT_EFFORT_VALUE = '';
 
 interface ModelPickerProps {
   readonly options: AiOptions;
@@ -14,7 +14,7 @@ interface ModelPickerProps {
 }
 
 /** 自己的連線在組名後面加「（我的）」：和組織的同名時分得出來，也提醒費用算在自己的帳號。 */
-function groupName(connection: AiConnectionOption): string {
+export function groupName(connection: AiConnectionOption): string {
   return connection.personal ? `${connection.name}${PERSONAL_SUFFIX}` : connection.name;
 }
 
@@ -33,7 +33,7 @@ function modelOptions(options: AiOptions): readonly SelectOption[] {
 }
 
 /** 「預設」：知道實際用哪一級時寫「預設（中）」。 */
-function defaultLabel(defaultEffort: AiEffort | null): string {
+export function defaultLabel(defaultEffort: AiEffort | null): string {
   return defaultEffort === null ? DEFAULT_EFFORT_LABEL : `${DEFAULT_EFFORT_LABEL}（${effortLabel(defaultEffort)}）`;
 }
 

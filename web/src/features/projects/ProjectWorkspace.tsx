@@ -14,13 +14,16 @@ import { BoardToolbarControls } from '../board/BoardToolbar';
 import { useBoardFilters } from '../board/useBoardFilters';
 import { BulkActionBar } from '../bulk-edit/BulkActionBar';
 import { ItemPanelHost } from '../item-page/ItemPanelHost';
+import { AddItemDialog } from '../item-table/AddItemDialog';
 import { ItemTableView } from '../item-table/ItemTableView';
 import { ItemToolbarControls, ItemToolbarEnd } from '../item-table/ItemToolbar';
+import { NewItemFab } from '../item-table/NewItemFab';
 import { abilitiesOf, ProjectTableProvider } from '../item-table/ProjectTableContext';
 import { useItemTableState } from '../item-table/useItemTableState';
 import { ViewMenu } from '../saved-views/ViewMenu';
 import { panelItemOf, searchWithPanelItem } from '../work-items/itemLinks';
 import { useRememberProjectView } from './projectViewPreference';
+import { EMPTY_FILTERS } from '../../domain/itemFilters';
 
 // 看板帶著拖曳的套件，只有打開看板的人才需要：拆成另一個檔案，表格與其他頁面不必先下載它。
 // 工具列上的看板篩選（BoardToolbar、useBoardFilters）不帶拖曳的套件，直接匯入。
@@ -83,6 +86,29 @@ interface ProjectWorkspaceProps {
   readonly onOpenMembers: () => void;
 }
 
+interface NewItemEntryProps {
+  readonly table: ReturnType<typeof useItemTableState>;
+  readonly canCreate: boolean;
+  readonly isCompact: boolean;
+  readonly isTable: boolean;
+}
+
+/**
+ * 新增項目（窄螢幕）：右下角的圓形按鈕與它打開的對話框，四種檢視共用；對話框不跟著寬窄換掉（視窗變寬時開著的對話框與打到一半的內容都留著）。
+ * 表格以外的檢視不帶表格的條件：畫面上看不到那些條件，預設的負責人、日期與「不符合目前的條件」都會照看不見的東西算；新增之後重新讀清單。
+ */
+function NewItemEntry({ table, canCreate, isCompact, isTable }: NewItemEntryProps) {
+  if (!canCreate) return null;
+  return (
+    <>
+      {isCompact && <NewItemFab onOpen={() => { table.quickAdd.setIsDialogOpen(true); }} />}
+      {table.quickAdd.isDialogOpen && (
+        <AddItemDialog filters={isTable ? table.filters : EMPTY_FILTERS} state={table.quickAdd} refetchesAll={!isTable} />
+      )}
+    </>
+  );
+}
+
 /**
  * 專案頁的版面：頁列、工具列（檢視分頁加上這個檢視的控制項）、內容（表格、看板、行事曆或時間軸，記在網址的 view 參數）。
  * 四種檢視都是工作區頁（剛好一個畫面高；表格自己兩個方向捲，看板每一欄自己直向捲，行事曆與時間軸在內容區裡自己捲），用同一個 PageLayout，
@@ -112,14 +138,15 @@ export function ProjectWorkspace({ detail, bar, notices, onOpenMembers }: Projec
       <BulkActionBar selection={table.selection} bulk={table.bulk} />
     </Toolbar>
   ) : (
-    <Toolbar end={isTable ? <ItemToolbarEnd table={table} /> : undefined}>
+    <Toolbar isScrollable end={isTable && !isCompact ? <ItemToolbarEnd table={table} /> : undefined}>
       <ViewSwitch view={view} />
       <ViewMenu key={projectKey} current={current} />
       {isTable ? <ItemToolbarControls table={table} /> : <BoardToolbarControls board={board} view={view} />}
     </Toolbar>
   );
+  const can = abilitiesOf(detail);
   return (
-    <ProjectTableProvider value={{ detail, can: abilitiesOf(detail), todayDate, onOpenMembers }}>
+    <ProjectTableProvider value={{ detail, can, todayDate, onOpenMembers }}>
       <PageLayout variant="workspace" bar={bar} toolbar={toolbar}>
         {/* 點表格的編號、看板卡片的標題、行事曆與時間軸上的項目在右邊開項目面板；各檢視共用同一個面板，切換檢視時面板不重新掛上。 */}
         <ItemPanelHost layout="fill" projectKey={projectKey}>
@@ -135,6 +162,7 @@ export function ProjectWorkspace({ detail, bar, notices, onOpenMembers }: Projec
           )}
         </ItemPanelHost>
       </PageLayout>
+      <NewItemEntry table={table} canCreate={can.create} isCompact={isCompact} isTable={isTable} />
     </ProjectTableProvider>
   );
 }

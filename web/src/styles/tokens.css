@@ -58,6 +58,12 @@
   --page-bar-inset: 0rem; /* 頁列開頭讓出的寬度：外框（AppShell）把收合側欄與「選單」的按鈕疊在那裡時設定 */
   --page-gutter: var(--space-6); /* 內容區左右的留白 */
   --sidebar-width: 14rem;
+  /*
+   * 窄螢幕底部分頁列（AppShell 的 TabBar）佔的高度，含手機的安全區域；寬螢幕沒有分頁列是 0。
+   * 黏在底部的東西（新增項目的圓形按鈕、新通知的提示、AI 助理的全螢幕面板、內容區的下內距）都從它往上算。
+   */
+  --tab-bar-content: 3.5rem;
+  --tab-bar-height: 0rem;
   --lane-width: 17.5rem;
   --side-panel-width: 28rem; /* 清單旁邊的面板（SidePanel）的預設寬度：使用者可以拖拉調整（第 7 節），點兩下把手回到這個寬度 */
   --content-max: 72rem;
@@ -194,6 +200,7 @@
 @media (max-width: 48rem) {
   :root {
     --page-gutter: var(--space-4);
+    --tab-bar-height: calc(var(--tab-bar-content) + env(safe-area-inset-bottom));
   }
 }
 

@@ -11,6 +11,13 @@ import { PanelHeader } from './PanelHeader';
 import { PanelWindow } from './PanelWindow';
 import { useAssistantHost } from './useAssistantHost';
 import { OPEN_ASSISTANT_PANEL_EVENT, type OpenAssistantPanelDetail } from './panelRequests';
+import {
+  ASSISTANT_TAB_ID,
+  CLOSE_ASSISTANT_PANEL_EVENT,
+  TOGGLE_ASSISTANT_PANEL_EVENT,
+  publishAssistantPanelShown,
+  type CloseAssistantPanelDetail,
+} from './panelControl';
 import { usePanelSession, type PanelSession } from './usePanelSession';
 import styles from './AssistantPanel.module.css';
 
@@ -46,11 +53,19 @@ interface PanelOpen {
   readonly isShown: boolean;
   readonly hasOpened: boolean;
   readonly open: () => void;
-  readonly close: () => void;
+  readonly close: (restoreFocus?: boolean) => void;
 }
 
-/** 開關：按了才打開（第一次之後一直掛著、只是藏起來）；進了整頁版收起來；關上時焦點回到按鈕。 */
-function usePanelOpen(isEntryShown: boolean, isFullPage: boolean, buttonRef: RefObject<HTMLButtonElement | null>): PanelOpen {
+/**
+ * 開關：按了才打開（第一次之後一直掛著、只是藏起來）；進了整頁版收起來；關上時焦點回到按鈕。
+ * 窄螢幕沒有右下角的按鈕，入口在底部分頁列的「AI 助理」，焦點回到那裡。
+ */
+function usePanelOpen(
+  isEntryShown: boolean,
+  isFullPage: boolean,
+  buttonRef: RefObject<HTMLButtonElement | null>,
+  isCompact: boolean,
+): PanelOpen {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const restoreFocusRef = useRef(false);
@@ -61,17 +76,17 @@ function usePanelOpen(isEntryShown: boolean, isFullPage: boolean, buttonRef: Ref
   useEffect(() => {
     if (!isShown && restoreFocusRef.current) {
       restoreFocusRef.current = false;
-      buttonRef.current?.focus();
+      (isCompact ? document.getElementById(ASSISTANT_TAB_ID) : buttonRef.current)?.focus();
     }
-  }, [buttonRef, isShown]);
+  }, [buttonRef, isCompact, isShown]);
   return {
     isShown,
     hasOpened,
     open: () => {
       setIsOpen(true);
     },
-    close: () => {
-      restoreFocusRef.current = true;
+    close: (restoreFocus = true) => {
+      restoreFocusRef.current = restoreFocus;
       setIsOpen(false);
     },
   };
@@ -118,6 +133,31 @@ function useRouteItemKey(): string | null {
   return key === null ? null : key.toUpperCase();
 }
 
+/** 底部分頁列請面板開關（panelControl.ts）：「AI 助理」切換，其他分頁換頁之前先請它收起來。 */
+function useTabBarRequests(panel: PanelOpen): void {
+  const latest = useRef(panel);
+  useEffect(() => {
+    latest.current = panel;
+  });
+  useEffect(() => {
+    const toggle = () => {
+      const { isShown, open, close } = latest.current;
+      if (isShown) close();
+      else open();
+    };
+    const close = (event: Event) => {
+      const { restoreFocus } = (event as CustomEvent<CloseAssistantPanelDetail>).detail;
+      if (latest.current.isShown) latest.current.close(restoreFocus);
+    };
+    window.addEventListener(TOGGLE_ASSISTANT_PANEL_EVENT, toggle);
+    window.addEventListener(CLOSE_ASSISTANT_PANEL_EVENT, close);
+    return () => {
+      window.removeEventListener(TOGGLE_ASSISTANT_PANEL_EVENT, toggle);
+      window.removeEventListener(CLOSE_ASSISTANT_PANEL_EVENT, close);
+    };
+  }, []);
+}
+
 /**
  * 對話裡的新專案建議卡請面板切到剛建好的專案並打開（panelRequests.ts）。
  * 回覆還在進行時不換專案（進行中的對話屬於原本的），只把面板打開。
@@ -144,6 +184,7 @@ function useOpenRequests(session: PanelSession, open: () => void): void {
 /**
  * 每一頁右下角的 AI 助理（internal/HANDOFF-ai-floating.md 5.1）：一顆按鈕，展開成浮動面板。
  * 掛在 AppShell 層：換頁不卸下，所以進行中的回覆不會被中斷；關掉面板也只是藏起來。
+ * 窄螢幕（48rem 以下）沒有這顆按鈕：入口在底部分頁列的「AI 助理」（features/shell/TabBar.tsx），面板全螢幕、讓出分頁列。
  * 組織有開放的模型、或允許自己接 AI 帳號時才有；整頁的 AI 助理（/projects/:key/assistant、/assistant）裡不顯示。
  * 同意頁與登入頁在 AppShell 外面，本來就沒有。
  */
@@ -159,22 +200,33 @@ export function AssistantPanel() {
   const hasEntry = options.data?.available === true || options.data?.canAddPersonal === true;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const panel = usePanelOpen(hasEntry, isFullPage, buttonRef);
+  const panel = usePanelOpen(hasEntry, isFullPage, buttonRef, isCompact);
   const host = useAssistantHost();
   useBeforeUnloadWarning(session.isBusy);
   useOpenRequests(session, panel.open);
+  useTabBarRequests(panel);
+  const { isShown } = panel;
+  useEffect(() => {
+    publishAssistantPanelShown(isShown);
+    return () => {
+      publishAssistantPanelShown(false);
+    };
+  }, [isShown]);
 
   if (options.data === undefined || !hasEntry) return null;
   return (
     <>
-      {!isFullPage && <AssistantLauncher isShown={panel.isShown} onOpen={panel.open} buttonRef={buttonRef} host={host} />}
+      {/* 窄螢幕的入口在底部分頁列，不再浮一顆按鈕。 */}
+      {!isFullPage && !isCompact && <AssistantLauncher isShown={panel.isShown} onOpen={panel.open} buttonRef={buttonRef} host={host} />}
       {panel.hasOpened && (
         <AssistantWindow
           session={session}
           options={options.data}
           isShown={panel.isShown}
           isCompact={isCompact}
-          onClose={panel.close}
+          onClose={() => {
+            panel.close();
+          }}
           panelRef={panelRef}
           host={host}
         />

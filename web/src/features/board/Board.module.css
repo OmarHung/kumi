@@ -64,7 +64,8 @@
   margin-inline-start: calc(-1 * var(--page-gutter));
   /* 右邊伸到頁面的邊緣；項目面板排在旁邊時那裡是面板，不伸過去，捲到最後一欄時離面板的線 --content-gap-end（SidePanel.module.css）。 */
   margin-inline-end: calc(-1 * var(--content-bleed-end, var(--page-gutter)));
-  padding: 0 var(--page-gutter) max(var(--space-3), env(safe-area-inset-bottom));
+  /* 窄螢幕的工作區停在底部分頁列上面，分頁列已經讓出安全區域（寬螢幕的 --tab-bar-height 是 0）。 */
+  padding: 0 var(--page-gutter) max(var(--space-3), calc(env(safe-area-inset-bottom) - var(--tab-bar-height)));
   padding-inline-end: max(var(--content-bleed-end, var(--page-gutter)), var(--content-gap-end, 0px));
   overflow-x: auto;
   overflow-y: hidden;

@@ -1,7 +1,6 @@
 import { Button } from '../../components/Button/Button';
 import { Dialog, DialogActions } from '../../components/Dialog/Dialog';
 import { FormAlert } from '../../components/FormAlert/FormAlert';
-import { Icon } from '../../components/Icon/Icon';
 import type { ItemFilters } from '../../domain/itemFilters';
 import { CreatedStatus } from './CreatedStatus';
 import { QuickAddFields } from './QuickAddItem';
@@ -11,6 +10,8 @@ import styles from './QuickAddItem.module.css';
 interface AddItemDialogProps {
   readonly filters: ItemFilters;
   readonly state: QuickAddState;
+  /** 不是從表格開的（看板、行事曆、時間軸）：新增之後重新讀這個專案的項目清單。 */
+  readonly refetchesAll?: boolean;
 }
 
 /**
@@ -18,8 +19,8 @@ interface AddItemDialogProps {
  * 新增之後對話框留著（標題清空、焦點在標題框），可以接著加；「關閉」或 Esc 關上，焦點回到「新增項目」。
  * 開著沒有與打到一半的內容放在 QuickAddState（不隨寬窄換掉）：視窗變寬時對話框照樣開著，內容還在。
  */
-export function AddItemDialog({ filters, state }: AddItemDialogProps) {
-  const quickAdd = useQuickAdd(filters, state);
+export function AddItemDialog({ filters, state, refetchesAll = false }: AddItemDialogProps) {
+  const quickAdd = useQuickAdd(filters, state, { refetchesAll });
   const { create } = quickAdd;
   const close = () => {
     if (!create.isPending) state.setIsDialogOpen(false);
@@ -40,15 +41,5 @@ export function AddItemDialog({ filters, state }: AddItemDialogProps) {
         </DialogActions>
       </form>
     </Dialog>
-  );
-}
-
-/** 窄螢幕工具列上的「新增項目」：打開上面的對話框（快速新增那一列在窄螢幕放不下）。 */
-export function AddItemButton({ onOpen }: { readonly onOpen: () => void }) {
-  return (
-    <Button size="sm" variant="primary" onClick={onOpen}>
-      <Icon name="add" />
-      新增項目
-    </Button>
   );
 }

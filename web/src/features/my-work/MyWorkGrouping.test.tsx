@@ -199,6 +199,6 @@ describe('窄螢幕的我的工作：分組', () => {
 
     // Assert
     const list = await screen.findByRole('list', { name: '官網改版' });
-    expect(within(list).getByRole('link')).toHaveAccessibleName(/^WEB-3 首頁改版需求 狀態：待辦 到期：/);
+    expect(within(list).getByRole('link')).toHaveAccessibleName(/^WEB-3 首頁改版需求 狀態：待辦 類型：任務 到期：/);
   });
 });

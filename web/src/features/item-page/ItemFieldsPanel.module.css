@@ -122,6 +122,22 @@
   row-gap: var(--space-1);
 }
 
+/*
+ * 窄螢幕（48rem 以下，2026-11-27 使用者看過手機版設計稿後採用）：一列一組。390px 寬時 auto-fill 排成兩組，每組只有約 170px，
+ * 到期日與「已過期 N 天」折成兩行、名稱和值互相擠；一欄之後每組有整列的寬度，到期日與「已過期」放同一行不折。
+ * 名稱照舊只佔自己的字寬（不加名稱欄：名稱和值之間空一大段是使用者兩次嫌過的）。
+ * 只看視窗寬度、不看面板寬度：寬螢幕右邊那一欄與項目面板的排法一點都不變。
+ */
+@media (max-width: 48rem) {
+  .list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .value button > span:has(> time) {
+    flex-wrap: nowrap;
+  }
+}
+
 .withLink {
   display: flex;
   align-items: flex-start;

@@ -1,0 +1,106 @@
+/*
+ * 窄螢幕的項目清單一筆（docs/design/07-components.md 7.1，2026-11-27 使用者看過手機版設計稿後採用）：
+ * 左邊兩行（編號與屬性、標題最多兩行），右邊一欄（負責人頭像、到期日）。細線、滑過的底色與焦點外框和 components/List 一樣。
+ */
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+
+/*
+ * 上面一行是編號、屬性與右邊的負責人與到期日，下面一行標題橫跨整列。右邊那一塊只佔上面一行：
+ * 原本是整列高的右欄，320 寬、過期的日期一長，標題被擠到兩行還剩一半寬（2026-11-27 實測）。
+ * DOM 順序是編號、標題、屬性、右邊（連結的名稱照這個順序唸），位置用 grid-area 換過來；.main 用 display: contents 讓孩子直接排進這張格線。
+ */
+.link {
+  display: grid;
+  grid-template-areas:
+    'code meta side'
+    'title title title';
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-height: var(--row-height);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.link:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+/* 焦點外框畫在裡面：清單貼著內容區的邊，外面一圈會被裁掉。 */
+.link:focus-visible {
+  outline-offset: -2px;
+}
+
+.main {
+  display: contents;
+}
+
+.code {
+  grid-area: code;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  grid-area: meta;
+  align-items: center;
+  gap: var(--space-0-5) var(--space-2);
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+/* 標題最多兩行，完整的文字在 title 與詳細頁（第 3 節的截斷規則）。 */
+.title {
+  display: -webkit-box;
+  grid-area: title;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--weight-medium);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.settled {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.side {
+  display: flex;
+  grid-area: side;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.assignee {
+  display: inline-flex;
+}
+
+.due {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.overdue {
+  color: var(--color-danger);
+  font-weight: var(--weight-medium);
+}
