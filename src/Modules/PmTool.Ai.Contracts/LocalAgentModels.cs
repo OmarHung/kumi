@@ -124,6 +124,9 @@ public static class LocalAgentTools
         "get_project",
         "list_people",
         "propose_member_changes",
+        "propose_item_deletions",
+        "propose_bulk_item_changes",
+        "withdraw_proposal",
     ];
 
     public static bool IsAllowed(string toolName) => Allowed.Contains(toolName);
@@ -138,6 +141,7 @@ public static class LocalAgentTools
         "get_template",
         "list_projects",
         "propose_project",
+        "withdraw_proposal",
     ];
 
     public static bool IsAllowedForOrganization(string toolName) => AllowedForOrganization.Contains(toolName);

@@ -205,6 +205,10 @@ export interface AssistantToolPart {
   readonly newItemProposalId: string | null;
   /** propose_member_changes 成功時，建立的成員建議（畫成有「套用」「不要」的卡片；internal/HANDOFF-ai-assign.md）。 */
   readonly memberProposalId: string | null;
+  /** propose_item_deletions 成功時，建立的刪除建議（畫成有「刪除」「不要」的卡片；internal/HANDOFF-ai-revise.md）。 */
+  readonly itemDeletionProposalId: string | null;
+  /** propose_bulk_item_changes 成功時，建立的批次修改建議（畫成有「全部套用」「不要」的卡片）。 */
+  readonly itemBatchProposalId: string | null;
 }
 
 export type AssistantPart = AssistantTextPart | AssistantToolPart;
@@ -425,4 +429,46 @@ export interface ProjectProposal {
   readonly decidedAt: string | null;
   /** 套用成功後建出來的專案代號。 */
   readonly createdProjectKey: string | null;
+}
+
+/**
+ * AI 助理提出的刪除項目建議（internal/HANDOFF-ai-revise.md）：按「刪除」才以自己的身分批次刪除（軟刪除，能在「已刪除」復原）。
+ * 標題是建立建議時的。
+ */
+export interface ItemDeletionProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly items: readonly { readonly itemKey: string; readonly title: string }[];
+  /** 為什麼刪（一行），沒有是 null。 */
+  readonly reason: string | null;
+  readonly status: 'pending' | 'applied' | 'dismissed';
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  /** 套用之後真的刪除的編號。 */
+  readonly deletedKeys: readonly string[];
+  /** 有幾筆沒刪成：哪些、為什麼。 */
+  readonly error: string | null;
+}
+
+/** AI 助理提出的批次修改建議：每個項目各自的欄位修改與留言，按一次「全部套用」。 */
+export interface ItemBatchProposal {
+  readonly id: string;
+  readonly projectKey: string;
+  readonly items: readonly ItemBatchEntry[];
+  readonly status: 'pending' | 'applied' | 'dismissed';
+  readonly createdAt: string;
+  readonly decidedAt: string | null;
+  /** 有幾筆沒完全套用：摘要。 */
+  readonly error: string | null;
+}
+
+/** 批次修改裡的一個項目；changes 的形狀和單一項目的修改建議一樣。 */
+export interface ItemBatchEntry {
+  readonly itemKey: string;
+  /** 建立建議時的標題。 */
+  readonly itemTitle: string;
+  readonly changes: readonly ItemFieldChange[];
+  readonly comment: string | null;
+  /** 套用後這一筆沒成功的部分。 */
+  readonly error: string | null;
 }

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using PmTool.Ai.Proposals;
 using PmTool.Identity;
 using PmTool.Work;
 
@@ -7,7 +8,7 @@ namespace PmTool.Ai.Assistant;
 
 /// <summary>
 /// 系統提示：自己寫的規則加上三份參考資料。整份在程序裡組一次、之後不變，Anthropic 的提示快取才有效
-/// （所以不放日期、專案名稱這類會變的內容；專案與權限的說明是另一則 system 訊息）。
+/// （所以不放日期、專案名稱這類會變的內容；專案與權限的說明是另一則 system 訊息，日期與建議的現況在最新一則使用者訊息前面的附註）。
 /// </summary>
 internal static class AssistantPrompt
 {
@@ -42,6 +43,13 @@ internal static class AssistantPrompt
         $"這則對話在專案代號 {projectKey} 的專案。使用者在這個專案：能讀設定；{PermissionSentence(permissions)}。"
         + (asker is null ? string.Empty : AskerSentence(asker));
 
+    /// <summary>
+    /// 「現在是 2026-11-27（星期五）07:51，時區 Asia/Taipei」：照組織的時區。每一輪都會變，所以不放在 system 訊息
+    /// （會讓後面的歷史都快取不到），而是寫在最新一則使用者訊息前面的附註（<see cref="TurnNote"/>）；沒給「現在」就不寫。
+    /// </summary>
+    public static string NowSentence(CurrentTime? now) =>
+        now is null ? string.Empty : $"現在是 {now.Describe()}，時區 {now.TimeZoneId}；「今天」「這週」「月底」都照這個算，建議的日期不要早於今天（使用者明確要的除外）。";
+
     // 助理能做的就是使用者能做的：每一種寫入都明講能不能，模型才不會對沒權限的事提建議、也不會對有權限的事說「做不到」。
     private static readonly (string Permission, string Label)[] PermissionLabels =
     [
@@ -65,6 +73,60 @@ internal static class AssistantPrompt
     public static string OrganizationNote(bool canCreateProjects, Asker? asker = null) =>
         $"這則對話不屬於任何專案。使用者{(canCreateProjects ? "能" : "不能")}開新專案（只有組織管理員能）。"
         + (asker is null ? string.Empty : AskerSentence(asker));
+
+    /// <summary>附註的開頭：標明這不是使用者寫的，模型不會把裡面的句子當成使用者的要求。</summary>
+    public const string TurnNotePrefix = "〔Kumi 附註，不是使用者寫的〕";
+
+    /// <summary>
+    /// 最新一則使用者訊息前面的附註：現在的日期時間與這則對話的建議現況（都沒有時是空字串，不加）。這兩樣每一輪都會變，
+    /// 放在最後才不會讓前面的系統提示與歷史的提示快取失效。附註只在送出時加，不存進對話的 transcript；重送歷史時舊的使用者訊息不帶。
+    /// </summary>
+    public static string TurnNote(CurrentTime? now, IReadOnlyList<ProposalStatusEntry> entries, bool supportsRevision = true)
+    {
+        var parts = new List<string>();
+        if (now is not null)
+        {
+            parts.Add(NowSentence(now));
+        }
+
+        var proposals = ProposalNote(entries, now, supportsRevision);
+        if (proposals.Length > 0)
+        {
+            parts.Add(proposals);
+        }
+
+        return parts.Count == 0 ? string.Empty : TurnNotePrefix + string.Join("\n", parts);
+    }
+
+    /// <summary>
+    /// 這則對話裡你提出過的建議與「現在」的狀態（沒有建議時是空字串）。
+    /// 模型看不到使用者在網頁上按了什麼：不說的話，它會叫使用者「不要按」一份早就建立好的建議。
+    /// 說明裡只有編號與數字，不放標題與名稱（那些是使用者寫的內容）。撤回的工具（<paramref name="supportsRevision"/>）舊版的 kumi 沒有，不能叫模型用。
+    /// </summary>
+    public static string ProposalNote(IReadOnlyList<ProposalStatusEntry> entries, CurrentTime? now = null, bool supportsRevision = true)
+    {
+        if (entries.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var lines = entries.Select(entry => $"- {entry.Reference}｜{ProposalNames.KindLabel(entry.Kind)}｜{ProposalNames.StateLabel(entry.State)}{Moment(entry, now)}｜{entry.Summary}");
+        return "這則對話裡你提出過的建議（由舊到新）與它們現在的狀態。這是現在讀出來的，以這裡為準，不要憑記憶說「還沒建立」「還沒套用」；"
+            + "使用者可能已經在網頁上按過。每行是「代號｜種類｜狀態｜說明」"
+            + (supportsRevision ? "，撤回用 withdraw_proposal 帶代號" : string.Empty)
+            + "：\n"
+            + string.Join("\n", lines);
+    }
+
+    private static string Moment(ProposalStatusEntry entry, CurrentTime? now)
+    {
+        if (now is null)
+        {
+            return string.Empty;
+        }
+
+        return entry.DecidedAt is { } decided ? $"（{now.DescribeShort(decided)}）" : $"（提出於 {now.DescribeShort(entry.CreatedAt)}）";
+    }
 
     private static string AskerSentence(Asker asker) =>
         $"發問的人是「{QuotedName(asker)}」（{Details(asker)}），"

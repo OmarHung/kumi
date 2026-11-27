@@ -19,7 +19,7 @@ public sealed class McpOrganizationScopeTests
     private static readonly AccessTokenScope[] AgentScopes =
         [AccessTokenScope.AgentRun, AccessTokenScope.ItemsRead, AccessTokenScope.BlueprintRead, AccessTokenScope.BlueprintWrite];
 
-    private static readonly string[] OrganizationTools = ["list_templates", "get_template", "list_projects", "propose_project"];
+    private static readonly string[] OrganizationTools = ["list_templates", "get_template", "list_projects", "propose_project", "withdraw_proposal"];
 
     private static readonly object Proposal = new { key = "WEB", name = "網站改版", template = "simple_tasks" };
 
@@ -50,7 +50,7 @@ public sealed class McpOrganizationScopeTests
         var tools = await mcp.Client.ListToolsAsync();
 
         // Assert
-        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(new[] { "list_templates", "get_template", "propose_project" }));
+        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(new[] { "list_templates", "get_template", "propose_project", "withdraw_proposal" }));
     }
 
     [Test]

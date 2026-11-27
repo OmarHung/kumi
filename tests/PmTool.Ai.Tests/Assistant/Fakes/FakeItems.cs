@@ -69,9 +69,8 @@ internal sealed class FakeWorkItemService : IWorkItemService
         var found = Items.Values
             .Where(item => item.ProjectKey == projectKey)
             .Where(item => query.ParentKey is null ? query.Search is null || item.Title.Contains(query.Search, StringComparison.Ordinal) || item.Key == query.Search : item.ParentKey == query.ParentKey)
-            .Take(query.Limit)
             .ToList();
-        return Task.FromResult<Result<WorkItemPage>>(new WorkItemPage(found, null));
+        return Task.FromResult<Result<WorkItemPage>>(new WorkItemPage([.. found.Take(query.Limit)], found.Count > query.Limit ? "more" : null));
     }
 
     public Task<Result<WorkItem>> CreateAsync(Actor actor, string projectKey, NewWorkItem item, CancellationToken cancellationToken)

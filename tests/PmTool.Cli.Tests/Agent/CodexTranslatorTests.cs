@@ -107,6 +107,43 @@ public sealed class CodexTranslatorTests
         }
     }
 
+    [TestCase("codex-deletion-proposal.jsonl", "propose_item_deletions", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e22")]
+    [TestCase("codex-bulk-proposal.jsonl", "propose_bulk_item_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e33")]
+    public void RevisionProposal_Codex_CarriesItsOwnProposalIdOnTheFinishedTool(string fixture, string toolName, string proposalId)
+    {
+        // Act
+        var tools = Play(fixture).Tools;
+        var done = tools.Last();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((done.Name, done.Status), Is.EqualTo((toolName, "done")));
+            Assert.That(done.ItemDeletionProposalId, Is.EqualTo(toolName == "propose_item_deletions" ? proposalId : null));
+            Assert.That(done.ItemBatchProposalId, Is.EqualTo(toolName == "propose_bulk_item_changes" ? proposalId : null));
+            Assert.That(done.MemberProposalId, Is.Null);
+            Assert.That(done.ItemProposalId, Is.Null);
+            Assert.That(done.NewItemProposalId, Is.Null);
+            Assert.That(tools.Take(tools.Count - 1).All(tool => tool.ItemDeletionProposalId is null && tool.ItemBatchProposalId is null), Is.True, "開始時與別的工具都不帶");
+        }
+    }
+
+    [Test]
+    public void WithdrawProposal_Codex_IsReportedAsAPlainToolWithoutAProposalId()
+    {
+        // Act
+        var done = Play("codex-withdraw.jsonl").Tools.Last();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((done.Name, done.Status), Is.EqualTo(("withdraw_proposal", "done")));
+            Assert.That(done.ItemDeletionProposalId, Is.Null);
+            Assert.That(done.ItemBatchProposalId, Is.Null);
+            Assert.That(done.MemberProposalId, Is.Null);
+        }
+    }
+
     [Test]
     public void NewItemsProposal_Codex_WithoutAGuidProposalId_OmitsIt()
     {

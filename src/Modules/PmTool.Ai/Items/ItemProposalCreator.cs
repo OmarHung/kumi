@@ -59,16 +59,6 @@ internal sealed class ItemProposalCreator(
         return ItemProposalMapper.ToProposal(row);
     }
 
-    // 建議的每一步套用時都會以使用者的權限檢查；先擋在這裡，使用者只能讀的時候不必看到一張永遠套用不了的卡片。
-    private static Failure? MissingPermission(ItemProposalDraft draft, ProjectDetail project)
-    {
-        var permissions = project.MyPermissions;
-        var changes = draft.Changes ?? [];
-        var denied = (changes.Any(c => c.Field != ItemFieldNames.Status) && !permissions.Contains(WorkPermissions.ItemUpdate))
-            || (changes.Any(c => c.Field == ItemFieldNames.Status) && !permissions.Contains(WorkPermissions.ItemTransition))
-            || (!string.IsNullOrWhiteSpace(draft.Comment) && !permissions.Contains(WorkPermissions.CommentCreate));
-        return denied
-            ? new Failure(FailureKind.Forbidden, AiErrorCodes.Forbidden, "你沒有修改項目的權限，只能讀。")
-            : null;
-    }
+    private static Failure? MissingPermission(ItemProposalDraft draft, ProjectDetail project) =>
+        ItemChangePermissions.Missing(draft.Changes ?? [], draft.Comment, project.MyPermissions);
 }

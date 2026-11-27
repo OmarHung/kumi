@@ -271,6 +271,11 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<INewItemProposalCreator>();
         services.RemoveAll<IMemberProposalService>();
         services.RemoveAll<IMemberProposalCreator>();
+        services.RemoveAll<IItemDeletionProposalService>();
+        services.RemoveAll<IItemDeletionProposalCreator>();
+        services.RemoveAll<IItemBatchProposalService>();
+        services.RemoveAll<IItemBatchProposalCreator>();
+        services.RemoveAll<IAssistantProposalLedger>();
         services.RemoveAll<IStaffingBriefService>();
         services.RemoveAll<IProjectProposalService>();
         services.RemoveAll<IProjectProposalCreator>();
@@ -328,6 +333,11 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<INewItemProposalCreator>(Modules.NewItemProposals);
         services.AddSingleton<IMemberProposalService>(Modules.MemberProposals);
         services.AddSingleton<IMemberProposalCreator>(Modules.MemberProposals);
+        services.AddSingleton<IItemDeletionProposalService>(Modules.ItemDeletionProposals);
+        services.AddSingleton<IItemDeletionProposalCreator>(Modules.ItemDeletionProposals);
+        services.AddSingleton<IItemBatchProposalService>(Modules.ItemBatchProposals);
+        services.AddSingleton<IItemBatchProposalCreator>(Modules.ItemBatchProposals);
+        services.AddSingleton<IAssistantProposalLedger>(Modules.ProposalLedger);
         services.AddSingleton<IStaffingBriefService>(Modules.Staffing);
         services.AddSingleton<IProjectProposalService>(Modules.ProjectProposals);
         services.AddSingleton<IProjectProposalCreator>(Modules.ProjectProposals);

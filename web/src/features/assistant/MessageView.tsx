@@ -9,6 +9,8 @@ import { effortLabel, toolLabel } from '../ai/aiLabels';
 import { changeSetPagePath, itemPagePath } from '../work-items/itemLinks';
 import { CopyMessageButton } from './CopyMessageButton';
 import { MessageAttachments } from './MessageAttachments';
+import { ItemBatchProposalCard } from './ItemBatchProposalCard';
+import { ItemDeletionProposalCard } from './ItemDeletionProposalCard';
 import { MemberProposalCard } from './MemberProposalCard';
 import { NewItemsProposalCard } from './NewItemsProposalCard';
 import { ProjectProposalCard } from './ProjectProposalCard';
@@ -25,6 +27,8 @@ const PROPOSE_ITEM_TOOL = 'propose_item_changes';
 const PROPOSE_PROJECT_TOOL = 'propose_project';
 const PROPOSE_NEW_ITEMS_TOOL = 'propose_new_items';
 const PROPOSE_MEMBERS_TOOL = 'propose_member_changes';
+const PROPOSE_DELETIONS_TOOL = 'propose_item_deletions';
+const PROPOSE_BATCH_TOOL = 'propose_bulk_item_changes';
 const DEFAULT_FAILURE = '回覆失敗了，請再試一次。';
 
 function ToolRow({ tool }: { readonly tool: AssistantToolPart }) {
@@ -81,6 +85,12 @@ function PartView({ part, projectKey }: { readonly part: AssistantMessage['parts
       )}
       {part.name === PROPOSE_MEMBERS_TOOL && part.status === 'done' && part.memberProposalId !== null && (
         <MemberProposalCard proposalId={part.memberProposalId} />
+      )}
+      {part.name === PROPOSE_DELETIONS_TOOL && part.status === 'done' && part.itemDeletionProposalId !== null && (
+        <ItemDeletionProposalCard proposalId={part.itemDeletionProposalId} />
+      )}
+      {part.name === PROPOSE_BATCH_TOOL && part.status === 'done' && part.itemBatchProposalId !== null && (
+        <ItemBatchProposalCard proposalId={part.itemBatchProposalId} />
       )}
     </>
   );

@@ -79,7 +79,7 @@ public sealed class AssistantTranscriptTests
             Assert.That(messages[2].Text, Is.EqualTo("第一個問題"));
             Assert.That(messages[3].Text, Is.EqualTo("[REPLY]\n先讀。"), "重送歷史時標記補回去。");
             Assert.That(messages[5].Text, Is.EqualTo("[REPLY]\n好了。"));
-            Assert.That(messages[6].Text, Is.EqualTo("第二個問題"));
+            Assert.That(messages[6].PlainText(), Is.EqualTo("第二個問題"));
         }
     }
 
@@ -183,7 +183,7 @@ public sealed class AssistantTranscriptTests
         await _h.SendAsync(conversation.Id, "問二");
 
         // Assert
-        Assert.That(_h.Script.Calls.Last().Messages.Select(m => m.Text), Is.EqualTo(new[]
+        Assert.That(_h.Script.Calls.Last().Messages.Select(m => m.PlainText()), Is.EqualTo(new[]
         {
             AssistantPrompt.SystemPrompt, _h.Script.Calls.Last().Messages[1].Text, "問一", "[REPLY]\n說到一半", "問二",
         }));

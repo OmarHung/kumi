@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using PmTool.Abstractions;
 using PmTool.Ai.Assistant.Tools;
 using PmTool.Ai.Attachments;
 using PmTool.Ai.HostAgents;
@@ -67,6 +68,7 @@ internal sealed class AssistantReplyRunner(
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(session.StopToken, timeout.Token);
             try
             {
+                request = await WithContextAsync(request, linked.Token);
                 if (isHosted || isLocal)
                 {
                     sent = isHosted ? await ResolveForHostAsync(request, localRecorder, linked.Token) : await ResolveAttachmentsAsync(request, linked.Token);
@@ -108,6 +110,30 @@ internal sealed class AssistantReplyRunner(
         }
     }
 
+    /// <summary>
+    /// 回覆開始時補上「現在」（組織的時區）與這則對話的建議的現況：三條路（內建、本機、主機）的提示都從這裡拿。
+    /// 讀不到建議的現況時照樣回覆（少了那一則說明）；不能因為這個讓整則回覆失敗。
+    /// </summary>
+    private async Task<ReplyRequest> WithContextAsync(ReplyRequest request, CancellationToken cancellationToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var provider = scope.ServiceProvider;
+        CurrentTime? now = null;
+        try
+        {
+            var zone = await provider.GetRequiredService<IOrganizationClock>().TimeZoneAsync(request.Actor.OrganizationId, cancellationToken);
+            now = new CurrentTime(time.GetUtcNow(), zone);
+            var proposals = await provider.GetRequiredService<IAssistantProposalLedger>().ListAsync(request.Actor, request.ConversationId, cancellationToken);
+            return request with { Now = now, Proposals = proposals };
+        }
+        catch (Exception exception) when (exception is not (OperationCanceledException or OutOfMemoryException))
+        {
+            // 時區讀不到就不寫日期、建議讀不到就少那一段；不能因為這個讓整則回覆失敗。
+            logger.LogWarning("助理對話的日期或建議現況讀不出來：{ExceptionType}", exception.GetType().Name);
+            return request with { Now = now };
+        }
+    }
+
     private async Task<ReplyOutcome> StreamAsync(
         ReplyRequest request, ReplyAccumulator accumulator, AssistantRunSession session, CancellationToken cancellationToken)
     {
@@ -128,6 +154,9 @@ internal sealed class AssistantReplyRunner(
             provider.GetRequiredService<INewItemProposalCreator>(),
             provider.GetRequiredService<IStaffingBriefService>(),
             provider.GetRequiredService<IMemberProposalCreator>(),
+            provider.GetRequiredService<IItemDeletionProposalCreator>(),
+            provider.GetRequiredService<IItemBatchProposalCreator>(),
+            provider.GetRequiredService<IAssistantProposalLedger>(),
             request.ConversationId,
             logger);
         var selection = request.Selection.Selection;
@@ -282,7 +311,7 @@ internal sealed class AssistantReplyRunner(
             return request;
         }
 
-        var all = new List<ChatMessage>(request.History) { UserMessage(request) };
+        var all = new List<ChatMessage>(request.History) { UserMessage(request, withNote: false) };
         var options = new ReplayOptions
         {
             SkippedIds = request.SkippedAttachmentIds,
@@ -343,9 +372,16 @@ internal sealed class AssistantReplyRunner(
         }
     }
 
-    private static ChatMessage UserMessage(ReplyRequest request)
+    private static ChatMessage UserMessage(ReplyRequest request, bool withNote = true)
     {
         var contents = new List<AIContent>();
+        // 附註只在送出時加在最新一則前面，不進 transcript（存的是 request.UserText）；每一輪都變，放在歷史之後才不破壞前面的快取。
+        var note = withNote ? AssistantPrompt.TurnNote(request.Now, request.Proposals) : string.Empty;
+        if (note.Length > 0)
+        {
+            contents.Add(new TextContent(note));
+        }
+
         if (request.UserText.Length > 0)
         {
             contents.Add(new TextContent(request.UserText));

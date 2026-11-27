@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PmTool.Ai.Items;
+using PmTool.Ai.ItemRevisions;
 using PmTool.Ai.ProjectProposals;
 using PmTool.Ai.LocalAgents;
 
@@ -26,6 +27,10 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
     public DbSet<ItemProposalRow> ItemProposals => Set<ItemProposalRow>();
 
     public DbSet<NewItemProposalRow> NewItemProposals => Set<NewItemProposalRow>();
+
+    public DbSet<ItemDeletionProposalRow> ItemDeletionProposals => Set<ItemDeletionProposalRow>();
+
+    public DbSet<ItemBatchProposalRow> ItemBatchProposals => Set<ItemBatchProposalRow>();
 
     public DbSet<MemberProposalRow> MemberProposals => Set<MemberProposalRow>();
 
@@ -169,6 +174,32 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
             proposal.Property(p => p.Id).ValueGeneratedNever();
             proposal.Property(p => p.ProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
             proposal.Property(p => p.Changes).HasColumnType(Jsonb);
+            proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
+            proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
+            proposal.HasIndex(p => new { p.OrganizationId, p.PersonId });
+        });
+
+        modelBuilder.Entity<ItemDeletionProposalRow>(proposal =>
+        {
+            proposal.ToTable("item_deletion_proposals");
+            proposal.HasKey(p => p.Id);
+            proposal.Property(p => p.Id).ValueGeneratedNever();
+            proposal.Property(p => p.ProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
+            proposal.Property(p => p.Items).HasColumnType(Jsonb);
+            proposal.Property(p => p.Reason).HasMaxLength(ItemRevisionLimits.MaxReasonLength);
+            proposal.Property(p => p.DeletedKeys).HasColumnType(Jsonb).HasDefaultValueSql("'[]'::jsonb");
+            proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
+            proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
+            proposal.HasIndex(p => new { p.OrganizationId, p.PersonId });
+        });
+
+        modelBuilder.Entity<ItemBatchProposalRow>(proposal =>
+        {
+            proposal.ToTable("item_batch_proposals");
+            proposal.HasKey(p => p.Id);
+            proposal.Property(p => p.Id).ValueGeneratedNever();
+            proposal.Property(p => p.ProjectKey).HasMaxLength(ItemProposalLimits.MaxItemKeyLength);
+            proposal.Property(p => p.Items).HasColumnType(Jsonb);
             proposal.Property(p => p.Status).HasMaxLength(MaxEnumLength);
             proposal.Property(p => p.Error).HasMaxLength(AiRules.MaxErrorLength);
             proposal.HasIndex(p => new { p.OrganizationId, p.PersonId });

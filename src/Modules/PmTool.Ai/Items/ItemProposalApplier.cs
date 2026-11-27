@@ -13,17 +13,26 @@ namespace PmTool.Ai.Items;
 internal sealed class ItemProposalApplier(IWorkItemService items, IItemActivityService activity, ILogger<ItemProposalApplier> logger)
 {
     /// <summary>成功時是空字串（全部套用）或「部分沒套用」的說明。</summary>
-    public async Task<Result<string>> ApplyAsync(Actor actor, ItemProposalRow row, CancellationToken cancellationToken)
+    public Task<Result<string>> ApplyAsync(Actor actor, ItemProposalRow row, CancellationToken cancellationToken) =>
+        ApplyAsync(actor, row.ItemKey, ItemProposalMapper.ReadChanges(row.Changes), row.Comment, row.DescriptionRevision, cancellationToken);
+
+    /// <summary>單一項目的建議與批次修改建議的每一筆共用的套用步驟。</summary>
+    public async Task<Result<string>> ApplyAsync(
+        Actor actor,
+        string itemKey,
+        IReadOnlyList<ItemFieldChange> changes,
+        string? comment,
+        string? descriptionRevision,
+        CancellationToken cancellationToken)
     {
-        var changes = ItemProposalMapper.ReadChanges(row.Changes);
         var status = changes.FirstOrDefault(c => c.Field == ItemFieldNames.Status);
-        var patch = ToPatch(changes.Where(c => c.Field != ItemFieldNames.Status), row.DescriptionRevision);
+        var patch = ToPatch(changes.Where(c => c.Field != ItemFieldNames.Status), descriptionRevision);
         var failures = new List<string>();
         var done = false;
 
         if (patch is not null)
         {
-            var updated = await items.UpdateAsync(actor, row.ItemKey, patch, cancellationToken);
+            var updated = await items.UpdateAsync(actor, itemKey, patch, cancellationToken);
             if (updated.Failure is { } first)
             {
                 return first;
@@ -36,7 +45,7 @@ internal sealed class ItemProposalApplier(IWorkItemService items, IItemActivityS
         if (status is not null)
         {
             var moved = await RunStepAsync(
-                () => items.TransitionAsync(actor, row.ItemKey, status.Value.GetString() ?? string.Empty, cancellationToken), done);
+                () => items.TransitionAsync(actor, itemKey, status.Value.GetString() ?? string.Empty, cancellationToken), done);
             if (Settle(moved.Failure, "狀態", ref done, failures) is { } stop)
             {
                 return stop;
@@ -45,7 +54,7 @@ internal sealed class ItemProposalApplier(IWorkItemService items, IItemActivityS
             statusFailed = moved.Failure is not null;
         }
 
-        if (row.Comment is not null)
+        if (comment is not null)
         {
             // 狀態沒套用成功時留言多半是在說明那次狀態變更，沒有變更就不要留。
             if (statusFailed)
@@ -55,7 +64,7 @@ internal sealed class ItemProposalApplier(IWorkItemService items, IItemActivityS
             else
             {
                 var added = await RunStepAsync(
-                    () => activity.AddCommentAsync(actor, row.ItemKey, row.Comment, replyTo: null, cancellationToken), done);
+                    () => activity.AddCommentAsync(actor, itemKey, comment, replyTo: null, cancellationToken), done);
                 if (Settle(added.Failure, "留言", ref done, failures) is { } stop)
                 {
                     return stop;

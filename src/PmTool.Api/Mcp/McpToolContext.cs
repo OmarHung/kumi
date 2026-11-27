@@ -29,6 +29,12 @@ internal sealed class McpServices(IServiceProvider provider)
 
     public IMemberProposalCreator MemberProposals => provider.GetRequiredService<IMemberProposalCreator>();
 
+    public IItemDeletionProposalCreator ItemDeletionProposals => provider.GetRequiredService<IItemDeletionProposalCreator>();
+
+    public IItemBatchProposalCreator ItemBatchProposals => provider.GetRequiredService<IItemBatchProposalCreator>();
+
+    public IAssistantProposalLedger ProposalLedger => provider.GetRequiredService<IAssistantProposalLedger>();
+
     public IStaffingBriefService Staffing => provider.GetRequiredService<IStaffingBriefService>();
 
     public IPeopleDirectory People => provider.GetRequiredService<IPeopleDirectory>();

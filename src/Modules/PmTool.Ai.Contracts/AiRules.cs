@@ -50,6 +50,12 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForStaffingTools = "0.16.0";
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放 withdraw_proposal、propose_item_deletions、propose_bulk_item_changes
+    /// （理由同 <see cref="MinAgentVersionForNewItemProposals"/>）。舊版照樣能用，只是少了這三個工具。
+    /// </summary>
+    public const string MinAgentVersionForRevisionTools = "0.17.0";
+
     public const int MaxMachineNameLength = 60;
 
     /// <summary>一個引擎最多列幾個模型。</summary>
@@ -117,6 +123,15 @@ public static class AiRules
 
     /// <summary>list_people 一次最多列幾個人。</summary>
     public const int MaxPeopleListed = 100;
+
+    /// <summary>一份刪除建議最多幾個項目。</summary>
+    public const int MaxItemsPerDeletionProposal = 50;
+
+    /// <summary>一份批次修改建議最多幾個項目（每個項目各自最多 <see cref="MaxItemProposalChanges"/> 個欄位）。</summary>
+    public const int MaxItemsPerBatchProposal = 20;
+
+    /// <summary>每次回覆前告訴模型的「這則對話的建議」最多幾份（最新的）。</summary>
+    public const int MaxProposalsInLedger = 20;
 
     /// <summary>新增項目的建議停在「建立中」超過這麼久，當作建立的過程中斷了（程序在中途結束），讀出來是已套用加說明。</summary>
     public static readonly TimeSpan NewItemProposalApplyStale = TimeSpan.FromMinutes(5);

@@ -269,7 +269,7 @@ internal sealed class McpToolRunner(
         var context = new McpToolContext(grant.ToActor(), resolver.Resolve(http.Request).Issuer, new McpServices(http.RequestServices))
         {
             Scope = scope,
-            ConversationId = isProposal && scope.Kind == McpScopeKind.OrganizationOnly
+            ConversationId = HostProposalTools.NeedsConversation(tool.Name)
                 ? (await budget.FindJobScopeAsync(AgentJobKind.Host, null, grant.JobId, cancellationToken))?.ConversationId
                 : null,
         };

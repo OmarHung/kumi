@@ -197,3 +197,32 @@
 .depth3 {
   margin-inline-start: var(--space-12);
 }
+
+/* 批次修改建議：一個項目一段，欄位一行一行排；不加色條，靠間距分段。 */
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fieldLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin: 0;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.fieldLine > .compare {
+  flex-basis: 100%;
+}
+
+.entryResult {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-sm);
+}

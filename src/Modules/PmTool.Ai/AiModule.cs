@@ -123,9 +123,19 @@ public static class AiModule
         services.TryAddScoped<IMemberProposalCreator, MemberProposals.MemberProposalCreator>();
         services.TryAddScoped<IMemberProposalService, MemberProposals.MemberProposalService>();
 
+        // 刪除與批次修改的建議：同樣只建立建議，使用者按「刪除」「全部套用」才以自己的身分寫入。
+        services.TryAddScoped<IItemDeletionProposalCreator, ItemRevisions.ItemDeletionProposalCreator>();
+        services.TryAddScoped<IItemDeletionProposalService, ItemRevisions.ItemDeletionProposalService>();
+        services.TryAddScoped<IItemBatchProposalCreator, ItemRevisions.ItemBatchProposalCreator>();
+        services.TryAddScoped<IItemBatchProposalService, ItemRevisions.ItemBatchProposalService>();
+
         // 新專案建議（不選專案的組織對話）：同樣只建立建議，使用者按「建立專案」才以自己的身分建立。
         services.TryAddScoped<IProjectProposalCreator, ProjectProposalCreator>();
         services.TryAddScoped<IProjectProposalService, ProjectProposalService>();
+
+        // 這則對話的建議與現在的狀態（每次回覆前告訴模型）、撤回：從對話存下的工具段落讀編號，問各服務。
+        services.TryAddScoped<Proposals.ProposalServices>();
+        services.TryAddScoped<IAssistantProposalLedger, Proposals.AssistantProposalLedger>();
 
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IModuleInitializer, AiMigrator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IReadinessProbe, AiReadinessProbe>());

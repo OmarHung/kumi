@@ -1,11 +1,12 @@
 ## 這一次你是怎麼用工具的
 
-上面寫的工具，這一次都是 Kumi 的 MCP 伺服器（名稱 kumi）提供的，工具名稱照上面寫的、不含任何前綴。你只能用這四個，沒有別的工具（不能讀寫檔案、不能執行指令、不能上網）：
+上面寫的工具，這一次都是 Kumi 的 MCP 伺服器（名稱 kumi）提供的，工具名稱照上面寫的、不含任何前綴。你只能用下面列的這些，沒有別的工具（不能讀寫檔案、不能執行指令、不能上網）：
 
 - list_templates：列出內建的模板。沒有參數。
 - get_template：讀一份模板。參數 templateKey。
 - list_projects：列出使用者看得到的專案（代號、名稱、是否封存）。沒有參數。
 - propose_project：提出新專案建議（不會真的建立，使用者按「建立專案」才建立）。參數 key、name、template、includeExamples（預設 false）、description（Markdown，可省略）。
+- withdraw_proposal：撤回你提出、使用者還沒套用的新專案建議。參數 proposalId（Kumi 附註列出的代號）。
 
 這則對話不屬於任何專案，所有工具都不用帶 projectKey。
 

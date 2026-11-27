@@ -100,7 +100,7 @@ public sealed class NewItemAgentTests
         {
             Assert.That(job.AllowedTools.Contains("propose_new_items"), Is.EqualTo(hasTool));
             Assert.That(job.SystemPrompt.Contains("- propose_new_items："), Is.EqualTo(hasTool));
-            Assert.That(job.SystemPrompt.Contains("主機上的 kumi 太舊"), Is.EqualTo(!hasTool));
+            Assert.That(job.SystemPrompt.Contains("這一次沒有 propose_new_items"), Is.EqualTo(!hasTool));
         }
     }
 

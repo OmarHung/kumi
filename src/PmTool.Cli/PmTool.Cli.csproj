@@ -9,7 +9,7 @@
     <PackageId>PmTool.Cli</PackageId>
     <Description>Kumi 的命令列工具：登入、查詢與修改項目、匯出與套用專案藍圖。</Description>
     <!-- 打包出來的工具是一般的 dotnet tool；版本在發行時再決定。 -->
-    <Version>0.16.0</Version>
+    <Version>0.17.0</Version>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(KumiStandalone)' == 'true'">

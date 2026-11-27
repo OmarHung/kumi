@@ -141,7 +141,7 @@ internal static class StaffingTools
         }
 
         var created = await context.Services.MemberProposals.CreateAsync(
-            context.Actor, new MemberProposalDraft(projectKey, changes), cancellationToken);
+            context.Actor, new MemberProposalDraft(projectKey, changes) { ConversationId = context.ConversationId }, cancellationToken);
         if (created.Failure is { } failure)
         {
             return McpToolResult.FromFailure(failure);

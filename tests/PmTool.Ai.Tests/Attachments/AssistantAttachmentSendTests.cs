@@ -59,7 +59,7 @@ public sealed class AssistantAttachmentSendTests
             Assert.That(row.Title, Is.EqualTo("會議紀錄.md"));
             Assert.That(result.Run.UserMessage.Parts, Is.Empty);
             var sent = _h.Script.Calls.Single().Messages.Last();
-            Assert.That(sent.Contents.OfType<TextContent>().Select(t => t.Text), Is.EqualTo(new[] { PmTool.Ai.Attachments.AttachmentReplay.FormatText("會議紀錄.md", "# 紀錄") }));
+            Assert.That(sent.Contents.WithoutNote().OfType<TextContent>().Select(t => t.Text), Is.EqualTo(new[] { PmTool.Ai.Attachments.AttachmentReplay.FormatText("會議紀錄.md", "# 紀錄") }));
         }
     }
 
@@ -92,7 +92,7 @@ public sealed class AssistantAttachmentSendTests
         await _h.SendWithAsync(conversation.Id, "看看", png, doc, notes);
 
         // Assert
-        var contents = _h.Script.Calls.Single().Messages.Last().Contents;
+        var contents = _h.Script.Calls.Single().Messages.Last().Contents.WithoutNote();
         using (Assert.EnterMultipleScope())
         {
             Assert.That(contents, Has.Count.EqualTo(4));

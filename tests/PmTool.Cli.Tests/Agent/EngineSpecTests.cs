@@ -237,6 +237,18 @@ public sealed class EngineSpecTests
         }
     }
 
+    [Test]
+    public void KnownTools_IncludeTheRevisionTools_SoAJobWithThemIsNotRefused()
+    {
+        // Assert：不認得的工具會讓整件工作不跑。
+        string[] revision = ["propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal"];
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(JobValidation.KnownTools, Is.SupersetOf(revision));
+            Assert.That(JobValidation.Check(TestJobs.Make() with { AllowedTools = ["get_item", .. revision] }, Server), Is.Null);
+        }
+    }
+
     [TestCase("DEMO", true)]
     [TestCase("A", true)]
     [TestCase("ABCDEFGHIJ0123456789", true)]

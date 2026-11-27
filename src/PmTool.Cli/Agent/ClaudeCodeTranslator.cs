@@ -166,7 +166,9 @@ internal sealed class ClaudeCodeTranslator : IEngineTranslator
                     ItemProposalId: name == TranslatorSupport.ProposeItemChanges ? TranslatorSupport.ItemProposalId(text) : null,
                     ProjectProposalId: name == TranslatorSupport.ProposeProject ? TranslatorSupport.ProjectProposalId(text) : null,
                     NewItemProposalId: name == TranslatorSupport.ProposeNewItems ? TranslatorSupport.NewItemProposalId(text) : null,
-                    MemberProposalId: name == TranslatorSupport.ProposeMemberChanges ? TranslatorSupport.MemberProposalId(text) : null));
+                    MemberProposalId: name == TranslatorSupport.ProposeMemberChanges ? TranslatorSupport.MemberProposalId(text) : null,
+                    ItemDeletionProposalId: name == TranslatorSupport.ProposeItemDeletions ? TranslatorSupport.ItemDeletionProposalId(text) : null,
+                    ItemBatchProposalId: name == TranslatorSupport.ProposeBulkItemChanges ? TranslatorSupport.ItemBatchProposalId(text) : null));
         }
 
         return TranslatorStep.Emit([.. events]);

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.AI;
 
 namespace PmTool.Ai.Assistant.Tools;
@@ -56,31 +55,8 @@ internal sealed class ProposeItemChangesTool(AssistantToolContext context) : Ass
         });
     }
 
-    private static (IReadOnlyList<ItemFieldChange>? Value, string? Error) ReadChanges(AIFunctionArguments arguments)
-    {
-        if (!arguments.ContainsKey("changes"))
-        {
-            return ([], null);
-        }
-
-        if (ToolArguments.Array(arguments, "changes") is not { } elements)
-        {
-            return (null, "參數 changes 要是 [{field, value}] 的陣列。");
-        }
-
-        var changes = new List<ItemFieldChange>(elements.Count);
-        foreach (var element in elements)
-        {
-            if (element.ValueKind != JsonValueKind.Object
-                || !element.TryGetProperty("field", out var field)
-                || field.ValueKind != JsonValueKind.String)
-            {
-                return (null, "changes 的每一項都要是 {field, value}，field 是字串。");
-            }
-
-            changes.Add(new ItemFieldChange(field.GetString()!, element.TryGetProperty("value", out var value) ? value : default));
-        }
-
-        return (changes, null);
-    }
+    private static (IReadOnlyList<ItemFieldChange>? Value, string? Error) ReadChanges(AIFunctionArguments arguments) =>
+        arguments.ContainsKey("changes")
+            ? ItemChangeArguments.Read(ToolArguments.Array(arguments, "changes"), "changes")
+            : ([], null);
 }

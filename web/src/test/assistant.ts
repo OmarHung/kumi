@@ -8,6 +8,9 @@ import type {
   AssistantConversationSummary,
   AssistantMessage,
   AssistantMessageInput,
+  ItemBatchEntry,
+  ItemBatchProposal,
+  ItemDeletionProposal,
   ItemProposal,
   MemberChange,
   MemberProposal,
@@ -428,6 +431,110 @@ export function serveMemberProposal(
   let applyCount = 0;
   let dismissCount = 0;
   const path = `/v1/ai/member-proposals/${proposal.id}`;
+  server.use(
+    http.get(path, () => ok(current)),
+    http.post(`${path}/apply`, () => {
+      applyCount += 1;
+      const failed = onApply();
+      if (failed !== null) return failed;
+      current = { ...current, status: 'applied', decidedAt: '2026-11-27T02:05:00Z', ...applied };
+      return ok(current);
+    }),
+    http.post(`${path}/dismiss`, () => {
+      dismissCount += 1;
+      current = { ...current, status: 'dismissed', decidedAt: '2026-11-27T02:05:00Z' };
+      return ok(current);
+    }),
+  );
+  return { applied: () => applyCount, dismissed: () => dismissCount };
+}
+
+export function makeItemDeletionProposal(overrides: Partial<ItemDeletionProposal> = {}): ItemDeletionProposal {
+  return {
+    id: 'dp-1',
+    projectKey: 'SMK',
+    items: [
+      { itemKey: 'SMK-45', title: '重複的任務甲' },
+      { itemKey: 'SMK-46', title: '重複的任務乙' },
+    ],
+    reason: null,
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    deletedKeys: [],
+    error: null,
+    ...overrides,
+  };
+}
+
+/** 假的刪除建議端點：apply 成功時 deletedKeys 預設是全部的項目（applied 可蓋掉，例如部分失敗帶 error）；onApply 可回失敗。 */
+export function serveItemDeletionProposal(
+  proposal: ItemDeletionProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<ItemDeletionProposal> = {},
+): ProposalBackend {
+  let current = proposal;
+  let applyCount = 0;
+  let dismissCount = 0;
+  const path = `/v1/ai/item-deletion-proposals/${proposal.id}`;
+  server.use(
+    http.get(path, () => ok(current)),
+    http.post(`${path}/apply`, () => {
+      applyCount += 1;
+      const failed = onApply();
+      if (failed !== null) return failed;
+      current = {
+        ...current,
+        status: 'applied',
+        decidedAt: '2026-11-27T02:05:00Z',
+        deletedKeys: current.items.map((item) => item.itemKey),
+        ...applied,
+      };
+      return ok(current);
+    }),
+    http.post(`${path}/dismiss`, () => {
+      dismissCount += 1;
+      current = { ...current, status: 'dismissed', decidedAt: '2026-11-27T02:05:00Z' };
+      return ok(current);
+    }),
+  );
+  return { applied: () => applyCount, dismissed: () => dismissCount };
+}
+
+export function makeItemBatchEntry(overrides: Partial<ItemBatchEntry> = {}): ItemBatchEntry {
+  return {
+    itemKey: 'SMK-12',
+    itemTitle: '修正登入頁',
+    changes: [{ field: 'dueDate', value: '2026-12-15' }],
+    comment: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+export function makeItemBatchProposal(overrides: Partial<ItemBatchProposal> = {}): ItemBatchProposal {
+  return {
+    id: 'bp-1',
+    projectKey: 'SMK',
+    items: [makeItemBatchEntry(), makeItemBatchEntry({ itemKey: 'SMK-13', itemTitle: '改版首頁' })],
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+/** 假的批次修改建議端點：apply 成功時換成 applied（applied 可蓋掉結果，例如某一筆帶 error）；onApply 可回失敗。 */
+export function serveItemBatchProposal(
+  proposal: ItemBatchProposal,
+  onApply: () => Response | null = () => null,
+  applied: Partial<ItemBatchProposal> = {},
+): ProposalBackend {
+  let current = proposal;
+  let applyCount = 0;
+  let dismissCount = 0;
+  const path = `/v1/ai/item-batch-proposals/${proposal.id}`;
   server.use(
     http.get(path, () => ok(current)),
     http.post(`${path}/apply`, () => {

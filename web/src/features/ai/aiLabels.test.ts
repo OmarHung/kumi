@@ -36,6 +36,9 @@ describe('工具的說法', () => {
     expect(toolLabel('get_project')).toBe('讀專案的成員與設定');
     expect(toolLabel('list_people')).toBe('查組織的人員');
     expect(toolLabel('propose_member_changes')).toBe('建議成員變動');
+    expect(toolLabel('propose_item_deletions')).toBe('建議刪除項目');
+    expect(toolLabel('propose_bulk_item_changes')).toBe('建議修改多個項目');
+    expect(toolLabel('withdraw_proposal')).toBe('撤回建議');
   });
 
   it('不認得的名稱照原文', () => {

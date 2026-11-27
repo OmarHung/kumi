@@ -24,6 +24,9 @@ internal sealed record AssistantToolContext(
     INewItemProposalCreator NewItemProposals,
     IStaffingBriefService Staffing,
     IMemberProposalCreator MemberProposals,
+    IItemDeletionProposalCreator DeletionProposals,
+    IItemBatchProposalCreator BatchProposals,
+    IAssistantProposalLedger Ledger,
     Guid ConversationId,
     ILogger Logger)
 {

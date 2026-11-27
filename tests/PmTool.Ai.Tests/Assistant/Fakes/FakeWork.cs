@@ -165,8 +165,11 @@ internal sealed class FakeBlueprintChangeService : IBlueprintChangeService
     public Task<Result<IReadOnlyList<ChangeSetSummary>>> ListAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
+    /// <summary>讀一份變更集；沒設就和以前一樣不支援（只有讀建議現況的測試會設）。</summary>
+    public Func<string, long, Result<ChangeSetDetail>>? OnGet { get; set; }
+
     public Task<Result<ChangeSetDetail>> GetAsync(Actor actor, string projectKey, long number, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+        OnGet is { } read ? Task.FromResult(read(projectKey, number)) : throw new NotSupportedException();
 
     public Task<Result<ChangeSetDetail>> ApplyAsync(Actor actor, string projectKey, long number, CancellationToken cancellationToken) =>
         throw new NotSupportedException();

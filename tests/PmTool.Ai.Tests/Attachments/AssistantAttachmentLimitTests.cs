@@ -71,7 +71,7 @@ public sealed class AssistantAttachmentLimitTests
         var result = await h.SendWithAsync(conversation.Id, "整理", [.. files]);
 
         // Assert
-        var texts = h.Script.Calls.Single().Messages.Last().Contents.OfType<TextContent>().Select(t => t.Text).ToList();
+        var texts = h.Script.Calls.Single().Messages.Last().Contents.WithoutNote().OfType<TextContent>().Select(t => t.Text).ToList();
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Final.Status, Is.EqualTo(AssistantMessageStatus.Complete));

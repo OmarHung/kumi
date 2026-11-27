@@ -8,7 +8,7 @@ import type { ItemsMessage } from './liveTypes';
 export const COALESCE_MS = 150;
 
 /** 專案底下跟項目的變動有關的資料：清單、可選的上層、已刪除、進度的數字（週期與里程碑）。 */
-function projectKeys(projectKey: string): readonly (readonly unknown[])[] {
+export function projectKeys(projectKey: string): readonly (readonly unknown[])[] {
   return [
     // 前綴：表格、看板、行事曆、時間軸、子項目的清單都在 'items' 底下（api/queryKeys.ts）。
     [...queryKeys.project(projectKey), 'items'],

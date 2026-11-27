@@ -189,7 +189,7 @@ public sealed class McpStaffingToolTests
             Assert.That(isError, Is.False, body.ToJsonString());
             Assert.That(create.Actor, Is.EqualTo(TestUsers.Member.ToActor()));
             Assert.That(create.Draft.ProjectKey, Is.EqualTo("WEB"));
-            Assert.That(create.Draft.ConversationId, Is.Null);
+            Assert.That(create.Draft.ConversationId, Is.EqualTo(FakeAgentToolBudget.ConversationId), "對話編號來自伺服器找到的工作，撤回才找得到剛提出的建議");
             Assert.That(
                 create.Draft.Changes,
                 Is.EqualTo(new[]

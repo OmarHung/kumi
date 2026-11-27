@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using PmTool.Ai.Assistant;
 using PmTool.Ai.Assistant.Transcript;
+using PmTool.Ai.Proposals;
 
 namespace PmTool.Ai.LocalAgents;
 
@@ -21,9 +22,9 @@ internal static partial class LocalPromptBuilder
 
     /// <summary>
     /// 提示裡這一則以外的固定部分（開頭的說明、每一段的標記）預留的字元數；送出時用它算「這一則最多能有多長」。
-    /// 跳脫會讓內文略微變長，也算在這裡面。
+    /// 跳脫會讓內文略微變長，也算在這裡面；最後一則前面的附註（日期、最多 20 份建議的現況、發問的人）也要留位置。
     /// </summary>
-    public const int FixedOverhead = 1_000;
+    public const int FixedOverhead = 5_000;
 
     private const string UserLabel = "<<<使用者>>>";
 
@@ -41,92 +42,130 @@ internal static partial class LocalPromptBuilder
 
     /// <summary>內建助理的系統提示，加上這個專案與權限的一句說明、本機用 MCP 工具的說法。</summary>
     public static string SystemPrompt(
-        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null, bool supportsNewItems = true, bool supportsStaffing = true) =>
-        string.Join(
-            "\n\n",
+        string projectKey,
+        IReadOnlyList<string> permissions,
+        string? itemKey = null,
+        Asker? asker = null,
+        bool supportsNewItems = true,
+        bool supportsStaffing = true,
+        bool supportsRevision = true) =>
+        Join(
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            ToolSection("local-agent.md", supportsNewItems, supportsStaffing, "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"),
-            itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
+            ToolSection("local-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"),
+            itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty);
 
     /// <summary>主機代理（組織來源）的版本：工具的說法和本機相同，只是引擎跑在 Kumi 主機上、代替發問的人操作，不提「你的電腦」。</summary>
     public static string HostSystemPrompt(
-        string projectKey, IReadOnlyList<string> permissions, string? itemKey = null, Asker? asker = null, bool supportsNewItems = true, bool supportsStaffing = true) =>
-        string.Join(
-            "\n\n",
+        string projectKey,
+        IReadOnlyList<string> permissions,
+        string? itemKey = null,
+        Asker? asker = null,
+        bool supportsNewItems = true,
+        bool supportsStaffing = true,
+        bool supportsRevision = true) =>
+        Join(
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            ToolSection("host-agent.md", supportsNewItems, supportsStaffing, "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"),
-            itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty).TrimEnd();
+            ToolSection("host-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"),
+            itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty);
+
+    // 沒有的段落（沒選項目、沒有建議）是空字串，不留空行。
+    private static string Join(params string[] sections) => string.Join("\n\n", sections.Where(section => section.Length > 0));
+
+    /// <summary>kumi 的版本放得進哪些較新的工具（<see cref="AgentToolLists"/>）；舊版少了的工具，提示裡也要拿掉。</summary>
+    private readonly record struct ToolSupport(bool NewItems, bool Staffing, bool Revision);
 
     private static readonly string[] StaffingToolLines =
         [AssistantToolNames.GetProject, AssistantToolNames.ListPeople, AssistantToolNames.ProposeMemberChanges];
 
+    private static readonly string[] RevisionToolLines =
+        [AssistantToolNames.WithdrawProposal, AssistantToolNames.ProposeItemDeletions, AssistantToolNames.ProposeBulkItemChanges];
+
     /// <summary>
-    /// 工具的說明段落。kumi 太舊時工作的工具清單少了新工具（<paramref name="supportsNewItems"/> 是 false 沒有 propose_new_items；
-    /// <paramref name="supportsStaffing"/> 是 false 沒有 get_project、list_people、propose_member_changes）：
-    /// 這裡也拿掉它們那幾行，並說明前面提到的地方這一次都不適用，使用者需要時請他更新。
+    /// 工具的說明段落。kumi 太舊時工作的工具清單少了新工具（沒有 propose_new_items；沒有 get_project、list_people、propose_member_changes；
+    /// 沒有 withdraw_proposal、propose_item_deletions、propose_bulk_item_changes）：這裡也拿掉它們那幾行，
+    /// 並說明前面提到的地方這一次都不適用，使用者需要時請他更新。
     /// </summary>
-    private static string ToolSection(string resource, bool supportsNewItems, bool supportsStaffing, string updateAdvice)
+    private static string ToolSection(string resource, ToolSupport support, string updateAdvice)
     {
         var text = AssistantPrompt.ReadResource(resource).Trim();
-        if (supportsNewItems && supportsStaffing)
+        if (support is { NewItems: true, Staffing: true, Revision: true })
         {
             return text;
         }
 
         var removed = new List<string>();
-        if (!supportsNewItems)
+        if (!support.NewItems)
         {
             removed.Add(AssistantToolNames.ProposeNewItems);
         }
 
-        if (!supportsStaffing)
+        if (!support.Staffing)
         {
             removed.AddRange(StaffingToolLines);
         }
 
+        if (!support.Revision)
+        {
+            removed.AddRange(RevisionToolLines);
+        }
+
         var lines = text.Split('\n').Where(line => !removed.Any(tool => line.StartsWith($"- {tool}：", StringComparison.Ordinal)));
         var builder = new StringBuilder(string.Join("\n", lines));
-        if (!supportsNewItems)
+        if (!support.NewItems)
         {
             builder.Append($"\n\n這一次沒有 {AssistantToolNames.ProposeNewItems} 這個工具（前面提到它的地方都不適用）：使用者要新增項目時，告訴他{updateAdvice}。");
         }
 
-        if (!supportsStaffing)
+        if (!support.Staffing)
         {
             builder.Append(
                 $"\n\n這一次沒有 {string.Join("、", StaffingToolLines)} 這三個工具（前面提到它們的地方都不適用）：要查專案成員、組織的人或加人進專案時，告訴使用者{updateAdvice}。");
         }
 
+        if (!support.Revision)
+        {
+            // 組織對話只有 withdraw_proposal 一個：只列提示裡真的有的那幾個。
+            var missing = RevisionToolLines.Where(tool => text.Contains($"- {tool}：", StringComparison.Ordinal)).ToList();
+            builder.Append(
+                $"\n\n這一次沒有 {string.Join("、", missing)} 這 {missing.Count} 個工具（前面提到它們的地方都不適用）：要撤回建議、刪除項目或一次改多個項目時，告訴使用者{updateAdvice}。");
+        }
+
         return builder.ToString();
     }
 
-    /// <summary>不選專案的組織對話（本機的引擎）：組織版的系統提示，加上這則對話的說明與只有四個工具的說法。</summary>
-    public static string OrganizationSystemPrompt(bool canCreateProjects, Asker? asker = null) =>
-        string.Join(
-            "\n\n",
+    /// <summary>不選專案的組織對話（本機的引擎）：組織版的系統提示，加上這則對話的說明與只有幾個工具的說法。</summary>
+    public static string OrganizationSystemPrompt(
+        bool canCreateProjects,
+        Asker? asker = null,
+        bool supportsRevision = true) =>
+        Join(
             AssistantPrompt.OrganizationSystemPrompt,
             AssistantPrompt.OrganizationNote(canCreateProjects, asker),
-            AssistantPrompt.ReadResource("local-agent-organization.md").Trim());
+            ToolSection("local-agent-organization.md", new ToolSupport(true, true, supportsRevision), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"));
 
     /// <summary>不選專案的組織對話（主機代理）。</summary>
-    public static string HostOrganizationSystemPrompt(bool canCreateProjects, Asker? asker = null) =>
-        string.Join(
-            "\n\n",
+    public static string HostOrganizationSystemPrompt(
+        bool canCreateProjects,
+        Asker? asker = null,
+        bool supportsRevision = true) =>
+        Join(
             AssistantPrompt.OrganizationSystemPrompt,
             AssistantPrompt.OrganizationNote(canCreateProjects, asker),
-            AssistantPrompt.ReadResource("host-agent-organization.md").Trim());
+            ToolSection("host-agent-organization.md", new ToolSupport(true, true, supportsRevision), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"));
 
     /// <summary>
     /// 對話排成文字：<c>&lt;&lt;&lt;使用者&gt;&gt;&gt;</c>、<c>&lt;&lt;&lt;助理&gt;&gt;&gt;</c> 開頭、<c>&lt;&lt;&lt;結束&gt;&gt;&gt;</c> 結尾，一則一段，工具只寫「（用了 get_blueprint）」，最後一則是這次的訊息。
     /// 超過 <see cref="AiRules.MaxLocalPromptLength"/> 時從最舊的截掉並註明。
     /// </summary>
-    public static string Prompt(IReadOnlyList<ChatMessage> history, string userText, Asker? asker = null)
+    public static string Prompt(IReadOnlyList<ChatMessage> history, string userText, Asker? asker = null, string? turnNote = null)
     {
         var turns = TurnsOf(history);
-        // 發問的人的附註接在最後一則前面（理由見 AssistantPrompt.AskerReminder），名字照樣跳脫：不能變出假的段落。
-        var reminder = asker is null ? string.Empty : Escape(AssistantPrompt.AskerReminder(asker)) + "\n\n";
+        // 發問的人的附註與日期、建議現況的附註（AssistantPrompt.TurnNote）接在最後一則前面（理由見 AssistantPrompt.AskerReminder），
+        // 一樣跳脫：不能變出假的段落。附註不放進歷史，下一輪就換成新的。
+        var reminder = (string.IsNullOrEmpty(turnNote) ? string.Empty : Escape(turnNote) + "\n\n")
+            + (asker is null ? string.Empty : Escape(AssistantPrompt.AskerReminder(asker)) + "\n\n");
         var last = reminder + Wrap(UserLabel, userText);
         var dropped = 0;
         while (turns.Count > 0 && Length(turns, last) > AiRules.MaxLocalPromptLength)

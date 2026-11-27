@@ -103,7 +103,7 @@ public sealed class LocalAgentReplyTests
             Assert.That(second.Final.Status, Is.EqualTo(AssistantMessageStatus.Complete));
             Assert.That(row.Transcript, Does.Contain("你\\n好").And.Not.Contain("call"));
             Assert.That(
-                seen.Where(m => m.Role != ChatRole.System).Select(m => (m.Role, m.Text)),
+                seen.Where(m => m.Role != ChatRole.System).Select(m => (m.Role, m.PlainText())),
                 Is.EqualTo(new[] { (ChatRole.User, "第一句"), (ChatRole.Assistant, "[REPLY]\n你\n好"), (ChatRole.User, "第二句") }));
         }
     }

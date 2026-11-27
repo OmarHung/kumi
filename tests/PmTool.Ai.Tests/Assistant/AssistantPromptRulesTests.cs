@@ -202,8 +202,8 @@ public sealed class AssistantPromptRulesTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(local, Does.Contain("你只能用這四個").And.Contain("所有工具都不用帶 projectKey").And.Contain("使用者不能開新專案"));
-            Assert.That(host, Does.Contain("你執行在 Kumi 的主機上").And.Contain("你只能用這四個"));
+            Assert.That(local, Does.Contain("你只能用下面列的這些").And.Contain("所有工具都不用帶 projectKey").And.Contain("使用者不能開新專案"));
+            Assert.That(host, Does.Contain("你執行在 Kumi 的主機上").And.Contain("你只能用下面列的這些"));
             Assert.That(local, Does.Not.Contain("preview_changeset"));
             Assert.That(host, Does.Not.Contain("你的電腦"));
         }

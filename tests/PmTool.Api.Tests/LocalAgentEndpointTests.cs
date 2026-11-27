@@ -563,6 +563,46 @@ public sealed class LocalAgentEndpointTests
         Assert.That(factory.Modules.LocalAgents.ReportCalls, Is.Empty);
     }
 
+    [TestCase("propose_item_deletions", "itemDeletionProposalId")]
+    [TestCase("propose_bulk_item_changes", "itemBatchProposalId")]
+    public async Task Report_ToolEventWithARevisionProposalId_IsPassedToTheModule(string toolName, string property)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        var proposalId = Guid.Parse("cccccccc-0000-0000-0000-000000000002");
+        using var client = factory.CreateClient();
+        var tool = new Dictionary<string, object> { ["type"] = "tool", ["callId"] = "toolu_1", ["name"] = toolName, ["status"] = "done", [property] = proposalId };
+
+        // Act
+        using var response = await client.SendAsync(Post(EventsRoute, AgentToken(factory), new { events = new object[] { tool } }));
+        await ApiRequests.AssertSuccessEnvelopeAsync(response, HttpStatusCode.OK);
+
+        // Assert
+        var expected = new AssistantToolPart("toolu_1", toolName, AssistantToolStatus.Done, null, null)
+        {
+            ItemDeletionProposalId = property == "itemDeletionProposalId" ? proposalId : null,
+            ItemBatchProposalId = property == "itemBatchProposalId" ? proposalId : null,
+        };
+        Assert.That(factory.Modules.LocalAgents.ReportCalls.Single().Events.Single(), Is.EqualTo(new LocalAgentTool(expected)));
+    }
+
+    [TestCase("itemDeletionProposalId")]
+    [TestCase("itemBatchProposalId")]
+    public async Task Report_TextEventWithARevisionProposalId_IsRefused(string property)
+    {
+        // Arrange
+        using var factory = new ApiFactory(FakeBlueprintValidator.Passing());
+        using var client = factory.CreateClient();
+        var text = new Dictionary<string, object> { ["type"] = "text", ["delta"] = "x", [property] = Guid.NewGuid() };
+
+        // Act
+        using var response = await client.SendAsync(Post(EventsRoute, AgentToken(factory), new { events = new object[] { text } }));
+
+        // Assert
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.UnprocessableEntity));
+        Assert.That(factory.Modules.LocalAgents.ReportCalls, Is.Empty);
+    }
+
     [TestCase("\"turbo\"")]
     [TestCase("null")]
     public async Task CheckIn_UnknownDefaultEffort_IsTreatedAsNoneNotAnError(string json)

@@ -224,6 +224,23 @@ public sealed class OrganizationJobTests
     }
 
     [Test]
+    public void ToolEvent_SerializesTheItemDeletionAndItemBatchProposalIds()
+    {
+        // Act
+        var deletion = new ToolEvent("c1", "propose_item_deletions", "done", ItemDeletionProposalId: ProposalId).ToJson();
+        var batch = new ToolEvent("c2", "propose_bulk_item_changes", "done", ItemBatchProposalId: ProposalId).ToJson();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(deletion["itemDeletionProposalId"]!.GetValue<string>(), Is.EqualTo(ProposalId));
+            Assert.That(deletion["itemBatchProposalId"], Is.Null);
+            Assert.That(batch["itemBatchProposalId"]!.GetValue<string>(), Is.EqualTo(ProposalId));
+            Assert.That(batch["itemDeletionProposalId"], Is.Null);
+        }
+    }
+
+    [Test]
     public void ToolEvent_SerializesTheProjectProposalId()
     {
         // Act

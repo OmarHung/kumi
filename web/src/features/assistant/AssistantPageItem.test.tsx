@@ -7,6 +7,8 @@ import {
   makeAiOptions,
   makeAssistantMessage,
   makeConversationSummary,
+  makeItemBatchProposal,
+  makeItemDeletionProposal,
   makeItemProposal,
   makeMemberProposal,
   makeNewItemProposal,
@@ -15,6 +17,8 @@ import {
   serveConversation,
   serveConversations,
   serveCreateConversation,
+  serveItemBatchProposal,
+  serveItemDeletionProposal,
   serveItemProposal,
   serveMemberProposal,
   serveNewItemProposal,
@@ -75,9 +79,9 @@ describe('整頁的 AI 助理：選項目', () => {
         makeAssistantMessage({
           id: 'a1',
           parts: [
-            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null },
-            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null },
-            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id, projectProposalId: null, newItemProposalId: null, memberProposalId: null },
+            { ...tool, callId: 'c1', name: 'get_item', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null },
+            { ...tool, callId: 'c2', name: 'search_items', itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null },
+            { ...tool, callId: 'c3', name: 'propose_item_changes', itemProposalId: proposal.id, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null },
           ],
         }),
       ],
@@ -100,7 +104,7 @@ describe('整頁的 AI 助理：選項目', () => {
     const proposal = makeNewItemProposal();
     serveNewItemProposal(proposal);
     server.use(http.get('/v1/projects/SMK', () => ok(smkDetail())));
-    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null } as const;
+    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null } as const;
     serveConversation('SMK', {
       conversation: makeConversationSummary({ id: 'conv-1', messageCount: 2 }),
       messages: [
@@ -122,7 +126,7 @@ describe('整頁的 AI 助理：選項目', () => {
     // Arrange
     const proposal = makeMemberProposal();
     serveMemberProposal(proposal);
-    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null } as const;
+    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null } as const;
     serveConversation('SMK', {
       conversation: makeConversationSummary({ id: 'conv-1', messageCount: 2 }),
       messages: [
@@ -138,6 +142,40 @@ describe('整頁的 AI 助理：選項目', () => {
     expect(await screen.findByText('建議成員變動')).toBeInTheDocument();
     const card = await screen.findByRole('region', { name: '成員建議 SMK' });
     expect(within(card).getByRole('button', { name: '套用' })).toBeInTheDocument();
+  });
+
+  it('對話裡的 propose_item_deletions 與 propose_bulk_item_changes 畫成各自的卡片，工具列用新的說法', async () => {
+    // Arrange
+    const deletion = makeItemDeletionProposal();
+    const batch = makeItemBatchProposal();
+    serveItemDeletionProposal(deletion);
+    serveItemBatchProposal(batch);
+    server.use(http.get('/v1/projects/SMK', () => ok(smkDetail())));
+    const tool = { type: 'tool', status: 'done', changeSetNumber: null, error: null, itemProposalId: null, projectProposalId: null, newItemProposalId: null, memberProposalId: null, itemDeletionProposalId: null, itemBatchProposalId: null } as const;
+    serveConversation('SMK', {
+      conversation: makeConversationSummary({ id: 'conv-1', messageCount: 2 }),
+      messages: [
+        makeMessage({ id: 'u1', parts: [{ type: 'text', text: '刪掉重複的，其餘延後' }] }),
+        makeAssistantMessage({
+          id: 'a1',
+          parts: [
+            { ...tool, callId: 'c1', name: 'propose_item_deletions', itemDeletionProposalId: deletion.id },
+            { ...tool, callId: 'c2', name: 'propose_bulk_item_changes', itemBatchProposalId: batch.id },
+          ],
+        }),
+      ],
+    });
+
+    // Act
+    openPage('/projects/SMK/assistant/conv-1');
+
+    // Assert
+    expect(await screen.findByText('建議刪除項目')).toBeInTheDocument();
+    expect(await screen.findByText('建議修改多個項目')).toBeInTheDocument();
+    const deletionCard = await screen.findByRole('region', { name: '刪除建議 SMK' });
+    expect(within(deletionCard).getByRole('button', { name: /^刪除 2 個項目/ })).toBeInTheDocument();
+    const batchCard = await screen.findByRole('region', { name: '批次修改建議 SMK' });
+    expect(within(batchCard).getByRole('button', { name: '全部套用' })).toBeInTheDocument();
   });
 
   it('網址的 ?item= 是進來時的項目；開新對話換了網址也不會掉', async () => {

@@ -78,6 +78,7 @@ internal static class ItemProposalTools
         var draft = new NewItemProposalDraft(projectKey, await NewItemArguments.ReadAsync(context, projectKey, arguments, cancellationToken))
         {
             AddMembers = addMembers,
+            ConversationId = context.ConversationId,
         };
         var created = await context.Services.NewItemProposals.CreateAsync(context.Actor, draft, cancellationToken);
         if (created.Failure is { } failure)
@@ -100,25 +101,13 @@ internal static class ItemProposalTools
     private static async Task<McpToolResult> ProposeAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {
         var projectKey = context.Project(arguments.RequiredPlain("projectKey"));
-        var changes = new List<ItemFieldChange>();
-        foreach (var element in arguments.OptionalArray("changes") ?? [])
-        {
-            if (element.ValueKind != JsonValueKind.Object
-                || !element.TryGetProperty("field", out var field)
-                || field.ValueKind != JsonValueKind.String)
-            {
-                throw new McpArgumentException("changes 的每一項都要是 {field, value}，field 是字串。");
-            }
-
-            var name = field.GetString()!;
-            var raw = element.TryGetProperty("value", out var value) ? value : default;
-            changes.Add(new ItemFieldChange(name, name == "assignee" ? await ResolveAssigneeAsync(context, projectKey, raw, cancellationToken) : raw));
-        }
+        var changes = await ReadChangesAsync(context, projectKey, arguments.OptionalArray("changes") ?? [], cancellationToken);
 
         var draft = new ItemProposalDraft(
             projectKey, context.Item(arguments.RequiredPlain("itemKey")), changes, arguments.OptionalString("comment"))
         {
             DescriptionRevision = arguments.OptionalPlain("descriptionRevision"),
+            ConversationId = context.ConversationId,
         };
         var created = await context.Services.ItemProposals.CreateAsync(context.Actor, draft, cancellationToken);
         if (created.Failure is { } failure)
@@ -136,6 +125,31 @@ internal static class ItemProposalTools
             note = CreatedNote,
             notice = ItemReadTools.UserContentNotice,
         });
+    }
+
+    /// <summary>
+    /// changes 參數 [{field, value}] 的讀法（單一項目與批次修改共用）：只擋形狀，欄位與值的規則在 AI 模組的建立端。
+    /// assignee 的值照同一份名單換成人員編號。
+    /// </summary>
+    internal static async Task<List<ItemFieldChange>> ReadChangesAsync(
+        McpToolContext context, string projectKey, IReadOnlyList<JsonElement> elements, CancellationToken cancellationToken)
+    {
+        var changes = new List<ItemFieldChange>();
+        foreach (var element in elements)
+        {
+            if (element.ValueKind != JsonValueKind.Object
+                || !element.TryGetProperty("field", out var field)
+                || field.ValueKind != JsonValueKind.String)
+            {
+                throw new McpArgumentException("changes 的每一項都要是 {field, value}，field 是字串。");
+            }
+
+            var name = field.GetString()!;
+            var raw = element.TryGetProperty("value", out var value) ? value : default;
+            changes.Add(new ItemFieldChange(name, name == "assignee" ? await ResolveAssigneeAsync(context, projectKey, raw, cancellationToken) : raw));
+        }
+
+        return changes;
     }
 
     // assignee 和其他 MCP 工具一樣收 me、none、Email 與成員的編號，一律在這裡照同一份名單換成人員編號：

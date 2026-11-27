@@ -52,6 +52,9 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   get_project: '讀專案的成員與設定',
   list_people: '查組織的人員',
   propose_member_changes: '建議成員變動',
+  propose_item_deletions: '建議刪除項目',
+  propose_bulk_item_changes: '建議修改多個項目',
+  withdraw_proposal: '撤回建議',
 };
 
 /** itemKey：工具的段落帶得到編號時給（get_item 寫「讀取 WEB-12」）；沒有就寫「讀取項目」。 */

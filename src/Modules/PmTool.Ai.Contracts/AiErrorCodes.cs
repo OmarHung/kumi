@@ -99,6 +99,30 @@ public static class AiErrorCodes
     /// <summary>成員建議已經套用或作廢了（409）。</summary>
     public const string MemberProposalClosed = "ai.member_proposal_closed";
 
+    /// <summary>刪除建議不存在、不是自己的，或專案已經看不到（404）。</summary>
+    public const string ItemDeletionProposalNotFound = "ai.item_deletion_proposal_not_found";
+
+    /// <summary>刪除建議已經套用或作廢了（409）。</summary>
+    public const string ItemDeletionProposalClosed = "ai.item_deletion_proposal_closed";
+
+    /// <summary>批次修改建議不存在、不是自己的，或專案已經看不到（404）。</summary>
+    public const string ItemBatchProposalNotFound = "ai.item_batch_proposal_not_found";
+
+    /// <summary>批次修改建議已經套用或作廢了（409）。</summary>
+    public const string ItemBatchProposalClosed = "ai.item_batch_proposal_closed";
+
+    /// <summary>刪除或批次修改建議套用逾時（409）。已經完成的不會重做，可以再按一次。</summary>
+    public const string ApplyTimedOut = "ai.apply_timed_out";
+
+    /// <summary>withdraw_proposal：這則對話裡沒有這份建議（不存在、別人的、別的對話的）。</summary>
+    public const string ProposalNotFound = "ai.proposal_not_found";
+
+    /// <summary>withdraw_proposal：建議已經套用、作廢或正在建立，撤回不了。</summary>
+    public const string ProposalClosed = "ai.proposal_closed";
+
+    /// <summary>withdraw_proposal：變更集不能由助理撤回（只有能核准的人能在變更集頁否決）。</summary>
+    public const string ProposalNotWithdrawable = "ai.proposal_not_withdrawable";
+
     /// <summary>新專案建議不存在或不是自己的（404）。</summary>
     public const string ProjectProposalNotFound = "ai.project_proposal_not_found";
 

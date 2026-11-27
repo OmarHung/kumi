@@ -39,7 +39,7 @@ public sealed class McpNewItemProposalToolTests
             Assert.That(isError, Is.False, body.ToJsonString());
             Assert.That(create.Actor, Is.EqualTo(TestUsers.Member.ToActor()));
             Assert.That(create.Draft.ProjectKey, Is.EqualTo("WEB"));
-            Assert.That(create.Draft.ConversationId, Is.Null);
+            Assert.That(create.Draft.ConversationId, Is.EqualTo(FakeAgentToolBudget.ConversationId), "對話編號來自伺服器找到的工作，撤回才找得到剛提出的建議");
             Assert.That(items.Select(item => item.Title), Is.EqualTo(new[] { "搬遷", "盤點", "收尾" }));
             Assert.That((items[0].Ref, items[0].Priority, items[0].StartDate, items[0].DueDate, items[0].Estimate), Is.EqualTo(("epic", "high", "2026-12-01", "2026-12-31", (decimal?)3.5m)));
             Assert.That((items[1].ParentRef, items[1].AssigneeId), Is.EqualTo(("epic", (Guid?)TestUsers.Member.PersonId)));

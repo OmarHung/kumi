@@ -45,10 +45,33 @@ public sealed class LocalAgentOrganizationTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(job.ProjectKey, Is.Null);
-            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization));
+            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t != "withdraw_proposal")));
             Assert.That(job.SystemPrompt, Does.StartWith(AssistantPrompt.OrganizationSystemPrompt));
-            Assert.That(job.SystemPrompt, Does.Contain("使用者不能開新專案").And.Contain("你只能用這四個"));
+            Assert.That(job.SystemPrompt, Does.Contain("使用者不能開新專案").And.Contain("你只能用下面列的這些"));
             Assert.That(job.SystemPrompt, Does.Not.Contain("preview_changeset"));
+            Assert.That(job.SystemPrompt, Does.Not.Contain("- withdraw_proposal："));
+            Assert.That(job.SystemPrompt, Does.Contain("這一次沒有 withdraw_proposal 這 1 個工具").And.Contain("kumi update"));
+        }
+    }
+
+    [Test]
+    public async Task Job_OfAnOrganizationChatOnAKumiWithRevisionTools_GetsWithdrawProposal()
+    {
+        // Arrange
+        var engine = await RegisterAsync(AiRules.MinAgentVersionForRevisionTools);
+        var run = await SendOrganizationAsync(engine);
+
+        // Act
+        var job = await _h.ClaimAsync();
+        await _h.FinishAsync(job.JobId);
+        await run.ReadAllAsync();
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization));
+            Assert.That(job.SystemPrompt, Does.Contain("- withdraw_proposal："));
+            Assert.That(job.SystemPrompt, Does.Not.Contain("這一次沒有 withdraw_proposal"));
         }
     }
 

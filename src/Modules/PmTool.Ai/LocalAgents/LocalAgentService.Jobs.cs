@@ -158,7 +158,7 @@ internal sealed partial class LocalAgentService
     }
 
     /// <summary>
-    /// 回報的 itemProposalId、projectProposalId、newItemProposalId、memberProposalId 要是這個人、這個組織的建議才記：不然本機代理（外部送來的）能讓網頁畫出別人的建議卡片。
+    /// 回報的 itemProposalId、projectProposalId、newItemProposalId、memberProposalId、itemDeletionProposalId、itemBatchProposalId 要是這個人、這個組織的建議才記：不然本機代理（外部送來的）能讓網頁畫出別人的建議卡片。
     /// 不是的當作沒有。
     /// </summary>
     internal static async Task<IReadOnlyList<LocalAgentEvent>> KeepOwnProposalsAsync(
@@ -169,7 +169,10 @@ internal sealed partial class LocalAgentService
         var claimedProjects = tools.Select(t => t.ProjectProposalId).OfType<Guid>().Distinct().ToList();
         var claimedNewItems = tools.Select(t => t.NewItemProposalId).OfType<Guid>().Distinct().ToList();
         var claimedMembers = tools.Select(t => t.MemberProposalId).OfType<Guid>().Distinct().ToList();
-        if (claimedItems.Count == 0 && claimedProjects.Count == 0 && claimedNewItems.Count == 0 && claimedMembers.Count == 0)
+        var claimedDeletions = tools.Select(t => t.ItemDeletionProposalId).OfType<Guid>().Distinct().ToList();
+        var claimedBatches = tools.Select(t => t.ItemBatchProposalId).OfType<Guid>().Distinct().ToList();
+        if (claimedItems.Count == 0 && claimedProjects.Count == 0 && claimedNewItems.Count == 0 && claimedMembers.Count == 0
+            && claimedDeletions.Count == 0 && claimedBatches.Count == 0)
         {
             return events;
         }
@@ -200,16 +203,33 @@ internal sealed partial class LocalAgentService
                 .Where(p => claimedMembers.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person)
                 .Select(p => p.Id)
                 .ToListAsync(cancellationToken)).ToHashSet();
-        return [.. events.Select(e => e is LocalAgentTool tool ? new LocalAgentTool(KeepOwn(tool.Tool, ownItems, ownProjects, ownNewItems, ownMembers)) : e)];
+        var ownDeletions = claimedDeletions.Count == 0
+            ? []
+            : (await db.ItemDeletionProposals.AsNoTracking()
+                .Where(p => claimedDeletions.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken)).ToHashSet();
+        var ownBatches = claimedBatches.Count == 0
+            ? []
+            : (await db.ItemBatchProposals.AsNoTracking()
+                .Where(p => claimedBatches.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person)
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken)).ToHashSet();
+        var owned = new OwnProposals(ownItems, ownProjects, ownNewItems, ownMembers, ownDeletions, ownBatches);
+        return [.. events.Select(e => e is LocalAgentTool tool ? new LocalAgentTool(KeepOwn(tool.Tool, owned)) : e)];
     }
 
-    private static AssistantToolPart KeepOwn(
-        AssistantToolPart tool, HashSet<Guid> ownItems, HashSet<Guid> ownProjects, HashSet<Guid> ownNewItems, HashSet<Guid> ownMembers) => tool with
+    private sealed record OwnProposals(
+        HashSet<Guid> Items, HashSet<Guid> Projects, HashSet<Guid> NewItems, HashSet<Guid> Members, HashSet<Guid> Deletions, HashSet<Guid> Batches);
+
+    private static AssistantToolPart KeepOwn(AssistantToolPart tool, OwnProposals own) => tool with
     {
-        ItemProposalId = tool.ItemProposalId is { } item && ownItems.Contains(item) ? item : null,
-        ProjectProposalId = tool.ProjectProposalId is { } project && ownProjects.Contains(project) ? project : null,
-        NewItemProposalId = tool.NewItemProposalId is { } newItems && ownNewItems.Contains(newItems) ? newItems : null,
-        MemberProposalId = tool.MemberProposalId is { } members && ownMembers.Contains(members) ? members : null,
+        ItemProposalId = tool.ItemProposalId is { } item && own.Items.Contains(item) ? item : null,
+        ProjectProposalId = tool.ProjectProposalId is { } project && own.Projects.Contains(project) ? project : null,
+        NewItemProposalId = tool.NewItemProposalId is { } newItems && own.NewItems.Contains(newItems) ? newItems : null,
+        MemberProposalId = tool.MemberProposalId is { } members && own.Members.Contains(members) ? members : null,
+        ItemDeletionProposalId = tool.ItemDeletionProposalId is { } deletion && own.Deletions.Contains(deletion) ? deletion : null,
+        ItemBatchProposalId = tool.ItemBatchProposalId is { } batch && own.Batches.Contains(batch) ? batch : null,
     };
 
     private static Result<IReadOnlyList<LocalAgentEvent>> CleanEvents(IReadOnlyList<LocalAgentEvent> events)

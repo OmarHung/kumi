@@ -15,6 +15,7 @@ internal static class AssistantToolSet
         new GetTemplateTool(context),
         new ListProjectsTool(context),
         new ProposeProjectTool(context),
+        new WithdrawProposalTool(context),
     ];
 
     private static IList<AITool> CreateForProject(AssistantToolContext context) =>
@@ -32,5 +33,8 @@ internal static class AssistantToolSet
         new GetProjectTool(context),
         new ListPeopleTool(context),
         new ProposeMemberChangesTool(context),
+        new ProposeItemDeletionsTool(context),
+        new ProposeBulkItemChangesTool(context),
+        new WithdrawProposalTool(context),
     ];
 }

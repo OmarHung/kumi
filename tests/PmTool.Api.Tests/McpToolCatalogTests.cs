@@ -34,14 +34,22 @@ public sealed class McpToolCatalogTests
             ["get_project"] = (AccessTokenScope.ItemsRead, true),
             ["list_people"] = (AccessTokenScope.ItemsRead, true),
             ["propose_member_changes"] = (AccessTokenScope.AgentRun, false),
+            ["propose_item_deletions"] = (AccessTokenScope.AgentRun, false),
+            ["propose_bulk_item_changes"] = (AccessTokenScope.AgentRun, false),
+            ["withdraw_proposal"] = (AccessTokenScope.AgentRun, false),
         };
+
+    private static readonly string[] AgentOnlyTools =
+    [
+        "propose_item_changes", "propose_project", "propose_member_changes", "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
+    ];
 
     // CLAUDE.md：JSON Schema 只能用這幾個關鍵字（同一份 Schema 要能直接拿去約束語言模型的輸出），description 是說明，不算約束。
     private static readonly HashSet<string> AllowedKeywords =
         ["type", "properties", "required", "additionalProperties", "items", "enum", "const", "$ref", "description"];
 
     [Test]
-    public async Task ListTools_ReturnsTheEighteenToolsForAnOAuthGrant_WithoutTheAgentOnlyOnes()
+    public async Task ListTools_ReturnsTheNonAgentToolsForAnOAuthGrant_WithoutTheAgentOnlyOnes()
     {
         // Arrange
         await using var mcp = await McpHarness.StartAsync();
@@ -50,11 +58,11 @@ public sealed class McpToolCatalogTests
         var tools = await mcp.Client.ListToolsAsync();
 
         // Assert
-        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(Expected.Keys.Where(name => name is not ("propose_item_changes" or "propose_project" or "propose_member_changes"))));
+        Assert.That(tools.Select(tool => tool.Name), Is.EquivalentTo(Expected.Keys.Where(name => !AgentOnlyTools.Contains(name))));
     }
 
     [Test]
-    public async Task ListTools_LocalAgentToken_ReturnsOnlyTheTenLocalAgentTools()
+    public async Task ListTools_LocalAgentToken_ReturnsOnlyTheLocalAgentTools()
     {
         // Arrange
         await using var mcp = await McpHarness.StartForAgentAsync("WEB", [.. AccessTokenScopes.All]);
@@ -93,8 +101,8 @@ public sealed class McpToolCatalogTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(tools.Select(tool => tool.Name), Does.Not.Contain("propose_item_changes").And.Not.Contain("propose_project").And.Not.Contain("propose_member_changes"));
-            Assert.That(tools, Has.Count.EqualTo(Expected.Count - 3));
+            Assert.That(tools.Select(tool => tool.Name), Does.Not.Contain("propose_item_changes").And.Not.Contain("propose_project").And.Not.Contain("propose_member_changes").And.Not.Contain("propose_item_deletions").And.Not.Contain("propose_bulk_item_changes").And.Not.Contain("withdraw_proposal"));
+            Assert.That(tools, Has.Count.EqualTo(Expected.Count - AgentOnlyTools.Length));
         }
     }
 

@@ -74,11 +74,17 @@ internal sealed class LocalAgentRelay(
             selection.Effort,
             request.ProjectKey,
             request.ProjectKey is null
-                ? LocalPromptBuilder.OrganizationSystemPrompt(request.Actor.IsOrganizationAdmin, request.Asker)
+                ? LocalPromptBuilder.OrganizationSystemPrompt(
+                    request.Actor.IsOrganizationAdmin, request.Asker, AgentToolLists.SupportsRevision(request.Selection.Endpoint.AgentVersion))
                 : LocalPromptBuilder.SystemPrompt(
                     request.ProjectKey, request.Permissions, request.ItemKey, request.Asker, AgentToolLists.SupportsNewItems(request.Selection.Endpoint.AgentVersion),
-                    AgentToolLists.SupportsStaffing(request.Selection.Endpoint.AgentVersion)),
-            LocalPromptBuilder.Prompt(request.History, request.UserText, request.Asker),
+                    AgentToolLists.SupportsStaffing(request.Selection.Endpoint.AgentVersion),
+                    AgentToolLists.SupportsRevision(request.Selection.Endpoint.AgentVersion)),
+            LocalPromptBuilder.Prompt(
+                request.History,
+                request.UserText,
+                request.Asker,
+                AssistantPrompt.TurnNote(request.Now, request.Proposals, AgentToolLists.SupportsRevision(request.Selection.Endpoint.AgentVersion))),
             AgentToolLists.For(request.ProjectKey, request.Selection.Endpoint.AgentVersion),
             request.McpUrl ?? string.Empty,
             AiRules.MaxToolCallsPerReply + 1)

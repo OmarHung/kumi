@@ -34,6 +34,18 @@ internal sealed record ReplyRequest(
     /// <summary>發問的人（寫給模型的說明用）；人員目錄查不到時是 null，說明裡就不寫。</summary>
     public Asker? Asker { get; init; }
 
+    /// <summary>
+    /// 這則回覆開始時的「現在」（組織的時區），寫進專案說明那一則 system 訊息；<c>AssistantReplyRunner</c> 開始回覆時填。
+    /// 沒填（直接組提示的測試）就不寫日期。
+    /// </summary>
+    public CurrentTime? Now { get; init; }
+
+    /// <summary>
+    /// 這則對話裡助理提出過的建議與現在的狀態（<c>IAssistantProposalLedger</c>），每次回覆前讀、寫成一則 system 訊息；
+    /// 沒有或讀不到是空的。
+    /// </summary>
+    public IReadOnlyList<ProposalStatusEntry> Proposals { get; init; } = [];
+
     /// <summary>這則訊息選的項目編號；沒選是 null。</summary>
     public string? ItemKey { get; init; }
 

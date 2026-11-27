@@ -360,7 +360,8 @@ public sealed class AssistantToolTests
     private AIFunction NewProposeTool() => new PmTool.Ai.Assistant.Tools.ProposeChangeSetTool(new PmTool.Ai.Assistant.Tools.AssistantToolContext(
         _h.Actor, "WEB", _h.Projects, _h.Changes, _h.Usage, new FakeTemplateLibrary(),
         _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), _h.Host.Get<INewItemProposalCreator>(),
-        _h.Host.Get<IStaffingBriefService>(), _h.Host.Get<IMemberProposalCreator>(), Guid.NewGuid(),
+        _h.Host.Get<IStaffingBriefService>(), _h.Host.Get<IMemberProposalCreator>(),
+        _h.Host.Get<IItemDeletionProposalCreator>(), _h.Host.Get<IItemBatchProposalCreator>(), _h.Host.Get<IAssistantProposalLedger>(), Guid.NewGuid(),
         Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance));
 
     [Test]
@@ -484,7 +485,8 @@ public sealed class AssistantToolTests
         var context = new PmTool.Ai.Assistant.Tools.AssistantToolContext(
             _h.Actor, "WEB", _h.Projects, _h.Changes, _h.Usage, new FakeTemplateLibrary(),
             _h.WorkItems, _h.Activity, new FakePeopleDirectory(), _h.Host.Get<IItemProposalCreator>(), _h.Host.Get<IProjectProposalCreator>(), _h.Host.Get<INewItemProposalCreator>(),
-        _h.Host.Get<IStaffingBriefService>(), _h.Host.Get<IMemberProposalCreator>(), Guid.NewGuid(),
+        _h.Host.Get<IStaffingBriefService>(), _h.Host.Get<IMemberProposalCreator>(),
+        _h.Host.Get<IItemDeletionProposalCreator>(), _h.Host.Get<IItemBatchProposalCreator>(), _h.Host.Get<IAssistantProposalLedger>(), Guid.NewGuid(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
 
         // Act
@@ -493,7 +495,7 @@ public sealed class AssistantToolTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(tools, Has.Count.EqualTo(13));
+            Assert.That(tools, Has.Count.EqualTo(16));
             foreach (var tool in tools)
             {
                 Assert.That(KeywordsOf(tool.JsonSchema).Except(allowed), Is.Empty, tool.Name);

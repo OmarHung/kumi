@@ -29,6 +29,12 @@ internal static class AssistantToolNames
 
     public const string ProposeMemberChanges = "propose_member_changes";
 
+    public const string ProposeItemDeletions = "propose_item_deletions";
+
+    public const string ProposeBulkItemChanges = "propose_bulk_item_changes";
+
+    public const string WithdrawProposal = "withdraw_proposal";
+
     public const string ListProjects = "list_projects";
 
     public const string ProposeProject = "propose_project";

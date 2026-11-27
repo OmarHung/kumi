@@ -131,7 +131,7 @@ public sealed record AssistantTextPart(string Text) : AssistantPart;
 /// <param name="CallId">這則回覆裡的編號。</param>
 /// <param name="Name">
 /// 工具的名稱：get_blueprint、list_templates、get_template、describe_usage、preview_changeset、propose_changeset、get_changeset、
-/// get_item、search_items、propose_item_changes、propose_new_items、get_project、list_people、propose_member_changes；組織對話是 list_templates、get_template、list_projects、propose_project。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
+/// get_item、search_items、propose_item_changes、propose_new_items、get_project、list_people、propose_member_changes、propose_item_deletions、propose_bulk_item_changes、withdraw_proposal；組織對話是 list_templates、get_template、list_projects、propose_project、withdraw_proposal。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
 /// </param>
 /// <param name="ChangeSetNumber">propose_changeset 成功時，提出的變更集編號（網頁畫成「變更集 #12」的卡片）。</param>
 /// <param name="Error">失敗時給人看的原因，繁體中文。</param>
@@ -146,6 +146,12 @@ public sealed record AssistantToolPart(
 
     /// <summary>propose_member_changes 成功時，建立的成員建議（<see cref="IMemberProposalService"/>；網頁畫成有「套用」「不要」的卡片）。</summary>
     public Guid? MemberProposalId { get; init; }
+
+    /// <summary>propose_item_deletions 成功時，建立的刪除建議（<see cref="IItemDeletionProposalService"/>；網頁畫成有「刪除」「不要」的卡片）。</summary>
+    public Guid? ItemDeletionProposalId { get; init; }
+
+    /// <summary>propose_bulk_item_changes 成功時，建立的批次修改建議（<see cref="IItemBatchProposalService"/>；網頁畫成有「全部套用」「不要」的卡片）。</summary>
+    public Guid? ItemBatchProposalId { get; init; }
 
     /// <summary>propose_project 成功時，建立的新專案建議（<see cref="IProjectProposalService"/>；網頁畫成有「建立專案」「不要」的卡片）。</summary>
     public Guid? ProjectProposalId { get; init; }

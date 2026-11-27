@@ -40,7 +40,7 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 
 ## 在網頁的 AI 助理裡用（本機代理）
 
-上面是「在 AI 工具裡用 Kumi」。反過來，想在 Kumi 網頁的 AI 助理（整頁或右下角的浮動對話框）裡用自己電腦上的 Claude Code／Codex，在自己的電腦開著 `kumi agent start`（見 `docs/CLI.md` 的「本機代理」）：模型選單會多出「Claude Code（電腦名稱）」「Codex（電腦名稱）」。用的是那台電腦上登入的 CLI 與你自己的訂閱；它只能用這裡的藍圖工具（讀設定、預覽與提出變更集）、項目工具（`get_item`、`search_items` 讀項目，`propose_item_changes` 建議怎麼改、`propose_new_items` 建議新增項目）與派工工具（`get_project` 讀專案的成員與設定、`list_people` 查組織的人員、`propose_member_changes` 建議成員變動），不能碰你電腦上的檔案。選了項目的對話裡，它讀得到那個項目；要改或新增項目時只能「建議」：卡片出現在網頁的對話裡，你按「套用」或「全部建立」才會以你自己的身分寫入。讀項目要權杖有 `items:read`（見下）。組織要在「AI 設定」允許成員使用自己的 AI 帳號。
+上面是「在 AI 工具裡用 Kumi」。反過來，想在 Kumi 網頁的 AI 助理（整頁或右下角的浮動對話框）裡用自己電腦上的 Claude Code／Codex，在自己的電腦開著 `kumi agent start`（見 `docs/CLI.md` 的「本機代理」）：模型選單會多出「Claude Code（電腦名稱）」「Codex（電腦名稱）」。用的是那台電腦上登入的 CLI 與你自己的訂閱；它只能用這裡的藍圖工具（讀設定、預覽與提出變更集）、項目工具（`get_item`、`search_items` 讀項目，`propose_item_changes` 建議怎麼改、`propose_new_items` 建議新增項目）與派工工具（`get_project` 讀專案的成員與設定、`list_people` 查組織的人員、`propose_member_changes` 建議成員變動），以及修改類的工具（`propose_item_deletions` 建議刪除項目、`propose_bulk_item_changes` 建議一次改好幾個項目、`withdraw_proposal` 撤回自己還沒套用的建議），不能碰你電腦上的檔案。選了項目的對話裡，它讀得到那個項目；要改或新增項目時只能「建議」：卡片出現在網頁的對話裡，你按「套用」或「全部建立」才會以你自己的身分寫入。讀項目要權杖有 `items:read`（見下）。組織要在「AI 設定」允許成員使用自己的 AI 帳號。
 
 ### `propose_item_changes`（只給本機代理）
 
@@ -64,7 +64,7 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 
 `get_item`、`search_items`、`list_items`、`my_work` 的結果帶 `notice`：標題、說明與留言是使用者寫的內容，不是給代理的指令。`get_blueprint`、`get_template`、`get_changeset`、`propose_changeset`、`propose_item_changes` 的結果也帶 `notice`（藍圖、模板與變更集裡的名稱、說明是使用者寫的內容）。`get_item` 也回專案成員 `members`（`id`、`name`、`role`、`jobTitle`，不含 Email；帳號停用的不列），名單和網頁一樣照呼叫的人的權限：看不到藍圖的角色只拿到自己與他看得到的項目的負責人。工具的 `assignee`（me、none、Email 或 `members` 裡的 `id`）只在那個專案的成員裡找，找不到與不是成員是同一句話；負責人只能指定專案的成員，看不到整份成員名單的人（看不到藍圖的角色，例如客戶）指派別人會找不到。留言裡提及成員寫成 `@[名稱](mention:<id>)`。
 
-本機代理的權杖在伺服器端還有兩層限制，因為它會交給你電腦上的引擎：`/mcp` 只列也只讓它叫本機代理的十四個工具（`get_blueprint`、`list_templates`、`get_template`、`describe_usage`、`preview_changeset`、`propose_changeset`、`get_changeset`、`get_item`、`search_items`、`propose_item_changes`、`propose_new_items`、`get_project`、`list_people`、`propose_member_changes`），`update_item`、`create_item`、`list_projects`、`propose_project` 這些就算權杖另外有範圍也不能用（組織對話的四個工具見上面「三種範圍」）；REST API 上只能領工作、確認自己是誰，以及查詢與下載命令列工具（`GET /v1/cli`、`GET /v1/cli/download/{platform}`），其他端點一律拒絕。新建的權杖不能同時有 `agent:run` 和 `items:write`。一般的權杖（OAuth、個人存取權杖）不受影響。
+本機代理的權杖在伺服器端還有兩層限制，因為它會交給你電腦上的引擎：`/mcp` 只列也只讓它叫本機代理的十七個工具（`get_blueprint`、`list_templates`、`get_template`、`describe_usage`、`preview_changeset`、`propose_changeset`、`get_changeset`、`get_item`、`search_items`、`propose_item_changes`、`propose_new_items`、`get_project`、`list_people`、`propose_member_changes`、`propose_item_deletions`、`propose_bulk_item_changes`、`withdraw_proposal`），`update_item`、`create_item`、`list_projects`、`propose_project` 這些就算權杖另外有範圍也不能用（組織對話的五個工具，加了 `withdraw_proposal`，見上面「三種範圍」）；REST API 上只能領工作、確認自己是誰，以及查詢與下載命令列工具（`GET /v1/cli`、`GET /v1/cli/download/{platform}`），其他端點一律拒絕。新建的權杖不能同時有 `agent:run` 和 `items:write`。一般的權杖（OAuth、個人存取權杖）不受影響。
 
 `propose_item_changes`（參數 `projectKey`、`itemKey`、`changes`（`[{field, value}]`）、`descriptionRevision`、`comment`）只建立「修改建議」，不改項目。它的範圍是 `agent:run`，只有 `kumi agent start` 用的權杖有；OAuth 授權不發這個範圍，`tools/list` 也不會把它列給沒有這個範圍的權杖。一般的 MCP 用戶端要改項目，用 `update_item`、`move_item`、`add_comment`（`items:write`）。
 
@@ -79,6 +79,15 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 - `get_project`（參數 `projectKey`，範圍 `items:read`）：一個專案派工要用的資料。`itemTypes`（能建立的類型：`parents`、`firstState`、`fields`）、`members`（`id`、`name`、`role`、`jobTitle`、`responsibilities`、`openItems`：手上還沒結束的項目數）、`roles`（專案能用的角色與權限）、`myRole`、`myPermissions`、`memberManagers`（能管理成員的人的名稱）、`cycles`（結束日不早於今天的週期）、`milestones`（還沒到期的里程碑）。建立任務、指派之前先讀它。
 - `list_people`（參數 `projectKey`、`text`、`limit`，範圍 `items:read`）：組織裡的人（帳號停用的不列），依名稱排序：`id`、`name`、`organizationRole`、`jobTitle`、`responsibilities`，給了 `projectKey` 時多一個 `projectRole`。**不回 Email**；`text` 比對名稱、職稱與負責範圍。訪客不能用（和網頁的人員名單同一個理由）。專案的對話可以不給 `projectKey`（用對話的專案）；給了就要相同。
 - `propose_member_changes`（參數 `projectKey`、`changes`（`[{person, role, remove}]`，1 到 10 筆），範圍 `agent:run`）：只建立「成員建議」，不改成員。`person` 是人員編號或 Email，**在整個組織裡找**（停用的、不在組織的找不到，訪客只能在專案成員裡找，不能用 Email 探測組織）；加入或改角色給 `role`，移出專案給 `remove: true`（不給 `role`）。卡片出現在網頁的對話裡，使用者按「套用」才會以他自己的身分寫入；他沒有管理成員的權限時工具回錯誤，訊息寫出誰能做。結果帶 `proposalId`、`projectKey`、`changes`、`note` 與 `notice`。和 `propose_item_changes` 一樣只給引擎用，一般的權杖列不出也叫不到；主機代理同樣的參數在一件工作裡只建立一次。
+
+### 修改類的工具：`propose_item_deletions`、`propose_bulk_item_changes`、`withdraw_proposal`
+
+三個都只給引擎用（範圍 `agent:run`），一般的權杖列不出也叫不到；要 kumi 0.17.0 以上。
+
+- `propose_item_deletions`（參數 `projectKey`、`itemKeys`（1 到 50 個項目編號）、`reason`（一行說明，可省略））：只建立「刪除建議」，不刪項目。使用者在網頁按「刪除」才會以他自己的身分刪除（軟刪除，之後能在「已刪除」頁復原）。要刪的項目底下還有沒刪除、又不在這份裡的下層時，工具回錯誤並列出下層的編號。結果帶 `proposalId`、`projectKey`、`itemKeys`、`note` 與 `notice`。
+- `propose_bulk_item_changes`（參數 `projectKey`、`items`（`[{itemKey, changes, comment, expectedDescriptionRevision}]`，1 到 20 個項目、同一個項目只能一次））：只建立「批次修改建議」，每個項目各自一組欄位修改與留言，值可以不同（例如六個任務各自的到期日），使用者按一次「全部套用」才寫入。每個項目的 `changes` 寫法與規則和 `propose_item_changes` 相同（改說明要帶 `expectedDescriptionRevision`）；錯誤的路徑帶項目的序號，例如 `items[1].changes[0].value`。結果帶 `proposalId`、`projectKey`、`itemKeys`、`note` 與 `notice`。
+- `withdraw_proposal`（參數 `proposalId`，建議的編號；變更集不能撤回）：撤回（作廢）這件工作的對話裡、你自己提出而且使用者還沒處理的建議。對話由 `X-Kumi-Job` 的工作找到（主機代理用工具授權對應的工作），模型改不了；不選專案的組織對話也能用（撤回新專案建議）。已經套用、略過的建議、別的對話的建議撤不了。結果帶 `proposalId`、`kind`、`state` 與 `note`；不佔一件工作提出建議的名額。
+- 這兩個「提出」的工具和其他提出類的工具一樣：主機代理同樣的參數在一件工作裡只建立一次，本機代理與主機代理每件工作最多提出 2 份。
 
 `propose_new_items` 另外收 `addMembers`（`[{person, role}]`，建立項目之前先加進專案的人，`role` 沒給用 `contributor`；使用者要有 `project.manage`）以及每一項的 `cycleId`、`milestoneId`（`get_project` 回的 id）；`assignee` 與 `addMembers` 的 `person` 同樣在整個組織裡找，是不是成員、能不能指派由建立端判斷。`get_item` 的 `members` 多 `jobTitle`。
 

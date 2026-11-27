@@ -81,6 +81,7 @@ internal sealed class AssistantHarness : IAsyncDisposable
             services.AddSingleton<PmTool.Work.ITemplateLibrary>(new FakeTemplateLibrary());
             services.AddSingleton<PmTool.Work.IProjectStaffingQueries>(new FakeStaffingQueries());
             services.AddSingleton<PmTool.Work.IPlanningService>(new FakePlanning());
+            services.AddSingleton<PmTool.Work.IBulkItemService>(new FakeBulkStub());
             if (timings is not null)
             {
                 services.AddSingleton(timings);

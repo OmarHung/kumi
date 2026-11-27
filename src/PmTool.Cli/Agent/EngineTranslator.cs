@@ -33,6 +33,8 @@ internal static class TranslatorSupport
     public const string ProposeItemChanges = "propose_item_changes";
     public const string ProposeNewItems = "propose_new_items";
     public const string ProposeMemberChanges = "propose_member_changes";
+    public const string ProposeItemDeletions = "propose_item_deletions";
+    public const string ProposeBulkItemChanges = "propose_bulk_item_changes";
     public const string ProposeProject = "propose_project";
 
     public static JsonDocument? TryParse(string line)
@@ -93,6 +95,12 @@ internal static class TranslatorSupport
 
     /// <summary>propose_member_changes 成功時同樣帶 proposalId，同樣只認 GUID。</summary>
     public static string? MemberProposalId(string text) => ProposalIdOf(text);
+
+    /// <summary>propose_item_deletions 成功時同樣帶 proposalId，同樣只認 GUID。</summary>
+    public static string? ItemDeletionProposalId(string text) => ProposalIdOf(text);
+
+    /// <summary>propose_bulk_item_changes 成功時同樣帶 proposalId，同樣只認 GUID。</summary>
+    public static string? ItemBatchProposalId(string text) => ProposalIdOf(text);
 
     private static string? ProposalIdOf(string text)
     {

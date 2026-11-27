@@ -195,6 +195,12 @@ internal sealed class LocalReplyAccumulator : IReplyRecorder
             MemberProposalId = tool.Status == AssistantToolStatus.Done && tool.Name == AssistantToolNames.ProposeMemberChanges
                 ? tool.MemberProposalId
                 : current.MemberProposalId,
+            ItemDeletionProposalId = tool.Status == AssistantToolStatus.Done && tool.Name == AssistantToolNames.ProposeItemDeletions
+                ? tool.ItemDeletionProposalId
+                : current.ItemDeletionProposalId,
+            ItemBatchProposalId = tool.Status == AssistantToolStatus.Done && tool.Name == AssistantToolNames.ProposeBulkItemChanges
+                ? tool.ItemBatchProposalId
+                : current.ItemBatchProposalId,
         };
         _parts[index] = updated;
         events.Add(new AssistantToolUpdate(updated));

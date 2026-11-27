@@ -12,14 +12,14 @@ internal abstract record StoredEvent
     public static string Serialize(LocalAgentEvent progress) => AssistantJson.Serialize<StoredEvent>(progress switch
     {
         LocalAgentText text => new StoredText(text.Delta),
-        LocalAgentTool tool => new StoredTool(tool.Tool.CallId, tool.Tool.Name, tool.Tool.Status, tool.Tool.ChangeSetNumber, tool.Tool.Error, tool.Tool.ItemProposalId, tool.Tool.ProjectProposalId, tool.Tool.NewItemProposalId, tool.Tool.MemberProposalId),
+        LocalAgentTool tool => new StoredTool(tool.Tool.CallId, tool.Tool.Name, tool.Tool.Status, tool.Tool.ChangeSetNumber, tool.Tool.Error, tool.Tool.ItemProposalId, tool.Tool.ProjectProposalId, tool.Tool.NewItemProposalId, tool.Tool.MemberProposalId, tool.Tool.ItemDeletionProposalId, tool.Tool.ItemBatchProposalId),
         _ => throw new ArgumentOutOfRangeException(nameof(progress), progress, "不認得的進度種類。"),
     });
 
     public static LocalAgentEvent Deserialize(string json) => AssistantJson.Deserialize<StoredEvent>(json) switch
     {
         StoredText text => new LocalAgentText(text.Delta),
-        StoredTool tool => new LocalAgentTool(new AssistantToolPart(tool.CallId, tool.Name, tool.Status, tool.ChangeSetNumber, tool.Error) { ItemProposalId = tool.ItemProposalId, ProjectProposalId = tool.ProjectProposalId, NewItemProposalId = tool.NewItemProposalId, MemberProposalId = tool.MemberProposalId }),
+        StoredTool tool => new LocalAgentTool(new AssistantToolPart(tool.CallId, tool.Name, tool.Status, tool.ChangeSetNumber, tool.Error) { ItemProposalId = tool.ItemProposalId, ProjectProposalId = tool.ProjectProposalId, NewItemProposalId = tool.NewItemProposalId, MemberProposalId = tool.MemberProposalId, ItemDeletionProposalId = tool.ItemDeletionProposalId, ItemBatchProposalId = tool.ItemBatchProposalId }),
         _ => throw new FormatException("不認得的進度。"),
     };
 }
@@ -27,4 +27,4 @@ internal abstract record StoredEvent
 internal sealed record StoredText(string Delta) : StoredEvent;
 
 internal sealed record StoredTool(
-    string CallId, string Name, AssistantToolStatus Status, long? ChangeSetNumber, string? Error, Guid? ItemProposalId = null, Guid? ProjectProposalId = null, Guid? NewItemProposalId = null, Guid? MemberProposalId = null) : StoredEvent;
+    string CallId, string Name, AssistantToolStatus Status, long? ChangeSetNumber, string? Error, Guid? ItemProposalId = null, Guid? ProjectProposalId = null, Guid? NewItemProposalId = null, Guid? MemberProposalId = null, Guid? ItemDeletionProposalId = null, Guid? ItemBatchProposalId = null) : StoredEvent;
