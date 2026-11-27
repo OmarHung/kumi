@@ -85,11 +85,13 @@ internal sealed class HostAgentRelay(
             selection.Effort,
             request.ProjectKey is null
                 ? LocalPromptBuilder.HostOrganizationSystemPrompt(
-                    request.Actor.IsOrganizationAdmin, request.Asker, AgentToolLists.SupportsRevision(request.Selection.Endpoint.AgentVersion))
+                    request.Actor.IsOrganizationAdmin, request.Asker, AgentToolLists.SupportsRevision(request.Selection.Endpoint.AgentVersion),
+                    AgentToolLists.SupportsMyWork(request.Selection.Endpoint.AgentVersion))
                 : LocalPromptBuilder.HostSystemPrompt(
                     request.ProjectKey, request.Permissions, request.ItemKey, request.Asker, AgentToolLists.SupportsNewItems(request.Selection.Endpoint.AgentVersion),
                     AgentToolLists.SupportsStaffing(request.Selection.Endpoint.AgentVersion),
-                    AgentToolLists.SupportsRevision(request.Selection.Endpoint.AgentVersion)),
+                    AgentToolLists.SupportsRevision(request.Selection.Endpoint.AgentVersion),
+                    AgentToolLists.SupportsMyWork(request.Selection.Endpoint.AgentVersion)),
             LocalPromptBuilder.Prompt(
                 request.History,
                 request.UserText,

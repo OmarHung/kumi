@@ -13,7 +13,7 @@ public sealed class McpAgentToolLimitTests
     private static readonly string[] AgentTools =
     [
         "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset", "get_changeset",
-        "get_item", "search_items", "propose_item_changes", "propose_new_items",
+        "get_item", "search_items", "propose_item_changes", "propose_new_items", "my_work",
         "get_project", "list_people", "propose_member_changes",
         "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
     ];
@@ -71,7 +71,6 @@ public sealed class McpAgentToolLimitTests
     [TestCase("add_comment", """{"itemKey":"WEB-1","body":"x"}""")]
     [TestCase("list_items", """{"projectKey":"WEB"}""")]
     [TestCase("list_projects", """{}""")]
-    [TestCase("my_work", """{}""")]
     public async Task CallTool_AgentRunTokenOutsideTheLocalAgentList_IsAToolErrorEvenWithTheScope(string tool, string json)
     {
         // Arrange

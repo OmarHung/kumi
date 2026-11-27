@@ -46,10 +46,16 @@ internal static class ItemReadTools
                 ("cursor", McpSchemas.Text("上一頁回傳的 nextCursor。"))),
             AccessTokenScope.ItemsRead, ReadOnly: true, ListItemsAsync),
         new("my_work",
-            "你負責、還沒結束的項目，跨你看得到的所有專案，依到期日排序（沒有到期日的在後面）。可以只看某個狀態類別。",
+            "你自己的工作，跨你看得到的所有專案，依到期日排序（沒有到期日的在後面）。scope 是 assigned（你負責的，預設）或 created（你建立的）；" +
+            "沒給 stateCategory 是還沒結束的（backlog、not_started、in_progress），給 done 可以看完成的。" +
+            "可以用 dueFrom、dueTo 限定到期日，overdue 為 true 是到期日在今天以前、還沒結束的。「今天」「明天」請先照附註的現在換成日期。",
             McpSchemas.Object(
                 required: [],
-                ("stateCategory", McpSchemas.Enum("只要這個狀態類別的；沒給是 backlog、not_started、in_progress 全部。", "backlog", "not_started", "in_progress")),
+                ("scope", McpSchemas.Enum("assigned 是你負責的（預設），created 是你建立的。", "assigned", "created")),
+                ("stateCategory", McpSchemas.Enum("只要這個狀態類別的；沒給是 backlog、not_started、in_progress 全部。", "backlog", "not_started", "in_progress", "done")),
+                ("dueFrom", McpSchemas.Text("到期日在這天或之後，YYYY-MM-DD。")),
+                ("dueTo", McpSchemas.Text("到期日在這天或之前，YYYY-MM-DD。")),
+                ("overdue", McpSchemas.Boolean("true 是到期日在今天（組織的時區）以前、還沒結束的；不能和 stateCategory 的 done 一起用。")),
                 ("limit", McpSchemas.Integer($"一頁最多幾筆，1 到 {McpLimits.MaxListLimit}，預設 {McpLimits.DefaultListLimit}。")),
                 ("cursor", McpSchemas.Text("上一頁回傳的 nextCursor。"))),
             AccessTokenScope.ItemsRead, ReadOnly: true, MyWorkAsync),
@@ -136,21 +142,40 @@ internal static class ItemReadTools
 
     private static async Task<McpToolResult> MyWorkAsync(McpToolContext context, McpArguments arguments, CancellationToken cancellationToken)
     {
-        if (context.Scope.IsRestricted)
+        var created = arguments.OptionalPlain("scope") switch
         {
-            throw new McpArgumentException("my_work 跨所有專案，本機代理只能碰這則對話的專案，請改用 list_items。");
+            null or "assigned" => false,
+            "created" => true,
+            _ => throw new McpArgumentException("scope 要是 assigned 或 created。"),
+        };
+        var category = arguments.OptionalEnum<StateCategory>("stateCategory");
+        if (category is StateCategory.Canceled)
+        {
+            throw new McpArgumentException("stateCategory 要是 backlog、not_started、in_progress 或 done。");
         }
 
-        var category = arguments.OptionalEnum<StateCategory>("stateCategory");
-        if (category is StateCategory.Done or StateCategory.Canceled)
+        var overdue = arguments.OptionalBool("overdue") ?? false;
+        if (overdue && category is StateCategory.Done)
         {
-            throw new McpArgumentException("my_work 只列還沒結束的項目，stateCategory 要是 backlog、not_started 或 in_progress。");
+            throw new McpArgumentException("overdue 只看還沒結束的，不能和 stateCategory 的 done 一起用。");
+        }
+
+        var dueTo = arguments.OptionalDate("dueTo");
+        if (overdue)
+        {
+            // 「今天」依組織的時區，不依伺服器（UTC）：晚上問「過期的」才不會差一天。
+            var zone = await context.Services.Clock.TimeZoneAsync(context.Actor.OrganizationId, cancellationToken);
+            var yesterday = OrganizationTime.Today(zone, context.Services.Time.GetUtcNow()).AddDays(-1);
+            dueTo = dueTo is { } given && given < yesterday ? given : yesterday;
         }
 
         var query = new WorkItemQuery
         {
-            AssigneeId = context.Actor.PersonId,
+            AssigneeId = created ? null : context.Actor.PersonId,
+            CreatedBy = created ? context.Actor.PersonId : null,
             StateCategories = category is { } one ? [one] : OpenCategories,
+            DueFrom = arguments.OptionalDate("dueFrom"),
+            DueTo = dueTo,
             SortBy = WorkItemSortField.DueDate,
             Limit = arguments.OptionalInt("limit", 1, McpLimits.MaxListLimit) ?? McpLimits.DefaultListLimit,
             Cursor = arguments.OptionalPlain("cursor"),

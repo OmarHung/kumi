@@ -439,7 +439,7 @@ public sealed class AssistantReplyTests
     }
 
     [Test]
-    public async Task Reply_ModelCall_GetsTheSixteenToolsAndTheOutputLimit()
+    public async Task Reply_ModelCall_GetsTheSeventeenToolsAndTheOutputLimit()
     {
         // Arrange
         var conversation = await _h.NewConversationAsync();
@@ -457,7 +457,7 @@ public sealed class AssistantReplyTests
                 "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "propose_changeset",
                 "get_item", "search_items", "propose_item_changes", "propose_new_items",
                 "get_project", "list_people", "propose_member_changes",
-                "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
+                "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal", "my_work",
             }));
             Assert.That(options.MaxOutputTokens, Is.EqualTo(AiRules.MaxOutputTokens));
             Assert.That(_h.Gateway.ChatEndpoints.Single().Kind, Is.EqualTo(AiProviderKind.Anthropic));

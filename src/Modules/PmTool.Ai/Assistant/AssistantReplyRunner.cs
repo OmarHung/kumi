@@ -157,6 +157,8 @@ internal sealed class AssistantReplyRunner(
             provider.GetRequiredService<IItemDeletionProposalCreator>(),
             provider.GetRequiredService<IItemBatchProposalCreator>(),
             provider.GetRequiredService<IAssistantProposalLedger>(),
+            provider.GetRequiredService<IOrganizationClock>(),
+            time,
             request.ConversationId,
             logger);
         var selection = request.Selection.Selection;

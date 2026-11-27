@@ -25,6 +25,11 @@ describe('工具的說法', () => {
     expect(toolLabel('propose_new_items')).toBe('建議新增項目');
   });
 
+  it('讀我的工作', () => {
+    // Arrange / Act / Assert
+    expect(toolLabel('my_work')).toBe('讀我的工作');
+  });
+
   it('不選專案的兩個工具', () => {
     // Arrange / Act / Assert
     expect(toolLabel('list_projects')).toBe('查看你的專案清單');

@@ -18,6 +18,7 @@
 - propose_member_changes：提出專案成員變動的建議（不會真的改，使用者按「套用」才生效）。參數 projectKey、changes（[{person, role?, remove?}]，person 是人員編號，role 與 remove: true 剛好給一個）。
 - propose_item_deletions：提出刪除項目的建議（不會真的刪，使用者按「刪除」才會刪，軟刪除、能在「已刪除」復原）。參數 projectKey、itemKeys（項目編號的陣列，1 到 50 個）、reason（一行理由，可省略）。
 - propose_bulk_item_changes：一次對兩個以上的項目提出修改建議（不會真的改，使用者按「全部套用」才寫入）。參數 projectKey、items（[{itemKey, changes, comment?, expectedDescriptionRevision?}]，1 到 20 個項目；changes 的寫法同 propose_item_changes，改說明時那一筆要帶 expectedDescriptionRevision）。
+- my_work：讀使用者自己負責或建立的項目（跨他看得到的所有專案，依到期日排序）。參數 scope（assigned 預設、created）、stateCategory（backlog、not_started、in_progress、done；沒給是還沒結束的三類）、dueFrom、dueTo（yyyy-MM-dd）、overdue、limit。
 - withdraw_proposal：撤回你提出、使用者還沒套用的建議。參數 proposalId（Kumi 附註列出的代號；變更集不能撤回）。
 
 需要專案的工具，projectKey 每一次都要帶上這一則對話的專案代號（後面的專案說明有寫），不要改成別的專案。changeset 參數直接放 JSON 物件，不要包成字串。

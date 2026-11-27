@@ -45,7 +45,7 @@ public sealed class LocalAgentOrganizationTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(job.ProjectKey, Is.Null);
-            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t != "withdraw_proposal")));
+            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t is not ("withdraw_proposal" or "my_work"))));
             Assert.That(job.SystemPrompt, Does.StartWith(AssistantPrompt.OrganizationSystemPrompt));
             Assert.That(job.SystemPrompt, Does.Contain("使用者不能開新專案").And.Contain("你只能用下面列的這些"));
             Assert.That(job.SystemPrompt, Does.Not.Contain("preview_changeset"));
@@ -69,7 +69,7 @@ public sealed class LocalAgentOrganizationTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization));
+            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t != "my_work")));
             Assert.That(job.SystemPrompt, Does.Contain("- withdraw_proposal："));
             Assert.That(job.SystemPrompt, Does.Not.Contain("這一次沒有 withdraw_proposal"));
         }

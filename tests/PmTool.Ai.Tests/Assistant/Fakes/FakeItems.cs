@@ -100,8 +100,19 @@ internal sealed class FakeWorkItemService : IWorkItemService
     public Task<IReadOnlyList<WorkItem>> ListAssignedToMeAsync(Actor actor, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
+    private readonly List<(Actor Actor, CrossProjectScope Scope, WorkItemQuery Query)> _acrossCalls = [];
+
+    /// <summary>跨專案清單的結果；沒設就和以前一樣不支援。參數是呼叫者與條件。</summary>
+    public Func<Actor, WorkItemQuery, Result<WorkItemPage>>? OnListAcross { get; set; }
+
+    public IReadOnlyList<(Actor Actor, CrossProjectScope Scope, WorkItemQuery Query)> AcrossCalls => _acrossCalls;
+
     public Task<Result<WorkItemPage>> ListAcrossProjectsAsync(
-        Actor actor, CrossProjectScope scope, WorkItemQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+        Actor actor, CrossProjectScope scope, WorkItemQuery query, CancellationToken cancellationToken)
+    {
+        _acrossCalls.Add((actor, scope, query));
+        return OnListAcross is { } handler ? Task.FromResult(handler(actor, query)) : throw new NotSupportedException();
+    }
 
     public Task<IReadOnlyList<ItemTypeSummary>> ListItemTypesAsync(Actor actor, CancellationToken cancellationToken) =>
         throw new NotSupportedException();

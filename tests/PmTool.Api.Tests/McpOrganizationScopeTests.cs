@@ -19,7 +19,7 @@ public sealed class McpOrganizationScopeTests
     private static readonly AccessTokenScope[] AgentScopes =
         [AccessTokenScope.AgentRun, AccessTokenScope.ItemsRead, AccessTokenScope.BlueprintRead, AccessTokenScope.BlueprintWrite];
 
-    private static readonly string[] OrganizationTools = ["list_templates", "get_template", "list_projects", "propose_project", "withdraw_proposal"];
+    private static readonly string[] OrganizationTools = ["list_templates", "get_template", "list_projects", "propose_project", "withdraw_proposal", "my_work"];
 
     private static readonly object Proposal = new { key = "WEB", name = "網站改版", template = "simple_tasks" };
 
@@ -150,7 +150,6 @@ public sealed class McpOrganizationScopeTests
     [TestCase("get_item", """{"itemKey":"WEB-1"}""")]
     [TestCase("search_items", """{"query":"首頁"}""")]
     [TestCase("list_items", """{"projectKey":"WEB"}""")]
-    [TestCase("my_work", """{}""")]
     [TestCase("get_blueprint", """{"projectKey":"WEB"}""")]
     [TestCase("describe_usage", """{"projectKey":"WEB"}""")]
     [TestCase("preview_changeset", """{"projectKey":"WEB","changeset":{"baseVersion":1}}""")]
@@ -180,6 +179,27 @@ public sealed class McpOrganizationScopeTests
             Assert.That(mcp.Modules.ItemProposals.Creates, Is.Empty);
             Assert.That(mcp.Modules.AgentBudget.LocalCalls, Is.Empty, "工具不在清單裡就不計額度");
             Assert.That(mcp.Usage.Calls, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task MyWork_OrganizationJob_ReturnsTheActorsOwnItems()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartForOrganizationJobAsync(AgentScopes);
+        mcp.Modules.Items.OnListAcross = (_, _, _) => new WorkItemPage([TestData.Item("WEB-1"), TestData.Item("OPS-2")], null);
+
+        // Act
+        var (isError, body) = await mcp.CallAsync("my_work", new { scope = "created" });
+
+        // Assert
+        var (_, _, query) = mcp.Modules.Items.ListAcrossCalls.Single();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.False, body.ToJsonString());
+            Assert.That(query.CreatedBy, Is.EqualTo(TestUsers.Member.PersonId));
+            Assert.That(body["notice"]!.GetValue<string>(), Is.Not.Empty);
+            Assert.That(body["items"]!.AsArray(), Has.Count.EqualTo(2));
         }
     }
 

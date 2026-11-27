@@ -40,7 +40,7 @@ public sealed class HostOrganizationTests
         {
             Assert.That(job.ProjectKey, Is.Null);
             Assert.That(row.ProjectKey, Is.Null);
-            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t != "withdraw_proposal")));
+            Assert.That(job.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t is not ("withdraw_proposal" or "my_work"))));
             Assert.That(job.SystemPrompt, Does.StartWith(AssistantPrompt.OrganizationSystemPrompt));
             Assert.That(job.SystemPrompt, Does.Contain("使用者不能開新專案").And.Contain("你執行在 Kumi 的主機上"));
         }
@@ -61,7 +61,7 @@ public sealed class HostOrganizationTests
         {
             Assert.That(grant, Is.Not.Null);
             Assert.That(grant!.ProjectKey, Is.Null);
-            Assert.That(grant.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t != "withdraw_proposal")));
+            Assert.That(grant.AllowedTools, Is.EqualTo(LocalAgentTools.AllowedForOrganization.Where(t => t is not ("withdraw_proposal" or "my_work"))));
         }
     }
 

@@ -131,7 +131,7 @@ public sealed record AssistantTextPart(string Text) : AssistantPart;
 /// <param name="CallId">這則回覆裡的編號。</param>
 /// <param name="Name">
 /// 工具的名稱：get_blueprint、list_templates、get_template、describe_usage、preview_changeset、propose_changeset、get_changeset、
-/// get_item、search_items、propose_item_changes、propose_new_items、get_project、list_people、propose_member_changes、propose_item_deletions、propose_bulk_item_changes、withdraw_proposal；組織對話是 list_templates、get_template、list_projects、propose_project、withdraw_proposal。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
+/// get_item、search_items、propose_item_changes、propose_new_items、get_project、list_people、propose_member_changes、propose_item_deletions、propose_bulk_item_changes、withdraw_proposal、my_work；組織對話是 list_templates、get_template、list_projects、propose_project、withdraw_proposal、my_work。網頁照名稱顯示說法，不認得的畫成一般的「用了工具」。
 /// </param>
 /// <param name="ChangeSetNumber">propose_changeset 成功時，提出的變更集編號（網頁畫成「變更集 #12」的卡片）。</param>
 /// <param name="Error">失敗時給人看的原因，繁體中文。</param>

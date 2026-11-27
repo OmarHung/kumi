@@ -27,6 +27,8 @@ internal sealed record AssistantToolContext(
     IItemDeletionProposalCreator DeletionProposals,
     IItemBatchProposalCreator BatchProposals,
     IAssistantProposalLedger Ledger,
+    IOrganizationClock Clock,
+    TimeProvider Time,
     Guid ConversationId,
     ILogger Logger)
 {

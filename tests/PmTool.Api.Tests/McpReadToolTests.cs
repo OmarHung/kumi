@@ -348,22 +348,106 @@ public sealed class McpReadToolTests
     }
 
     [Test]
-    public async Task MyWork_ACategoryFilter_NarrowsIt_AndFinishedCategoriesAreRefused()
+    public async Task MyWork_ACategoryFilter_NarrowsIt_DoneIsAllowed_CanceledIsRefused()
     {
         // Arrange
         await using var mcp = await McpHarness.StartAsync();
 
         // Act
         var narrowed = await mcp.CallAsync("my_work", new { stateCategory = "not_started" });
-        var finished = await mcp.CallAsync("my_work", new { stateCategory = "done" });
+        var done = await mcp.CallAsync("my_work", new { stateCategory = "done" });
+        var canceled = await mcp.CallAsync("my_work", new { stateCategory = "canceled" });
 
         // Assert
+        var calls = mcp.Modules.Items.ListAcrossCalls;
         using (Assert.EnterMultipleScope())
         {
             Assert.That(narrowed.IsError, Is.False);
-            Assert.That(mcp.Modules.Items.ListAcrossCalls.Single().Query.StateCategories, Is.EqualTo(new[] { StateCategory.NotStarted }));
-            Assert.That(finished.IsError, Is.True);
+            Assert.That(done.IsError, Is.False);
+            Assert.That(canceled.IsError, Is.True);
+            Assert.That(calls, Has.Count.EqualTo(2));
+            Assert.That(calls[0].Query.StateCategories, Is.EqualTo(new[] { StateCategory.NotStarted }));
+            Assert.That(calls[1].Query.StateCategories, Is.EqualTo(new[] { StateCategory.Done }));
         }
+    }
+
+    [Test]
+    public async Task MyWork_ScopeCreated_FiltersByCreatorInsteadOfAssignee()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartAsync();
+
+        // Act
+        var (isError, _) = await mcp.CallAsync("my_work", new { scope = "created" });
+
+        // Assert
+        var query = mcp.Modules.Items.ListAcrossCalls.Single().Query;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.False);
+            Assert.That(query.CreatedBy, Is.EqualTo(TestUsers.Member.PersonId));
+            Assert.That(query.AssigneeId, Is.Null);
+        }
+    }
+
+    [Test]
+    public async Task MyWork_DueDates_PassThroughAndABadScopeOrDateIsAToolError()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartAsync();
+
+        // Act
+        var ok = await mcp.CallAsync("my_work", new { dueFrom = "2026-11-28", dueTo = "2026-11-30" });
+        var badScope = await mcp.CallAsync("my_work", new { scope = "everyone" });
+        var badDate = await mcp.CallAsync("my_work", new { dueTo = "明天" });
+
+        // Assert
+        var calls = mcp.Modules.Items.ListAcrossCalls;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ok.IsError, Is.False);
+            Assert.That(calls, Has.Count.EqualTo(1));
+            Assert.That(calls[0].Query.DueFrom, Is.EqualTo(new DateOnly(2026, 11, 28)));
+            Assert.That(calls[0].Query.DueTo, Is.EqualTo(new DateOnly(2026, 11, 30)));
+            Assert.That(badScope.IsError, Is.True);
+            Assert.That(badDate.IsError, Is.True);
+        }
+    }
+
+    [Test]
+    public async Task MyWork_Overdue_MeansDueBeforeTodayInTheOrganizationTimeZone_AndNotDone()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartAsync();
+        // 時鐘在 UTC 的 11/13 16:00：台北已經是 11/14 凌晨，「今天」是 11/14，過期是到期日在 11/13 以前。
+        mcp.Modules.Time.Advance(TimeSpan.FromHours(7));
+
+        // Act
+        var (isError, _) = await mcp.CallAsync("my_work", new { overdue = true });
+        var withDone = await mcp.CallAsync("my_work", new { overdue = true, stateCategory = "done" });
+
+        // Assert
+        var query = mcp.Modules.Items.ListAcrossCalls.Single().Query;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.False);
+            Assert.That(query.DueTo, Is.EqualTo(new DateOnly(2026, 11, 13)));
+            Assert.That(query.StateCategories, Is.EqualTo(new[] { StateCategory.Backlog, StateCategory.NotStarted, StateCategory.InProgress }));
+            Assert.That(withDone.IsError, Is.True);
+        }
+    }
+
+    [Test]
+    public async Task MyWork_Overdue_WithAnEarlierDueTo_KeepsTheEarlierDate()
+    {
+        // Arrange
+        await using var mcp = await McpHarness.StartAsync();
+
+        // Act
+        await mcp.CallAsync("my_work", new { overdue = true, dueTo = "2020-01-01" });
+
+        // Assert
+        Assert.That(mcp.Modules.Items.ListAcrossCalls.Single().Query.DueTo, Is.EqualTo(new DateOnly(2020, 1, 1)));
     }
 
     [Test]

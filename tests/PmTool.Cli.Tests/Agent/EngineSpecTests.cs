@@ -249,6 +249,17 @@ public sealed class EngineSpecTests
         }
     }
 
+    [Test]
+    public void KnownTools_IncludeMyWork_SoAJobWithItIsNotRefused()
+    {
+        // Assert：不認得的工具會讓整件工作不跑。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(JobValidation.KnownTools, Does.Contain("my_work"));
+            Assert.That(JobValidation.Check(TestJobs.Make() with { AllowedTools = ["get_item", "my_work"] }, Server), Is.Null);
+        }
+    }
+
     [TestCase("DEMO", true)]
     [TestCase("A", true)]
     [TestCase("ABCDEFGHIJ0123456789", true)]

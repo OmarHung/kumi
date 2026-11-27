@@ -56,6 +56,12 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForRevisionTools = "0.17.0";
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放 my_work（理由同 <see cref="MinAgentVersionForNewItemProposals"/>）。
+    /// 舊版照樣能用，只是問到「我的工作」時請使用者 <c>kumi update</c>。
+    /// </summary>
+    public const string MinAgentVersionForMyWork = "0.18.0";
+
     public const int MaxMachineNameLength = 60;
 
     /// <summary>一個引擎最多列幾個模型。</summary>

@@ -99,7 +99,6 @@ public sealed class McpAgentProjectScopeTests
     [TestCase("get_changeset", """{"projectKey":"OPS","number":1}""")]
     [TestCase("propose_item_changes", """{"projectKey":"OPS","itemKey":"OPS-1","comment":"x"}""")]
     [TestCase("propose_item_changes", """{"projectKey":"WEB","itemKey":"OPS-1","comment":"x"}""")]
-    [TestCase("my_work", """{}""")]
     public async Task EveryProjectOrItemTool_AnotherProject_IsAToolErrorAndNoModuleIsCalled(string tool, string json)
     {
         // Arrange
@@ -116,6 +115,28 @@ public sealed class McpAgentProjectScopeTests
             Assert.That(mcp.Modules.Changes.TotalCalls, Is.Zero);
             Assert.That(mcp.Modules.ItemProposals.Creates, Is.Empty);
             Assert.That(mcp.Usage.Calls, Is.Empty);
+        }
+    }
+
+    [Test]
+    public async Task MyWork_ProjectJob_WorksAcrossProjectsAndOnlyForTheActor()
+    {
+        // Arrange：自己的工作本來就是他看得到的，專案對話也能讀。
+        await using var mcp = await McpHarness.StartForAgentAsync("WEB", Scopes);
+        mcp.Modules.Items.OnListAcross = (_, _, _) => new WorkItemPage([TestData.Item("OPS-1")], null);
+
+        // Act
+        var (isError, body) = await mcp.CallAsync("my_work");
+
+        // Assert
+        var (actor, _, query) = mcp.Modules.Items.ListAcrossCalls.Single();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isError, Is.False, body.ToJsonString());
+            Assert.That(actor, Is.EqualTo(TestUsers.Member.ToActor()));
+            Assert.That(query.AssigneeId, Is.EqualTo(TestUsers.Member.PersonId));
+            Assert.That(body["notice"]!.GetValue<string>(), Is.Not.Empty);
+            Assert.That(body["items"]!.AsArray(), Has.Count.EqualTo(1));
         }
     }
 

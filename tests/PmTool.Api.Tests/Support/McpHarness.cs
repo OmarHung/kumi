@@ -1,3 +1,4 @@
+using PmTool.Abstractions;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -69,6 +70,9 @@ internal sealed class McpHarness : IAsyncDisposable
                     services.AddSingleton<IBlueprintUsageService>(usage);
                     services.RemoveAll<ITemplateLibrary>();
                     services.AddSingleton<ITemplateLibrary>(new FakeTemplateLibrary());
+                    // 組織的時區存在身分模組的資料表裡；這裡的資料庫是假的，換成固定的預設時區。
+                    services.RemoveAll<IOrganizationClock>();
+                    services.AddSingleton<IOrganizationClock>(new FixedOrganizationClock());
                 },
             });
 
@@ -102,4 +106,11 @@ internal sealed class McpHarness : IAsyncDisposable
         await Client.DisposeAsync();
         Factory.Dispose();
     }
+}
+
+/// <summary>永遠回預設時區的組織時鐘，不碰資料庫。</summary>
+internal sealed class FixedOrganizationClock : IOrganizationClock
+{
+    public Task<TimeZoneInfo> TimeZoneAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        Task.FromResult(TimeZoneInfo.FindSystemTimeZoneById(OrganizationTime.DefaultTimeZoneId));
 }

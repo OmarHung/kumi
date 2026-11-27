@@ -39,6 +39,10 @@ internal sealed class McpServices(IServiceProvider provider)
 
     public IPeopleDirectory People => provider.GetRequiredService<IPeopleDirectory>();
 
+    public IOrganizationClock Clock => provider.GetRequiredService<IOrganizationClock>();
+
+    public TimeProvider Time => provider.GetService<TimeProvider>() ?? TimeProvider.System;
+
     public IProjectProposalCreator ProjectProposals => provider.GetRequiredService<IProjectProposalCreator>();
 }
 

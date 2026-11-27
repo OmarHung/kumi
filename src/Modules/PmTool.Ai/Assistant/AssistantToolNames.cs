@@ -35,6 +35,9 @@ internal static class AssistantToolNames
 
     public const string WithdrawProposal = "withdraw_proposal";
 
+    /// <summary>使用者自己負責或建立的項目，跨他看得到的所有專案（只回他本來就看得到的，所以專案對話與組織對話都能用）。</summary>
+    public const string MyWork = "my_work";
+
     public const string ListProjects = "list_projects";
 
     public const string ProposeProject = "propose_project";
