@@ -56,27 +56,36 @@ button.projectSelect[data-width='content']:hover:not(:disabled, [aria-disabled='
 }
 
 /*
- * 選的項目那一列：縮成小膠囊（--text-sm、28px 高、只佔自己的寬度，最長到整列），左緣在 16px，和對話的名稱、面板內文對齊。
- * 44px 的觸控範圍用 ::before 補在膠囊的下面，不是靠把膠囊撐高。
+ * 選的項目那一列：和頁首的「對話」「專案」同一種輕——沒有外框、淡色的字、滑過才有底色，28px 高、只佔自己的寬度（最長到整列）。
+ * 原本是有外框的膠囊，夾在沒有外框的頁首下面，看起來像一個多出來的框（2026-11-27 使用者回報）。按鈕本身在 8px，
+ * 內距 8px，圖示落在 16px，和對話的名稱、面板內文對齊。觸控範圍用 ::before 往下補到控制項的高度，不往上蓋到頁首的按鈕。
+ * 選擇器是 > * > button：觸發鈕包在 ItemPicker 的外層裡，浮出來的清單也在那一層下面，不能用後代選擇器一起套到選項上。
  */
 .itemRow {
   padding-block: 0;
-  padding-inline: var(--space-2);
+  padding-inline: 0 var(--space-2);
 }
 
-.itemRow > button {
+.itemRow > * > button {
   position: relative;
   height: 1.75rem;
   padding: 0 var(--space-2);
-  border-radius: var(--radius-pill);
+  border-color: transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
   font-size: var(--text-sm);
 }
 
-.itemRow > button::before {
+.itemRow > * > button:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.itemRow > * > button::before {
   content: '';
   position: absolute;
-  /* 只往下補：上面緊接著頁首那一行的按鈕，往上補會蓋住它們的下緣、點到變成開項目選單。 */
-  inset: 0 0 calc(1.75rem - var(--target-min));
+  inset: 0 0 calc(1.75rem - var(--control-height));
 }
 
 /* 專案選單鈕不撐到 Select 的 8rem 下限（比 Select 的選擇器多一個元素名，權重較高）。 */

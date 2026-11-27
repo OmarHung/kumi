@@ -17,11 +17,12 @@ describe('AI 助理頁首在窄螢幕的輕重', () => {
     expect(css).toMatch(/\.row \{[^}]*gap: var\(--space-1\)/);
   });
 
-  it('選的項目是小膠囊（--text-sm、只佔自己的寬度），44px 的觸控範圍用 ::before 補', () => {
+  it('選的項目和頁首一樣沒有外框（--text-sm、只佔自己的寬度），觸控範圍用 ::before 往下補到控制項的高度', () => {
     // Assert
-    expect(css).toMatch(/\.itemRow > button \{[^}]*font-size: var\(--text-sm\)/);
-    expect(css).toMatch(/\.itemRow > button \{[^}]*height: 1\.75rem/);
-    expect(css).toContain('.itemRow > button::before');
-    expect(css).toContain('var(--target-min)');
+    expect(css).toMatch(/\.itemRow > \* > button \{[^}]*font-size: var\(--text-sm\)/);
+    expect(css).toMatch(/\.itemRow > \* > button \{[^}]*height: 1\.75rem/);
+    expect(css).toContain('.itemRow > * > button::before');
+    expect(css).toMatch(/\.itemRow > \* > button \{[^}]*border-color: transparent/);
+    expect(css).toContain('calc(1.75rem - var(--control-height))');
   });
 });

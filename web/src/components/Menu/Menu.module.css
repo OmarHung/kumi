@@ -14,9 +14,13 @@
   list-style: none;
 }
 
+/*
+ * 一項：字與圖示垂直置中（2026-11-27 使用者回報選單「不明的留空」：原本靠上對齊，觸控時一項 44px 高、字只有 14px，
+ * 字貼在頂端、下面空一大塊，分隔線上下看起來不對稱）。有第二行說明（.reason）的項目才靠上對齊。
+ */
 .item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-2);
   width: 100%;
   min-height: var(--target-min);
@@ -28,6 +32,20 @@
   font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
+}
+
+.item:has(.reason) {
+  align-items: flex-start;
+}
+
+/*
+ * 觸控時一項和控制項同高（36px），不是 44px：選單裡的項目一個接一個，44px 時十幾項的選單（AI 的模型、思考深度、送出按法）
+ * 長過半個畫面，還要捲。36px 仍高於 WCAG 2.5.8 的 24px（tokens.css 的 --control-height 寫了理由）。
+ */
+@media (pointer: coarse) {
+  .item {
+    min-height: var(--control-height);
+  }
 }
 
 .item[data-tone='danger'] {
@@ -68,8 +86,8 @@
   color: var(--color-text-muted);
 }
 
-/* 圖示和第一行字對齊。 */
-.icon {
+/* 有第二行說明時，圖示和第一行字對齊。 */
+.item:has(.reason) > .icon {
   margin-top: var(--space-0-5);
 }
 
