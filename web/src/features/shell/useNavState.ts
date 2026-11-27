@@ -24,8 +24,6 @@ export function useNavState() {
     isFullPageAssistant: isAssistantPage && !isPanelShown,
     isProjects,
     isUnder,
-    // 在專案的頁面底下時，「專案」就是這一頁：連回目前的網址，不把人帶離專案；其他頁才到專案清單。
-    projectsTarget: isProjects ? `${pathname}${search}` : '/projects',
     noneActive: isPanelShown,
   };
 }

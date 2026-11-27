@@ -8,6 +8,7 @@ import { ASSISTANT_TAB_ID, closeAssistantPanel, toggleAssistantPanel } from '../
 import { TAB_BAR_ATTRIBUTE } from '../assistant-panel/PanelWindow';
 import { badgeText } from './unreadBadge';
 import { useNavState } from './useNavState';
+import { useProjectsTabTarget } from './useProjectsTabTarget';
 import styles from './TabBar.module.css';
 
 interface TabContentProps {
@@ -113,13 +114,14 @@ interface TabBarProps {
 export function TabBar({ isDrawerOpen, onToggleDrawer, onCloseDrawer, moreButtonRef, sidebarId }: TabBarProps) {
   const isCompact = useIsCompact();
   const nav = useNavState();
+  const projectsTarget = useProjectsTabTarget(nav.isProjects, nav.pathname, nav.search);
   if (!isCompact) return null;
 
   const { noneActive } = nav;
   return (
     <nav className={styles.bar} aria-label="主要分頁" {...{ [TAB_BAR_ATTRIBUTE]: '' }}>
       <LinkTab to="/my-work" icon="myWork" label="我的工作" isCurrent={!noneActive && nav.isUnder('/my-work')} />
-      <LinkTab to={nav.projectsTarget} icon="projects" label="專案" isCurrent={!noneActive && nav.isProjects} />
+      <LinkTab to={projectsTarget} icon="projects" label="專案" isCurrent={!noneActive && nav.isProjects} />
       <InboxTab isCurrent={!noneActive && nav.isUnder('/inbox')} />
       {nav.hasAssistant && <AssistantTab isFullPage={nav.isFullPageAssistant} isShown={nav.isPanelShown} onOpen={onCloseDrawer} />}
       <button

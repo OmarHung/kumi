@@ -68,7 +68,7 @@ describe('底部分頁列', () => {
     expect(within(bar).getByRole('link', { name: '專案' })).not.toHaveAttribute('aria-current');
   });
 
-  it('在專案的頁面底下「專案」是目前所在，連結指向這一頁', async () => {
+  it('在專案的頁面底下「專案」是目前所在，按了回到專案列表', async () => {
     // Arrange
     stubCompactScreen();
     signedInAs(exampleOwner, { projects: [webProject] });
@@ -79,7 +79,26 @@ describe('底部分頁列', () => {
     // Assert
     const link = within(await findTabBar()).getByRole('link', { name: '專案' });
     expect(link).toHaveAttribute('aria-current', 'page');
-    expect(link).toHaveAttribute('href', '/projects/WEB/info');
+    expect(link).toHaveAttribute('href', '/projects');
+  });
+
+  it('從別的分頁按「專案」回到上次看的專案頁；沒看過時是專案列表', async () => {
+    // Arrange
+    stubCompactScreen();
+    signedInAs(exampleOwner, { projects: [webProject] });
+    const { user, router } = renderApp('/my-work');
+    const bar = await findTabBar();
+    expect(within(bar).getByRole('link', { name: '專案' })).toHaveAttribute('href', '/projects');
+
+    // Act
+    await router.navigate('/projects/WEB/info');
+    await user.click(within(await findTabBar()).getByRole('link', { name: '收件匣' }));
+
+    // Assert
+    await waitFor(() => {
+      expect(currentPath(router)).toBe('/inbox');
+    });
+    expect(within(await findTabBar()).getByRole('link', { name: '專案' })).toHaveAttribute('href', '/projects/WEB/info');
   });
 
   it('收件匣帶未讀數，報讀的說法是「N 則未讀」，名稱仍是收件匣', async () => {
