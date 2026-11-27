@@ -1,6 +1,6 @@
 import { Button } from '../../components/Button/Button';
 import { hasActiveFilters, type ItemFilters } from '../../domain/itemFilters';
-import { useIsCompact } from '../../lib/useMediaQuery';
+import { useLayoutTier } from '../../lib/useLayoutTier';
 import { ColumnPicker } from './ColumnPicker';
 import { hideableColumns } from './columns';
 import { CompactFilters } from './CompactFilters';
@@ -36,10 +36,21 @@ function ItemFilterBar({ table }: { readonly table: ItemTableState }) {
   );
 }
 
-/** 工具列上、檢視分頁後面的控制項：寬螢幕是整排篩選，窄螢幕收進「篩選」。 */
+/**
+ * 工具列上、檢視分頁後面的控制項：64rem 以上是整排篩選；以下收進「篩選」，
+ * 其中平板（48～64rem）的搜尋框留在列上（最窄 10rem，有空間才長大，樣式在 Toolbar），手機的搜尋跟著收進浮層。
+ */
 export function ItemToolbarControls({ table }: { readonly table: ItemTableState }) {
-  const isCompact = useIsCompact();
-  return isCompact ? <CompactFilters table={table} /> : <ItemFilterBar table={table} />;
+  const tier = useLayoutTier();
+  if (tier === 'wide') return <ItemFilterBar table={table} />;
+  if (tier === 'phone') return <CompactFilters table={table} />;
+  const { filters, setFilters } = table;
+  return (
+    <>
+      <SearchField isToolbar inputRef={table.searchRef} value={filters.q} onSearch={(q) => { setFilters({ ...filters, q }); }} />
+      <CompactFilters table={table} hasSearch={false} />
+    </>
+  );
 }
 
 /**

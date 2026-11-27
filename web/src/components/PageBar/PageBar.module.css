@@ -33,9 +33,24 @@
 .title {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 窄螢幕的頁列照舊 16px：名稱要和右邊的按鈕擠在 48px 高的一行裡（docs/DESIGN.md 第 3 節）。 */
+@media (max-width: 48rem) {
+  .title {
+    font-size: var(--text-md);
+  }
+}
+
+/* 頁列動作之間的細直線：高度比按鈕矮一截，不撐高頁列。 */
+.divider {
+  align-self: center;
+  width: 1px;
+  height: 1.25rem;
+  background: var(--color-border);
 }
 
 .actions {

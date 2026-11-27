@@ -4,15 +4,16 @@ import { useAiOptions } from '../../api/assistant';
 import { useProject } from '../../api/queries';
 import type { ProjectDetail } from '../../api/types';
 import { Button, buttonClassName } from '../../components/Button/Button';
-import { Icon } from '../../components/Icon/Icon';
-import { IconButton } from '../../components/IconButton/IconButton';
+import { Icon, type IconName } from '../../components/Icon/Icon';
+import { Badge } from '../../components/Badge/Badge';
+import { IconButton, IconLink } from '../../components/IconButton/IconButton';
 import { Menu, type MenuItem } from '../../components/Menu/Menu';
-import { PageBar } from '../../components/PageBar/PageBar';
+import { PageBar, PageBarDivider } from '../../components/PageBar/PageBar';
 import { LoadingState, RefetchErrorNotice } from '../../components/StatusViews/StatusViews';
 import { projectRoleLabel } from '../../domain/labels';
 import { useArrivalNotice } from '../../lib/useArrivalNotice';
 import { UndoableArrival } from '../bulk-edit/UndoableArrival';
-import { useIsCompact } from '../../lib/useMediaQuery';
+import { useLayoutTier } from '../../lib/useLayoutTier';
 import { knowledgeSpaceUrl } from '../knowledge/knowledgeLinks';
 import { useProjectKnowledgeSpace } from '../knowledge/useKnowledgeSpaces';
 import { usePlanning } from '../item-table/usePlanning';
@@ -87,8 +88,8 @@ function useCanUseAssistant(detail: ProjectDetail): boolean {
 }
 
 /**
- * 窄螢幕（48rem 以下）：「資訊」「設定」「規劃」「成員」與「更多」的項目收進一顆「專案的動作」，用分隔線分組；
- * 選了就導過去（成員是打開對話框，改名是打開對話框）。
+ * 64rem 以下（平板與手機）：「設定」「規劃」「成員」與「更多」的項目收進一顆「專案的動作」，用分隔線分組；
+ * 選了就導過去（成員是打開對話框，改名是打開對話框）。「資訊」是旁邊獨立的圖示按鈕（看得到專案的人都有，最常用）。
  */
 function CompactProjectActions(props: ProjectActionsProps) {
   const { detail, onOpenMembers } = props;
@@ -102,8 +103,6 @@ function CompactProjectActions(props: ProjectActionsProps) {
     ...(canUseAssistant
       ? [{ key: 'assistant', label: 'AI 助理', icon: 'sparkles', onSelect: () => void navigate(projectAssistantPath(key)) } satisfies MenuItem]
       : []),
-    // 資訊（專案說明）：看得到專案的人都有。
-    { key: 'info', label: '資訊', icon: 'info', onSelect: () => void navigate(projectInfoPath(key)) },
     // 知識庫：這個專案有空間才有（空間綁在專案上）。
     ...(space === undefined
       ? []
@@ -116,18 +115,20 @@ function CompactProjectActions(props: ProjectActionsProps) {
     ...more,
   ];
   return (
-    <Menu
-      menuLabel="專案的動作"
-      align="end"
-      items={items}
-      renderTrigger={(trigger) => <IconButton {...trigger} icon="more" label="專案的動作" />}
-    />
+    <>
+      <IconLink to={projectInfoPath(key)} icon="info" label={`${key} 的資訊`} />
+      <Menu
+        menuLabel="專案的動作"
+        align="end"
+        items={items}
+        renderTrigger={(trigger) => <IconButton {...trigger} icon="more" label="專案的動作" />}
+      />
+    </>
   );
 }
 
 /** 寬螢幕頁列最後的「更多」：匯入、已刪除、改名、封存；沒有任何一項（沒有對應的權限）時不畫按鈕。 */
-function MoreActions(props: ProjectActionsProps) {
-  const items = useMoreItems(props.detail, props);
+function MoreActions({ items }: { readonly items: readonly MenuItem[] }) {
   if (items.length === 0) return null;
   return (
     <Menu
@@ -139,52 +140,60 @@ function MoreActions(props: ProjectActionsProps) {
   );
 }
 
+/** 無外框的頁面入口（圖示加字）：頁列上的「資訊」「設定」「規劃」這幾顆，不和「成員」之外的主要動作搶眼。 */
+function PageLink({ to, icon, children }: { readonly to: string; readonly icon: IconName; readonly children: string }) {
+  return (
+    <Link to={to} className={buttonClassName('ghost', 'sm')}>
+      <Icon name={icon} />
+      {children}
+    </Link>
+  );
+}
+
 /**
- * 頁列右邊：我的角色（窄螢幕只給報讀軟體）、「資訊」、「設定」（看得到藍圖的人才有）、「規劃」、「成員」、「更多」。
- * 窄螢幕的動作收進一顆「專案的動作」：390px 寬時三顆按鈕把專案名稱擠到只剩「Scru…」、代號只剩一個字。
+ * 標題旁的「我的角色」：畫面上只寫角色名稱（64rem 以上的中性小標籤），報讀軟體唸「我的角色：管理員」。
+ * 64rem 以下頁列放不下，標籤不畫，文字還在 DOM 裡只給報讀軟體。
+ */
+function RoleTag({ detail }: { readonly detail: ProjectDetail }) {
+  const role = projectRoleLabel(detail.project.myRole, detail.blueprint.roles);
+  return (
+    <span className={styles.role}>
+      <span className={styles.roleName}>{`我的角色：${role}`}</span>
+      <span aria-hidden="true" className={styles.roleBadge}>
+        <Badge>{role}</Badge>
+      </span>
+    </span>
+  );
+}
+
+/**
+ * 頁列右邊。64rem 以上：「AI 助理」「資訊」「知識庫」「設定」「規劃」「成員」都是無外框的 ghost 按鈕，細直線之後是「更多」。
+ * 64rem 以下：「資訊」的圖示按鈕加一顆「專案的動作」：平板上名稱被擠成「Scrum 衝刺…」（2026-11-28 版型比例優化）。
  */
 function ProjectActions(props: ProjectActionsProps) {
-  const isCompact = useIsCompact();
+  const tier = useLayoutTier();
   const { detail, onOpenMembers } = props;
-  const { project: summary, blueprint } = detail;
+  const { project: summary } = detail;
   // 設定是另一頁（網址記得住、可以分享）；只有看得到藍圖的人才有入口，真正的檢查在後端。
   const canReadSettings = detail.myPermissions.includes('blueprint.read');
   const canUseAssistant = useCanUseAssistant(detail);
   const space = useProjectKnowledgeSpace(summary.key);
+  const more = useMoreItems(detail, props);
+  if (tier !== 'wide') return <CompactProjectActions {...props} />;
   return (
     <>
-      <span className={styles.role}>{`我的角色：${projectRoleLabel(summary.myRole, blueprint.roles)}`}</span>
-      {isCompact ? (
-        <CompactProjectActions {...props} />
-      ) : (
-        <>
-          {canUseAssistant && (
-            <Link to={projectAssistantPath(summary.key)} className={buttonClassName('secondary')}>
-              <Icon name="sparkles" />
-              AI 助理
-            </Link>
-          )}
-          <Link to={projectInfoPath(summary.key)} className={buttonClassName('secondary')}>
-            資訊
-          </Link>
-          {space !== undefined && (
-            <Link to={knowledgeSpaceUrl(space.key)} className={buttonClassName('secondary')}>
-              知識庫
-            </Link>
-          )}
-          {canReadSettings && (
-            <Link to={projectSettingsPath(summary.key)} className={buttonClassName('secondary')}>
-              設定
-            </Link>
-          )}
-          {/* 規劃（週期與里程碑）：看得到項目的人都能看，改的入口在頁面裡依 item.update 決定。 */}
-          <Link to={projectPlanningPath(summary.key)} className={buttonClassName('secondary')}>
-            規劃
-          </Link>
-          <Button onClick={onOpenMembers}>成員</Button>
-          <MoreActions {...props} />
-        </>
-      )}
+      {canUseAssistant && <PageLink to={projectAssistantPath(summary.key)} icon="sparkles">AI 助理</PageLink>}
+      <PageLink to={projectInfoPath(summary.key)} icon="info">資訊</PageLink>
+      {space !== undefined && <PageLink to={knowledgeSpaceUrl(space.key)} icon="knowledge">知識庫</PageLink>}
+      {canReadSettings && <PageLink to={projectSettingsPath(summary.key)} icon="settings">設定</PageLink>}
+      {/* 規劃（週期與里程碑）：看得到項目的人都能看，改的入口在頁面裡依 item.update 決定。 */}
+      <PageLink to={projectPlanningPath(summary.key)} icon="calendar">規劃</PageLink>
+      <Button variant="ghost" size="sm" onClick={onOpenMembers}>
+        <Icon name="members" />
+        成員
+      </Button>
+      {more.length > 0 && <PageBarDivider />}
+      <MoreActions items={more} />
     </>
   );
 }
@@ -207,6 +216,7 @@ function LoadedProject({ detail, notice }: { readonly detail: ProjectDetail; rea
       crumbs={[{ label: summary.key, mono: true }]}
       title={summary.name}
       headingRef={headingRef}
+      titleAddon={<RoleTag detail={detail} />}
       actions={
         <ProjectActions
           detail={detail}

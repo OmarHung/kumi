@@ -3,19 +3,56 @@
  * 樣式在 features/jump/JumpButton.module.css）與主要導覽，最下面是帳號選單。
  * 整條剛好一個畫面高；專案多了只有專案清單自己捲，「人員」與帳號選單一直看得到。
  * 畫面矮到連其他項目都放不下時，側欄本身才捲動（專案清單會先縮到沒有）。
+ * 64rem 以下它是抽屜（先寫抽屜、64rem 以上再改回黏在左邊的直欄）：48～64rem 貼著圖示列的右邊滑出，48rem 以下貼著畫面左緣、停在分頁列上。
  */
 .sidebar {
-  position: sticky;
-  top: 0;
+  position: fixed;
+  inset: 0 auto 0 var(--rail-width);
+  z-index: var(--z-drawer);
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  width: min(18rem, calc(100vw - var(--rail-width)));
   padding: var(--space-4) var(--space-3) var(--space-3);
   overflow-y: auto;
   border-right: 1px solid var(--color-border);
   background: var(--color-sidebar);
+  visibility: hidden;
+  box-shadow: var(--shadow-dialog);
+  transform: translateX(calc(-100% - var(--rail-width)));
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    visibility 0s linear var(--duration-normal);
+}
+
+/* 關起來時用 visibility 藏起來，裡面的連結才不會被 Tab 走到。 */
+.sidebar[data-open='true'] {
+  visibility: visible;
+  transform: none;
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+@media (max-width: 48rem) {
+  .sidebar {
+    inset: 0 auto var(--tab-bar-height) 0;
+    width: min(18rem, 85vw);
+    transform: translateX(-100%);
+  }
+}
+
+@media (min-width: 64rem) {
+  .sidebar {
+    position: sticky;
+    inset: 0 auto auto;
+    z-index: auto;
+    width: auto;
+    height: 100vh;
+    height: 100dvh;
+    visibility: visible;
+    box-shadow: none;
+    transform: none;
+    transition: none;
+  }
 }
 
 /* 寬螢幕收起來：hidden 屬性的預設樣式會被上面的 display 蓋掉，這裡明確藏起來。 */
@@ -96,6 +133,8 @@
 
 .linkIcon {
   flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
 }
 
 .linkText {
@@ -118,13 +157,20 @@
   overscroll-behavior: contain;
 }
 
+/* 不再縮排：代號已經是固定寬的一欄，和上面的導覽靠同一條左緣，名稱多露兩三個字（2026-11-28 版型比例）。 */
 .projectList {
   display: flex;
   flex-direction: column;
   gap: var(--space-0-5);
   margin: 0;
-  padding: 0 0 0 var(--space-6);
+  padding: 0;
   list-style: none;
+}
+
+/* 「專案」那一行是清單的標題：比其他導覽小一號、semibold、muted，底下的專案才是主角。 */
+.sectionLink {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
 }
 
 .projectList .link {
@@ -215,17 +261,24 @@
 
 .projectKey {
   flex: none;
+  width: 3.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
-/* 目前的專案：代號也跟著字變成強調色，整個項目是同一個顏色。 */
+/* 固定寬的欄：所有名稱從同一條線開始（2026-11-28 版型比例）。
+   目前的專案：代號也跟著字變成強調色，整個項目是同一個顏色。 */
 .link[aria-current='page'] .projectKey {
   color: inherit;
 }
 
 .projectName {
+  min-width: 0;
+  font-size: var(--text-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -313,28 +366,4 @@
   padding: 0 var(--space-2);
   font-size: var(--text-sm);
   color: var(--color-danger);
-}
-
-@media (max-width: 48rem) {
-  .sidebar {
-    position: fixed;
-    inset: 0 auto var(--tab-bar-height) 0;
-    z-index: var(--z-drawer);
-    /* 寬螢幕的 height: 100dvh 會蓋過 inset 的下緣，帳號選單就躲到分頁列底下：窄螢幕交給 inset 決定高度。 */
-    height: auto;
-    width: min(18rem, 85vw);
-    visibility: hidden;
-    box-shadow: var(--shadow-dialog);
-    transform: translateX(-100%);
-    transition:
-      transform var(--duration-normal) var(--ease-out),
-      visibility 0s linear var(--duration-normal);
-  }
-
-  /* 關起來時用 visibility 藏起來，裡面的連結才不會被 Tab 走到。 */
-  .sidebar[data-open='true'] {
-    visibility: visible;
-    transform: none;
-    transition: transform var(--duration-normal) var(--ease-out);
-  }
 }

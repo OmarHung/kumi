@@ -20,11 +20,12 @@
   --text-sm: 0.8125rem; /* 13 */
   --text-base: 0.875rem; /* 14 */
   --text-md: 1rem; /* 16 */
-  --text-lg: 1.25rem; /* 20 */
-  --text-xl: 1.5rem; /* 24 */
+  --text-lg: 1.125rem; /* 18：頁列的標題、手機的項目標題（2026-11-28 版型比例） */
+  --text-xl: 1.375rem; /* 22：內容區的大標題 */
+  --text-2xl: 1.75rem; /* 28：總覽與統計的數字 */
   --text-control: var(--text-base); /* 輸入框裡的字，觸控時換成 16px */
 
-  --leading-tight: 1.3;
+  --leading-tight: 1.36; /* 中文的標題要比拉丁字多一點行高：22 → 30、18 → 24.5 */
   --leading-normal: 1.55;
   --leading-relaxed: 1.65; /* 長段文字：項目的說明與留言的內文 */
   --weight-regular: 400;
@@ -56,8 +57,10 @@
   --scrollbar-size: 0.625rem; /* 捲軸的寬（直向）與高（橫向）：把手兩邊各讓出 2px，看得到的把手是 6px 的膠囊 */
   --page-bar-height: 3rem;
   --page-bar-inset: 0rem; /* 頁列開頭讓出的寬度：外框（AppShell）把收合側欄與「選單」的按鈕疊在那裡時設定 */
-  --page-gutter: var(--space-6); /* 內容區左右的留白 */
-  --sidebar-width: 14rem;
+  --page-gutter: var(--space-5); /* 內容區左右的留白：平板 20，80rem 以上 24、48rem 以下 16 */
+  --sidebar-width: 14rem; /* 80rem 以上 15rem；48～64rem 是圖示列（--rail-width） */
+  --rail-width: 4.5rem; /* 48～64rem 的圖示列：圖示加 12px 的字，一格 56px 高 */
+  --icon-size: 1rem; /* 按鈕、導覽裡的圖示；觸控時 20px */
   /*
    * 窄螢幕底部分頁列（AppShell 的 TabBar）佔的高度，含手機的安全區域；寬螢幕沒有分頁列是 0。
    * 黏在底部的東西（新增項目的圓形按鈕、新通知的提示、AI 助理的全螢幕面板、內容區的下內距）都從它往上算。
@@ -199,6 +202,15 @@
     --row-height: 2.75rem;
     --target-min: 2.75rem;
     --text-control: 1rem;
+    --text-base: 0.9375rem; /* 15：觸控時內文大一號，手機與平板上 14px 的中文太小（2026-11-28 版型比例） */
+    --icon-size: 1.25rem;
+  }
+}
+
+@media (min-width: 80rem) {
+  :root {
+    --page-gutter: var(--space-6);
+    --sidebar-width: 15rem; /* 224 時專案名稱只露出五、六個字；240 加上固定寬的代號欄，名稱對齊、多露兩三個字 */
   }
 }
 

@@ -1,13 +1,13 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, type ReactNode, type Ref } from 'react';
 import { Link } from 'react-router';
 import { useProjectItems } from '../../api/queries';
-import type { ItemSortField } from '../../api/types';
+import type { Item, ItemSortField } from '../../api/types';
 import { Button, buttonClassName } from '../../components/Button/Button';
 import { Skeleton } from '../../components/Skeleton/Skeleton';
 import { EmptyState, ErrorState } from '../../components/StatusViews/StatusViews';
 import { CURRENT_CYCLE, hasNoCurrentCycle } from '../../domain/planningFilter';
 import { hasActiveFilters, nextSort, toItemQuery, type ItemFilters } from '../../domain/itemFilters';
-import { useIsCompact } from '../../lib/useMediaQuery';
+import { useIsBelowWide, useIsCompact } from '../../lib/useMediaQuery';
 import type { RovingGridHandle } from '../../lib/useRovingGrid';
 import { SelectionProvider } from '../bulk-edit/SelectionContext';
 import { useSyncSelection } from '../bulk-edit/useSyncSelection';
@@ -16,6 +16,7 @@ import { DEFAULT_SORT, ItemTable } from './ItemTable';
 import { flattenItemPages } from './itemCache';
 import { focusLastPage, LoadMore, type ItemsResult } from './LoadMore';
 import { NoCurrentCycleHint, PlanningLoadError } from './PlanningStates';
+import { QuickAddSlot } from './QuickAddSlot';
 import { ProjectItemList } from './ProjectItemList';
 import { useProjectTable } from './ProjectTableContext';
 import { isPlanningFilterBlocked, usePlanning } from './usePlanning';
@@ -30,10 +31,11 @@ export const ITEMS_PAGE_SIZE = 50;
 const SKELETON_ROWS = 8;
 
 /** 第一次載入：表頭與幾列的形狀（列高 --row-height），載入好之後表格出現在同一個位置。 */
-function ResultsSkeleton({ isCompact }: { readonly isCompact: boolean }) {
+function ResultsSkeleton({ isCompact, quickAdd }: { readonly isCompact: boolean; readonly quickAdd: ReactNode }) {
   return (
     <div className={styles.skeleton}>
       {!isCompact && <div className={styles.skeletonHead} aria-hidden="true" />}
+      {quickAdd}
       <Skeleton label="正在載入項目…" rows={SKELETON_ROWS} />
     </div>
   );
@@ -49,6 +51,8 @@ interface EmptyResultsProps {
 function EmptyResults({ isFiltered, isNoCurrentCycle = false, onClear }: EmptyResultsProps) {
   const { can } = useProjectTable();
   const isCompact = useIsCompact();
+  // 窄螢幕一定也不到寬螢幕；兩個都問，不靠媒體查詢的實作剛好一致。
+  const isBelowWide = useIsBelowWide() || isCompact;
   if (isFiltered) {
     const action = (
       <Button onClick={onClear}>清除條件</Button>
@@ -59,7 +63,7 @@ function EmptyResults({ isFiltered, isNoCurrentCycle = false, onClear }: EmptyRe
       </EmptyState>
     );
   }
-  const createHint = isCompact ? '按「新增項目」建立第一個項目。' : '在上方輸入標題，按「新增」建立第一個項目。';
+  const createHint = isBelowWide ? '按「新增項目」建立第一個項目。' : '在上方輸入標題，按「新增」建立第一個項目。';
   return (
     <EmptyState title="這個專案還沒有項目" action={<NewProjectNextSteps />}>
       {can.create ? createHint : '有人新增項目後會出現在這裡。'}
@@ -88,16 +92,22 @@ function NewProjectNextSteps() {
   );
 }
 
+/** 沒有表格可以放的結果（錯誤、空白）：快速新增單獨在最上面，說明在它下面。 */
+function MessageBelow({ quickAdd, children }: { readonly quickAdd: ReactNode; readonly children: ReactNode }) {
+  return (
+    <>
+      {quickAdd}
+      <div className={styles.message}>{children}</div>
+    </>
+  );
+}
+
 /** 第一次就讀不到：說明與「重試」。 */
 function LoadError({ result }: { readonly result: ItemsResult }) {
   const retry = () => {
     void result.refetch();
   };
-  return (
-    <div className={styles.message}>
-      <ErrorState error={result.error} title="項目載入失敗" onRetry={retry} />
-    </div>
-  );
+  return <ErrorState error={result.error} title="項目載入失敗" onRetry={retry} />;
 }
 
 /**
@@ -123,9 +133,44 @@ function sortedBy(filters: ItemFilters, field: ItemSortField): ItemFilters {
   return { ...filters, sort: isDefault ? null : next };
 }
 
-/** 依條件讀項目，處理載入中（骨架）、錯誤、兩種空白，然後交給表格（窄螢幕是清單）。 */
-export function ItemResults({ table }: { readonly table: ItemTableState }) {
-  const { filters, setFilters, clearFilters, columns, visibility, selection } = table;
+interface ResultsTableProps {
+  readonly table: ItemTableState;
+  readonly items: readonly Item[];
+  readonly footer: ReactNode;
+  readonly gridRef: Ref<RovingGridHandle>;
+  readonly quickAdd: ReactNode;
+  readonly isRefreshing: boolean;
+}
+
+/** 寬螢幕的表格：排序換了就改條件（回到預設的排序時拿掉）。 */
+function ResultsTable({ table, items, footer, gridRef, quickAdd, isRefreshing }: ResultsTableProps) {
+  const { filters, setFilters, columns, visibility, selection } = table;
+  return (
+    <SelectionProvider value={selection}>
+      <ItemTable
+        items={items}
+        columns={columns}
+        visibility={visibility}
+        sort={filters.sort ?? DEFAULT_SORT}
+        onSort={(field) => { setFilters(sortedBy(filters, field)); }}
+        isRefreshing={isRefreshing}
+        footer={footer}
+        gridRef={gridRef}
+        widthStore={table.widths}
+        quickAdd={quickAdd}
+      />
+    </SelectionProvider>
+  );
+}
+
+/**
+ * 依條件讀項目，處理載入中（骨架）、錯誤、兩種空白，然後交給表格（窄螢幕是清單）。
+ * 快速新增（寬螢幕才有，不然是 null）有表格時併進表格表頭下面的第一列；沒有表格（載入中、錯誤、空白）時
+ * 照一樣的長相單獨放在最上面，打到一半的內容在 useItemTableState 裡，換位置不會掉。
+ */
+export function ItemResults({ table, quickAddHost }: { readonly table: ItemTableState; readonly quickAddHost: HTMLDivElement | null }) {
+  const quickAdd = quickAddHost === null ? null : <QuickAddSlot host={quickAddHost} />;
+  const { filters, clearFilters, selection } = table;
   const isCompact = useIsCompact();
   const { planning, isBlocked, hasNoCurrent, result } = useItemResults(filters, table.staleNow);
   const items = useMemo(() => flattenItemPages(result.data), [result.data]);
@@ -134,22 +179,26 @@ export function ItemResults({ table }: { readonly table: ItemTableState }) {
 
   if (isBlocked || hasNoCurrent) {
     return (
-      <div className={styles.message}>
+      <MessageBelow quickAdd={quickAdd}>
         {isBlocked ? <PlanningLoadError planning={planning} /> : <EmptyResults isFiltered isNoCurrentCycle onClear={clearFilters} />}
-      </div>
+      </MessageBelow>
     );
   }
   if (result.isPending) {
-    return <ResultsSkeleton isCompact={isCompact} />;
+    return <ResultsSkeleton isCompact={isCompact} quickAdd={quickAdd} />;
   }
   if (result.data === undefined) {
-    return <LoadError result={result} />;
+    return (
+      <MessageBelow quickAdd={quickAdd}>
+        <LoadError result={result} />
+      </MessageBelow>
+    );
   }
   if (items.length === 0) {
     return (
-      <div className={styles.message}>
+      <MessageBelow quickAdd={quickAdd}>
         <EmptyResults isFiltered={hasActiveFilters(filters)} onClear={clearFilters} />
-      </div>
+      </MessageBelow>
     );
   }
   const onButtonGone = () => {
@@ -159,19 +208,5 @@ export function ItemResults({ table }: { readonly table: ItemTableState }) {
   if (isCompact) {
     return <ProjectItemList items={items} isRefreshing={result.isPlaceholderData} footer={footer} />;
   }
-  return (
-    <SelectionProvider value={selection}>
-      <ItemTable
-        items={items}
-        columns={columns}
-        visibility={visibility}
-        sort={filters.sort ?? DEFAULT_SORT}
-        onSort={(field) => { setFilters(sortedBy(filters, field)); }}
-        isRefreshing={result.isPlaceholderData}
-        footer={footer}
-        gridRef={gridRef}
-        widthStore={table.widths}
-      />
-    </SelectionProvider>
-  );
+  return <ResultsTable table={table} items={items} footer={footer} gridRef={gridRef} quickAdd={quickAdd} isRefreshing={result.isPlaceholderData} />;
 }

@@ -3,7 +3,7 @@ import { useLocation, useMatch } from 'react-router';
 import type { AiOptions } from '../../api/aiTypes';
 import { useAiOptions } from '../../api/assistant';
 import { useBeforeUnloadWarning } from '../../lib/useBeforeUnloadWarning';
-import { useIsCompact } from '../../lib/useMediaQuery';
+import { useIsBelowWide, useIsCompact } from '../../lib/useMediaQuery';
 import { panelItemOf } from '../work-items/itemLinks';
 import { AssistantLauncher } from './AssistantLauncher';
 import { PanelContent } from './PanelContent';
@@ -58,14 +58,9 @@ interface PanelOpen {
 
 /**
  * 開關：按了才打開（第一次之後一直掛著、只是藏起來）；進了整頁版收起來；關上時焦點回到按鈕。
- * 窄螢幕沒有右下角的按鈕，入口在底部分頁列的「AI 助理」，焦點回到那裡。
+ * 64rem 以下沒有右下角的按鈕，入口在底部分頁列或圖示列的「AI 助理」（兩者同一個 id），焦點回到那裡；有那一格就回那一格，沒有才回按鈕。
  */
-function usePanelOpen(
-  isEntryShown: boolean,
-  isFullPage: boolean,
-  buttonRef: RefObject<HTMLButtonElement | null>,
-  isCompact: boolean,
-): PanelOpen {
+function usePanelOpen(isEntryShown: boolean, isFullPage: boolean, buttonRef: RefObject<HTMLButtonElement | null>): PanelOpen {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const restoreFocusRef = useRef(false);
@@ -76,9 +71,9 @@ function usePanelOpen(
   useEffect(() => {
     if (!isShown && restoreFocusRef.current) {
       restoreFocusRef.current = false;
-      (isCompact ? document.getElementById(ASSISTANT_TAB_ID) : buttonRef.current)?.focus();
+      (document.getElementById(ASSISTANT_TAB_ID) ?? buttonRef.current)?.focus();
     }
-  }, [buttonRef, isCompact, isShown]);
+  }, [buttonRef, isShown]);
   return {
     isShown,
     hasOpened,
@@ -195,12 +190,13 @@ export function AssistantPanel() {
   const isOrganizationFullPage = useMatch({ path: '/assistant', end: false }) !== null;
   const isFullPage = isProjectFullPage || isOrganizationFullPage;
   const isCompact = useIsCompact();
+  const isBelowWide = useIsBelowWide();
   const routeItemKey = useRouteItemKey();
   const session = usePanelSession(routeProjectKey, routeItemKey);
   const hasEntry = options.data?.available === true || options.data?.canAddPersonal === true;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const panel = usePanelOpen(hasEntry, isFullPage, buttonRef, isCompact);
+  const panel = usePanelOpen(hasEntry, isFullPage, buttonRef);
   const host = useAssistantHost();
   useBeforeUnloadWarning(session.isBusy);
   useOpenRequests(session, panel.open);
@@ -216,8 +212,8 @@ export function AssistantPanel() {
   if (options.data === undefined || !hasEntry) return null;
   return (
     <>
-      {/* 窄螢幕的入口在底部分頁列，不再浮一顆按鈕。 */}
-      {!isFullPage && !isCompact && <AssistantLauncher isShown={panel.isShown} onOpen={panel.open} buttonRef={buttonRef} host={host} />}
+      {/* 窄螢幕的入口在底部分頁列、48～64rem 的入口在圖示列，不再浮一顆按鈕（isCompact 也算在內：只模擬窄螢幕時 isBelowWide 不一定成立）。 */}
+      {!isFullPage && !isCompact && !isBelowWide && <AssistantLauncher isShown={panel.isShown} onOpen={panel.open} buttonRef={buttonRef} host={host} />}
       {panel.hasOpened && (
         <AssistantWindow
           session={session}

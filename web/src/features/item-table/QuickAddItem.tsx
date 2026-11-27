@@ -84,20 +84,26 @@ interface QuickAddItemProps {
 }
 
 /**
- * 表格上方的一列快速新增（docs/DESIGN.md 8.3）：不是卡片，高度和表格的一列一樣。
- * 欄位的標籤視覺上隱藏（名稱還在），標題框的提示文字說明怎麼用；標題的錯誤畫在標題框裡（這一列不變高），
- * 對不到欄位的錯誤出現在這一列上方。
+ * 表頭下面的第一列快速新增（docs/DESIGN.md 8.3）：不是卡片，看起來是表格的第一列——高度和一列一樣、下緣一條細線、
+ * 勾選框那一欄的位置是加號、類型與標題的框都不畫外框。欄位的標籤視覺上隱藏（名稱還在），標題框的提示文字說明怎麼用；
+ * 標題的錯誤畫在標題框裡（這一列不變高），對不到欄位的錯誤浮在這一列下面。
+ * 實心的「新增」平常看不見（Enter 就是新增），輸入框有字才出現；一直在 DOM 裡，按得到、報讀軟體也唸得到。
  */
 export function QuickAddItem({ filters, state }: QuickAddItemProps) {
   const quickAdd = useQuickAdd(filters, state);
-  const { create } = quickAdd;
+  const { create, draft } = quickAdd;
+  const isSubmitShown = draft.title.trim() !== '' || create.isPending;
   return (
     <form className={styles.form} aria-label="新增項目" noValidate onSubmit={quickAdd.handleSubmit}>
-      <FormAlert message={create.formError} />
+      <div className={styles.alert}>
+        <FormAlert message={create.formError} />
+      </div>
       <div className={styles.row}>
-        <Icon name="add" className={styles.icon} />
+        <span className={styles.lead}>
+          <Icon name="add" className={styles.icon} />
+        </span>
         <QuickAddFields isToolbar quickAdd={quickAdd} placeholder="新增項目：輸入標題後按 Enter" />
-        <Button type="submit" variant="primary" size="sm" disabled={create.isPending}>
+        <Button type="submit" variant="primary" size="sm" className={styles.submit} data-shown={String(isSubmitShown)} disabled={create.isPending}>
           {create.isPending ? '新增中…' : '新增'}
         </Button>
         <CreatedStatus created={create.created} className={styles.status} />

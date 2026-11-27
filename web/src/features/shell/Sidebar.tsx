@@ -4,6 +4,7 @@ import { useProjects } from '../../api/queries';
 import { isOrganizationAdmin, useCurrentUser } from '../../auth/CurrentUser';
 import { Icon, type IconName } from '../../components/Icon/Icon';
 import { PRODUCT_NAME } from '../../config/product';
+import { cx } from '../../lib/cx';
 import { projectInfoPath } from '../work-items/itemLinks';
 import { InboxCount } from '../inbox/InboxCount';
 import { JumpButton } from '../jump/JumpButton';
@@ -24,12 +25,13 @@ interface MainLinkProps {
   /** 名稱後面的東西（我的工作的數量）：畫面上的部分 aria-hidden，說法用 describedBy 連過來，名稱維持只有 label。 */
   readonly children?: ReactNode;
   readonly describedBy?: string;
+  readonly className?: string;
 }
 
 /** 主要導覽的一項：圖示是裝飾，名稱只有文字。目前所在的那一項由 NavLink 標 aria-current，樣式照它選。 */
-function MainLink({ to, icon, label, end = false, children, describedBy }: MainLinkProps) {
+function MainLink({ to, icon, label, end = false, children, describedBy, className }: MainLinkProps) {
   return (
-    <NavLink to={to} end={end} className={styles.link} aria-describedby={describedBy}>
+    <NavLink to={to} end={end} className={cx(styles.link, className)} aria-describedby={describedBy}>
       <Icon name={icon} className={styles.linkIcon} />
       <span className={styles.linkText}>{label}</span>
       {children}
@@ -119,13 +121,15 @@ interface SidebarProps {
   /** 只影響寬螢幕：使用者把側欄收起來了（窄螢幕一律是抽屜，外框不會給 true）。 */
   readonly isCollapsed: boolean;
   readonly onClose: () => void;
+  /** 導覽的名稱：圖示列才是「主要導覽」，抽屜裡的叫別的，兩個地標才不同名。 */
+  readonly navLabel?: string;
 }
 
 /**
  * 側欄是桌面（docs/DESIGN.md 6.1）：產品名稱、主要導覽、最下面的帳號選單。
  * 專案多了只有專案清單自己捲，「人員」與帳號選單一直看得到。收起來時用 hidden：裡面的連結不會被 Tab 走到，也不在無障礙樹裡。
  */
-export function Sidebar({ ref, id, isOpen, isCollapsed, onClose }: SidebarProps) {
+export function Sidebar({ ref, id, isOpen, isCollapsed, onClose, navLabel = '主要導覽' }: SidebarProps) {
   const user = useCurrentUser();
   const myWorkCountId = useId();
   const inboxCountId = useId();
@@ -144,7 +148,7 @@ export function Sidebar({ ref, id, isOpen, isCollapsed, onClose }: SidebarProps)
         {PRODUCT_NAME}
       </Link>
       <JumpButton />
-      <nav aria-label="主要導覽" className={styles.nav}>
+      <nav aria-label={navLabel} className={styles.nav}>
         <MainLink to="/my-work" icon="myWork" label="我的工作" describedBy={myWorkCountId}>
           <MyWorkCount id={myWorkCountId} />
         </MainLink>
@@ -153,7 +157,7 @@ export function Sidebar({ ref, id, isOpen, isCollapsed, onClose }: SidebarProps)
           <InboxCount id={inboxCountId} />
         </MainLink>
         <MainLink to="/knowledge" icon="knowledge" label="知識庫" />
-        <MainLink to="/projects" icon="projects" label="專案" end />
+        <MainLink to="/projects" icon="projects" label="專案" end className={styles.sectionLink} />
         <div className={styles.projects}>
           <ProjectLinks />
         </div>

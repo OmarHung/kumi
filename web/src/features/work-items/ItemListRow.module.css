@@ -1,39 +1,39 @@
 /*
  * 窄螢幕的項目清單一筆（docs/design/07-components.md 7.1，2026-11-27 使用者看過手機版設計稿後採用）：
- * 左邊兩行（編號與屬性、標題最多兩行），右邊一欄（負責人頭像、到期日）。細線、滑過的底色與焦點外框和 components/List 一樣。
+ * 2026-11-28 版型比例：一筆 64px（4rem）兩行——上面編號與標題、下面狀態與日期這些屬性，負責人頭像（24px）在右邊、兩行置中。細線、滑過的底色與焦點外框和 components/List 一樣。
  */
 .row + .row {
   border-top: 1px solid var(--color-border);
 }
 
 /*
- * 上面一行是編號、屬性與右邊的負責人與到期日，下面一行標題橫跨整列。右邊那一塊只佔上面一行：
- * 原本是整列高的右欄，320 寬、過期的日期一長，標題被擠到兩行還剩一半寬（2026-11-27 實測）。
- * DOM 順序是編號、標題、屬性、右邊（連結的名稱照這個順序唸），位置用 grid-area 換過來；.main 用 display: contents 讓孩子直接排進這張格線。
+ * 上面一行是編號與標題（一行省略號），下面一行左邊是屬性（狀態、優先度、類型）、右邊是到期日，頭像在右邊一欄、跨兩行置中。
+ * DOM 的順序不變（編號、標題、屬性、專案、負責人、到期：連結的名稱照這個順序唸，是對外的合約），位置靠 grid-area 換。
+ * 到期日放進第二行：右欄只剩 24px 的頭像，320 寬、過期的日期很長時也不會擠到標題（原本右欄放日期，2026-11-27 實測擠過）。
+ * .main 用 display: contents 讓孩子直接排進這張格線。
  */
 .link {
   display: grid;
   grid-template-areas:
-    'code meta side'
-    'title title title';
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  /* 第一行固定高：頭像（20px）、日期與屬性同高，每一列的節奏一樣（2026-11-27 使用者回報手機版空間比例不協調，照 4/8 的間距節奏重排）。 */
-  grid-template-rows: minmax(1.25rem, auto);
+    'code title title side'
+    'meta meta due side';
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-content: center;
   align-items: center;
   gap: var(--space-1) var(--space-2);
-  min-height: var(--row-height);
-  padding: var(--space-3) var(--space-4);
+  min-height: 4rem;
+  padding: var(--space-2) var(--space-4);
   color: var(--color-text);
   text-decoration: none;
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-/* 我的工作有專案名稱時才多第三行：沒有時不留空的軌道，否則多算一次行距，列的下內距比上面多 4px。 */
+/* 我的工作有專案名稱時才多第三行：沒有時不留空的軌道。 */
 .link:has(.project) {
   grid-template-areas:
-    'code meta side'
-    'title title title'
-    'project project project';
+    'code title title side'
+    'meta meta due side'
+    'project project project side';
 }
 
 .link:hover {
@@ -53,12 +53,12 @@
 .code {
   grid-area: code;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
-/* 第一行的屬性一行不折：放不下時最後的（類型）被裁掉，編號旁邊的起點不會因為折行而亂跳。 */
+/* 第二行的屬性一行不折：放不下時最後的（類型）被裁掉，編號旁邊的起點不會因為折行而亂跳。 */
 .meta {
   display: flex;
   grid-area: meta;
@@ -66,7 +66,7 @@
   gap: var(--space-2);
   min-width: 0;
   overflow: hidden;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
   white-space: nowrap;
 }
@@ -103,16 +103,14 @@
   white-space: nowrap;
 }
 
-/* 標題最多兩行，完整的文字在 title 與詳細頁（第 3 節的截斷規則）。 */
+/* 標題一行省略號，完整的文字在 title 與詳細頁（第 3 節的截斷規則）。 */
 .title {
-  display: -webkit-box;
   grid-area: title;
   min-width: 0;
   overflow: hidden;
   font-weight: var(--weight-medium);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settled {
@@ -132,10 +130,18 @@
   display: inline-flex;
 }
 
+/* 頭像 24px：Avatar 只有 sm（20）與 md（28），清單兩行高時 20 太小、28 又搶標題。 */
+.assignee > [data-size] {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* 到期日在第二行的右邊。 */
 .due {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  grid-area: due;
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 

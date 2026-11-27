@@ -208,6 +208,23 @@ interface ItemTableProps {
   readonly gridRef?: Ref<RovingGridHandle>;
   /** 使用者拉的欄寬（useItemTableState，「顯示的欄位」裡的「重設欄寬」也用它）。 */
   readonly widthStore: ColumnWidthStore;
+  /** 快速新增（沒有建立權限或不到寬螢幕時是 null）：畫在表頭下面、第一筆項目上面，見 QuickAddLayer。 */
+  readonly quickAdd?: ReactNode;
+}
+
+/**
+ * 快速新增的那一列：畫在表頭下面、第一筆項目上面，看起來是表身的第一列，但不是 tr。
+ * 表格的每一個 tr 都是方向鍵與量欄寬的一列（lib/rovingGrid.ts 的 rowsOf），放一個 tr 進去，方向鍵會停在表單上、
+ * 裡面的輸入框被拿掉 Tab 停駐點，點兩下調整欄寬也會量到它。所以這一層是捲動區塊的直接子層（高 0、黏在左邊、寬度是可見的寬度，
+ * 橫向捲動時不跟著走），表單絕對定位在表頭下面；表身最前面用 data-has-quick-add 的 tbody::before 空出同高的位置。
+ * 放在表格前面：Tab 先到表單，再進表格（不必走過五十列才新增）。
+ */
+function QuickAddLayer({ children }: { readonly children: ReactNode }) {
+  return (
+    <div className={styles.quickAddLayer} data-quick-add="row">
+      <div className={styles.quickAddRow}>{children}</div>
+    </div>
+  );
 }
 
 /**
@@ -217,7 +234,7 @@ interface ItemTableProps {
  * 取得焦點的格子捲到看得到的地方。
  */
 export function ItemTable(props: ItemTableProps) {
-  const { items, columns, visibility, sort, onSort, isRefreshing, footer, gridRef, widthStore } = props;
+  const { items, columns, visibility, sort, onSort, isRefreshing, footer, gridRef, widthStore, quickAdd = null } = props;
   const hintId = useId();
   const { can } = useProjectTable();
   const selection = useSelection();
@@ -237,9 +254,11 @@ export function ItemTable(props: ItemTableProps) {
 
   return (
     <ItemTableScroll widthStore={widthStore} hasSelect={columns.some((column) => column.meta?.pin === 'select')}>
+      {quickAdd !== null && <QuickAddLayer>{quickAdd}</QuickAddLayer>}
       <table
         ref={tableRef}
         className={cx(tableStyles.table, styles.table)}
+        data-has-quick-add={quickAdd !== null || undefined}
         aria-busy={isRefreshing}
         aria-describedby={hintId}
         {...gridProps}

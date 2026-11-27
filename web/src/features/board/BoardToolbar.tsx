@@ -1,7 +1,7 @@
 import { Button } from '../../components/Button/Button';
 import { SelectField } from '../../components/Field/Field';
 import { hasActiveBoardFilters, type FilteredView } from '../../domain/projectView';
-import { useIsCompact } from '../../lib/useMediaQuery';
+import { useLayoutTier } from '../../lib/useLayoutTier';
 import { ConditionFields, FilterBar, FilterPopover, MoreConditions, SearchField, type ConditionKey } from '../item-table/FilterFields';
 import { useInlineConditions, type CollapsibleCondition } from '../item-table/inlineConditions';
 import { useProjectTable } from '../item-table/ProjectTableContext';
@@ -102,10 +102,11 @@ const GROUP_LABELS: Readonly<Record<FilteredView, string>> = {
 
 /**
  * 看板在頁面工具列上的控制項（接在檢視的分頁後面，和表格同一個位置）：寬螢幕整排篩選，
- * 窄螢幕收進「篩選」（和表格同一個 FilterPopover）。行事曆與時間軸用同一套（view），只是沒有「流程」。
+ * 64rem 以下收進「篩選」（和表格同一個 FilterPopover）。行事曆與時間軸用同一套（view），只是沒有「流程」。
  */
 export function BoardToolbarControls({ board, view = 'board' }: { readonly board: BoardFilterState; readonly view?: FilteredView }) {
-  const isCompact = useIsCompact();
+  // 64rem 以下（平板與手機）篩選收進「篩選」，和表格的工具列同一個斷點（docs/DESIGN.md 6.1）。
+  const isCollapsed = useLayoutTier() !== 'wide';
   const { detail } = useProjectTable();
   const hasWorkflow = view === 'board' && board.workflows.length > 1 && board.filters.group.kind === 'state';
   const groupLabel = GROUP_LABELS[view];
@@ -120,7 +121,7 @@ export function BoardToolbarControls({ board, view = 'board' }: { readonly board
     { present, fixedCount: hasWorkflow ? 2 : 1, hasGroup: view === 'board' },
     board.filters,
   );
-  if (isCompact) {
+  if (isCollapsed) {
     return (
       <FilterPopover count={activeBoardFilterCount(board)} buttonId={board.filterButtonId} groupLabel={groupLabel}>
         <BoardFields board={board} isToolbar={false} hasWorkflow={view === 'board'} keys={new Set<ConditionKey>([...present, 'cycle', 'milestone', 'fields'])} />

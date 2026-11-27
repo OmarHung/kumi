@@ -5,7 +5,8 @@ import { SelectField } from '../../components/Field/Field';
 import { NavTabs } from '../../components/NavTabs/NavTabs';
 import { PageLayout } from '../../components/PageLayout/PageLayout';
 import { LoadingState } from '../../components/StatusViews/StatusViews';
-import { Toolbar } from '../../components/Toolbar/Toolbar';
+import { Toolbar, ToolbarDivider } from '../../components/Toolbar/Toolbar';
+import { useLayoutTier, type LayoutTier } from '../../lib/useLayoutTier';
 import { useIsCompact } from '../../lib/useMediaQuery';
 import { useToday } from '../../lib/useToday';
 import { queryFromBoardFilters, queryFromTableFilters, type ViewState } from '../../domain/savedViews';
@@ -41,13 +42,13 @@ const VIEWS: readonly { readonly view: ProjectView; readonly label: string }[] =
 
 /**
  * 表格、看板、行事曆與時間軸的切換。寬螢幕是連結的分頁：網址就是狀態，可以在新分頁打開、上一頁回到原本的檢視。
- * 48rem 以下是一個下拉（標籤視覺上隱藏）：四個分頁加「檢視」會把第一列排滿，「篩選」掉到第二列、內容整個往下推（docs/DESIGN.md 6.1）；
+ * 48rem 以下（手機）是一個下拉（標籤視覺上隱藏）：四個分頁加「檢視」會把第一列排滿，「篩選」掉到第二列、內容整個往下推（docs/DESIGN.md 6.1）；
  * 選了就導到同樣的網址，所以帶過去的條件與記住上次的版面都和分頁一樣。
  * 開著的項目面板（item）跟著帶過去：換檢視不該把正在看的項目關掉。
  */
 function ViewSwitch({ view }: { readonly view: ProjectView }) {
   const [searchParams] = useSearchParams();
-  const isCompact = useIsCompact();
+  const isPhone = useLayoutTier() === 'phone';
   const navigate = useNavigate();
   const panelItem = panelItemOf(searchParams);
   const tabs = VIEWS.map((option) => {
@@ -57,7 +58,7 @@ function ViewSwitch({ view }: { readonly view: ProjectView }) {
     const search = isCurrent ? `?${params.toString()}` : searchWithPanelItem(`?${params.toString()}`, panelItem);
     return { key: option.view, label: option.label, to: { search }, isCurrent };
   });
-  if (!isCompact) {
+  if (!isPhone) {
     return <NavTabs label="版面" tabs={tabs} />;
   }
   return (
@@ -89,19 +90,22 @@ interface ProjectWorkspaceProps {
 interface NewItemEntryProps {
   readonly table: ReturnType<typeof useItemTableState>;
   readonly canCreate: boolean;
-  readonly isCompact: boolean;
+  readonly tier: LayoutTier;
   readonly isTable: boolean;
 }
 
 /**
- * 新增項目（窄螢幕）：右下角的圓形按鈕與它打開的對話框，四種檢視共用；對話框不跟著寬窄換掉（視窗變寬時開著的對話框與打到一半的內容都留著）。
+ * 新增項目（64rem 以下）：右下角的浮動按鈕與它打開的對話框，四種檢視共用：手機是圓形，平板（48～64rem）是帶字的膠囊；
+ * 對話框不跟著寬窄換掉（視窗變寬時開著的對話框與打到一半的內容都留著）。
  * 表格以外的檢視不帶表格的條件：畫面上看不到那些條件，預設的負責人、日期與「不符合目前的條件」都會照看不見的東西算；新增之後重新讀清單。
  */
-function NewItemEntry({ table, canCreate, isCompact, isTable }: NewItemEntryProps) {
+function NewItemEntry({ table, canCreate, tier, isTable }: NewItemEntryProps) {
   if (!canCreate) return null;
   return (
     <>
-      {isCompact && <NewItemFab onOpen={() => { table.quickAdd.setIsDialogOpen(true); }} />}
+      {tier !== 'wide' && (
+        <NewItemFab variant={tier === 'tablet' ? 'extended' : 'round'} onOpen={() => { table.quickAdd.setIsDialogOpen(true); }} />
+      )}
       {table.quickAdd.isDialogOpen && (
         <AddItemDialog filters={isTable ? table.filters : EMPTY_FILTERS} state={table.quickAdd} refetchesAll={!isTable} />
       )}
@@ -118,6 +122,7 @@ function NewItemEntry({ table, canCreate, isCompact, isTable }: NewItemEntryProp
 export function ProjectWorkspace({ detail, bar, notices, onOpenMembers }: ProjectWorkspaceProps) {
   const [searchParams] = useSearchParams();
   const isCompact = useIsCompact();
+  const tier = useLayoutTier();
   const view = viewFromSearchParams(searchParams);
   const isTable = view === 'table';
   const table = useItemTableState(detail);
@@ -140,6 +145,7 @@ export function ProjectWorkspace({ detail, bar, notices, onOpenMembers }: Projec
   ) : (
     <Toolbar isScrollable end={isTable && !isCompact ? <ItemToolbarEnd table={table} /> : undefined}>
       <ViewSwitch view={view} />
+      {tier === 'wide' && <ToolbarDivider />}
       <ViewMenu key={projectKey} current={current} />
       {isTable ? <ItemToolbarControls table={table} /> : <BoardToolbarControls board={board} view={view} />}
     </Toolbar>
@@ -162,7 +168,7 @@ export function ProjectWorkspace({ detail, bar, notices, onOpenMembers }: Projec
           )}
         </ItemPanelHost>
       </PageLayout>
-      <NewItemEntry table={table} canCreate={can.create} isCompact={isCompact} isTable={isTable} />
+      <NewItemEntry table={table} canCreate={can.create} tier={tier} isTable={isTable} />
     </ProjectTableProvider>
   );
 }

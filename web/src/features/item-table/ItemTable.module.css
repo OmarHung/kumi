@@ -193,3 +193,30 @@
   opacity: 0.6;
   transition: opacity var(--duration-normal) var(--ease-out);
 }
+
+/*
+ * 表頭下面的快速新增（ItemTable.tsx 的 QuickAddLayer）：這一層高 0、黏在左邊，寬度是看得到的寬度（容器 item-table），
+ * 表單絕對定位在表頭（一列高）的下面；表身最前面的空列把第一筆項目往下推同樣的高度。
+ * 層次在表頭（3）底下、固定欄（1）之下的空白處，不和格子重疊。
+ */
+.quickAddLayer {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  /* 100%（捲動區塊的可用寬度），不是 100cqw：常駐捲軸的環境裡 cqw 比可用寬度多一個捲軸寬，會撐出多餘的橫向捲動。 */
+  width: 100%;
+  min-width: 0;
+  height: 0;
+}
+
+.quickAddRow {
+  position: absolute;
+  inset-inline: 0;
+  top: var(--row-height);
+}
+
+.table[data-has-quick-add] tbody::before {
+  content: '';
+  display: table-row;
+  height: var(--row-height);
+}

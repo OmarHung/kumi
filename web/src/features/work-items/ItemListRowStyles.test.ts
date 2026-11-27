@@ -22,9 +22,23 @@ describe('窄螢幕項目清單一筆的排法', () => {
     expect(meta).not.toMatch(/flex-wrap: wrap;/);
   });
 
-  it('第一行的高度固定，頭像（20px）不把它撐高', () => {
-    // Arrange / Act / Assert
-    expect(ruleOf('.link')).toMatch(/grid-template-rows: minmax\(1\.25rem, auto\)/);
+  it('一筆 64px 兩行：上面編號與標題、下面屬性與到期日，頭像在右邊跨兩行', () => {
+    // Arrange
+    const link = ruleOf('.link');
+
+    // Act / Assert
+    expect(link).toMatch(/min-height: 4rem;/);
+    expect(link).toMatch(/'code title title side'\s*'meta meta due side'/);
+    expect(ruleOf('.due')).toMatch(/grid-area: due;/);
+  });
+
+  it('標題一行省略號', () => {
+    // Arrange
+    const title = ruleOf('.title');
+
+    // Act / Assert
+    expect(title).toMatch(/white-space: nowrap;/);
+    expect(title).toMatch(/text-overflow: ellipsis;/);
   });
 
   it('專案名稱在標題下面自己一行，一行省略號', () => {
@@ -37,12 +51,12 @@ describe('窄螢幕項目清單一筆的排法', () => {
     expect(project).toMatch(/white-space: nowrap;/);
   });
 
-  it('行距是 4px（--space-1），上下內距是 --space-3', () => {
+  it('行距是 4px（--space-1），上下內距是 --space-2', () => {
     // Arrange
     const link = ruleOf('.link');
 
     // Act / Assert
     expect(link).toMatch(/gap: var\(--space-1\) var\(--space-2\);/);
-    expect(link).toMatch(/padding: var\(--space-3\) var\(--space-4\);/);
+    expect(link).toMatch(/padding: var\(--space-2\) var\(--space-4\);/);
   });
 });

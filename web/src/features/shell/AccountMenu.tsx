@@ -7,7 +7,7 @@ import { Icon } from '../../components/Icon/Icon';
 import { Menu, type MenuItem } from '../../components/Menu/Menu';
 import { ORGANIZATION_ROLE_LABELS } from '../../domain/labels';
 import { useThemeChoice, type ThemeChoice } from '../../lib/theme';
-import { useIsCompact } from '../../lib/useMediaQuery';
+import { useLayoutTier } from '../../lib/useLayoutTier';
 import { useLauncherPosition } from '../assistant-panel/launcherPosition';
 import { resetLauncherPositionAndFocus, showLauncherAndFocus, useLauncherHidden } from '../assistant-panel/launcherPreference';
 import { useHasAssistantEntry } from '../assistant-panel/useAssistantEntry';
@@ -64,12 +64,12 @@ function accountItem(open: () => void): MenuItem {
  * 藏起來又移動過的兩項都列）。點兩下按鈕不當作放回：點一下就會打開面板。
  */
 function useAssistantLauncherItems(): MenuItem[] {
-  const isCompact = useIsCompact();
+  const mode = useLayoutTier();
   const isLauncherHidden = useLauncherHidden();
   const isMoved = useLauncherPosition() !== null;
   const hasAssistant = useHasAssistantEntry();
-  // 窄螢幕沒有右下角的按鈕（入口在底部分頁列），叫回來、放回右下角都沒有意義。
-  if (!hasAssistant || isCompact) return [];
+  // 窄螢幕與圖示列模式沒有右下角的按鈕（入口在底部分頁列、圖示列），叫回來、放回右下角都沒有意義。
+  if (!hasAssistant || mode !== 'wide') return [];
   const items: MenuItem[] = [];
   if (isLauncherHidden) items.push({ key: 'show-assistant', label: '顯示 AI 助理按鈕', icon: 'sparkles', onSelect: showLauncherAndFocus });
   if (isMoved) {
@@ -78,11 +78,8 @@ function useAssistantLauncherItems(): MenuItem[] {
   return items.map((item, index) => ({ ...item, startsGroup: index === 0 }));
 }
 
-/**
- * 側欄最下面的帳號選單（docs/DESIGN.md 6.1）：按鈕上是名稱與組織，打開是「我的帳號」、主題、一週從哪天開始與登出。
- * 登出送出中選單打不開（按鈕仍然停得到，標 aria-disabled），按鈕上寫「登出中…」；失敗時說明留在按鈕下面，畫面不動。
- */
-export function AccountMenu() {
+/** 側欄與圖示列共用：選單的項目、按鈕的名稱與登出的狀態。 */
+function useAccountMenu() {
   const user = useCurrentUser();
   const signOut = useSignOut();
   const [theme, chooseTheme] = useThemeChoice();
@@ -108,6 +105,25 @@ export function AccountMenu() {
       },
     },
   ];
+  // 名稱與組織都看得到；無障礙名稱照看得到的文字排，中間加上括號才不會黏在一起。
+  return { user, signOut, meta, items, label: `${user.displayName}（${meta}）` };
+}
+
+function SignOutError({ signOut }: { readonly signOut: ReturnType<typeof useSignOut> }) {
+  if (!signOut.isError) return null;
+  return (
+    <p role="alert" className={styles.error}>
+      登出失敗：{errorMessage(signOut.error)}
+    </p>
+  );
+}
+
+/**
+ * 側欄最下面的帳號選單（docs/DESIGN.md 6.1）：按鈕上是名稱與組織，打開是「我的帳號」、主題、一週從哪天開始與登出。
+ * 登出送出中選單打不開（按鈕仍然停得到，標 aria-disabled），按鈕上寫「登出中…」；失敗時說明留在按鈕下面，畫面不動。
+ */
+export function AccountMenu() {
+  const { user, signOut, meta, items, label } = useAccountMenu();
   return (
     <div className={styles.account}>
       <Menu
@@ -115,8 +131,7 @@ export function AccountMenu() {
         items={items}
         isDisabled={signOut.isPending}
         renderTrigger={(trigger) => (
-          // 名稱與組織都看得到；無障礙名稱照看得到的文字排，中間加上括號才不會黏在一起。
-          <button {...trigger} type="button" className={styles.accountButton} aria-label={`${user.displayName}（${meta}）`}>
+          <button {...trigger} type="button" className={styles.accountButton} aria-label={label}>
             <Avatar name={user.displayName} decorative />
             <span className={styles.accountText}>
               <span className={styles.userName}>{user.displayName}</span>
@@ -126,11 +141,28 @@ export function AccountMenu() {
           </button>
         )}
       />
-      {signOut.isError && (
-        <p role="alert" className={styles.error}>
-          登出失敗：{errorMessage(signOut.error)}
-        </p>
-      )}
+      <SignOutError signOut={signOut} />
     </div>
+  );
+}
+
+/** 圖示列最下面的帳號：只有頭像，選單與側欄的帳號選單同一份。登出失敗的說明接在頭像下面（圖示列很窄，文字換行）。 */
+export function RailAccountMenu({ buttonClassName }: { readonly buttonClassName: string | undefined }) {
+  const { user, signOut, items, label } = useAccountMenu();
+  return (
+    <>
+      <Menu
+        menuLabel="帳號"
+        items={items}
+        align="start"
+        isDisabled={signOut.isPending}
+        renderTrigger={(trigger) => (
+          <button {...trigger} type="button" className={buttonClassName} aria-label={label}>
+            <Avatar name={user.displayName} decorative />
+          </button>
+        )}
+      />
+      <SignOutError signOut={signOut} />
+    </>
   );
 }

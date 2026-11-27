@@ -3,7 +3,7 @@ import { createRef } from 'react';
 import { describe, expect, it } from 'vitest';
 import { PRODUCT_NAME } from '../../config/product';
 import { renderInRouter } from '../../test/renderInRouter';
-import { PageBar } from './PageBar';
+import { PageBar, PageBarDivider } from './PageBar';
 
 describe('PageBar', () => {
   it('標題是 h1，也是瀏覽器分頁的標題', async () => {
@@ -86,5 +86,29 @@ describe('PageBar', () => {
     await waitFor(() => {
       expect(document.title).toBe(`設定 · 流程 · ${PRODUCT_NAME}`);
     });
+  });
+
+  it('標題旁的小東西在 h1 外面：標題的名稱不變', () => {
+    // Arrange
+    renderInRouter(<PageBar title="官網改版" titleAddon={<span>管理員</span>} />);
+
+    // Act
+    const heading = screen.getByRole('heading', { level: 1 });
+
+    // Assert
+    expect(heading).toHaveAccessibleName('官網改版');
+    expect(screen.getByText('管理員')).toBeInTheDocument();
+    expect(heading).not.toContainElement(screen.getByText('管理員'));
+  });
+
+  it('動作之間的細直線是裝飾，報讀軟體略過', () => {
+    // Arrange
+    renderInRouter(<PageBar title="官網改版" actions={<PageBarDivider />} />);
+
+    // Act
+    const divider = document.querySelector('[aria-hidden="true"]');
+
+    // Assert
+    expect(divider).not.toBeNull();
   });
 });

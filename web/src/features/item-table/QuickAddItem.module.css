@@ -1,34 +1,87 @@
 /*
- * 表格上方的快速新增（docs/DESIGN.md 8.3、第 14 節的預算 36px）：一列，高度和表格的一列一樣，不是卡片。
- * 控制項是 Field 的 size="sm"（--control-height-sm），上下的留白補到 --row-height（觸控時兩個都是 44px，留白是 0）。
+ * 表頭下面的快速新增（docs/DESIGN.md 8.3、7.1）：看起來是表格的第一列，不是卡片。高度是一列（--row-height，觸控時 44px），
+ * 下緣一條和列一樣的細線；勾選框那一欄的位置放加號，類型與標題的框都不畫外框（要輸入的線索是加號與提示文字，
+ * 取得焦點時照舊有焦點環）。控制項是 Field 的 size="sm"，這裡把外框拿掉、類型矮到 24px。
  */
 .form {
   /* 標題框從這個寬度開始排、有空間才變寬，最寬到上限：太寬的輸入框看不出這一列在哪裡結束。 */
   --quick-add-title-start: 16rem;
   --quick-add-title-max: 46rem;
 
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  position: relative;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* 對不到欄位的錯誤：在表格裡時浮在這一列的下面（不把第一筆項目往下推）；單獨一列（沒有表格）時照舊排在上面。 */
+[data-quick-add='row'] .alert {
+  position: absolute;
+  top: 100%;
+  inset-inline: var(--space-3);
+  z-index: 1;
 }
 
 .row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-2);
-  min-height: var(--row-height);
-  padding-block: calc((var(--row-height) - var(--control-height-sm)) / 2);
+  min-height: calc(var(--row-height) - 1px);
+  padding-inline-end: var(--space-3);
+}
+
+/* 勾選框那一欄的位置（沒有勾選框欄時至少留一個加號的寬度）。 */
+.lead {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: max(var(--item-select-offset, 0px), 2.75rem);
 }
 
 .icon {
-  flex: none;
-  align-self: center;
   color: var(--color-text-muted);
 }
 
 .title {
   flex: 1 1 var(--quick-add-title-start);
   max-width: var(--quick-add-title-max);
+}
+
+/* 類型（和上層項目）：只寫名稱加下箭頭，24px 高、沒有外框與底色；滑過淡淡的底，取得焦點照舊有焦點環。 */
+.form .row [role='combobox'][data-size] {
+  --select-content-min: 0rem;
+
+  width: auto;
+  min-width: 0;
+  height: 1.5rem;
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.form .row [role='combobox'][data-size]:hover:not(:focus-visible, [aria-expanded='true']) {
+  border-color: transparent;
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+/* 標題的框：外框與底色拿掉，錯誤（框裡右端）與焦點環照舊。 */
+.form .row span[data-size] {
+  border-color: transparent;
+  background: transparent;
+}
+
+.form .row span[data-size]:hover:not(:focus-within) {
+  border-color: transparent;
+}
+
+/*
+ * 實心的「新增」：輸入框有字（或送出中）才出現。沒有字時 visibility: hidden——位置照留、出現時這一列不重排；
+ * 不剪成 1px：那樣它仍是一個 Tab 停得到、只有 1px 大的目標（ui-audit 的 targetsUnder24），而且沒有字時按了也沒有用，Enter 照樣送出。
+ */
+.submit[data-shown='false'] {
+  visibility: hidden;
 }
 
 /*

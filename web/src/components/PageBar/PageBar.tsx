@@ -23,10 +23,17 @@ export interface PageBarProps {
    * 要把焦點放到標題時給（換頁之後、按的按鈕不見了之後）：標題加上 tabIndex={-1}，程式可以把焦點移過去，Tab 不會停在它上面。
    */
   readonly headingRef?: Ref<HTMLHeadingElement>;
+  /** 標題旁的小東西（專案頁的「管理員」標籤）：不縮、不進 h1，所以不影響標題與分頁標題。 */
+  readonly titleAddon?: ReactNode;
+}
+
+/** 頁列動作之間的細直線（專案頁：幾顆頁面入口與「更多」之間）；裝飾，報讀軟體略過。 */
+export function PageBarDivider() {
+  return <span aria-hidden="true" className={styles.divider} />;
 }
 
 /** 每一頁一個（docs/DESIGN.md 6.1）：左邊位置與標題，右邊動作；高度固定，黏在內容區上方。 */
-export function PageBar({ title, documentTitle, titleInBar = true, crumbs = [], actions, headingRef }: PageBarProps) {
+export function PageBar({ title, documentTitle, titleInBar = true, crumbs = [], actions, headingRef, titleAddon }: PageBarProps) {
   return (
     <header className={styles.bar}>
       <DocumentTitle title={documentTitle ?? title} />
@@ -37,6 +44,7 @@ export function PageBar({ title, documentTitle, titleInBar = true, crumbs = [], 
             {title}
           </h1>
         )}
+        {titleAddon}
       </div>
       {actions !== undefined && <div className={styles.actions}>{actions}</div>}
     </header>

@@ -13,16 +13,18 @@ interface MyWorkCompactFiltersProps {
   readonly buttonId: string;
   /** 表格才有「分組」與「排序」。 */
   readonly isTable: boolean;
+  /** 搜尋框在浮層裡（手機）；平板的搜尋框留在工具列上，不再放第二個。預設有。 */
+  readonly hasSearch?: boolean;
 }
 
 /**
  * 窄螢幕的篩選：一顆「篩選」，看得到目前有幾個條件；打開是標籤看得到的所有條件（搜尋、類型、狀態、到期、
  * 優先度、專案），表格時最後多「分組」與「排序」。條件一改就套用、浮層留著。
  */
-export function MyWorkCompactFilters({ filters, onChange, onClear, buttonId, isTable }: MyWorkCompactFiltersProps) {
+export function MyWorkCompactFilters({ filters, onChange, onClear, buttonId, isTable, hasSearch = true }: MyWorkCompactFiltersProps) {
   return (
     <FilterPopover count={myWorkConditionCount(filters)} buttonId={buttonId} groupLabel="篩選項目">
-      <SearchField value={filters.q} onSearch={(q) => { onChange({ ...filters, q }); }} />
+      {hasSearch && <SearchField value={filters.q} onSearch={(q) => { onChange({ ...filters, q }); }} />}
       <MyWorkConditionFields filters={filters} keys={ALL_MY_WORK_CONDITIONS} onChange={onChange} />
       {isTable && <MyWorkGroupingField />}
       {isTable && <MyWorkSortField />}

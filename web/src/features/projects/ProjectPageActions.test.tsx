@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { COMPACT_QUERY } from '../../lib/useMediaQuery';
+import { BELOW_WIDE_QUERY, COMPACT_QUERY } from '../../lib/useMediaQuery';
 import { signedInAs } from '../../test/api';
 import { agyDetail, agyItem, exampleOwner } from '../../test/fixtures';
 import { serveItems } from '../../test/items';
@@ -10,6 +10,16 @@ import { currentPath, renderApp } from '../../test/renderApp';
 function stubCompactScreen() {
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: query === COMPACT_QUERY,
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+}
+
+/** 平板（48～64rem）：只有「不到 64rem」成立。 */
+function stubTabletScreen() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === BELOW_WIDE_QUERY,
     media: query,
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
@@ -82,7 +92,6 @@ describe('專案頁頁列的動作', () => {
     // Assert
     const menu = await screen.findByRole('menu', { name: '專案的動作' });
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      '資訊',
       '設定',
       '規劃',
       '成員',
@@ -173,6 +182,66 @@ describe('專案頁頁列的動作', () => {
 
     // Assert
     const menu = await screen.findByRole('menu', { name: '專案的動作' });
-    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['資訊', '規劃', '成員']);
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['規劃', '成員']);
+  });
+
+  it('寬螢幕：我的角色是標題旁的標籤，畫面上只有角色名稱，報讀名稱是「我的角色：…」', async () => {
+    // Arrange / Act
+    await openProject();
+
+    // Assert
+    const main = screen.getByRole('main');
+    const readerText = within(main).getByText(/^我的角色：/);
+    expect(readerText.nextElementSibling).toHaveAttribute('aria-hidden', 'true');
+    expect(readerText.nextElementSibling).toHaveTextContent(/^[^：]+$/);
+    expect(screen.getByRole('heading', { level: 1 })).not.toContainElement(readerText);
+  });
+
+  it('寬螢幕：頁面入口是無外框的 ghost 按鈕，「更多」前面有一條細直線', async () => {
+    // Arrange / Act
+    await openProject();
+
+    // Assert
+    const info = screen.getByRole('link', { name: '資訊' });
+    expect(info.className).toMatch(/ghost/);
+    expect(screen.getByRole('button', { name: '成員' }).className).toMatch(/ghost/);
+    expect(document.querySelector('header span[aria-hidden="true"]:empty')).not.toBeNull();
+  });
+
+  it('平板：「資訊」是圖示按鈕（名稱帶代號），其餘收進「專案的動作」，頁列上沒有「專案的更多動作」', async () => {
+    // Arrange
+    stubTabletScreen();
+    const { user } = await openProject();
+
+    // Act
+    const main = screen.getByRole('main');
+    await user.click(within(main).getByRole('button', { name: '專案的動作' }));
+
+    // Assert
+    expect(within(main).getByRole('link', { name: 'AGY 的資訊' })).toHaveAttribute('href', '/projects/AGY/info');
+    expect(within(main).queryByRole('link', { name: '設定' })).not.toBeInTheDocument();
+    expect(within(main).queryByRole('button', { name: '成員' })).not.toBeInTheDocument();
+    expect(within(main).queryByRole('button', { name: '專案的更多動作' })).not.toBeInTheDocument();
+    const menu = await screen.findByRole('menu', { name: '專案的動作' });
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      '設定',
+      '規劃',
+      '成員',
+      '匯入項目…',
+      '已刪除的項目',
+      '重新命名…',
+      '封存專案',
+    ]);
+  });
+
+  it('窄螢幕：「資訊」也是圖示按鈕', async () => {
+    // Arrange
+    stubCompactScreen();
+
+    // Act
+    await openProject();
+
+    // Assert
+    expect(within(screen.getByRole('main')).getByRole('link', { name: 'AGY 的資訊' })).toHaveAttribute('href', '/projects/AGY/info');
   });
 });

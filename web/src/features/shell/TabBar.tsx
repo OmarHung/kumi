@@ -1,12 +1,13 @@
 import { useId, type ReactNode, type RefObject } from 'react';
-import { Link, useLocation, useMatch } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useUnreadCount } from '../../api/notificationQueries';
 import { CountDescription } from '../../components/CountBadge/CountBadge';
 import { Icon, type IconName } from '../../components/Icon/Icon';
 import { useIsCompact } from '../../lib/useMediaQuery';
-import { ASSISTANT_TAB_ID, closeAssistantPanel, toggleAssistantPanel, useIsAssistantPanelShown } from '../assistant-panel/panelControl';
+import { ASSISTANT_TAB_ID, closeAssistantPanel, toggleAssistantPanel } from '../assistant-panel/panelControl';
 import { TAB_BAR_ATTRIBUTE } from '../assistant-panel/PanelWindow';
-import { useHasAssistantEntry } from '../assistant-panel/useAssistantEntry';
+import { badgeText } from './unreadBadge';
+import { useNavState } from './useNavState';
 import styles from './TabBar.module.css';
 
 interface TabContentProps {
@@ -51,13 +52,6 @@ function LinkTab({ to, isCurrent, describedBy, icon, label, children }: LinkTabP
       </TabContent>
     </Link>
   );
-}
-
-/** 壓在圖示角落的膠囊最多三個字：超過 99 寫「99+」，不然會伸出分頁格；報讀照舊唸完整的數字。 */
-const BADGE_MAX = 99;
-
-function badgeText(count: number): string {
-  return count > BADGE_MAX ? `${String(BADGE_MAX)}+` : String(count);
 }
 
 function InboxTab({ isCurrent }: { readonly isCurrent: boolean }) {
@@ -118,25 +112,16 @@ interface TabBarProps {
  */
 export function TabBar({ isDrawerOpen, onToggleDrawer, onCloseDrawer, moreButtonRef, sidebarId }: TabBarProps) {
   const isCompact = useIsCompact();
-  const { pathname, search } = useLocation();
-  const hasAssistant = useHasAssistantEntry();
-  const isPanelShown = useIsAssistantPanelShown();
-  const isOrganizationAssistant = useMatch({ path: '/assistant', end: false }) !== null;
-  const isProjectAssistant = useMatch({ path: '/projects/:projectKey/assistant', end: false }) !== null;
-  const isAssistantPage = isOrganizationAssistant || isProjectAssistant;
+  const nav = useNavState();
   if (!isCompact) return null;
 
-  const isUnder = (prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
-  const isProjects = isUnder('/projects') && !isAssistantPage;
-  // 在專案的頁面底下時，「專案」就是這一頁：連回目前的網址，不把人帶離專案；其他頁才到專案清單。
-  const projectsTarget = isProjects ? `${pathname}${search}` : '/projects';
-  const noneActive = isPanelShown;
+  const { noneActive } = nav;
   return (
     <nav className={styles.bar} aria-label="主要分頁" {...{ [TAB_BAR_ATTRIBUTE]: '' }}>
-      <LinkTab to="/my-work" icon="myWork" label="我的工作" isCurrent={!noneActive && isUnder('/my-work')} />
-      <LinkTab to={projectsTarget} icon="projects" label="專案" isCurrent={!noneActive && isProjects} />
-      <InboxTab isCurrent={!noneActive && isUnder('/inbox')} />
-      {hasAssistant && <AssistantTab isFullPage={isAssistantPage && !isPanelShown} isShown={isPanelShown} onOpen={onCloseDrawer} />}
+      <LinkTab to="/my-work" icon="myWork" label="我的工作" isCurrent={!noneActive && nav.isUnder('/my-work')} />
+      <LinkTab to={nav.projectsTarget} icon="projects" label="專案" isCurrent={!noneActive && nav.isProjects} />
+      <InboxTab isCurrent={!noneActive && nav.isUnder('/inbox')} />
+      {nav.hasAssistant && <AssistantTab isFullPage={nav.isFullPageAssistant} isShown={nav.isPanelShown} onOpen={onCloseDrawer} />}
       <button
         ref={moreButtonRef}
         type="button"

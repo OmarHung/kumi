@@ -69,12 +69,13 @@ function SortField({ table }: { readonly table: ItemTableState }) {
  * 窄螢幕的篩選：一顆「篩選」（FilterPopover，看板也用），看得到目前有幾個條件；
  * 打開是搜尋、類型、狀態、負責人與排序（標籤看得到）。
  * 「清除條件」按了跟著不見時，焦點回到「篩選」（useItemTableState 的 clearFilters）。
+ * 平板（48～64rem）的搜尋框留在工具列上（ItemToolbarControls），浮層裡就不再放一個（hasSearch=false）。
  */
-export function CompactFilters({ table }: { readonly table: ItemTableState }) {
+export function CompactFilters({ table, hasSearch = true }: { readonly table: ItemTableState; readonly hasSearch?: boolean }) {
   const { filters, setFilters, clearFilters } = table;
   return (
     <FilterPopover count={activeFilterCount(filters)} buttonId={table.filterButtonId} groupLabel="篩選項目">
-      <SearchField value={filters.q} onSearch={(q) => { setFilters({ ...filters, q }); }} />
+      {hasSearch && <SearchField value={filters.q} onSearch={(q) => { setFilters({ ...filters, q }); }} />}
       <ConditionFields filters={filters} keys={ALL_CONDITIONS} onChange={(patch) => { setFilters({ ...filters, ...patch }); }} />
       <SortField table={table} />
       {hasActiveFilters(filters) && (

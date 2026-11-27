@@ -117,7 +117,7 @@ describe('專案頁的「專案的動作」（窄螢幕）', () => {
     const menu = await openMenu(user, '專案的動作', '專案的動作');
 
     // Assert
-    expect(labels(menu)).toEqual(['資訊', '設定', '規劃', '成員', '匯入項目…', '已刪除的項目', '重新命名…', '封存專案']);
+    expect(labels(menu)).toEqual(['設定', '規劃', '成員', '匯入項目…', '已刪除的項目', '重新命名…', '封存專案']);
     expect(within(menu).getAllByRole('separator')).toHaveLength(2);
   });
 
@@ -130,7 +130,7 @@ describe('專案頁的「專案的動作」（窄螢幕）', () => {
     const menu = await openMenu(user, '專案的動作', '專案的動作');
 
     // Assert
-    expect(labels(menu)).toEqual(['資訊', '設定', '規劃', '成員', '重新命名…', '取消封存']);
+    expect(labels(menu)).toEqual(['設定', '規劃', '成員', '重新命名…', '取消封存']);
     expect(within(menu).getAllByRole('separator')).toHaveLength(1);
   });
 
@@ -143,7 +143,7 @@ describe('專案頁的「專案的動作」（窄螢幕）', () => {
     const menu = await openMenu(user, '專案的動作', '專案的動作');
 
     // Assert
-    expect(labels(menu)).toEqual(['資訊', '設定', '規劃', '成員']);
+    expect(labels(menu)).toEqual(['設定', '規劃', '成員']);
     expect(within(menu).queryByRole('separator')).not.toBeInTheDocument();
   });
 });

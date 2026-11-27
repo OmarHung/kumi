@@ -1,21 +1,34 @@
 /*
  * 外框（docs/DESIGN.md 6.1）：側欄是桌面，內容區是紙。每一頁自己用 PageLayout 排頁列、工具列與內容，
- * 這裡不加內距；頁列開頭讓出 --page-bar-inset，給疊在上面的按鈕（寬螢幕收合側欄的「側欄」；窄螢幕的入口是底部分頁列，不讓位）。
+ * 這裡不加內距；頁列開頭讓出 --page-bar-inset，給疊在上面的按鈕（只有 64rem 以上收合側欄的「側欄」；
+ * 48～64rem 的入口是圖示列、48rem 以下是底部分頁列，都不讓位）。
+ * 三種樣子：64rem 以上是完整的側欄；48～64rem 左邊是圖示列（--rail-width），側欄變成圖示列旁邊的抽屜；48rem 以下只有內容與底部分頁列。
  */
 .shell {
-  --page-bar-inset: calc(var(--control-height) + var(--space-2));
+  --page-bar-inset: 0rem;
 
   display: grid;
-  grid-template-areas: 'sidebar main';
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-areas: 'rail main';
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
   min-height: 100vh;
   min-height: 100dvh;
 }
 
-/* 寬螢幕收起側欄：內容用滿整個寬度。 */
-.shell[data-sidebar='collapsed'] {
-  grid-template-areas: 'main';
-  grid-template-columns: minmax(0, 1fr);
+@media (min-width: 64rem) {
+  .shell {
+    --page-bar-inset: calc(var(--control-height) + var(--space-2));
+
+    grid-template-areas: 'sidebar main';
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+
+  /* 寬螢幕收起側欄：內容用滿整個寬度。 */
+  .shell[data-sidebar='collapsed'] {
+    --page-bar-inset: calc(var(--control-height) + var(--space-2));
+
+    grid-template-areas: 'main';
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .main {
@@ -39,7 +52,7 @@
   grid-area: main;
   align-self: start;
   justify-self: start;
-  display: flex;
+  display: none;
   align-items: center;
   height: var(--page-bar-height);
   padding-inline-start: var(--page-gutter);
@@ -49,44 +62,51 @@
   display: none;
 }
 
+/* 疊在頁列上的按鈕只有 64rem 以上才有：更窄時入口是圖示列的「專案」或分頁列的「更多」。 */
 .collapseToggle {
-  display: flex;
-}
-
-.backdrop {
   display: none;
 }
 
+@media (min-width: 64rem) {
+  .collapseToggle {
+    display: flex;
+  }
+
+  .barStart {
+    display: flex;
+  }
+}
+
+/* 抽屜開著時蓋住內容的背板：64rem 以上沒有抽屜。圖示列留在背板外面（還按得到「專案」把抽屜收起來）。 */
+.backdrop {
+  position: fixed;
+  inset: 0 0 0 var(--rail-width);
+  z-index: calc(var(--z-drawer) - 1);
+  display: block;
+  background: var(--color-overlay);
+}
+
+@media (min-width: 64rem) {
+  .backdrop {
+    display: none;
+  }
+}
+
 /*
- * 窄螢幕：側欄是從左邊滑出的抽屜，由底部分頁列的「更多」打開（TabBar.tsx）；頁列左上角不再疊「選單」、不讓位。
+ * 窄螢幕：側欄是從左邊滑出的抽屜，由底部分頁列的「更多」打開（TabBar.tsx）。
  * 內容區的下面讓出分頁列，最後一筆不被蓋住。2026-11-27 使用者看過手機版設計稿後採用。
  */
 @media (max-width: 48rem) {
-  .shell {
-    --page-bar-inset: 0rem;
-  }
-
   .main {
     padding-bottom: var(--tab-bar-height);
   }
 
-  .shell,
-  .shell[data-sidebar='collapsed'] {
+  .shell {
     grid-template-areas: 'main';
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .drawerToggle,
-  .collapseToggle,
-  .barStart {
-    display: none;
-  }
-
   .backdrop {
-    position: fixed;
     inset: 0 0 var(--tab-bar-height);
-    z-index: calc(var(--z-drawer) - 1);
-    display: block;
-    background: var(--color-overlay);
   }
 }

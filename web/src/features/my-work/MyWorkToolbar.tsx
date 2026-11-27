@@ -2,10 +2,12 @@ import type { Ref } from 'react';
 import { Button } from '../../components/Button/Button';
 import { useSearchParams } from 'react-router';
 import { useColumnWidthState, type ColumnWidthStore } from '../../components/Table/columnWidths';
-import { Toolbar } from '../../components/Toolbar/Toolbar';
+import { Toolbar, ToolbarDivider } from '../../components/Toolbar/Toolbar';
+import { useLayoutTier } from '../../lib/useLayoutTier';
 import { myWorkMineOf, type MyWorkFilters, type MyWorkLayout } from '../../domain/myWorkView';
 import { useIsCompact } from '../../lib/useMediaQuery';
 import { MyWorkCompactFilters } from './MyWorkCompactFilters';
+import { SearchField } from '../item-table/FilterFields';
 import { MyWorkFilterBar } from './MyWorkFilterBar';
 import { MyWorkGroupingField } from './MyWorkGroupingField';
 import { MyWorkViewMenu } from '../saved-views/MyWorkViewMenu';
@@ -65,13 +67,15 @@ function TableToolbarEnd({ message, widthStore, orderStore, onResetWidths }: Tab
 
 /**
  * 工具列（internal/HANDOFF-my-work-views.md 5.1）：由左到右是版面、範圍（我負責的｜我建立的；窄螢幕換成下拉、移到最前面）、
- * 「檢視」、篩選（寬螢幕整排、窄螢幕收進「篩選」）；
+ * 「檢視」、篩選（64rem 以上整排；以下收進「篩選」，平板的搜尋框留在列上、手機的搜尋也收進浮層）；
+ * 64rem 以上兩組分頁後面有一條細直線；
  * 右邊只有表格有：分組、「欄的順序」、「重設欄寬」、status。status 放在工具列上，訊息出現時下面的清單不會被推動。
  * 四種版面用同一個工具列，切換時版面的分頁是同一個元素（焦點與報讀軟體的位置不會跳走）。
  */
 export function MyWorkToolbar(props: MyWorkToolbarProps) {
   const { layout, filters, onFiltersChange, onClear, searchRef, filterButtonId } = props;
-  const isCompact = useIsCompact();
+  const tier = useLayoutTier();
+  const isCompact = tier === 'phone';
   const isTable = layout === 'table';
   const [searchParams] = useSearchParams();
   return (
@@ -80,11 +84,20 @@ export function MyWorkToolbar(props: MyWorkToolbarProps) {
       {isCompact && <MyWorkMineSwitch />}
       <MyWorkViewSwitch layout={layout} />
       {!isCompact && <MyWorkMineSwitch />}
+      {tier === 'wide' && <ToolbarDivider />}
       <MyWorkViewMenu current={{ layout, filters, grouping: groupingOf(searchParams), sort: myWorkSortOf(searchParams) }} />
-      {isCompact ? (
-        <MyWorkCompactFilters filters={filters} onChange={onFiltersChange} onClear={onClear} buttonId={filterButtonId} isTable={isTable} />
-      ) : (
-        <MyWorkFilterBar filters={filters} onChange={onFiltersChange} onClear={onClear} searchRef={searchRef} />
+      {tier === 'wide' && <MyWorkFilterBar filters={filters} onChange={onFiltersChange} onClear={onClear} searchRef={searchRef} />}
+      {tier === 'tablet' && <SearchField isToolbar inputRef={searchRef} value={filters.q} onSearch={(q) => { onFiltersChange({ ...filters, q }); }} />}
+      {tier !== 'wide' && (
+        // 平板的分組、「欄的順序」在工具列靠右、排序在表頭，浮層只剩條件（isTable 是給手機的「分組」與「排序」）。
+        <MyWorkCompactFilters
+          filters={filters}
+          onChange={onFiltersChange}
+          onClear={onClear}
+          buttonId={filterButtonId}
+          isTable={isTable && isCompact}
+          hasSearch={isCompact}
+        />
       )}
     </Toolbar>
   );

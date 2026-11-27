@@ -33,11 +33,12 @@
   --text-sm: 0.8125rem; /* 13 */
   --text-base: 0.875rem; /* 14 */
   --text-md: 1rem; /* 16 */
-  --text-lg: 1.25rem; /* 20 */
-  --text-xl: 1.5rem; /* 24 */
+  --text-lg: 1.125rem; /* 18：頁列的標題、手機的項目標題（2026-11-28 版型比例） */
+  --text-xl: 1.375rem; /* 22：內容區的大標題 */
+  --text-2xl: 1.75rem; /* 28：總覽與統計的數字 */
   --text-control: var(--text-base); /* 輸入框裡的字，觸控時換成 16px */
 
-  --leading-tight: 1.3;
+  --leading-tight: 1.36; /* 中文的標題要比拉丁字多一點行高：22 → 30、18 → 24.5 */
   --leading-normal: 1.55;
   --leading-relaxed: 1.65; /* 長段文字：項目的說明與留言的內文 */
   --weight-regular: 400;
@@ -68,11 +69,17 @@
   --target-min: 1.5rem; /* 任何可以點的東西的最小邊長 */
   --scrollbar-size: 0.625rem; /* 捲軸的寬（直向）與高（橫向）：把手兩邊各讓出 2px，看得到的把手是 6px 的膠囊 */
   --page-bar-height: 3rem;
-  --page-bar-inset: 0rem; /* 頁列開頭讓出的寬度：外框（AppShell）把寬螢幕收合側欄的按鈕疊在那裡時設定；窄螢幕是 0（「選單」改在分頁列的「更多」） */
-  --tab-bar-content: 3.5rem; /* 窄螢幕底部分頁列的內容高（不含安全區域）〔2026-11-27 使用者看過手機版設計稿後採用〕 */
-  --tab-bar-height: 0rem; /* 分頁列佔的總高度：寬螢幕 0，48rem 以下是 --tab-bar-content 加 env(safe-area-inset-bottom)；黏在底部的東西都從它往上算 */
-  --page-gutter: var(--space-6); /* 內容區左右的留白 */
-  --sidebar-width: 14rem;
+  --page-bar-inset: 0rem; /* 頁列開頭讓出的寬度：外框（AppShell）把收合側欄與「選單」的按鈕疊在那裡時設定 */
+  --page-gutter: var(--space-5); /* 內容區左右的留白：平板 20，80rem 以上 24、48rem 以下 16 */
+  --sidebar-width: 14rem; /* 80rem 以上 15rem；48～64rem 是圖示列（--rail-width） */
+  --rail-width: 4.5rem; /* 48～64rem 的圖示列：圖示加 12px 的字，一格 56px 高 */
+  --icon-size: 1rem; /* 按鈕、導覽裡的圖示；觸控時 20px */
+  /*
+   * 窄螢幕底部分頁列（AppShell 的 TabBar）佔的高度，含手機的安全區域；寬螢幕沒有分頁列是 0。
+   * 黏在底部的東西（新增項目的圓形按鈕、新通知的提示、AI 助理的全螢幕面板、內容區的下內距）都從它往上算。
+   */
+  --tab-bar-content: 3.5rem;
+  --tab-bar-height: 0rem;
   --lane-width: 17.5rem;
   --side-panel-width: 28rem; /* 清單旁邊的面板（SidePanel）的預設寬度：使用者可以拖拉調整（第 7 節），點兩下把手回到這個寬度 */
   --content-max: 72rem;
@@ -81,7 +88,7 @@
   --dialog-width: 30rem;
   --dialog-width-lg: 40rem; /* 有表格的對話框 */
   --dialog-width-item: 64rem; /* 項目的浮動視窗最少這麼寬（畫面放得下時）：欄位排在右邊一欄的版面 */
-  --dialog-width-item-max: 100rem; /* 項目的浮動視窗預設最寬（畫面的 85% 超過時；使用者可以再拉寬，第 7 節 FloatingPanel） */
+  --dialog-width-item-max: 100rem; /* 項目的浮動視窗預設最寬（畫面的 85% 超過時；使用者可以再拉寬） */
 
   --duration-fast: 120ms;
   --duration-normal: 200ms;
@@ -93,9 +100,9 @@
 
   /* 層級由低到高。浮層在對話框上面：對話框裡也可以開選單。 */
   --z-sticky: 5; /* 黏住的表頭、工具列 */
-  --z-topbar: 10; /* 外框疊在頁列左上角的按鈕（寬螢幕收合側欄的「側欄」），在黏住的頁列上面 */
+  --z-topbar: 10; /* 外框疊在頁列左上角的按鈕（收合側欄、窄螢幕的「選單」），在黏住的頁列上面 */
   --z-drawer: 20;
-  --z-assistant: 30; /* 右下角的 AI 助理按鈕與浮動面板（窄螢幕是全螢幕的面板，停在底部分頁列上面）：不是對話框（背後照樣能操作），在抽屜與項目的側邊面板上面、對話框下面。窄螢幕的底部分頁列是 --z-drawer + 1：在抽屜上面，「更多」一直按得到 */
+  --z-assistant: 30; /* 右下角的 AI 助理按鈕與浮動面板：不是對話框（背後照樣能操作），在抽屜與項目的側邊面板上面、對話框下面 */
   --z-dialog: 40;
   --z-popover: 50; /* 選單、浮層 */
 
@@ -195,20 +202,35 @@
     0 4px 12px light-dark(rgb(23 23 42 / 8%), rgb(0 0 0 / 30%));
 }
 
-/* 觸控：同一份畫面，目標變大、輸入框的字不小於 16px（否則 iOS 聚焦時會放大整頁）。 */
+/*
+ * 觸控：同一份畫面，目標變大、輸入框的字不小於 16px（否則 iOS 聚焦時會放大整頁）。
+ * 按鈕、下拉、輸入框與圖示按鈕是 36px（--control-height），整列可點的東西（清單的一筆、選單項目、表格的格子）是 44px（--row-height、--target-min）。
+ * 控制項原本也是 44px，使用者 2026-11-27 看了手機版說「按鈕跟下拉選單、輸入框不用這麼高吧」：一排 44px 的外框在 390 寬的畫面上又粗又重，
+ * 工具列、搜尋列各吃掉一大段高度。36px 仍高於 WCAG 2.5.8 的 24px，相鄰的控制項之間另有 --space-2 的間距。
+ */
 @media (pointer: coarse) {
   :root {
-    --control-height: 2.25rem; /* 按鈕、下拉、輸入框、圖示按鈕：36px（2026-11-27 使用者嫌 44px 太高），整列可點的東西仍是 --row-height／--target-min 的 44px */
+    --control-height: 2.25rem;
     --control-height-sm: 2.25rem;
     --row-height: 2.75rem;
     --target-min: 2.75rem;
     --text-control: 1rem;
+    --text-base: 0.9375rem; /* 15：觸控時內文大一號，手機與平板上 14px 的中文太小（2026-11-28 版型比例） */
+    --icon-size: 1.25rem;
+  }
+}
+
+@media (min-width: 80rem) {
+  :root {
+    --page-gutter: var(--space-6);
+    --sidebar-width: 15rem; /* 224 時專案名稱只露出五、六個字；240 加上固定寬的代號欄，名稱對齊、多露兩三個字 */
   }
 }
 
 @media (max-width: 48rem) {
   :root {
     --page-gutter: var(--space-4);
+    --tab-bar-height: calc(var(--tab-bar-content) + env(safe-area-inset-bottom));
   }
 }
 
@@ -261,3 +283,4 @@
 - **紙與桌面明暗都不用純白與近黑**（2026-11-23，使用者要求；品牌定名 Kumi 的同一輪）：淺色是帶紫的藤灰（紙 #f7f6fb、桌面 #eeedf5、側欄 #ebe9f3），深色是深藍紫的鐵紺（紙 #232438、桌面 #1c1d2e、側欄 #1f2033），強調色、狀態色、危險、警告、成功的字色都不變。深色的淡底（`-soft`：選取、中性、危險、警告、成功、進行中、頭像、藍圖選項）**一定**比紙亮一階：原本是照近黑的紙調的，紙變亮以後原樣會比紙暗、看起來像凹洞，所以保持色相與飽和度、把亮度調到和紙的亮度比與原本一樣（1.13～1.29）。之後再改深色的紙，淡底照同樣的比例重算。淺色的選取色換成 #e6e2ff（原本 #efedff 放在藤灰的側欄上幾乎看不出來）；強調色放在它上面是 4.74，是這一輪最接近門檻的一組。
 - **捲軸**〔2026-11-24，使用者要「全域的 scrollbar 改成客製的」：側欄的專案清單出現作業系統那條灰色的捲軸，和紙、桌面的色調不搭〕：全站的捲軸在 `global.css` 一份。Chrome、Edge、Safari 用 `::-webkit-scrollbar`：寬（橫向是高）`--scrollbar-size`，軌道與角落透明，把手是 `--radius-pill` 的膠囊、`--color-scrollbar-thumb`，兩邊用透明的框線讓出 `--space-0-5`（`background-clip: padding-box`），滑過與拖曳中換成 `--color-scrollbar-thumb-hover`。Firefox 沒有 `::-webkit-scrollbar`，改用標準的 `scrollbar-width: thin` 與 `scrollbar-color`（`@supports not selector(::-webkit-scrollbar)`，只給它；Chrome 同時有兩種寫法時標準的會蓋掉 `::-webkit-scrollbar`，就不能是膠囊）。顏色是半透明的字色，不是實心的灰：同一個把手放在紙、側欄、凹下去的底與對話框上看起來一樣深。平常淡一點（對紙約 2:1，看得出位置、不搶內容），要操作時（滑過、拖曳）到 3:1 以上。強制色彩時把手畫成 `CanvasText`、軌道 `Canvas`（不然系統拿掉作者的顏色後把手可能和軌道同色）。觸控的瀏覽器照樣用系統自己浮起來的捲軸（它們不理 `::-webkit-scrollbar`）。
 - 藍圖選項的藍與紫有自己的變數（`--color-option-blue`／`-purple` 與 `-soft`），不借強調色：強調色是紫藍，借它畫「藍」會變紫、和「紫」分不出來。
+- **版型比例**（2026-11-28，使用者要「優化整體版型、字體／區塊／元件比例，包含手機、電腦與平板」，看過設計稿後採用）：字級改成 12／13／14／16／18／22／28（比例約 1.2）——`--text-lg` 20 → 18 給頁列的標題與手機的項目標題、`--text-xl` 24 → 22 給內容區的大標題、新增 `--text-2xl` 28 給總覽與統計的數字；`--leading-tight` 1.3 → 1.36（中文的標題要多一點行高）。觸控時 `--text-base` 15px、`--icon-size` 20px：14px 的中文與 16px 的圖示在手機與平板上太小，控制項的高度（36px）不變。留白 `--page-gutter` 分三段：48rem 以下 16、48～80rem 20、80rem 以上 24；`--sidebar-width` 80rem 以上 15rem（224 時專案名稱只露出五、六個字），48～64rem 是 `--rail-width` 4.5rem 的圖示列（6.1）。理由：原本頁列的標題和內文、區塊標題一樣是 16px，層次只靠字重；平板直向的側欄佔掉 27% 的寬。

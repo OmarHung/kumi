@@ -64,21 +64,18 @@ function DueMark({ item, todayDate }: { readonly item: Item; readonly todayDate:
   );
 }
 
-function Side({ item, todayDate, showAssignee }: { readonly item: Item; readonly todayDate: CalendarDate; readonly showAssignee: boolean }): ReactNode {
-  const hasDue = item.dueDate !== null;
-  if (!showAssignee && !hasDue) return null;
+function Side({ item, showAssignee }: { readonly item: Item; readonly showAssignee: boolean }): ReactNode {
+  if (!showAssignee) return null;
   return (
     <span className={styles.side}>
-      {showAssignee && <AssigneeMark item={item} />}
-      {showAssignee && hasDue && ' '}
-      <DueMark item={item} todayDate={todayDate} />
+      <AssigneeMark item={item} />
     </span>
   );
 }
 
 /**
- * 窄螢幕的項目清單一筆（docs/design/07-components.md 7.1）：第一行是編號、狀態、高與緊急的優先度、類型（一行不折），最右邊是負責人頭像（小的）與到期日；
- * 第二行是標題（最多兩行）；我的工作再加第三行專案名稱（一行省略號）。整筆是連到項目頁的連結。
+ * 窄螢幕的項目清單一筆（docs/design/07-components.md 7.1，2026-11-28 版型比例）：第一行是編號與標題（一行省略號），
+ * 第二行左邊是狀態、高與緊急的優先度、類型（一行不折），右邊是到期日；負責人頭像在右邊、兩行置中；我的工作再加第三行專案名稱。整筆是連到項目頁的連結。
  * DOM 的順序是編號、標題、其餘（連結的名稱照這個順序唸，和以前一樣以「編號 標題」開頭）；上下兩行的位置靠 CSS 的格線排。
  */
 export function ItemListRow({ item, blueprint, todayDate, projectName, showAssignee = true, isSettled = false, isContentStart = false }: ItemListRowProps) {
@@ -112,7 +109,9 @@ export function ItemListRow({ item, blueprint, todayDate, projectName, showAssig
             </>
           )}
         </span>{' '}
-        <Side item={item} todayDate={todayDate} showAssignee={showAssignee} />
+        <Side item={item} showAssignee={showAssignee} />
+        {item.dueDate !== null && ' '}
+        <DueMark item={item} todayDate={todayDate} />
       </Link>
     </li>
   );

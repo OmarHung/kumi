@@ -1,6 +1,6 @@
 /*
  * 右下角的圓形按鈕：固定在畫面上，讓出底部分頁列（--tab-bar-height，寬螢幕是 0）。
- * 只在 48rem 以下出現：寬螢幕時呼叫端（ProjectWorkspace）不畫它。
+ * 64rem 以下出現（寬螢幕有表格第一列的快速新增）：什麼寬度用哪一種由呼叫端（ProjectWorkspace）決定。
  * 在對話框與選單下面、分頁列上面：浮層打開時蓋住它。
  */
 .fab {
@@ -39,4 +39,25 @@
 .fab svg {
   width: var(--fab-icon-size);
   height: var(--fab-icon-size);
+}
+
+/*
+ * 膠囊（variant="extended"）：48px 高，加號加字，左 16 右 20 的內距；顏色、陰影、位置和圓形的一樣。
+ * 名稱就是看得到的字，不另外給 aria-label。
+ */
+.fab[data-variant='extended'] {
+  --fab-icon-size: 1.25rem;
+
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  width: auto;
+  height: 3rem;
+  padding: 0 var(--space-5) 0 var(--space-4);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.label {
+  white-space: nowrap;
 }

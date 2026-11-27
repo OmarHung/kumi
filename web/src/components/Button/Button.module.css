@@ -82,3 +82,9 @@
   background: var(--color-danger-solid-hover);
   color: var(--color-accent-contrast);
 }
+
+/* 按鈕裡的圖示跟著密度：滑鼠 16px，觸控 20px（--icon-size，2026-11-28 版型比例）。IconButton 也是這個元件。 */
+.button > svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}

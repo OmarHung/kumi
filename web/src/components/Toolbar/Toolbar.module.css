@@ -25,48 +25,92 @@
 }
 
 /*
- * 窄螢幕的一行工具列（isScrollable）：不折行、左右滑，捲軸藏起來（手指滑得動就夠，右邊露出一半的控制項就是提示）。
+ * 64rem 以下（平板與手機）的一行工具列（isScrollable）：不折行、左右滑，捲軸藏起來（手指滑得動就夠，右邊露出一半的控制項就是提示）。
+ * 斷點只能寫 min-width: 64rem（docs/DESIGN.md 6.3），所以這裡是預設，64rem 以上再改回折行（下面的 @media）。
  * position: relative 是隱藏文字（絕對定位）的定位基準，不然它們會把捲動範圍撐寬（docs/DESIGN.md 第 5 節）。
  * 焦點外框畫在裡面：捲動容器會裁掉外面的那一圈，控制項捲到邊時外框不能被切掉。
  */
+.toolbar[data-scrollable] {
+  position: relative;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.toolbar[data-scrollable]::-webkit-scrollbar {
+  display: none;
+}
+
+.toolbar[data-scrollable] :focus-visible {
+  outline-offset: -2px;
+}
+
+.toolbar[data-scrollable] .start {
+  flex: 1 0 auto;
+  flex-wrap: nowrap;
+}
+
+/* :where() 把權重降到 0：64rem 以上子元素自己的 flex（篩選列的 flex: 1）照舊生效，不必在下面一條條還原。 */
+:where(.toolbar[data-scrollable] .start, .toolbar[data-scrollable] .end) > * {
+  flex: none;
+}
+
+/*
+ * 搜尋框留在列上、有空間才長大：平板（48～64rem）從 10rem 起、佔掉列上剩下的寬度；
+ * 手機（48rem 以下）不長，篩選與搜尋都收在浮層裡。
+ */
+.toolbar[data-scrollable] .start > [role='search'] {
+  flex: 1 0 10rem;
+}
+
+.toolbar[data-scrollable] .end {
+  flex: none;
+  flex-wrap: nowrap;
+}
+
+/*
+ * 手機（48rem 以下）工具列裡的下拉（版面、範圍）照內容的寬度（Select 預設最窄 8rem，兩個字的值右邊會空一大塊），
+ * 左右內距和旁邊的按鈕一樣（--space-3）；2026-11-27 使用者回報手機版空間比例不協調。平板是分頁，沒有這些下拉。
+ */
 @media (max-width: 48rem) {
-  .toolbar[data-scrollable] {
-    position: relative;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
-  }
-
-  .toolbar[data-scrollable]::-webkit-scrollbar {
-    display: none;
-  }
-
-  .toolbar[data-scrollable] :focus-visible {
-    outline-offset: -2px;
-  }
-
-  .toolbar[data-scrollable] .start {
-    flex: none;
-    flex-wrap: nowrap;
-  }
-
-  .toolbar[data-scrollable] .start > *,
-  .toolbar[data-scrollable] .end > * {
-    flex: none;
-  }
-
-  /*
-   * 工具列裡的下拉（版面、範圍）照內容的寬度（Select 預設最窄 8rem，兩個字的值右邊會空一大塊），
-   * 左右內距和旁邊的按鈕一樣（--space-3）；2026-11-27 使用者回報手機版空間比例不協調。
-   */
   .toolbar[data-scrollable] [data-width='content'] {
     min-width: 4.5rem;
     padding-inline: var(--space-3);
   }
+}
+
+/* 版面分頁後面的細直線：只有寬螢幕畫（呼叫端依斷點決定）；高度比控制項矮一截。 */
+.divider {
+  align-self: center;
+  width: 1px;
+  height: 1.25rem;
+  background: var(--color-border);
+}
+
+/* 64rem 以上：放得下，回到折行。 */
+@media (min-width: 64rem) {
+  .toolbar[data-scrollable] {
+    position: static;
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .toolbar[data-scrollable] .start {
+    flex: 1;
+    flex-wrap: wrap;
+  }
+
+  :where(.toolbar[data-scrollable] .start, .toolbar[data-scrollable] .end) > * {
+    flex: initial;
+  }
 
   .toolbar[data-scrollable] .end {
-    flex: none;
-    flex-wrap: nowrap;
+    flex: initial;
+    flex-wrap: wrap;
+  }
+
+  .toolbar[data-scrollable] :focus-visible {
+    outline-offset: 2px;
   }
 }

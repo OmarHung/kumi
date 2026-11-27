@@ -1,4 +1,5 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { COMPACT_QUERY } from '../../lib/useMediaQuery';
@@ -7,6 +8,7 @@ import { exampleOwner, smkDetail, smkItem } from '../../test/fixtures';
 import { serveItems } from '../../test/items';
 import { renderApp } from '../../test/renderApp';
 import { server } from '../../test/server';
+import { NewItemFab } from './NewItemFab';
 
 function stubCompactScreen() {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -116,5 +118,34 @@ describe('窄螢幕右下角的「新增項目」', () => {
     await screen.findByRole('table', { name: '項目' });
     expect(screen.queryByRole('button', { name: '新增項目' })).not.toBeInTheDocument();
     expect(screen.getByRole('form', { name: '新增項目' })).toBeInTheDocument();
+  });
+});
+
+describe('NewItemFab 的兩種樣子', () => {
+  it('預設是圓形：只有加號，名稱靠 aria-label', () => {
+    // Arrange / Act
+    render(<NewItemFab onOpen={() => undefined} />);
+
+    // Assert
+    const button = screen.getByRole('button', { name: '新增項目' });
+    expect(button).toHaveAttribute('data-variant', 'round');
+    expect(button).toHaveAttribute('aria-label', '新增項目');
+    expect(button).toHaveTextContent('');
+  });
+
+  it('extended 是膠囊：加號加看得到的「新增項目」，名稱就是那行字，按了打開', async () => {
+    // Arrange
+    const onOpen = vi.fn();
+    render(<NewItemFab variant="extended" onOpen={onOpen} />);
+
+    // Act
+    const button = screen.getByRole('button', { name: '新增項目' });
+    await userEvent.setup().click(button);
+
+    // Assert
+    expect(button).toHaveAttribute('data-variant', 'extended');
+    expect(button).toHaveTextContent('新增項目');
+    expect(button).not.toHaveAttribute('aria-label');
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });

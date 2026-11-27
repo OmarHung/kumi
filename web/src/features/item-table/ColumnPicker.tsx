@@ -27,7 +27,7 @@ export function ColumnPicker({ columns, visibility, onChange, onResetWidths }: C
         label="顯示的欄位"
         align="end"
         renderTrigger={(trigger) => (
-          <Button {...trigger} size="sm" title="顯示的欄位">
+          <Button {...trigger} variant="ghost" size="sm" title="顯示的欄位">
             <Icon name="columns" />
             <span className={styles.pickerLabel}>顯示的欄位</span>
           </Button>
