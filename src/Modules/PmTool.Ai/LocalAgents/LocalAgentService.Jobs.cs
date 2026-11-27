@@ -252,6 +252,8 @@ internal sealed partial class LocalAgentService
                     .Where(p => ids.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person).Select(p => p.Id).ToListAsync(cancellationToken),
                 ProposalKind.ProjectChanges => await db.ProjectChangeProposals.AsNoTracking()
                     .Where(p => ids.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person).Select(p => p.Id).ToListAsync(cancellationToken),
+                ProposalKind.Action => await db.ActionProposals.AsNoTracking()
+                    .Where(p => ids.Contains(p.Id) && p.OrganizationId == org && p.PersonId == person).Select(p => p.Id).ToListAsync(cancellationToken),
                 _ => [],
             };
             own.UnionWith(found.Select(id => (kind, id)));

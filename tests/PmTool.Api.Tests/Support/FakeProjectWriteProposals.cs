@@ -150,3 +150,74 @@ internal sealed class FakeItemRestoreProposals()
         RestoredKeys = status == ItemProposalStatus.Applied ? ["WEB-7"] : [],
     };
 }
+
+/// <summary>通用的動作建議（第二段）。套用時收到的卡片輸入記在 <see cref="AppliedInputs"/>（測試確認有傳到、而且回應裡沒有）。</summary>
+internal sealed class FakeActionProposals : IActionProposalService, IActionProposalCreator
+{
+    public static readonly Guid ProposalId = Guid.Parse("a5a5a5a5-0000-0000-0000-000000000001");
+
+    private readonly ConcurrentQueue<(string Action, Actor Actor, Guid Id)> _calls = new();
+    private readonly ConcurrentQueue<(Actor Actor, ActionProposalDraft Draft)> _creates = new();
+    private readonly ConcurrentQueue<IReadOnlyDictionary<string, string>> _inputs = new();
+    private readonly ConcurrentQueue<CancellationToken> _applyTokens = new();
+
+    public Func<Guid, Result<ActionProposal>> OnGet { get; set; } = _ => Proposal(NewItemProposalStatus.Pending);
+
+    public Func<Guid, Result<ActionProposal>> OnApply { get; set; } = _ => Proposal(NewItemProposalStatus.Applied);
+
+    public Func<Guid, Result<ActionProposal>> OnDismiss { get; set; } = _ => Proposal(NewItemProposalStatus.Dismissed);
+
+    public Func<ActionProposalDraft, Result<ActionProposal>> OnCreate { get; set; } = _ => Proposal(NewItemProposalStatus.Pending);
+
+    public IReadOnlyList<(string Action, Actor Actor, Guid Id)> Calls => _calls.ToArray();
+
+    public IReadOnlyList<(Actor Actor, ActionProposalDraft Draft)> Creates => _creates.ToArray();
+
+    public IReadOnlyList<IReadOnlyDictionary<string, string>> AppliedInputs => _inputs.ToArray();
+
+    public IReadOnlyList<CancellationToken> ApplyTokens => _applyTokens.ToArray();
+
+    public static ActionProposal Proposal(NewItemProposalStatus status) => new(
+        ProposalId,
+        ActionKinds.People,
+        null,
+        "建議調整人員",
+        [
+            new ActionStep("新增人員", "新同事", null, "新同事（new@example.com）· 一般成員", null, ActionTextFormat.Text)
+            {
+                Done = status == NewItemProposalStatus.Applied,
+            },
+        ],
+        status,
+        new DateTimeOffset(2026, 11, 27, 3, 0, 0, TimeSpan.Zero))
+    {
+        Inputs = status == NewItemProposalStatus.Pending ? [new ActionInput("password:0", "新同事的初始密碼", ActionInputKind.Password, null)] : [],
+        DecidedAt = status == NewItemProposalStatus.Pending ? null : new DateTimeOffset(2026, 11, 27, 3, 5, 0, TimeSpan.Zero),
+    };
+
+    public Task<Result<ActionProposal>> GetAsync(Actor actor, Guid proposalId, CancellationToken cancellationToken) =>
+        Record("get", actor, proposalId, OnGet);
+
+    public Task<Result<ActionProposal>> ApplyAsync(
+        Actor actor, Guid proposalId, IReadOnlyDictionary<string, string> inputs, CancellationToken cancellationToken)
+    {
+        _inputs.Enqueue(inputs);
+        _applyTokens.Enqueue(cancellationToken);
+        return Record("apply", actor, proposalId, OnApply);
+    }
+
+    public Task<Result<ActionProposal>> DismissAsync(Actor actor, Guid proposalId, CancellationToken cancellationToken) =>
+        Record("dismiss", actor, proposalId, OnDismiss);
+
+    public Task<Result<ActionProposal>> CreateAsync(Actor actor, ActionProposalDraft draft, CancellationToken cancellationToken)
+    {
+        _creates.Enqueue((actor, draft));
+        return Task.FromResult(OnCreate(draft));
+    }
+
+    private Task<Result<ActionProposal>> Record(string action, Actor actor, Guid id, Func<Guid, Result<ActionProposal>> handler)
+    {
+        _calls.Enqueue((action, actor, id));
+        return Task.FromResult(handler(id));
+    }
+}

@@ -163,7 +163,7 @@ public sealed class OrganizationChatTests
     }
 
     [Test]
-    public async Task Reply_UsesTheOrganizationPromptAndOnlyTheOrganizationTools()
+    public async Task Reply_UsesTheOrganizationPromptAndTheOrganizationToolsPlusTheProjectTools()
     {
         // Arrange
         var conversation = await _h.NewOrganizationConversationAsync(_h.Admin);
@@ -180,7 +180,7 @@ public sealed class OrganizationChatTests
             Assert.That(system, Has.Count.EqualTo(2));
             Assert.That(system[0], Is.EqualTo(AssistantPrompt.OrganizationSystemPrompt));
             Assert.That(system[1], Does.StartWith("這則對話不屬於任何專案。使用者能開新專案"));
-            Assert.That(call.Options!.Tools!.Select(t => t.Name), Is.EquivalentTo(new[] { "list_templates", "get_template", "list_projects", "my_work", "find_items", "list_people", "propose_project", "withdraw_proposal" }));
+            Assert.That(call.Options!.Tools!.Select(t => t.Name), Is.EquivalentTo(PmTool.Ai.LocalAgentTools.AllowedForOrganization.Where(t => t != "get_changeset").Concat(["list_projects", "propose_project"]).Distinct()));
             Assert.That(_h.Projects.Gets, Is.Empty);
         }
     }

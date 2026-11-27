@@ -38,7 +38,7 @@ internal static class ItemRevisionTools
         new("propose_bulk_item_changes",
             "建議一次修改好幾個項目（不會真的改）：每個項目各自一組欄位修改（值可以不同，例如六個任務各自的到期日）與一則留言，一張卡片、使用者按一次「全部套用」才會以他自己的身分寫入。" +
             $"一份 1 到 {AiRules.MaxItemsPerBatchProposal} 個項目、同一個項目只能出現一次；要改兩個以上的項目時用這個，不要一個一個提 propose_item_changes。" +
-            $"每個項目的 changes 寫法和 propose_item_changes 完全一樣（[{{field, value}}]，欄位也包括 type、parentKey、cycleId、milestoneId，最多 {AiRules.MaxItemProposalChanges} 個欄位，assignee 寫 me、none、專案成員的 Email 或人員編號）；" +
+            $"每個項目的 changes 寫法和 propose_item_changes 完全一樣（[{{field, value}}]，欄位也包括 type、parentKey、cycleId、milestoneId、following（true 關注、false 取消關注），最多 {AiRules.MaxItemProposalChanges} 個欄位，assignee 寫 me、none、專案成員的 Email 或人員編號）；" +
             "改說明的項目一定要帶 expectedDescriptionRevision（get_item 回的 descriptionRevision）。已經套用的建議要修改時，用它改建出來的項目，不要再提一份新增項目的建議。" +
             "提出之後告訴使用者「請按全部套用」，不要說已經改好了。",
             McpSchemas.Object(

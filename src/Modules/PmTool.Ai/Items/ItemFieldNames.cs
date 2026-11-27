@@ -31,5 +31,8 @@ internal static class ItemFieldNames
     /// <summary>里程碑的 id；null 是清掉。</summary>
     public const string MilestoneId = "milestoneId";
 
+    /// <summary>true 是關注、false 是取消關注（通知模組）；套用時在留言之後做，不算「修改項目」的權限。</summary>
+    public const string Following = "following";
+
     public const string CustomPrefix = "fields.";
 }

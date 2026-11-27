@@ -89,6 +89,10 @@ internal sealed class FakeModules
 
     public FakeItemRestoreProposals ItemRestoreProposals { get; } = new();
 
+    public FakeActionProposals ActionProposals { get; } = new();
+
+    public FakeConversationReads ConversationReads { get; } = new();
+
     public FakeProposalLedger ProposalLedger { get; } = new();
 
     public FakeStaffingBrief Staffing { get; } = new();

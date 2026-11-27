@@ -127,6 +127,7 @@ internal static class ItemChangeChecker
             ItemFieldNames.Priority => CheckPriority(value),
             ItemFieldNames.StartDate or ItemFieldNames.DueDate => CheckDate(value),
             ItemFieldNames.Estimate => CheckEstimate(value),
+            ItemFieldNames.Following => CheckFollowing(value),
             ItemFieldNames.Type => ItemStructureChecks.CheckType(
                 value, project, all.Any(c => c is not null && c.Field == ItemFieldNames.ParentKey), facts),
             ItemFieldNames.ParentKey => ItemStructureChecks.CheckParent(
@@ -134,7 +135,7 @@ internal static class ItemChangeChecker
             ItemFieldNames.CycleId => ItemStructureChecks.CheckPlanningId(value, field, "週期", facts.Cycles),
             ItemFieldNames.MilestoneId => ItemStructureChecks.CheckPlanningId(value, field, "里程碑", facts.Milestones),
             _ when field.StartsWith(ItemFieldNames.CustomPrefix, StringComparison.Ordinal) => CheckCustom(field, value, context),
-            _ => $"沒有欄位 {field}。可以改的欄位：title、description、status、assignee、priority、startDate、dueDate、estimate、type、parentKey、cycleId、milestoneId、fields.<自訂欄位的 key>。",
+            _ => $"沒有欄位 {field}。可以改的欄位：title、description、status、assignee、priority、startDate、dueDate、estimate、type、parentKey、cycleId、milestoneId、following（true 關注、false 取消關注）、fields.<自訂欄位的 key>。",
         };
     }
 
@@ -205,6 +206,9 @@ internal static class ItemChangeChecker
         JsonValueKind.String when ItemValueRules.IsDate(value.GetString()) => null,
         _ => ItemValueRules.DateMessage,
     };
+
+    private static string? CheckFollowing(JsonElement value) =>
+        value.ValueKind is JsonValueKind.True or JsonValueKind.False ? null : "following 要是 true（關注）或 false（取消關注）。";
 
     private static string? CheckEstimate(JsonElement value) => value.ValueKind switch
     {

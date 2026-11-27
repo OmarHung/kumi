@@ -65,6 +65,20 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   propose_comment_changes: '提出留言的變更',
   propose_item_restores: '提出復原項目',
   propose_project_changes: '提出專案的變更',
+  list_spaces: '看知識庫空間',
+  get_page_tree: '看頁面樹',
+  get_page: '讀知識庫頁面',
+  list_page_trash: '看知識庫垃圾桶',
+  list_saved_views: '看存的檢視',
+  list_description_templates: '看說明格式',
+  get_overview: '看專案總覽',
+  list_notifications: '看收件匣',
+  list_changesets: '看變更集',
+  propose_knowledge_changes: '提出知識庫的變更',
+  propose_people_changes: '提出人員的變更',
+  propose_attachment_changes: '提出附件的變更',
+  propose_saved_view_changes: '提出檢視的變更',
+  propose_description_template_changes: '提出說明格式的變更',
 };
 
 /** itemKey：工具的段落帶得到編號時給（get_item 寫「讀取 WEB-12」）；沒有就寫「讀取項目」。 */

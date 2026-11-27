@@ -47,7 +47,7 @@ internal sealed class FakeWorkAccess : IWorkAccessQueries
         throw new NotSupportedException();
 
     public Task<ProjectAccessSummary?> FindVisibleProjectAsync(Actor actor, string projectKey, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+        Task.FromResult(_visible.Values.FirstOrDefault(p => string.Equals(p.Key, projectKey, StringComparison.OrdinalIgnoreCase)));
 
     public Task<IReadOnlyDictionary<Guid, ProjectAccessSummary>> FindVisibleProjectsAsync(
         Actor actor, IReadOnlyCollection<Guid> projectIds, CancellationToken cancellationToken)

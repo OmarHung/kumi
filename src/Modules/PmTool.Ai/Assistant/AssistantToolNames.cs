@@ -61,6 +61,43 @@ internal static class AssistantToolNames
 
     public const string ProposeProjectChanges = "propose_project_changes";
 
+    /// <summary>知識庫裡看得到的空間。</summary>
+    public const string ListSpaces = "list_spaces";
+
+    /// <summary>一個知識庫空間的頁面樹（看得到的）。</summary>
+    public const string GetPageTree = "get_page_tree";
+
+    /// <summary>一頁知識庫的內容（Markdown）與 revision。</summary>
+    public const string GetPage = "get_page";
+
+    /// <summary>知識庫空間的垃圾桶（復原頁面用）。</summary>
+    public const string ListPageTrash = "list_page_trash";
+
+    /// <summary>存的檢視（專案的，或「我的工作」的）。</summary>
+    public const string ListSavedViews = "list_saved_views";
+
+    /// <summary>專案說明的說明格式。</summary>
+    public const string ListDescriptionTemplates = "list_description_templates";
+
+    /// <summary>專案總覽的數字（過期、快到期、停滯…）。</summary>
+    public const string GetOverview = "get_overview";
+
+    /// <summary>使用者自己的收件匣。</summary>
+    public const string ListNotifications = "list_notifications";
+
+    /// <summary>專案的變更集清單。</summary>
+    public const string ListChangeSets = "list_changesets";
+
+    public const string ProposeKnowledgeChanges = "propose_knowledge_changes";
+
+    public const string ProposePeopleChanges = "propose_people_changes";
+
+    public const string ProposeAttachmentChanges = "propose_attachment_changes";
+
+    public const string ProposeSavedViewChanges = "propose_saved_view_changes";
+
+    public const string ProposeDescriptionTemplateChanges = "propose_description_template_changes";
+
     public const string ListProjects = "list_projects";
 
     public const string ProposeProject = "propose_project";

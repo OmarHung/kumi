@@ -12,7 +12,7 @@ internal static class ItemChangePermissions
     public static Failure? Missing(IEnumerable<ItemFieldChange> changes, string? comment, IReadOnlyCollection<string> permissions)
     {
         var list = changes.ToList();
-        var denied = (list.Any(c => c.Field != ItemFieldNames.Status) && !permissions.Contains(WorkPermissions.ItemUpdate))
+        var denied = (list.Any(c => c.Field is not (ItemFieldNames.Status or ItemFieldNames.Following)) && !permissions.Contains(WorkPermissions.ItemUpdate))
             || (list.Any(c => c.Field == ItemFieldNames.Status) && !permissions.Contains(WorkPermissions.ItemTransition))
             || (!string.IsNullOrWhiteSpace(comment) && !permissions.Contains(WorkPermissions.CommentCreate));
         return denied

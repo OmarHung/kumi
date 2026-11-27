@@ -51,6 +51,7 @@ const CORE_LABELS: Readonly<Record<string, string>> = {
   startDate: '開始日',
   dueDate: '到期日',
   estimate: '估計',
+  following: '關注狀態',
 };
 
 const CUSTOM_PREFIX = 'fields.';
@@ -136,6 +137,8 @@ function coreText(field: string, value: unknown, context: Context): string {
       return dateText(value);
     case 'estimate':
       return typeof value === 'number' ? formatNumber(value) : plain(value);
+    case 'following':
+      return value === true ? '開始關注' : value === false ? '取消關注' : plain(value);
     default:
       return plain(value);
   }
@@ -206,6 +209,10 @@ function rowFor(change: ItemFieldChange, context: Context): ChangeRow {
       before: item === undefined ? null : customText(key, item.fields[key], context),
       after: value === null ? CLEARED_VALUE : customText(key, value, context),
     };
+  }
+  if (field === 'following') {
+    // 現在有沒有關注不在項目的內容裡，不寫「之前」。
+    return { kind: 'value', field, label: CORE_LABELS.following ?? field, before: null, after: coreText(field, value, context) };
   }
   if (field === 'parentKey') {
     return {

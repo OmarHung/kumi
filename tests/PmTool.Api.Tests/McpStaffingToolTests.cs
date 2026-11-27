@@ -360,16 +360,16 @@ public sealed class McpStaffingToolTests
     }
 
     [Test]
-    public async Task OrganizationOnlyJob_CanOnlyUseListPeopleOfTheStaffingTools()
+    public async Task OrganizationJob_ListsTheStaffingToolsTooBecauseTheyNeedAProjectKey()
     {
-        // Arrange：不選專案的組織對話只有 list_people 一個派工的工具（沒有專案可看、可提成員建議）。
+        // Arrange：組織對話也能用派工的工具，只是要帶 projectKey。
         await using var mcp = await McpHarness.StartForOrganizationJobAsync(AgentScopes);
 
         // Act
         var tools = await mcp.Client.ListToolsAsync();
 
         // Assert
-        Assert.That(tools.Select(t => t.Name), Does.Not.Contain("get_project").And.Contain("list_people").And.Not.Contain("propose_member_changes"));
+        Assert.That(tools.Select(t => t.Name), Does.Contain("get_project").And.Contain("list_people").And.Contain("propose_member_changes"));
     }
 
     [Test]

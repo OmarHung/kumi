@@ -23,6 +23,16 @@ public interface IProjectDescriptionService
     Task<Result<ProjectDescription>> SetAsync(Actor actor, string projectKey, string? text, CancellationToken cancellationToken);
 
     /// <summary>
+    /// 同 <see cref="SetAsync"/>，但只在現在的 <see cref="ProjectDescription.UpdatedAt"/> 等於 <paramref name="expectedUpdatedAt"/> 時才寫
+    /// （null 表示「還沒寫過」）；比對與寫入在同一個交易裡，不會被同時的寫入蓋掉。
+    /// 不同就回 <see cref="WorkErrorCodes.ProjectDescriptionConflict"/>（Conflict），什麼都不改；權限與內容的檢查照 <see cref="SetAsync"/>，先於這個比對。
+    /// 預設實作丟 <see cref="NotSupportedException"/>，讓各處的假物件不必跟著改。
+    /// </summary>
+    Task<Result<ProjectDescription>> SetIfUnchangedAsync(
+        Actor actor, string projectKey, string? text, DateTimeOffset? expectedUpdatedAt, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    /// <summary>
     /// 說明格式：組織自己的在前（預設的那一份最前面，其餘依名稱），內建的在後。組織的成員都能讀。
     /// 剛好一份 <see cref="DescriptionTemplate.IsDefault"/>：組織指定的那一份，沒有指定就是內建的「網站案子」。
     /// </summary>

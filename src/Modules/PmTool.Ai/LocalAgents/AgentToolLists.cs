@@ -27,6 +27,20 @@ internal static class AgentToolLists
         [AssistantToolNames.ProposeCommentChanges] = AiRules.MinAgentVersionForProjectWrites,
         [AssistantToolNames.ProposeItemRestores] = AiRules.MinAgentVersionForProjectWrites,
         [AssistantToolNames.ProposeProjectChanges] = AiRules.MinAgentVersionForProjectWrites,
+        [AssistantToolNames.ListSpaces] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.GetPageTree] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.GetPage] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ListPageTrash] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ListSavedViews] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ListDescriptionTemplates] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.GetOverview] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ListNotifications] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ListChangeSets] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ProposeKnowledgeChanges] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ProposePeopleChanges] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ProposeAttachmentChanges] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ProposeSavedViewChanges] = AiRules.MinAgentVersionForEverything,
+        [AssistantToolNames.ProposeDescriptionTemplateChanges] = AiRules.MinAgentVersionForEverything,
     };
 
     public static bool SupportsNewItems(string? agentVersion) => Supports(AssistantToolNames.ProposeNewItems, agentVersion);
@@ -45,8 +59,20 @@ internal static class AgentToolLists
     public static IReadOnlyList<string> For(string? projectKey, string? agentVersion)
     {
         var all = projectKey is null ? LocalAgentTools.AllowedForOrganization : LocalAgentTools.Allowed;
-        return [.. all.Where(tool => Supports(tool, agentVersion))];
+        return [.. all.Where(tool => Supports(tool, agentVersion) && (projectKey is not null || SupportsInOrganization(tool, agentVersion)))];
     }
+
+    /// <summary>組織對話的工作放專案的工具（帶 projectKey）要 <see cref="AiRules.MinAgentVersionForEverything"/> 以上：舊版的 kumi 對組織工作只認組織的那幾個工具。</summary>
+    public static bool SupportsEverything(string? agentVersion) => AgentVersions.IsAtLeast(agentVersion, AiRules.MinAgentVersionForEverything);
+
+    private static readonly HashSet<string> OrganizationBase = new(StringComparer.Ordinal)
+    {
+        AssistantToolNames.ListTemplates, AssistantToolNames.GetTemplate, AssistantToolNames.ListProjects, AssistantToolNames.ProposeProject,
+        AssistantToolNames.WithdrawProposal, AssistantToolNames.MyWork, AssistantToolNames.FindItems, AssistantToolNames.ListPeople,
+    };
+
+    private static bool SupportsInOrganization(string tool, string? agentVersion) =>
+        OrganizationBase.Contains(tool) || SupportsEverything(agentVersion);
 
     private static bool Supports(string tool, string? agentVersion) =>
         !MinimumVersions.TryGetValue(tool, out var minimum) || AgentVersions.IsAtLeast(agentVersion, minimum);

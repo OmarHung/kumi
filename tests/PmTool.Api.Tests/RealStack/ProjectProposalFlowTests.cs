@@ -82,7 +82,7 @@ public sealed class ProjectProposalFlowTests : RealStackTestBase
         {
             Assert.That(job.ClaimedProjectKey, Is.Null, "組織對話的工作沒有專案。");
             Assert.That(tools, Is.EquivalentTo(LocalAgentTools.AllowedForOrganization));
-            Assert.That(blueprint.IsError, Is.True, "只限組織的工作碰不到任何專案。");
+            Assert.That(blueprint.IsError, Is.False, "組織對話的專案工具帶 projectKey 就能讀看得到的專案。");
             Assert.That(projects.Text, Does.Contain("ORGX"));
             Assert.That(proposed.IsError, Is.False, proposed.Text);
             Assert.That(pending["status"]!.GetValue<string>(), Is.EqualTo("pending"));

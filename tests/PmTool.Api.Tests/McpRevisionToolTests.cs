@@ -323,28 +323,29 @@ public sealed class McpRevisionToolTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(tools.Select(tool => tool.Name), Does.Contain("withdraw_proposal").And.Not.Contain("propose_item_deletions").And.Not.Contain("propose_bulk_item_changes"));
+            Assert.That(tools.Select(tool => tool.Name), Does.Contain("withdraw_proposal").And.Contain("propose_item_deletions").And.Contain("propose_bulk_item_changes"));
             Assert.That(isError, Is.False);
             Assert.That(mcp.Modules.ProposalLedger.Withdrawals.Single().ConversationId, Is.EqualTo(FakeAgentToolBudget.ConversationId));
         }
     }
 
     [Test]
-    public async Task OrganizationJob_CannotCallTheProjectRevisionTools()
+    public async Task OrganizationJob_CanProposeDeletionsWithAProjectKey_OnTheJobsConversation()
     {
         // Arrange
         await using var mcp = await McpHarness.StartForOrganizationJobAsync(AgentScopes);
 
         // Act
-        var (deletion, _) = await mcp.CallAsync("propose_item_deletions", new { projectKey = "WEB", itemKeys = new[] { "WEB-1" } });
-        var (batch, _) = await mcp.CallAsync("propose_bulk_item_changes", new { projectKey = "WEB", items = new[] { new { itemKey = "WEB-1" } } });
+        var (deletion, body) = await mcp.CallAsync("propose_item_deletions", new { projectKey = "WEB", itemKeys = new[] { "WEB-1" } });
 
         // Assert
+        var created = mcp.Modules.ItemDeletionProposals.Creates.Single();
         using (Assert.EnterMultipleScope())
         {
-            Assert.That((deletion, batch), Is.EqualTo((true, true)));
-            Assert.That(mcp.Modules.ItemDeletionProposals.Creates, Is.Empty);
-            Assert.That(mcp.Modules.ItemBatchProposals.Creates, Is.Empty);
+            Assert.That(deletion, Is.False, body.ToJsonString());
+            Assert.That(created.Draft.ProjectKey, Is.EqualTo("WEB"));
+            Assert.That(created.Draft.ConversationId, Is.EqualTo(FakeAgentToolBudget.ConversationId));
+            Assert.That(mcp.Modules.ConversationReads.Calls.Single().ConversationId, Is.EqualTo(FakeAgentToolBudget.ConversationId));
         }
     }
 

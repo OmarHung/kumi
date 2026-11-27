@@ -56,7 +56,7 @@ internal sealed class ProposeBulkItemChangesTool(AssistantToolContext context) :
     AssistantToolNames.ProposeBulkItemChanges,
     $"對兩個以上的項目一次提出修改建議（不會真的改）：每個項目各自一組欄位修改（值可以不同，例如六個任務各自的到期日）與一則留言，一張卡片，使用者按一次「全部套用」才會寫入。"
     + $"items 是 [{{itemKey, changes, comment?, replyTo?, expectedDescriptionRevision?}}]（1 到 {AiRules.MaxItemsPerBatchProposal} 個項目，同一個項目只出現一次）；changes 的寫法和 propose_item_changes 完全一樣"
-    + "（field 可以是 title、description、status、assignee、priority、startDate、dueDate、estimate、type、parentKey、cycleId、milestoneId、fields.<自訂欄位的 key>；每個項目最多 "
+    + "（field 可以是 title、description、status、assignee、priority、startDate、dueDate、estimate、type、parentKey、cycleId、milestoneId、following（true 關注、false 取消關注）、fields.<自訂欄位的 key>；每個項目最多 "
     + $"{AiRules.MaxItemProposalChanges} 個欄位）。改某個項目的說明時，那一筆一定要帶 expectedDescriptionRevision（get_item 回的 descriptionRevision）。"
     + "改 type 可能讓那個項目的狀態回到新流程的起點，同一筆裡的 status 與 fields.* 照新的類型檢查；要回覆某一則留言，那一筆帶 replyTo（留言 id，要和 comment 一起給）。"
     + "要改兩個以上的項目時用它，不要一個一個提 propose_item_changes。提出之後告訴使用者「請按全部套用」，不要說已經改好了。",

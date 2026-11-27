@@ -1,6 +1,8 @@
 import { http, HttpResponse } from 'msw';
 import { afterEach } from 'vitest';
 import type {
+  ActionProposal,
+  ActionStep,
   AiOptions,
   AiSelection,
   AssistantConversation,
@@ -723,4 +725,63 @@ export function serveItemRestoreProposal(
     restoredKeys: proposal.items.map((item) => item.itemKey),
     ...applied,
   });
+}
+
+export function makeActionStep(overrides: Partial<ActionStep> = {}): ActionStep {
+  return {
+    label: '新增頁面',
+    target: '入職流程',
+    before: null,
+    after: '第一天要做的事',
+    note: null,
+    format: 'text',
+    done: false,
+    error: null,
+    link: null,
+    ...overrides,
+  };
+}
+
+export function makeActionProposal(overrides: Partial<ActionProposal> = {}): ActionProposal {
+  return {
+    id: 'ac-1',
+    kind: 'knowledge',
+    projectKey: null,
+    title: '建議整理知識庫',
+    reason: null,
+    steps: [makeActionStep()],
+    inputs: [],
+    status: 'pending',
+    createdAt: '2026-11-27T02:00:00Z',
+    decidedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+export function serveActionProposal(
+  proposal: ActionProposal,
+  onApply: (body: unknown) => Response | null = () => null,
+  applied: Partial<ActionProposal> = {},
+): ProposalBackend {
+  let current = proposal;
+  let applyCount = 0;
+  let dismissCount = 0;
+  const path = `/v1/ai/action-proposals/${proposal.id}`;
+  server.use(
+    http.get(path, () => ok(current)),
+    http.post(`${path}/apply`, async ({ request }) => {
+      applyCount += 1;
+      const failed = onApply(await request.json());
+      if (failed !== null) return failed;
+      current = { ...current, status: 'applied', decidedAt: '2026-11-27T02:05:00Z', ...applied };
+      return ok(current);
+    }),
+    http.post(`${path}/dismiss`, () => {
+      dismissCount += 1;
+      current = { ...current, status: 'dismissed', decidedAt: '2026-11-27T02:05:00Z' };
+      return ok(current);
+    }),
+  );
+  return { applied: () => applyCount, dismissed: () => dismissCount };
 }

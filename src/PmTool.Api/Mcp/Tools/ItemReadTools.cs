@@ -23,10 +23,12 @@ internal static class ItemReadTools
             "列出你看得到的專案：代號（key）、名稱、有沒有封存、你在專案裡的角色、藍圖版本。其他工具的 projectKey 用這裡的代號。",
             McpSchemas.NoParameters, AccessTokenScope.ItemsRead, ReadOnly: true, ListProjectsAsync),
         new("search_items",
-            "用文字在你看得到的所有專案裡找項目：標題包含這段文字，或項目編號就是它（例如 WEB-12）。編號完全符合的排最前面。",
+            "用文字在你看得到的所有專案裡找項目：標題包含這段文字，或項目編號就是它（例如 WEB-12）。編號完全符合的排最前面。" +
+            "不屬於專案的對話（組織對話）要帶 projectKey，只在那個專案裡找；跨專案找人的工作或條件用 find_items。",
             McpSchemas.Object(
                 required: ["query"],
                 ("query", McpSchemas.Text("要找的文字或項目編號，1 到 200 個字。")),
+                ("projectKey", McpSchemas.Text("只在這個專案裡找（組織對話一定要給）；限定專案的對話照舊只找那個專案。")),
                 ("limit", McpSchemas.Integer($"最多回幾筆，1 到 {McpLimits.MaxSearchLimit}，預設 {McpLimits.DefaultSearchLimit}。"))),
             AccessTokenScope.ItemsRead, ReadOnly: true, SearchItemsAsync),
         new("list_items",
@@ -83,12 +85,16 @@ internal static class ItemReadTools
     {
         var text = arguments.RequiredPlain("query");
         var limit = arguments.OptionalInt("limit", 1, McpLimits.MaxSearchLimit) ?? McpLimits.DefaultSearchLimit;
-        if (context.Scope.Kind == McpScopeKind.OrganizationOnly)
+        // 組織對話的代理（TracksProjects）要指定專案：在那個專案裡找，碰到的專案照規則記下；不跨專案搜，免得讀到一堆專案卻記不完整。
+        var requested = arguments.OptionalPlain("projectKey");
+        if (context.Scope.Kind == McpScopeKind.OrganizationOnly && (!context.Scope.TracksProjects || requested is null))
         {
-            throw new McpArgumentException("這則對話不屬於任何專案，不能搜尋項目。");
+            throw new McpArgumentException(context.Scope.TracksProjects
+                ? "組織對話裡搜尋項目要帶 projectKey（只在那個專案裡找）；跨專案請用 find_items。"
+                : "這則對話不屬於任何專案，不能搜尋項目。");
         }
 
-        if (context.Scope.ProjectKey is { } scoped)
+        if ((requested is not null ? context.Project(requested) : context.Scope.ProjectKey) is { } scoped)
         {
             // 本機代理只搜對話的專案：在專案裡搜，不是先搜全部再濾掉（會被別的專案的結果擠掉）。
             var inProject = await context.Services.Items.ListAsync(

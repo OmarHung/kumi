@@ -238,7 +238,7 @@ public sealed class McpProjectDetailToolTests
     }
 
     [Test]
-    public async Task ListTools_OrganizationJob_DoesNotListTheProjectTools()
+    public async Task ListTools_OrganizationJob_ListsTheProjectToolsWhichNeedAProjectKey()
     {
         // Arrange
         await using var mcp = await McpHarness.StartForOrganizationJobAsync(AgentScopes);
@@ -247,7 +247,7 @@ public sealed class McpProjectDetailToolTests
         var tools = await mcp.Client.ListToolsAsync();
 
         // Assert
-        Assert.That(tools.Select(tool => tool.Name), Does.Not.Contain(NewTools[0]).And.Not.Contain(NewTools[1]).And.Not.Contain(NewTools[2]).And.Not.Contain(NewTools[3]));
+        Assert.That(tools.Select(tool => tool.Name), Does.Contain(NewTools[0]).And.Contain(NewTools[1]).And.Contain(NewTools[2]).And.Contain(NewTools[3]));
     }
 
     [Test]

@@ -74,6 +74,15 @@ public static class AiRules
     /// </summary>
     public const string MinAgentVersionForProjectWrites = "0.20.0";
 
+    /// <summary>
+    /// 本機代理與主機的 worker 要這個版本以上，工作的工具清單才放第二段補的工具（知識庫、人員、附件、存的檢視、說明格式、總覽、收件匣、變更集清單），
+    /// 而且組織對話的工作才放專案的工具（帶 projectKey）。理由同 <see cref="MinAgentVersionForNewItemProposals"/>。
+    /// </summary>
+    public const string MinAgentVersionForEverything = "0.21.0";
+
+    /// <summary>一份動作建議最多幾步。</summary>
+    public const int MaxActionSteps = 20;
+
     /// <summary>find_items 一次最多回幾筆。</summary>
     public const int MaxFindItemsLimit = 50;
 

@@ -170,6 +170,7 @@ internal sealed class AssistantReplyRunner(
             CommentProposals = provider.GetRequiredService<ICommentProposalCreator>(),
             RestoreProposals = provider.GetRequiredService<IItemRestoreProposalCreator>(),
             ProjectChangeProposals = provider.GetRequiredService<IProjectChangeProposalCreator>(),
+            Services = provider,
         };
         var selection = request.Selection.Selection;
         var options = AiRequestOptions.Create(request.Selection.Endpoint.Kind, selection.Model, selection.Effort);

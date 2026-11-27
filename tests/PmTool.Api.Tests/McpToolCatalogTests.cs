@@ -46,12 +46,27 @@ public sealed class McpToolCatalogTests
             ["propose_comment_changes"] = (AccessTokenScope.AgentRun, false),
             ["propose_item_restores"] = (AccessTokenScope.AgentRun, false),
             ["propose_project_changes"] = (AccessTokenScope.AgentRun, false),
+            ["list_spaces"] = (AccessTokenScope.ItemsRead, true),
+            ["get_page_tree"] = (AccessTokenScope.ItemsRead, true),
+            ["get_page"] = (AccessTokenScope.ItemsRead, true),
+            ["list_page_trash"] = (AccessTokenScope.ItemsRead, true),
+            ["list_saved_views"] = (AccessTokenScope.ItemsRead, true),
+            ["list_description_templates"] = (AccessTokenScope.ItemsRead, true),
+            ["get_overview"] = (AccessTokenScope.ItemsRead, true),
+            ["list_notifications"] = (AccessTokenScope.ItemsRead, true),
+            ["list_changesets"] = (AccessTokenScope.ItemsRead, true),
+            ["propose_knowledge_changes"] = (AccessTokenScope.AgentRun, false),
+            ["propose_people_changes"] = (AccessTokenScope.AgentRun, false),
+            ["propose_attachment_changes"] = (AccessTokenScope.AgentRun, false),
+            ["propose_saved_view_changes"] = (AccessTokenScope.AgentRun, false),
+            ["propose_description_template_changes"] = (AccessTokenScope.AgentRun, false),
         };
 
     private static readonly string[] AgentOnlyTools =
     [
         "propose_item_changes", "propose_project", "propose_member_changes", "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
         "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes",
+        "propose_knowledge_changes", "propose_people_changes", "propose_attachment_changes", "propose_saved_view_changes", "propose_description_template_changes",
     ];
 
     // CLAUDE.md：JSON Schema 只能用這幾個關鍵字（同一份 Schema 要能直接拿去約束語言模型的輸出），description 是說明，不算約束。

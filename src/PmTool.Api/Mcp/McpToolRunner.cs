@@ -173,7 +173,7 @@ internal sealed class McpToolRunner(
         {
             return McpProjectScope.HasHeader(http.Request)
                 ? Refused(McpProjectScope.OrganizationJobWithProjectMessage)
-                : new LocalScopeResolution(McpScope.OrganizationOnly, jobId.Value, found.ConversationId, null);
+                : new LocalScopeResolution(McpScope.OrganizationWithProjects, jobId.Value, found.ConversationId, null);
         }
 
         return string.Equals(header, found.ProjectKey, StringComparison.OrdinalIgnoreCase)
@@ -269,7 +269,7 @@ internal sealed class McpToolRunner(
         var context = new McpToolContext(grant.ToActor(), resolver.Resolve(http.Request).Issuer, new McpServices(http.RequestServices))
         {
             Scope = scope,
-            ConversationId = HostProposalTools.NeedsConversation(tool.Name)
+            ConversationId = scope.TracksProjects || HostProposalTools.NeedsConversation(tool.Name)
                 ? (await budget.FindJobScopeAsync(AgentJobKind.Host, null, grant.JobId, cancellationToken))?.ConversationId
                 : null,
         };
@@ -366,7 +366,16 @@ internal sealed class McpToolRunner(
                 return McpToolResult.Error($"{tool.Name} 沒有參數 {unknown}。可用的參數：{string.Join("、", tool.ParameterNames)}。");
             }
 
-            return await tool.Run(context, arguments, cancellationToken);
+            var result = await tool.Run(context, arguments, cancellationToken);
+
+            // 組織對話裡碰到專案：先記進對話讀過的專案再把結果交出去，記不了就不給（走下面的一般失敗）。
+            if (context.Scope.TracksProjects && context.TouchedProjects.Count > 0)
+            {
+                await context.Services.ConversationReads.RememberAsync(
+                    context.Actor, context.ConversationId, context.TouchedProjects, cancellationToken);
+            }
+
+            return result;
         }
         catch (McpArgumentException exception)
         {

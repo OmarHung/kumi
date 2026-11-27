@@ -147,6 +147,16 @@ public static class AiModule
         services.TryAddScoped<IItemRestoreProposalCreator, ItemRestoreProposals.ItemRestoreProposalCreator>();
         services.TryAddScoped<IItemRestoreProposalService, ItemRestoreProposals.ItemRestoreProposalService>();
 
+        // 通用的動作建議（internal/HANDOFF-ai-coverage-2.md）：一組服務，每一種一個處理器。
+        services.TryAddScoped<IActionProposalCreator, Actions.ActionProposalCreator>();
+        services.TryAddScoped<IActionProposalService, Actions.ActionProposalService>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Actions.IActionProposalHandler, Actions.Knowledge.KnowledgeActionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Actions.IActionProposalHandler, Actions.People.PeopleActionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Actions.IActionProposalHandler, Actions.Attachments.AttachmentActionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Actions.IActionProposalHandler, Actions.SavedViews.SavedViewActionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Actions.IActionProposalHandler, Actions.DescriptionTemplates.DescriptionTemplateActionHandler>());
+        services.TryAddScoped<IAssistantConversationReads, ItemFinding.AssistantConversationReads>();
+
         // 這則對話的建議與現在的狀態（每次回覆前告訴模型）、撤回：從對話存下的工具段落讀編號，問各服務。
         services.TryAddScoped<Proposals.ProposalServices>();
         services.TryAddScoped<IAssistantProposalLedger, Proposals.AssistantProposalLedger>();

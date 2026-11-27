@@ -107,6 +107,36 @@ public sealed class OrganizationJobTests
         }
     }
 
+    [Test]
+    public void Check_OrganizationJobWithProjectTools_PassesAndStillSendsNoProjectHeader()
+    {
+        // Arrange：0.21.0 起組織對話也有專案的工具（每次呼叫自己帶 projectKey），不是專案的範圍交給伺服器管。
+        var job = OrganizationJob() with { AllowedTools = [.. OrganizationTools, "get_item", "propose_item_changes", "propose_knowledge_changes", "list_changesets"] };
+
+        // Act
+        var plan = new ClaudeCodeSpec().Plan(job, WorkDirectory);
+
+        // Assert
+        var headers = JsonNode.Parse(plan.Files["mcp.json"])!["mcpServers"]!["kumi"]!["headers"]!.AsObject();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(JobValidation.Check(job, Server), Is.Null);
+            Assert.That(headers.ContainsKey("X-Kumi-Project"), Is.False);
+        }
+    }
+
+    [Test]
+    public void KnownTools_IncludeAllFourteenSharedTools()
+    {
+        // Assert
+        Assert.That(JobValidation.KnownTools, Is.SupersetOf(new[]
+        {
+            "list_spaces", "get_page_tree", "get_page", "list_page_trash", "list_saved_views", "list_description_templates", "get_overview",
+            "list_notifications", "list_changesets", "propose_knowledge_changes", "propose_people_changes", "propose_attachment_changes",
+            "propose_saved_view_changes", "propose_description_template_changes",
+        }));
+    }
+
     // MCP 設定
 
     [Test]

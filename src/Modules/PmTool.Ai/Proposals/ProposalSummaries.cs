@@ -159,6 +159,28 @@ internal static class ProposalSummaries
         return Entry(proposal.Id.ToString(), ProposalKind.ProjectChanges, State(proposal.Status), Partial(what, proposal.Error), proposal.CreatedAt, proposal.DecidedAt);
     }
 
+    // 步驟的文字含使用者寫的名稱與內容，不放進附註；只說種類與步數。
+    public static ProposalStatusEntry Of(ActionProposal proposal)
+    {
+        var done = proposal.Steps.Count(s => s.Done);
+        var failed = proposal.Steps.Count(s => s.Error is not null);
+        var what = $"{ActionKindLabel(proposal.Kind)}：{proposal.Steps.Count} 步"
+            + (proposal.ProjectKey is { } key ? $"（專案 {key}）" : string.Empty)
+            + (proposal.Status == NewItemProposalStatus.Applied ? $"，做完 {done} 步" : string.Empty)
+            + (failed > 0 ? $"（有 {failed} 步沒成功）" : string.Empty);
+        return Entry(proposal.Id.ToString(), ProposalKind.Action, State(proposal.Status), Partial(what, proposal.Error), proposal.CreatedAt, proposal.DecidedAt);
+    }
+
+    private static string ActionKindLabel(string kind) => kind switch
+    {
+        ActionKinds.Knowledge => "知識庫",
+        ActionKinds.People => "人員",
+        ActionKinds.Attachments => "附件",
+        ActionKinds.SavedViews => "存的檢視",
+        ActionKinds.DescriptionTemplates => "說明格式",
+        _ => "動作",
+    };
+
     public static ProposalStatusEntry Of(ChangeSetSummary changeSet) => Entry(
         ProposalReference.ChangeSetText(changeSet.Number),
         ProposalKind.ChangeSet,

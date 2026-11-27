@@ -46,6 +46,8 @@ internal sealed partial class AiDbContext(DbContextOptions<AiDbContext> options)
 
     public DbSet<ItemRestoreProposalRow> ItemRestoreProposals => Set<ItemRestoreProposalRow>();
 
+    public DbSet<ActionProposalRow> ActionProposals => Set<ActionProposalRow>();
+
     public DbSet<LocalAgentRow> LocalAgents => Set<LocalAgentRow>();
 
     public DbSet<LocalEngineRow> LocalEngines => Set<LocalEngineRow>();

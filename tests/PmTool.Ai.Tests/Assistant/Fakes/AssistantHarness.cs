@@ -82,6 +82,7 @@ internal sealed class AssistantHarness : IAsyncDisposable
             CommentProposals = Host.Get<ICommentProposalCreator>(),
             RestoreProposals = Host.Get<IItemRestoreProposalCreator>(),
             ProjectChangeProposals = Host.Get<IProjectChangeProposalCreator>(),
+            Services = Host.Services,
         };
 
     public ManualClock Clock => (ManualClock)Host.Get<TimeProvider>();

@@ -109,15 +109,12 @@ internal sealed class ProjectChangeProposalService(
     private async Task<ApplyReport> ApplyStepsAsync(Actor actor, ProjectChangeProposalRow row, CancellationToken cancellationToken)
     {
         var before = ProjectChangeMapper.ReadBefore(row.Before);
-        if (row.ChangesDescription && await HasDescriptionChangedAsync(actor, row.ProjectKey, before, cancellationToken) is { } check)
-        {
-            return new ApplyReport(check, []);
-        }
-
         var steps = new List<(string Name, Func<CancellationToken, Task<Result<Unit>>> Run)>();
         if (row.ChangesDescription)
         {
-            steps.Add(("改專案說明", async token => Drop(await descriptions.SetAsync(actor, row.ProjectKey, row.Description, token))));
+            // 比對建議提出時的版本與寫入在工作引擎的同一個交易裡：別人改過就整份不做（說明是第一步，失敗時什麼都沒改）。
+            steps.Add(("改專案說明", async token => DropDescription(
+                await descriptions.SetIfUnchangedAsync(actor, row.ProjectKey, row.Description, before.DescriptionUpdatedAt, token))));
         }
 
         if (row.Name is { } name)
@@ -175,17 +172,8 @@ internal sealed class ProjectChangeProposalService(
         }
     }
 
-    private async Task<Failure?> HasDescriptionChangedAsync(
-        Actor actor, string projectKey, ProjectSnapshot before, CancellationToken cancellationToken)
-    {
-        var current = await descriptions.GetAsync(actor, projectKey, cancellationToken);
-        if (current.Failure is { } failure)
-        {
-            return failure;
-        }
-
-        return current.Value.UpdatedAt?.UtcTicks == before.DescriptionUpdatedAt?.UtcTicks ? null : Conflict;
-    }
+    private static Result<Unit> DropDescription(Result<ProjectDescription> result) =>
+        result.Failure is { Code: WorkErrorCodes.ProjectDescriptionConflict } ? Conflict : Drop(result);
 
     private static Result<Unit> Drop<T>(Result<T> result) => result.Failure is { } failure ? failure : Unit.Value;
 

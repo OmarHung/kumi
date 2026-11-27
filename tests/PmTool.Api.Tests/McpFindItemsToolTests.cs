@@ -269,9 +269,9 @@ public sealed class McpFindItemsToolTests
     }
 
     [Test]
-    public async Task ListPeople_OrganizationJobGivingAProjectKey_IsRefused()
+    public async Task ListPeople_OrganizationJobGivingAProjectKey_ListsThatProjectAndRemembersItOnTheConversation()
     {
-        // Arrange：只限組織碰不到任何專案。
+        // Arrange：組織對話的專案工具帶 projectKey：伺服器記下對話讀過這個專案。
         await using var mcp = await McpHarness.StartForOrganizationJobAsync(AgentScopes);
 
         // Act
@@ -280,8 +280,9 @@ public sealed class McpFindItemsToolTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(isError, Is.True);
-            Assert.That(mcp.Modules.Staffing.PeopleCalls, Is.Empty);
+            Assert.That(isError, Is.False);
+            Assert.That(mcp.Modules.Staffing.PeopleCalls.Single().Query.ProjectKey, Is.EqualTo("WEB"));
+            Assert.That(mcp.Modules.ConversationReads.Calls.Single().ProjectKeys, Is.EqualTo(new[] { "WEB" }));
         }
     }
 }

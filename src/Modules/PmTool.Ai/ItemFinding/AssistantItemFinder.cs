@@ -135,19 +135,6 @@ internal sealed class AssistantItemFinder(
             return;
         }
 
-        var now = time.GetUtcNow();
-        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        foreach (var projectId in projectIds)
-        {
-            await db.Database.ExecuteSqlInterpolatedAsync(
-                $"""
-                INSERT INTO ai.conversation_reads (conversation_id, project_id, organization_id, person_id, created_at)
-                SELECT c.id, {projectId}, c.organization_id, c.person_id, {now}
-                FROM ai.conversations c
-                WHERE c.id = {conversation} AND c.organization_id = {actor.OrganizationId} AND c.person_id = {actor.PersonId}
-                ON CONFLICT (conversation_id, project_id) DO NOTHING
-                """,
-                cancellationToken);
-        }
+        await ConversationReadWriter.WriteAsync(contexts, actor, conversation, projectIds, time.GetUtcNow(), cancellationToken);
     }
 }

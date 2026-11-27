@@ -164,6 +164,9 @@ public enum ProposalKind
     Comments,
     ItemRestores,
     ProjectChanges,
+
+    /// <summary>通用的動作建議（<see cref="IActionProposalService"/>）：知識庫、人員、附件、存的檢視、說明格式。</summary>
+    Action,
 }
 
 public enum ProposalState

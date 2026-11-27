@@ -19,6 +19,9 @@ internal static class McpToolCatalog
         .. StaffingTools.All,
         .. ItemRevisionTools.All,
         .. ProjectProposalTools.All,
+        .. KnowledgeTools.All,
+        .. PeopleAttachmentTools.All,
+        .. WorkspaceTools.All,
         .. ProjectDetailReadTools.All,
         .. ProjectWriteProposalTools.All,
     ];

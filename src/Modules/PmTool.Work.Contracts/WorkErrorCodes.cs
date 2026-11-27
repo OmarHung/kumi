@@ -24,6 +24,9 @@ public static class WorkErrorCodes
     /// <summary>專案說明裡有私鑰。成員都看得到、搜尋得到、備份裡也有，私鑰不能存在這裡。</summary>
     public const string ProjectDescriptionSecret = "project.description_secret";
 
+    /// <summary>用 SetIfUnchangedAsync 改專案說明時，現在的更新時刻和預期的不同：別人在這之間改過（409）。什麼都沒改。</summary>
+    public const string ProjectDescriptionConflict = "project.description_conflict";
+
     /// <summary>找不到這份說明格式：不存在、在別的組織，或是內建的（內建的不能改、不能刪）。</summary>
     public const string DescriptionTemplateNotFound = "description_template.not_found";
 

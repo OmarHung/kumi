@@ -121,6 +121,14 @@ internal sealed class WritableDescriptions : IProjectDescriptionService
         return Task.FromResult<Result<ProjectDescription>>(Current);
     }
 
+    /// <summary>和工作引擎同一個規則：現在的更新時刻和預期的不同就是衝突、什麼都不改。</summary>
+    public Task<Result<ProjectDescription>> SetIfUnchangedAsync(
+        Actor actor, string projectKey, string? text, DateTimeOffset? expectedUpdatedAt, CancellationToken cancellationToken) =>
+        Current.UpdatedAt?.UtcTicks != expectedUpdatedAt?.UtcTicks
+            ? Task.FromResult<Result<ProjectDescription>>(
+                new Failure(FailureKind.Conflict, WorkErrorCodes.ProjectDescriptionConflict, "專案說明被別人改過。"))
+            : SetAsync(actor, projectKey, text, cancellationToken);
+
     public Task<IReadOnlyList<DescriptionTemplate>> ListTemplatesAsync(Actor actor, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<Result<DescriptionTemplate>> CreateTemplateAsync(Actor actor, DescriptionTemplateInput input, CancellationToken cancellationToken) =>

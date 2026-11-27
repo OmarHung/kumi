@@ -16,6 +16,7 @@ internal static class ProposalNames
         ProposalKind.Comments => "comments",
         ProposalKind.ItemRestores => "item_restores",
         ProposalKind.ProjectChanges => "project_changes",
+        ProposalKind.Action => "action",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "不認得的建議種類。"),
     };
 
@@ -42,6 +43,7 @@ internal static class ProposalNames
         ProposalKind.Comments => "留言",
         ProposalKind.ItemRestores => "復原項目",
         ProposalKind.ProjectChanges => "改專案",
+        ProposalKind.Action => "動作（知識庫、人員、附件、檢視或說明格式）",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "不認得的建議種類。"),
     };
 

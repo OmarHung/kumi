@@ -111,6 +111,11 @@ public sealed class CodexTranslatorTests
     [TestCase("codex-project-change-proposal.jsonl", "propose_project_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e42")]
     [TestCase("codex-comment-proposal.jsonl", "propose_comment_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e43")]
     [TestCase("codex-restore-proposal.jsonl", "propose_item_restores", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e44")]
+    [TestCase("codex-knowledge-action-proposal.jsonl", "propose_knowledge_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e51")]
+    [TestCase("codex-people-action-proposal.jsonl", "propose_people_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e52")]
+    [TestCase("codex-attachment-action-proposal.jsonl", "propose_attachment_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e53")]
+    [TestCase("codex-saved-view-action-proposal.jsonl", "propose_saved_view_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e54")]
+    [TestCase("codex-description-template-action-proposal.jsonl", "propose_description_template_changes", "3f2b8c1e-9a4d-4e6b-8f10-2c5d7a9b0e55")]
     public void ProjectWriteProposal_Codex_CarriesTheGenericProposalIdOnlyOnTheFinishedProposalTool(string fixture, string toolName, string proposalId)
     {
         // Act

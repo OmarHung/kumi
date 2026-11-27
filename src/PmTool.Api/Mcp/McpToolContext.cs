@@ -60,6 +60,25 @@ internal sealed class McpServices(IServiceProvider provider)
     public ICommentProposalCreator CommentProposals => provider.GetRequiredService<ICommentProposalCreator>();
 
     public IItemRestoreProposalCreator ItemRestoreProposals => provider.GetRequiredService<IItemRestoreProposalCreator>();
+
+    // 第二段（internal/HANDOFF-ai-coverage-2.md）的工具要的服務。
+    public IActionProposalCreator ActionProposals => provider.GetRequiredService<IActionProposalCreator>();
+
+    public IAssistantConversationReads ConversationReads => provider.GetRequiredService<IAssistantConversationReads>();
+
+    public PmTool.Knowledge.IKnowledgeSpaceService KnowledgeSpaces => provider.GetRequiredService<PmTool.Knowledge.IKnowledgeSpaceService>();
+
+    public PmTool.Knowledge.IKnowledgePageService KnowledgePages => provider.GetRequiredService<PmTool.Knowledge.IKnowledgePageService>();
+
+    public ISavedViewService SavedViews => provider.GetRequiredService<ISavedViewService>();
+
+    public IProjectOverviewService Overview => provider.GetRequiredService<IProjectOverviewService>();
+
+    public PmTool.Notifications.INotificationInbox Inbox => provider.GetRequiredService<PmTool.Notifications.INotificationInbox>();
+
+    public PmTool.Notifications.IItemSubscriptionService Subscriptions => provider.GetRequiredService<PmTool.Notifications.IItemSubscriptionService>();
+
+    public IPersonProfileService PersonProfiles => provider.GetRequiredService<IPersonProfileService>();
 }
 
 /// <summary>
@@ -80,9 +99,35 @@ internal sealed record McpToolContext(Actor Actor, string Issuer, McpServices Se
     /// </summary>
     public Guid? ConversationId { get; init; }
 
+    private readonly HashSet<string> _touchedProjects = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 這次呼叫碰到的專案代號（只有 <see cref="McpScope.TracksProjects"/> 的範圍才會記）：工具跑完後由 <see cref="McpToolRunner"/>
+    /// 記進對話讀過的專案。
+    /// </summary>
+    public IReadOnlyCollection<string> TouchedProjects => _touchedProjects;
+
     /// <summary>專案代號要是範圍允許的（不限都可以、限定要同一個、只限組織都不行）；不是的當作不存在。</summary>
-    public string Project(string projectKey) =>
-        Scope.AllowsProject(projectKey) ? projectKey : throw new McpArgumentException($"找不到專案「{projectKey}」。");
+    public string Project(string projectKey)
+    {
+        if (!Scope.AllowsProject(projectKey))
+        {
+            throw new McpArgumentException($"找不到專案「{projectKey}」。");
+        }
+
+        if (Scope.TracksProjects)
+        {
+            // 讀過的專案要記在這件工作的對話上；找不到對話就記不了，記不了就不給（不執行、不回資料）。
+            if (ConversationId is null)
+            {
+                throw new McpArgumentException("找不到這件工作的對話，不能碰專案的資料。");
+            }
+
+            _touchedProjects.Add(projectKey.Trim());
+        }
+
+        return projectKey;
+    }
 
     /// <summary>項目編號是「專案代號-流水號」：專案代號要是範圍允許的；不是的當作不存在。</summary>
     public string Item(string itemKey)
@@ -93,6 +138,19 @@ internal sealed record McpToolContext(Actor Actor, string Issuer, McpServices Se
         }
 
         var dash = itemKey.LastIndexOf('-');
-        return dash > 0 && Scope.AllowsProject(itemKey[..dash]) ? itemKey : throw new McpArgumentException($"找不到項目「{itemKey}」。");
+        return dash > 0 && TryProject(itemKey[..dash]) ? itemKey : throw new McpArgumentException($"找不到項目「{itemKey}」。");
+    }
+
+    private bool TryProject(string projectKey)
+    {
+        try
+        {
+            Project(projectKey);
+            return true;
+        }
+        catch (McpArgumentException)
+        {
+            return false;
+        }
     }
 }

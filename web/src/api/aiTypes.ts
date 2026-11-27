@@ -585,3 +585,5 @@ export interface ItemRestoreProposal {
   readonly restoredKeys: readonly string[];
   readonly error: string | null;
 }
+
+export type { ActionInput, ActionKind, ActionProposal, ActionStep } from './actionTypes';

@@ -108,6 +108,25 @@ public sealed record LocalAgentJobAttachment(
 /// </summary>
 public static class LocalAgentTools
 {
+    /// <summary>專案對話與組織對話都有的工具（第二段補的；知識庫、人員、說明格式、總覽、收件匣不屬於任何專案）。</summary>
+    public static IReadOnlyList<string> SharedTools { get; } =
+    [
+        "list_spaces",
+        "get_page_tree",
+        "get_page",
+        "list_page_trash",
+        "list_saved_views",
+        "list_description_templates",
+        "get_overview",
+        "list_notifications",
+        "list_changesets",
+        "propose_knowledge_changes",
+        "propose_people_changes",
+        "propose_attachment_changes",
+        "propose_saved_view_changes",
+        "propose_description_template_changes",
+    ];
+
     public static IReadOnlyList<string> Allowed { get; } =
     [
         "get_blueprint",
@@ -137,7 +156,9 @@ public static class LocalAgentTools
         "propose_comment_changes",
         "propose_item_restores",
         "propose_project_changes",
+        .. SharedTools,
     ];
+
 
     public static bool IsAllowed(string toolName) => Allowed.Contains(toolName);
 
@@ -155,6 +176,8 @@ public static class LocalAgentTools
         "my_work",
         "find_items",
         "list_people",
+        // 第二段（kumi 0.21.0 起）：組織對話也能用專案的工具，但每次都要帶 projectKey（伺服器確認看得到、記下讀過的專案）。
+        .. Allowed.Where(tool => tool is not ("list_templates" or "get_template" or "withdraw_proposal" or "my_work" or "find_items" or "list_people")),
     ];
 
     public static bool IsAllowedForOrganization(string toolName) => AllowedForOrganization.Contains(toolName);

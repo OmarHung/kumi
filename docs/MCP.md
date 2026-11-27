@@ -114,7 +114,7 @@ claude mcp add --transport http kumi https://pm.example.com/mcp --header "Author
 
 | 範圍 | 授權頁的說法 | 可以 |
 |---|---|---|
-| `items:read` | 看專案與項目 | 列出專案、找項目、看項目與活動、我的工作 |
+| `items:read` | 看專案、項目與知識庫 | 列出專案、找項目、看項目與活動、我的工作；也讀得到你看得到的知識庫頁面、存的檢視、說明格式、專案總覽與自己的收件匣（不含帳號安全通知） |
 | `items:write` | 建立與修改項目、留言 | 建立、修改、改狀態、留言 |
 | `blueprint:read` | 看專案的設定與變更集 | 讀藍圖、模板、使用狀況的統計，預覽變更集 |
 | `blueprint:write` | 提出變更集（還是要有人核准） | 提出變更集 |

@@ -23,7 +23,21 @@ internal sealed partial class ProjectDescriptionService(
             : await ReadAsync(db, actor, access.Project.Id, cancellationToken);
     }
 
-    public async Task<Result<ProjectDescription>> SetAsync(Actor actor, string projectKey, string? text, CancellationToken cancellationToken)
+    public Task<Result<ProjectDescription>> SetAsync(Actor actor, string projectKey, string? text, CancellationToken cancellationToken) =>
+        SetCoreAsync(actor, projectKey, text, Expectation.None, cancellationToken);
+
+    public Task<Result<ProjectDescription>> SetIfUnchangedAsync(
+        Actor actor, string projectKey, string? text, DateTimeOffset? expectedUpdatedAt, CancellationToken cancellationToken) =>
+        SetCoreAsync(actor, projectKey, text, new Expectation(true, expectedUpdatedAt), cancellationToken);
+
+    /// <summary>要不要比對現在的更新時刻；<see cref="ExpectedUpdatedAt"/> 是 null 表示「還沒寫過」。</summary>
+    private sealed record Expectation(bool Check, DateTimeOffset? ExpectedUpdatedAt)
+    {
+        public static Expectation None { get; } = new(false, null);
+    }
+
+    private async Task<Result<ProjectDescription>> SetCoreAsync(
+        Actor actor, string projectKey, string? text, Expectation expectation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
@@ -46,7 +60,19 @@ internal sealed partial class ProjectDescriptionService(
         }
 
         var projectId = access.Project.Id;
+
+        // 比對與寫入在同一個交易、同一把專案的鎖裡：不然比對通過之後、寫入之前別人先寫了，這次就蓋掉別人的修改。
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await LockDescriptionAsync(db, projectId, cancellationToken);
         var current = await ReadRowAsync(db, actor, projectId, cancellationToken);
+
+        if (expectation.Check && current?.UpdatedAt.UtcTicks != expectation.ExpectedUpdatedAt?.UtcTicks)
+        {
+            return new Failure(
+                FailureKind.Conflict,
+                WorkErrorCodes.ProjectDescriptionConflict,
+                "專案說明在你讀到它之後被別人改過了，沒有改任何東西；請重新讀一次再決定。");
+        }
 
         // 從沒寫過還要清掉：沒有東西可清，不建一列。
         if (current is null && checkedText.Value is null)
@@ -68,7 +94,14 @@ internal sealed partial class ProjectDescriptionService(
             UpdatedBy = actor.PersonId,
         };
         await UpsertAsync(db, written, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return ToDescription(written);
+    }
+
+    private static Task LockDescriptionAsync(WorkDbContext db, Guid projectId, CancellationToken cancellationToken)
+    {
+        var lockKey = $"project_description:{projectId}";
+        return db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))", cancellationToken);
     }
 
     private static async Task<ProjectDescription> ReadAsync(

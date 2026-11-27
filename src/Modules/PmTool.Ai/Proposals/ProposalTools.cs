@@ -15,6 +15,11 @@ internal static class ProposalTools
         [AssistantToolNames.ProposeCommentChanges] = ProposalKind.Comments,
         [AssistantToolNames.ProposeItemRestores] = ProposalKind.ItemRestores,
         [AssistantToolNames.ProposeProjectChanges] = ProposalKind.ProjectChanges,
+        [AssistantToolNames.ProposeKnowledgeChanges] = ProposalKind.Action,
+        [AssistantToolNames.ProposePeopleChanges] = ProposalKind.Action,
+        [AssistantToolNames.ProposeAttachmentChanges] = ProposalKind.Action,
+        [AssistantToolNames.ProposeSavedViewChanges] = ProposalKind.Action,
+        [AssistantToolNames.ProposeDescriptionTemplateChanges] = ProposalKind.Action,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>用通用編號的工具建立的種類；不是這種工具是 null。</summary>

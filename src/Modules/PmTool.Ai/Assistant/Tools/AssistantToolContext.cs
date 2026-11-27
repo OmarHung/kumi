@@ -50,6 +50,12 @@ internal sealed record AssistantToolContext(
 
     public required IProjectChangeProposalCreator ProjectChangeProposals { get; init; }
 
+    /// <summary>
+    /// 這則回覆的服務容器（回覆自己的 DI 範圍）。第二段起新工具要的服務從這裡拿（<c>GetRequiredService</c>），不再在上下文加一個個屬性：
+    /// 測試主機不必為了用不到的工具註冊服務。
+    /// </summary>
+    public required IServiceProvider Services { get; init; }
+
     /// <summary>專案對話的工具用：專案對話一定有專案代號（不選專案的對話只組得出組織版的工具，碰不到這裡）。</summary>
     public string RequiredProjectKey => ProjectKey ?? throw new InvalidOperationException("不選專案的對話沒有專案代號。");
 }

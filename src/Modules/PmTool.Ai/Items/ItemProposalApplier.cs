@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using PmTool.Notifications;
 using PmTool.Abstractions;
 using PmTool.Ai.Persistence;
 using PmTool.Work;
@@ -8,10 +10,11 @@ namespace PmTool.Ai.Items;
 
 /// <summary>
 /// 把一份建議照順序寫進工作引擎，一律用套用的人的身分：改類型 → 欄位一次（含說明，帶建立時的說明版本；上層、週期、里程碑也在這裡）
-/// → 改狀態 → 留言。類型排最前面：之後的欄位與狀態是照新類型檢查的。
+/// → 改狀態 → 留言 → 關注（<see cref="ItemFieldNames.Following"/>，通知模組）。類型排最前面：之後的欄位與狀態是照新類型檢查的。
 /// 第一個真的要做的步驟失敗時什麼都沒改，回傳它的失敗；之後的步驟失敗時已經改的不復原，回傳說明哪些沒套用的文字。
 /// </summary>
-internal sealed class ItemProposalApplier(IWorkItemService items, IItemActivityService activity, ILogger<ItemProposalApplier> logger)
+internal sealed class ItemProposalApplier(
+    IWorkItemService items, IItemActivityService activity, IServiceProvider services, ILogger<ItemProposalApplier> logger)
 {
     /// <summary>成功時是空字串（全部套用）或「部分沒套用」的說明。</summary>
     public Task<Result<string>> ApplyAsync(Actor actor, ItemProposalRow row, CancellationToken cancellationToken) =>
@@ -36,7 +39,9 @@ internal sealed class ItemProposalApplier(IWorkItemService items, IItemActivityS
     {
         var type = changes.FirstOrDefault(c => c.Field == ItemFieldNames.Type);
         var status = changes.FirstOrDefault(c => c.Field == ItemFieldNames.Status);
-        var patch = ToPatch(changes.Where(c => c.Field is not (ItemFieldNames.Status or ItemFieldNames.Type)), descriptionRevision);
+        var following = changes.FirstOrDefault(c => c.Field == ItemFieldNames.Following);
+        var patch = ToPatch(
+            changes.Where(c => c.Field is not (ItemFieldNames.Status or ItemFieldNames.Type or ItemFieldNames.Following)), descriptionRevision);
         var failures = new List<string>();
         var done = false;
 
@@ -92,7 +97,28 @@ internal sealed class ItemProposalApplier(IWorkItemService items, IItemActivityS
             }
         }
 
+        if (following is not null)
+        {
+            var set = await RunStepAsync(
+                () => SetFollowingAsync(actor, itemKey, following.Value.ValueKind == JsonValueKind.True, cancellationToken), done);
+            if (Settle(set.Failure, "關注", ref done, failures) is { } stop)
+            {
+                return stop;
+            }
+        }
+
         return failures.Count == 0 ? string.Empty : "有幾項沒有套用：" + string.Join("；", failures) + "。其餘已經套用。";
+    }
+
+    // 關注是通知模組的事，要專案與項目的編號：用工作引擎的存取查詢找（看不到的項目一律當作不存在）。
+    // 服務到用的時候才向容器要：沒有人要求關注的建議不需要通知模組。
+    private async Task<Result<ItemSubscription>> SetFollowingAsync(Actor actor, string itemKey, bool follow, CancellationToken cancellationToken)
+    {
+        var reference = await services.GetRequiredService<IWorkAccessQueries>().ResolveItemAsync(actor, itemKey, cancellationToken);
+        return reference.Failure is { } failure
+            ? failure
+            : await services.GetRequiredService<IItemSubscriptionService>()
+                .SetAsync(actor, reference.Value.ProjectId, reference.Value.ItemId, follow, cancellationToken);
     }
 
     // 讀不到項目時當作不同，照常交給改類型的步驟回報失敗。

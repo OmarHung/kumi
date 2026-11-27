@@ -19,6 +19,8 @@
     <ProjectReference Include="..\PmTool.Blueprint\PmTool.Blueprint.csproj" />
     <ProjectReference Include="..\PmTool.Identity.Contracts\PmTool.Identity.Contracts.csproj" />
     <ProjectReference Include="..\PmTool.Work.Contracts\PmTool.Work.Contracts.csproj" />
+    <ProjectReference Include="..\PmTool.Knowledge.Contracts\PmTool.Knowledge.Contracts.csproj" />
+    <ProjectReference Include="..\PmTool.Notifications.Contracts\PmTool.Notifications.Contracts.csproj" />
     <InternalsVisibleTo Include="PmTool.Ai.Tests" />
   </ItemGroup>
 

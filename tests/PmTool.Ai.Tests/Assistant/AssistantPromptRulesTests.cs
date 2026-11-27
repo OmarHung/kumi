@@ -216,7 +216,7 @@ public sealed class AssistantPromptRulesTests
     }
 
     [Test]
-    public void OrganizationSystemPrompt_TeachesTheFourToolsAndLeavesOutProjectOnlyThings()
+    public void OrganizationSystemPrompt_TeachesTheOrganizationToolsAndTheProjectKeyRule()
     {
         // Act
         var prompt = AssistantPrompt.OrganizationSystemPrompt;
@@ -227,7 +227,8 @@ public sealed class AssistantPromptRulesTests
             Assert.That(prompt, Does.Contain("list_templates").And.Contain("get_template").And.Contain("list_projects").And.Contain("propose_project"));
             Assert.That(prompt, Does.Contain("請按『建立專案』"));
             Assert.That(prompt, Does.Contain("<reference name=\"planning-structure.md\">"));
-            Assert.That(prompt, Does.Not.Contain("propose_changeset").And.Not.Contain("get_blueprint").And.Not.Contain("get_item"));
+            Assert.That(prompt, Does.Contain("projectKey").And.Contain("propose_item_deletions").And.Contain("/projects/MALL/items/MALL-27"));
+            Assert.That(prompt, Does.Not.Contain("也不能改專案的設定或項目").And.Not.Contain("請他到那個專案的 AI 助理"));
             Assert.That(prompt, Does.Not.Contain("changeset.schema.json"));
         }
     }
@@ -261,10 +262,28 @@ public sealed class AssistantPromptRulesTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(local, Does.Contain("你只能用下面列的這些").And.Contain("所有工具都不用帶 projectKey").And.Contain("使用者不能開新專案"));
-            Assert.That(host, Does.Contain("你執行在 Kumi 的主機上").And.Contain("你只能用下面列的這些"));
-            Assert.That(local, Does.Not.Contain("preview_changeset"));
+            Assert.That(local, Does.Contain("你只能用下面列的這些").And.Contain("每一次都要指明是哪個專案").And.Contain("使用者不能開新專案"));
+            Assert.That(host, Does.Contain("你執行在 Kumi 的主機上").And.Contain("你只能用下面列的這些").And.Contain("每一次都要指明是哪個專案"));
+            Assert.That(local, Does.Contain("- get_item：").And.Contain("- propose_item_deletions：").And.Contain("- propose_knowledge_changes："));
             Assert.That(host, Does.Not.Contain("你的電腦"));
+        }
+    }
+
+    [Test]
+    public void OrganizationEnginePrompts_ForAKumiWithoutTheProjectTools_ListOnlyTheOrganizationTools()
+    {
+        // Act
+        var local = LocalPromptBuilder.OrganizationSystemPrompt(false, supportsEverything: false);
+        var host = LocalPromptBuilder.HostOrganizationSystemPrompt(false, supportsEverything: false);
+
+        // Assert
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(local, Does.Contain("所有工具都不用帶 projectKey").And.Contain("kumi update"));
+            Assert.That(host, Does.Contain("所有工具都不用帶 projectKey").And.Contain("更新主機的 kumi"));
+            Assert.That(local, Does.Not.Contain("- get_item：").And.Not.Contain("- preview_changeset：").And.Not.Contain("- propose_knowledge_changes："));
+            Assert.That(host, Does.Not.Contain("- get_item：").And.Not.Contain("- propose_item_deletions："));
+            Assert.That(local, Does.Contain("- list_projects：").And.Contain("- propose_project："));
         }
     }
 }

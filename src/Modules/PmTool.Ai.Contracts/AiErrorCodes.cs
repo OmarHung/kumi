@@ -156,6 +156,12 @@ public static class AiErrorCodes
     /// <summary>復原項目的建議已經套用或作廢（409）。</summary>
     public const string ItemRestoreProposalClosed = "ai.item_restore_proposal_closed";
 
+    /// <summary>動作建議（知識庫、人員、附件、存的檢視、說明格式）不存在或不是自己的（404）。</summary>
+    public const string ActionProposalNotFound = "ai.action_proposal_not_found";
+
+    /// <summary>動作建議已經套用、作廢或正在建立（409）。</summary>
+    public const string ActionProposalClosed = "ai.action_proposal_closed";
+
     /// <summary>不選專案的組織對話不收這個東西（選的項目）（422）。</summary>
     public const string OrganizationChatUnsupported = "ai.organization_chat_unsupported";
 

@@ -51,11 +51,12 @@ internal static partial class LocalPromptBuilder
         bool supportsRevision = true,
         bool supportsMyWork = true,
         bool supportsFindItems = true,
-        bool supportsProjectWrites = true) =>
+        bool supportsProjectWrites = true,
+        bool supportsEverything = true) =>
         Join(
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            ToolSection("local-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems, supportsProjectWrites), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"),
+            ToolSection("local-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems, supportsProjectWrites, supportsEverything), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty);
 
     /// <summary>主機代理（組織來源）的版本：工具的說法和本機相同，只是引擎跑在 Kumi 主機上、代替發問的人操作，不提「你的電腦」。</summary>
@@ -69,18 +70,19 @@ internal static partial class LocalPromptBuilder
         bool supportsRevision = true,
         bool supportsMyWork = true,
         bool supportsFindItems = true,
-        bool supportsProjectWrites = true) =>
+        bool supportsProjectWrites = true,
+        bool supportsEverything = true) =>
         Join(
             AssistantPrompt.SystemPrompt,
             AssistantPrompt.ProjectNote(projectKey, permissions, asker),
-            ToolSection("host-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems, supportsProjectWrites), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"),
+            ToolSection("host-agent.md", new ToolSupport(supportsNewItems, supportsStaffing, supportsRevision, supportsMyWork, supportsFindItems, supportsProjectWrites, supportsEverything), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"),
             itemKey is not null ? AssistantPrompt.ItemNote(itemKey) : string.Empty);
 
     // 沒有的段落（沒選項目、沒有建議）是空字串，不留空行。
     private static string Join(params string[] sections) => string.Join("\n\n", sections.Where(section => section.Length > 0));
 
     /// <summary>kumi 的版本放得進哪些較新的工具（<see cref="AgentToolLists"/>）；舊版少了的工具，提示裡也要拿掉。</summary>
-    private readonly record struct ToolSupport(bool NewItems, bool Staffing, bool Revision, bool MyWork, bool FindItems, bool ProjectWrites = true);
+    private readonly record struct ToolSupport(bool NewItems, bool Staffing, bool Revision, bool MyWork, bool FindItems, bool ProjectWrites = true, bool Everything = true);
 
     private static readonly string[] StaffingToolLines =
         [AssistantToolNames.GetProject, AssistantToolNames.ListPeople, AssistantToolNames.ProposeMemberChanges];
@@ -108,7 +110,7 @@ internal static partial class LocalPromptBuilder
     private static string ToolSection(string resource, ToolSupport support, string updateAdvice)
     {
         var text = AssistantPrompt.ReadResource(resource).Trim();
-        if (support is { NewItems: true, Staffing: true, Revision: true, MyWork: true, FindItems: true, ProjectWrites: true })
+        if (support is { NewItems: true, Staffing: true, Revision: true, MyWork: true, FindItems: true, ProjectWrites: true, Everything: true })
         {
             return text;
         }
@@ -149,7 +151,18 @@ internal static partial class LocalPromptBuilder
             removed.AddRange(ProjectWriteToolLines);
         }
 
-        var lines = text.Split('\n').Where(line => !removed.Any(tool => line.StartsWith($"- {tool}：", StringComparison.Ordinal)));
+        var isOrganization = resource.Contains("organization", StringComparison.Ordinal);
+        if (!support.Everything)
+        {
+            // 舊版的 kumi 不認得第二段的工具：專案對話少那十四個；組織對話只剩組織自己的那幾個（不帶 projectKey 的專案工具也沒有）。
+            removed.AddRange(isOrganization
+                ? LocalAgentTools.AllowedForOrganization.Where(tool => !OrganizationBaseTools.Contains(tool))
+                : LocalAgentTools.SharedTools);
+        }
+
+        var lines = text.Split('\n')
+            .Select(line => !support.Everything && isOrganization && line.StartsWith(OrganizationProjectToolsLine, StringComparison.Ordinal) ? OldOrganizationLine : line)
+            .Where(line => !removed.Any(tool => line.StartsWith($"- {tool}：", StringComparison.Ordinal)));
         var builder = new StringBuilder(string.Join("\n", lines));
         if (!support.NewItems)
         {
@@ -165,7 +178,10 @@ internal static partial class LocalPromptBuilder
         if (!support.Revision)
         {
             // 組織對話只有 withdraw_proposal 一個：只列提示裡真的有的那幾個。
-            var missing = RevisionToolLines.Where(tool => text.Contains($"- {tool}：", StringComparison.Ordinal)).ToList();
+            // 舊版的組織對話只有組織自己的那幾個工具：專案的工具那幾行是這一版才加的，不算「少了」。
+            var missing = RevisionToolLines
+                .Where(tool => text.Contains($"- {tool}：", StringComparison.Ordinal) && (support.Everything || !isOrganization || OrganizationBaseTools.Contains(tool)))
+                .ToList();
             builder.Append(
                 $"\n\n這一次沒有 {string.Join("、", missing)} 這 {missing.Count} 個工具（前面提到它們的地方都不適用）：要撤回建議、刪除項目或一次改多個項目時，告訴使用者{updateAdvice}。");
         }
@@ -189,8 +205,27 @@ internal static partial class LocalPromptBuilder
                 $"要讀完整的留言、已刪除的項目、專案說明、週期與里程碑，或提出週期與里程碑、留言、復原項目、專案名稱與說明的建議時，告訴使用者{updateAdvice}。");
         }
 
+        if (!support.Everything)
+        {
+            builder.Append(isOrganization
+                ? $"\n\n這一次的組織對話只有上面列的工具，不能讀或改專案的項目與設定、也沒有知識庫、人員管理、附件、存的檢視、說明格式、總覽、收件匣、變更集清單的工具（前面提到它們的地方都不適用）：使用者要你碰某個專案或這些東西時，告訴他{updateAdvice}。"
+                : $"\n\n這一次沒有 {string.Join("、", LocalAgentTools.SharedTools)} 這 {LocalAgentTools.SharedTools.Count} 個工具（前面提到它們的地方都不適用）：" +
+                  $"要讀知識庫、管理人員、附件、存的檢視、說明格式、專案總覽、收件匣、變更集清單，或提出這些的建議時，告訴使用者{updateAdvice}。");
+        }
+
         return builder.ToString();
     }
+
+    /// <summary>組織對話提示裡說明「專案的工具要帶 projectKey」的那一行的開頭；舊版的 kumi 沒有專案的工具，換成舊的說法。</summary>
+    private const string OrganizationProjectToolsLine = "專案的工具";
+
+    private const string OldOrganizationLine = "這則對話不屬於任何專案，所有工具都不用帶 projectKey。";
+
+    private static readonly HashSet<string> OrganizationBaseTools = new(StringComparer.Ordinal)
+    {
+        AssistantToolNames.ListTemplates, AssistantToolNames.GetTemplate, AssistantToolNames.ListProjects, AssistantToolNames.ProposeProject,
+        AssistantToolNames.WithdrawProposal, AssistantToolNames.MyWork, AssistantToolNames.FindItems, AssistantToolNames.ListPeople,
+    };
 
     /// <summary>不選專案的組織對話（本機的引擎）：組織版的系統提示，加上這則對話的說明與只有幾個工具的說法。</summary>
     public static string OrganizationSystemPrompt(
@@ -198,11 +233,12 @@ internal static partial class LocalPromptBuilder
         Asker? asker = null,
         bool supportsRevision = true,
         bool supportsMyWork = true,
-        bool supportsFindItems = true) =>
+        bool supportsFindItems = true,
+        bool supportsEverything = true) =>
         Join(
             AssistantPrompt.OrganizationSystemPrompt,
             AssistantPrompt.OrganizationNote(canCreateProjects, asker),
-            ToolSection("local-agent-organization.md", new ToolSupport(true, true, supportsRevision, supportsMyWork, supportsFindItems), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"));
+            ToolSection("local-agent-organization.md", new ToolSupport(true, true, supportsRevision, supportsMyWork, supportsFindItems, Everything: supportsEverything), "這台電腦的 kumi 太舊、請在終端機執行 `kumi update`"));
 
     /// <summary>不選專案的組織對話（主機代理）。</summary>
     public static string HostOrganizationSystemPrompt(
@@ -210,11 +246,12 @@ internal static partial class LocalPromptBuilder
         Asker? asker = null,
         bool supportsRevision = true,
         bool supportsMyWork = true,
-        bool supportsFindItems = true) =>
+        bool supportsFindItems = true,
+        bool supportsEverything = true) =>
         Join(
             AssistantPrompt.OrganizationSystemPrompt,
             AssistantPrompt.OrganizationNote(canCreateProjects, asker),
-            ToolSection("host-agent-organization.md", new ToolSupport(true, true, supportsRevision, supportsMyWork, supportsFindItems), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"));
+            ToolSection("host-agent-organization.md", new ToolSupport(true, true, supportsRevision, supportsMyWork, supportsFindItems, Everything: supportsEverything), "主機上的 kumi 太舊、請組織擁有者更新主機的 kumi"));
 
     /// <summary>
     /// 對話排成文字：<c>&lt;&lt;&lt;使用者&gt;&gt;&gt;</c>、<c>&lt;&lt;&lt;助理&gt;&gt;&gt;</c> 開頭、<c>&lt;&lt;&lt;結束&gt;&gt;&gt;</c> 結尾，一則一段，工具只寫「（用了 get_blueprint）」，最後一則是這次的訊息。

@@ -283,6 +283,8 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.RemoveAll<ICommentProposalCreator>();
         services.RemoveAll<IItemRestoreProposalService>();
         services.RemoveAll<IItemRestoreProposalCreator>();
+        services.RemoveAll<IActionProposalService>();
+        services.RemoveAll<IActionProposalCreator>();
         services.RemoveAll<IAssistantProposalLedger>();
         services.RemoveAll<IStaffingBriefService>();
         services.RemoveAll<IAssistantItemFinder>();
@@ -354,6 +356,9 @@ internal sealed class ApiFactory : WebApplicationFactory<Program>
         services.AddSingleton<ICommentProposalCreator>(Modules.CommentProposals);
         services.AddSingleton<IItemRestoreProposalService>(Modules.ItemRestoreProposals);
         services.AddSingleton<IItemRestoreProposalCreator>(Modules.ItemRestoreProposals);
+        services.AddSingleton<IActionProposalService>(Modules.ActionProposals);
+        services.AddSingleton<IActionProposalCreator>(Modules.ActionProposals);
+        services.AddSingleton<IAssistantConversationReads>(Modules.ConversationReads);
         services.AddSingleton<IAssistantProposalLedger>(Modules.ProposalLedger);
         services.AddSingleton<IStaffingBriefService>(Modules.Staffing);
         services.AddSingleton<IAssistantItemFinder>(Modules.ItemFinder);

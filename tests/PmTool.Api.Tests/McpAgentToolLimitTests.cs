@@ -18,6 +18,9 @@ public sealed class McpAgentToolLimitTests
         "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal",
         "list_comments", "list_deleted_items", "get_project_info", "get_planning",
         "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes",
+        "list_spaces", "get_page_tree", "get_page", "list_page_trash", "list_saved_views", "list_description_templates", "get_overview",
+        "list_notifications", "list_changesets", "propose_knowledge_changes", "propose_people_changes", "propose_attachment_changes",
+        "propose_saved_view_changes", "propose_description_template_changes",
     ];
 
     private static readonly AccessTokenScope[] AgentScopes =
@@ -51,7 +54,7 @@ public sealed class McpAgentToolLimitTests
         // Assert
         Assert.That(
             tools.Select(tool => tool.Name),
-            Is.EquivalentTo(new[] { "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "get_changeset", "propose_item_changes", "propose_new_items", "propose_member_changes", "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal", "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes" }));
+            Is.EquivalentTo(new[] { "get_blueprint", "list_templates", "get_template", "describe_usage", "preview_changeset", "get_changeset", "propose_item_changes", "propose_new_items", "propose_member_changes", "propose_item_deletions", "propose_bulk_item_changes", "withdraw_proposal", "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes", "propose_knowledge_changes", "propose_people_changes", "propose_attachment_changes", "propose_saved_view_changes", "propose_description_template_changes" }));
     }
 
     [Test]
@@ -125,7 +128,7 @@ public sealed class McpAgentToolLimitTests
         {
             Assert.That(tools, Does.Contain("update_item").And.Contain("list_projects").And.Contain("my_work"));
             Assert.That(tools, Does.Not.Contain("propose_item_changes"));
-            Assert.That(tools, Has.Length.EqualTo(23));
+            Assert.That(tools, Has.Length.EqualTo(32));
         }
     }
 }

@@ -79,11 +79,11 @@ public sealed class ProjectWritesVersionTests
     }
 
     [Test]
-    public void OrganizationPrompts_NeverListTheEightTools()
+    public void OrganizationPromptsOfAKumiWithoutTheProjectTools_NeverListTheEightTools()
     {
         // Act
-        var local = LocalPromptBuilder.OrganizationSystemPrompt(true);
-        var host = LocalPromptBuilder.HostOrganizationSystemPrompt(true);
+        var local = LocalPromptBuilder.OrganizationSystemPrompt(true, supportsEverything: false);
+        var host = LocalPromptBuilder.HostOrganizationSystemPrompt(true, supportsEverything: false);
 
         // Assert
         using (Assert.EnterMultipleScope())

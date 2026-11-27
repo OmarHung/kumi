@@ -1,4 +1,5 @@
 import type { UseMutationResult } from '@tanstack/react-query';
+import { useId } from 'react';
 import { useProposalClosedNotice } from '../../api/proposalDecision';
 import { errorMessage, isApiError } from '../../api/http';
 import { Button } from '../../components/Button/Button';
@@ -13,7 +14,7 @@ export function ClosedByOtherNotice({ proposalId }: { readonly proposalId: strin
   return isClosedByOther ? <p className={styles.status}>{CLOSED_TEXT}</p> : null;
 }
 
-function failureText(error: unknown, closedCode: string): string | null {
+export function failureText(error: unknown, closedCode: string): string | null {
   if (error === null || error === undefined) return null;
   if (isApiError(error) && error.code === closedCode) return CLOSED_TEXT;
   return errorMessage(error);
@@ -28,26 +29,39 @@ interface ProposalActionsProps {
   readonly busyLabel: string;
   /** 建議已經處理過時伺服器回的 409 代碼。 */
   readonly closedCode: string;
+  /** 還不能套用（卡片輸入沒填好）：按鈕標成 aria-disabled，原因由 applyBlockedReason 說。 */
+  readonly isApplyBlocked?: boolean;
+  /** 只給報讀軟體的原因（aria-describedby）；isApplyBlocked 為真時才用。 */
+  readonly applyBlockedReason?: string;
 }
 
 /** 新種類的建議（週期與里程碑、專案、留言、復原項目）共用的「套用」「不要」兩顆按鈕與失敗訊息。 */
-export function ProposalActions({ apply, dismiss, applyLabel, busyLabel, closedCode }: ProposalActionsProps) {
+export function ProposalActions({ apply, dismiss, applyLabel, busyLabel, closedCode, isApplyBlocked = false, applyBlockedReason }: ProposalActionsProps) {
   const isWorking = apply.isPending || dismiss.isPending;
+  const isBlocked = isWorking || isApplyBlocked;
+  const reasonId = useId();
+  const hasReason = isApplyBlocked && applyBlockedReason !== undefined;
   return (
     <>
       <div className={styles.actions}>
         <Button
           variant="primary"
           size="sm"
-          aria-disabled={isWorking || undefined}
+          aria-disabled={isBlocked || undefined}
+          aria-describedby={hasReason ? reasonId : undefined}
           onClick={() => {
-            if (isWorking) return;
+            if (isBlocked) return;
             dismiss.reset();
             apply.mutate();
           }}
         >
           {apply.isPending ? busyLabel : applyLabel}
         </Button>
+        {hasReason && (
+          <span id={reasonId} className="visually-hidden">
+            {applyBlockedReason}
+          </span>
+        )}
         <Button
           size="sm"
           aria-disabled={isWorking || undefined}

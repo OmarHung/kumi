@@ -22,11 +22,19 @@ internal enum McpScopeKind
 /// </summary>
 internal readonly record struct McpScope
 {
-    private McpScope(McpScopeKind kind, string? projectKey)
+    private McpScope(McpScopeKind kind, string? projectKey, bool tracksProjects = false)
     {
         Kind = kind;
         ProjectKey = projectKey;
+        TracksProjects = tracksProjects;
     }
+
+    /// <summary>
+    /// 只有「替組織對話做事的代理」（本機代理、主機授權）是 true：專案的工具可以用，但每次碰的專案（參數的專案代號、項目編號的前綴）
+    /// 都由伺服器記下、工具跑完後記進對話讀過的專案（<c>IAssistantConversationReads</c>）；看不到的專案仍由模組照授權的人的權限擋下。
+    /// 預設值（沒初始化）是 false：出錯時封閉。
+    /// </summary>
+    public bool TracksProjects { get; }
 
     public McpScopeKind Kind { get; }
 
@@ -37,13 +45,19 @@ internal readonly record struct McpScope
 
     public static McpScope OrganizationOnly { get; } = new(McpScopeKind.OrganizationOnly, null);
 
+    /// <summary>
+    /// 組織對話裡的代理：種類仍是 <see cref="McpScopeKind.OrganizationOnly"/>（不選專案、不能搜整個組織的項目、能提新專案），
+    /// 但專案的工具可以用，要帶 projectKey（或項目編號），碰到的專案會被記下（<see cref="TracksProjects"/>）。
+    /// </summary>
+    public static McpScope OrganizationWithProjects { get; } = new(McpScopeKind.OrganizationOnly, null, tracksProjects: true);
+
     public static McpScope ForProject(string projectKey) =>
         string.IsNullOrWhiteSpace(projectKey)
             ? throw new ArgumentException("限定專案的範圍要有專案代號。", nameof(projectKey))
             : new McpScope(McpScopeKind.Project, projectKey.Trim().ToUpperInvariant());
 
     /// <summary>主機授權的專案代號：有值是限定專案，null 是不選專案的組織對話。</summary>
-    public static McpScope ForJob(string? projectKey) => projectKey is null ? OrganizationOnly : ForProject(projectKey);
+    public static McpScope ForJob(string? projectKey) => projectKey is null ? OrganizationWithProjects : ForProject(projectKey);
 
     /// <summary>
     /// 範圍是不是受限的（限定專案或只限組織）：受限的請求只能用代理的工具清單，而且清單依範圍不同
@@ -59,11 +73,11 @@ internal readonly record struct McpScope
         _ => PmTool.Ai.LocalAgentTools.IsAllowedForOrganization(toolName),
     };
 
-    /// <summary>專案代號（和限定的那個比，不分大小寫）能不能碰：只限組織一律不行。</summary>
+    /// <summary>專案代號（和限定的那個比，不分大小寫）能不能碰：只限組織一律不行，除非是組織對話裡的代理（<see cref="TracksProjects"/>，碰到的專案要記下）。</summary>
     public bool AllowsProject(string projectKey) => Kind switch
     {
         McpScopeKind.Unrestricted => true,
         McpScopeKind.Project => string.Equals(projectKey.Trim(), ProjectKey, StringComparison.OrdinalIgnoreCase),
-        _ => false,
+        _ => TracksProjects && !string.IsNullOrWhiteSpace(projectKey),
     };
 }

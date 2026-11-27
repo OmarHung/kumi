@@ -10,6 +10,7 @@ import { effortLabel, toolLabel } from '../ai/aiLabels';
 import { changeSetPagePath, itemPagePath } from '../work-items/itemLinks';
 import { CopyMessageButton } from './CopyMessageButton';
 import { MessageAttachments } from './MessageAttachments';
+import { ActionProposalCard } from './ActionProposalCard';
 import { CommentProposalCard } from './CommentProposalCard';
 import { ItemBatchProposalCard } from './ItemBatchProposalCard';
 import { ItemRestoreProposalCard } from './ItemRestoreProposalCard';
@@ -40,6 +41,13 @@ const PROPOSE_PLANNING_TOOL = 'propose_planning_changes';
 const PROPOSE_PROJECT_CHANGES_TOOL = 'propose_project_changes';
 const PROPOSE_COMMENTS_TOOL = 'propose_comment_changes';
 const PROPOSE_RESTORES_TOOL = 'propose_item_restores';
+const ACTION_PROPOSAL_TOOLS: ReadonlySet<string> = new Set([
+  'propose_knowledge_changes',
+  'propose_people_changes',
+  'propose_attachment_changes',
+  'propose_saved_view_changes',
+  'propose_description_template_changes',
+]);
 const DEFAULT_FAILURE = '回覆失敗了，請再試一次。';
 
 function ToolRow({ tool }: { readonly tool: AssistantToolPart }) {
@@ -121,7 +129,7 @@ function GenericProposalCard({ name, proposalId }: { readonly name: string; read
     case PROPOSE_RESTORES_TOOL:
       return <ItemRestoreProposalCard proposalId={proposalId} />;
     default:
-      return null;
+      return ACTION_PROPOSAL_TOOLS.has(name) ? <ActionProposalCard proposalId={proposalId} /> : null;
   }
 }
 

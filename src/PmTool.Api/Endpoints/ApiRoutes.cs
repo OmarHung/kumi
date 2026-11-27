@@ -44,6 +44,7 @@ internal static class ApiRoutes
             .MapProjectChangeProposalEndpoints()
             .MapCommentProposalEndpoints()
             .MapItemRestoreProposalEndpoints()
+            .MapActionProposalEndpoints()
             .MapItemBatchProposalEndpoints()
             .MapProjectProposalEndpoints()
             .MapLocalAgentEndpoints()

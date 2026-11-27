@@ -40,6 +40,11 @@ internal static class TranslatorSupport
     public const string ProposeProjectChanges = "propose_project_changes";
     public const string ProposeCommentChanges = "propose_comment_changes";
     public const string ProposeItemRestores = "propose_item_restores";
+    public const string ProposeKnowledgeChanges = "propose_knowledge_changes";
+    public const string ProposePeopleChanges = "propose_people_changes";
+    public const string ProposeAttachmentChanges = "propose_attachment_changes";
+    public const string ProposeSavedViewChanges = "propose_saved_view_changes";
+    public const string ProposeDescriptionTemplateChanges = "propose_description_template_changes";
 
     public static JsonDocument? TryParse(string line)
     {
@@ -107,10 +112,12 @@ internal static class TranslatorSupport
     public static string? ItemBatchProposalId(string text) => ProposalIdOf(text);
 
     /// <summary>
-    /// 之後新增的建議種類共用的 proposalId：只有這四個建議工具成功時才從結果讀，別的工具一律 null，同樣只認 GUID。
+    /// 之後新增的建議種類共用的 proposalId：只有這九個建議工具成功時才從結果讀，別的工具一律 null，同樣只認 GUID。
     /// </summary>
     public static string? GenericProposalId(string toolName, string text) =>
-        toolName is ProposePlanningChanges or ProposeProjectChanges or ProposeCommentChanges or ProposeItemRestores ? ProposalIdOf(text) : null;
+        toolName is ProposePlanningChanges or ProposeProjectChanges or ProposeCommentChanges or ProposeItemRestores
+            or ProposeKnowledgeChanges or ProposePeopleChanges or ProposeAttachmentChanges or ProposeSavedViewChanges or ProposeDescriptionTemplateChanges
+            ? ProposalIdOf(text) : null;
 
     private static string? ProposalIdOf(string text)
     {

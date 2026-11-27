@@ -485,7 +485,7 @@ public sealed class AssistantToolTests
         // Assert
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(tools, Has.Count.EqualTo(26));
+            Assert.That(tools, Has.Count.EqualTo(40));
             foreach (var tool in tools)
             {
                 Assert.That(KeywordsOf(tool.JsonSchema).Except(allowed), Is.Empty, tool.Name);

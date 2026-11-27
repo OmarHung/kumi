@@ -18,6 +18,7 @@ internal sealed class ProposalServices(
     ICommentProposalService comments,
     IItemRestoreProposalService restores,
     IProjectChangeProposalService projectChanges,
+    IActionProposalService actions,
     IBlueprintChangeService changes)
 {
     private static readonly HashSet<string> NotFoundCodes = new(StringComparer.Ordinal)
@@ -32,6 +33,7 @@ internal sealed class ProposalServices(
         AiErrorCodes.CommentProposalNotFound,
         AiErrorCodes.ItemRestoreProposalNotFound,
         AiErrorCodes.ProjectChangeProposalNotFound,
+        AiErrorCodes.ActionProposalNotFound,
     };
 
     private static readonly HashSet<string> ClosedCodes = new(StringComparer.Ordinal)
@@ -46,6 +48,7 @@ internal sealed class ProposalServices(
         AiErrorCodes.CommentProposalClosed,
         AiErrorCodes.ItemRestoreProposalClosed,
         AiErrorCodes.ProjectChangeProposalClosed,
+        AiErrorCodes.ActionProposalClosed,
     };
 
     /// <param name="projectKey">變更集要用；其他種類不看。</param>
@@ -70,6 +73,7 @@ internal sealed class ProposalServices(
             ProposalKind.Comments => Map(await comments.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.ItemRestores => Map(await restores.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.ProjectChanges => Map(await projectChanges.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.Action => Map(await actions.GetAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             _ => ProposalFailures.NotFound(),
         };
     }
@@ -90,6 +94,7 @@ internal sealed class ProposalServices(
             ProposalKind.Comments => Map(await comments.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.ItemRestores => Map(await restores.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             ProposalKind.ProjectChanges => Map(await projectChanges.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
+            ProposalKind.Action => Map(await actions.DismissAsync(actor, id, cancellationToken), ProposalSummaries.Of),
             _ => ProposalFailures.NotWithdrawable(),
         };
         return result.Failure is { } failure ? Translate(failure) : result;

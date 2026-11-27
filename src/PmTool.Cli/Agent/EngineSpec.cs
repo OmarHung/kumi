@@ -36,6 +36,11 @@ internal static partial class JobValidation
         "list_projects", "propose_project", "my_work", "find_items",
         "list_comments", "list_deleted_items", "get_project_info", "get_planning",
         "propose_planning_changes", "propose_comment_changes", "propose_item_restores", "propose_project_changes",
+        // 0.21.0 起：知識庫、人員、附件、存的檢視、說明格式、總覽、通知、變更集。
+        "list_spaces", "get_page_tree", "get_page", "list_page_trash",
+        "list_saved_views", "list_description_templates", "get_overview", "list_notifications", "list_changesets",
+        "propose_knowledge_changes", "propose_people_changes", "propose_attachment_changes",
+        "propose_saved_view_changes", "propose_description_template_changes",
     ];
 
     private const string McpPath = "/mcp";

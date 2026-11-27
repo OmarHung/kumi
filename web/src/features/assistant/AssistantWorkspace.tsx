@@ -3,9 +3,8 @@ import { useParams, useSearchParams } from 'react-router';
 import type { AssistantScope } from '../../api/assistant';
 import type { AiOptions } from '../../api/aiTypes';
 import type { ProjectDetail } from '../../api/types';
-import { Button } from '../../components/Button/Button';
+import { IconButton } from '../../components/IconButton/IconButton';
 import { Dialog } from '../../components/Dialog/Dialog';
-import { Icon } from '../../components/Icon/Icon';
 import { PageBar } from '../../components/PageBar/PageBar';
 import { PageLayout } from '../../components/PageLayout/PageLayout';
 import { useUnsavedChangesGuard } from '../../lib/useUnsavedChangesGuard';
@@ -80,10 +79,8 @@ function PageActions({ projectKey, itemKey, onChooseItem, isCompact, onOpenList 
     <>
       {projectKey !== null && <ItemPicker projectKey={projectKey} itemKey={itemKey} onChange={onChooseItem} size="compact" />}
       {isCompact && (
-        <Button onClick={onOpenList}>
-          <Icon name="menu" />
-          對話
-        </Button>
+        // 只留圖示：麵包屑在 320px 寬時才有地方放。
+        <IconButton icon="bulletList" label="對話" variant="secondary" onClick={onOpenList} />
       )}
     </>
   );
