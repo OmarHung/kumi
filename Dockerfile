@@ -5,7 +5,7 @@
 # 網頁建置階段：Vite 把 React 應用建置成靜態檔，之後由 API 主機一起提供。
 # 產物和平台無關，用建置機器本身的平台跑（在 Mac 上建 amd64 的映像檔時不必經過模擬）。
 # Node.js 24.22.3
-FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS web
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS web
 WORKDIR /web
 
 # 先只複製套件清單做安裝。原始碼改動不會讓這一層失效，套件不必每次重抓。
@@ -19,7 +19,7 @@ RUN npm run build
 # 用建置機器本身的平台跑：發佈的是和平台無關的組件（UseAppHost=false、不指定 RID），只有最後的執行環境要是目標平台。
 # 在 Mac 上建 amd64 的映像檔時，模擬下的 dotnet restore 曾經卡住一個多小時。
 # .NET SDK 10.0.404（執行環境 10.0.15）
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0@sha256:2794448a07118a6eaf00f29ab5d2bf44928517ce5ff86505a63a69230374f599 AS build
 WORKDIR /src
 
 # 先只複製專案檔與共用設定做還原。原始碼改動不會讓這一層失效，套件不必每次重抓。
@@ -52,7 +52,7 @@ RUN dotnet publish src/PmTool.Api/PmTool.Api.csproj -c Release --no-restore -o /
 # 用建置機器本身的平台跑：輸出和映像檔的平台無關，在 Mac 上建 amd64 的映像檔時這一段不必經過模擬。
 # .NET SDK 在 Linux 上也會替 macOS 的執行檔加 ad-hoc 簽章，Apple 晶片的 Mac 才跑得起來。
 # .NET SDK 10.0.404（和上面的建置階段同一個 digest）
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS cli
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0@sha256:2794448a07118a6eaf00f29ab5d2bf44928517ce5ff86505a63a69230374f599 AS cli
 WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/PmTool.Cli/PmTool.Cli.csproj src/PmTool.Cli/
@@ -74,7 +74,7 @@ RUN bash scripts/cli/build-packages.sh /out
 # 執行階段：只有 ASP.NET Core 執行環境，以非 root 身分執行，程式檔屬於 root，執行身分改不動它們。
 # 容器裡不存任何東西（工作階段 Cookie 的加密金鑰存在資料庫），所以可以隨時換掉、同時開好幾個。
 # ASP.NET Core 執行環境 10.0.15
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0@sha256:ca396ece3f2a2e62c7a03f1d7d710b8bc7e8c9dea5597d091178d9f5bfca13f0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 COPY --from=web /web/dist ./wwwroot

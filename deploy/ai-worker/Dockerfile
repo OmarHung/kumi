@@ -5,7 +5,7 @@
 
 # 建置階段：只發佈 CLI（framework-dependent）與它引用的藍圖模組。
 # .NET SDK 10.0.404（和根目錄 Dockerfile 同一個 digest）
-FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0@sha256:2794448a07118a6eaf00f29ab5d2bf44928517ce5ff86505a63a69230374f599 AS build
 WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/PmTool.Cli/PmTool.Cli.csproj src/PmTool.Cli/
@@ -23,11 +23,11 @@ RUN dotnet publish src/PmTool.Cli/PmTool.Cli.csproj -c Release --no-restore -o /
 
 # node 與 npm：只為了裝兩個引擎的 CLI。從固定 digest 的 node 映像檔複製（glibc 版，和下面的執行環境相容）。
 # Node.js 24（2026-11-24 查的）
-FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS node
+FROM node:25-bookworm-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS node
 
 # 執行階段：.NET 執行環境（不含 ASP.NET，CLI 用不到）。
 # .NET 執行環境 10.0（2026-11-24 查的）
-FROM mcr.microsoft.com/dotnet/runtime:10.0@sha256:0a0e20d12b84b081fb737fddb92d8d205edce9ac2dc62796d2aab30f03804498 AS final
+FROM mcr.microsoft.com/dotnet/runtime:11.0@sha256:43a34aaf5edd4ae1a36dd82fe857602e4b5449bfcf1a9bed753eeb0727dc0c70 AS final
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
