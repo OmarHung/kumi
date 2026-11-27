@@ -54,12 +54,18 @@ npm run test:coverage
 npm run build
 ```
 
-`precommit-scan.sh` 前面幾項有輸出不一定是錯，逐項看過再決定；最後一項（權杖、私鑰、私有網段的位址、本機路徑這類樣式）命中就是失敗：結束代碼 1 是有命中、2 是掃描本身出錯（沒有 perl、允許清單格式錯），都不是 0。不帶參數掃暫存區加上工作目錄尚未暫存的修改；選項：`--staged` 只掃暫存區（hook 用）、`--worktree` 只掃工作目錄、`--all` 掃全部追蹤的檔案、`--diff <基準>` 掃從基準到 HEAD 的差異與範圍內每個提交新增的行（CI 用的）。測試與文件裡的假值要放進 `scripts/precommit-scan-allowlist.txt`（路徑、樣式名稱、值的正規式，格式在檔頭）。
+`precommit-scan.sh` 前面幾項有輸出不一定是錯，逐項看過再決定；最後一項（權杖、私鑰、私有網段的位址、本機路徑這類樣式）命中就是失敗：結束代碼 1 是有命中、2 是掃描本身出錯（沒有 perl、允許清單格式錯），都不是 0。不帶參數掃暫存區加上工作目錄尚未暫存的修改；選項：`--staged` 只掃暫存區（hook 用）、`--worktree` 只掃工作目錄、`--all` 掃全部追蹤的檔案、`--diff <基準> [<頂端>]` 掃從基準到頂端（預設 HEAD）的差異與範圍內每個提交新增的行、提交訊息（CI 與 pre-push 用的）。另外可以用環境變數 `KUMI_SCAN_PRIVATE_TERMS` 指一份 repo 外的名單（一行一個詞），擋掉樣式認不出來的真實名稱；沒有這份名單時略過。測試與文件裡的假值要放進 `scripts/precommit-scan-allowlist.txt`（路徑、樣式名稱、值的正規式，格式在檔頭）。
 
 想每次提交都自動跑，裝成 git 的 pre-commit hook（在主工作目錄執行；worktree 共用主目錄的 hook。用符號連結，不要改 `core.hooksPath`，否則 `.git/hooks/` 裡其他的 hook 會整個失效）：
 
 ```
 ln -s ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+```
+
+推之前再掃一次要推的每一個提交，裝成 pre-push hook（已經有自己的 pre-push 時，在裡面呼叫它，並把 git 給的標準輸入轉給它）：
+
+```
+ln -s ../../scripts/hooks/pre-push .git/hooks/pre-push
 ```
 
 ## 規矩

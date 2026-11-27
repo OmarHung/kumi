@@ -10,29 +10,38 @@
 #   --staged      只掃暫存區的內容（pre-commit hook 用：掃的就是會進這次提交的那一份）
 #   --worktree    只掃工作目錄裡修改與新增、還沒暫存的檔案（手動檢查用）
 #   --all         git 追蹤的全部檔案（含已暫存的新檔）
-#   --diff <基準> 從基準到 HEAD 有變動的檔案，加上範圍內每個提交新增的行（中途加入又刪掉的內容，
-#                 公開之後一樣看得到），給 CI 看一次 PR 或 push 的差異
+#   --diff <基準> [<頂端>]
+#                 從基準到頂端（預設 HEAD）有變動的檔案，加上範圍內每個提交新增的行與提交訊息
+#                 （中途加入又刪掉的內容，公開之後一樣看得到），給 CI 與 pre-push hook 看一次推送的差異
 # 允許清單預設是 scripts/precommit-scan-allowlist.txt，環境變數 KUMI_SCAN_ALLOWLIST 可以指到別的檔案
 # （CI 用基準提交的那一份，讓一次推送沒辦法靠同時改允許清單讓自己過關）。格式見該檔的檔頭。
+# 私人名單：真實的客戶、同事、專案代號這類沒有固定格式、樣式認不出來的詞。名單本身不能進公開的 repo
+# （寫進來就等於公開），所以放在 repo 外：環境變數 KUMI_SCAN_PRIVATE_TERMS 指定，預設 internal/scan-terms.txt；
+# 預設的那一份不存在時略過（外部的貢獻者沒有它），用環境變數指定卻讀不到時當成掃描出錯。
+# 一行一個詞、# 開頭是註解；純英數的詞不分大小寫、前後不能接英數字，其他的照字面比對；命中只印名單的行號。
 # 版本號（例如 10.0.100.1）和私有位址長得一樣，會被當成 private-ip 誤報；寧可誤報，
 # 確定是版本號就在允許清單用「值的正規式」放行。
 # macOS 內建的是 bash 3.2，沒有 mapfile 與關聯陣列。
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 readonly DEFAULT_ALLOWLIST="scripts/precommit-scan-allowlist.txt"
+readonly DEFAULT_PRIVATE_TERMS="internal/scan-terms.txt"
 allowlist="${KUMI_SCAN_ALLOWLIST:-$DEFAULT_ALLOWLIST}"
+private_terms="${KUMI_SCAN_PRIVATE_TERMS:-$DEFAULT_PRIVATE_TERMS}"
 mode="both"
 base=""
+tip="HEAD"
 case "${1:-}" in
   "") ;;
   --staged) mode="staged" ;;
   --worktree) mode="worktree" ;;
   --all) mode="all" ;;
   --diff)
-    mode="diff"; base="${2:-}"
-    [ -n "$base" ] || { echo "用法：--diff <基準>" >&2; exit 2; }
+    mode="diff"; base="${2:-}"; tip="${3:-HEAD}"
+    [ -n "$base" ] || { echo "用法：--diff <基準> [<頂端>]" >&2; exit 2; }
+    git rev-parse --verify -q "${tip}^{commit}" >/dev/null || { echo "掃描錯誤：找不到頂端 ${tip}。" >&2; exit 2; }
     ;;
-  *) echo "用法：bash scripts/precommit-scan.sh [--staged | --worktree | --all | --diff <基準>]" >&2; exit 2 ;;
+  *) echo "用法：bash scripts/precommit-scan.sh [--staged | --worktree | --all | --diff <基準> [<頂端>]]" >&2; exit 2 ;;
 esac
 
 if ! command -v perl >/dev/null 2>&1; then
@@ -43,9 +52,16 @@ if [ ! -r "$allowlist" ]; then
   echo "掃描錯誤：讀不到允許清單 ${allowlist}。" >&2
   exit 2
 fi
+if [ ! -r "$private_terms" ]; then
+  if [ -n "${KUMI_SCAN_PRIVATE_TERMS:-}" ]; then
+    echo "掃描錯誤：讀不到私人名單 ${private_terms}。" >&2
+    exit 2
+  fi
+  private_terms=""
+fi
 
 # 掃描的來源：每筆是「種類 NUL 路徑 NUL」。S 暫存區、W 工作目錄、A 工作目錄（--all，不標位置）、
-# R 基準到 HEAD 的差異裡 HEAD 的版本、L 範圍內每個提交新增的行（路徑欄放基準）。
+# R 基準到頂端的差異裡頂端的版本、L 範圍內每個提交新增的行與提交訊息（路徑欄放基準）。
 sources_file="$(mktemp)"
 paths_file="$(mktemp)"
 trap 'rm -f "$sources_file" "$paths_file"' EXIT
@@ -64,10 +80,11 @@ case "$mode" in
   all) git ls-files -z --cached --others --exclude-standard | emit A ;;
   diff)
     if git rev-parse --verify -q "${base}^{commit}" >/dev/null; then
-      git diff --name-only -z --diff-filter=ACMR "${base}" HEAD | emit R
+      git diff --name-only -z --diff-filter=ACMR "${base}" "${tip}" | emit R
       printf 'L\0%s\0' "$base"
     else
       echo "找不到基準 ${base}，改掃全部追蹤的檔案。" >&2
+      [ "$tip" = "HEAD" ] || { echo "掃描錯誤：找不到基準 ${base}，又指定了頂端，沒辦法改掃全部。" >&2; exit 2; }
       git ls-files -z | emit A
     fi
     ;;
@@ -124,10 +141,10 @@ PERL
 perl -e "$SOFT" < "$paths_file" || { echo "掃描錯誤：提示項目的檢查失敗。" >&2; exit 2; }
 
 # 機密與內部資訊的樣式。只印位置與樣式名稱，不印比對到的內容。一次 perl 處理全部的來源。
-echo "== 機密與內部資訊的樣式（命中即失敗） =="
+echo "== 機密、內部資訊與私人名單（命中即失敗） =="
 read -r -d '' SCANNER <<'PERL'
 use strict; use warnings;
-my ($allow_path, $self_allow) = @ARGV;
+my ($allow_path, $self_allow, $terms_path, $tip) = @ARGV;
 
 # --- 樣式 ---
 my @pat = (
@@ -158,6 +175,25 @@ my @pat = (
   ["internal-host",  qr/\b[a-z0-9][a-z0-9-]*\.(?:local|internal|corp|lan)(?![\w-])(?!\.[A-Za-z0-9])/],
 );
 my %known = map { $_->[0] => 1 } @pat;
+
+# --- 私人名單：只記名單的行號，輸出不帶詞本身 ---
+my @terms;
+if (defined $terms_path && $terms_path ne "") {
+  open(my $tf, "<:raw", $terms_path) or do { print STDERR "掃描錯誤：讀不到私人名單 $terms_path\n"; exit 2 };
+  my $tn = 0;
+  while (my $l = <$tf>) {
+    $tn++;
+    $l =~ s/\r?\n\z//; $l =~ s/^\s+//; $l =~ s/\s+\z//;
+    next if $l eq "" || $l =~ /^#/;
+    my $re = $l =~ /\A[A-Za-z0-9._\@-]+\z/
+      ? qr/(?<![A-Za-z0-9])\Q$l\E(?![A-Za-z0-9])/i
+      : qr/\Q$l\E/i;
+    push @terms, [$tn, $re];
+  }
+  close $tf;
+}
+# 第三方聲明裡是套件作者的名字，和名單裡的英文名字撞在一起也不是外洩。
+sub term_exempt { my ($p) = @_; return $p eq "THIRD-PARTY-NOTICES.txt" || $p =~ m{\Ascripts/licenses/texts/} }
 
 # --- 允許清單：路徑的 glob、樣式名稱、值的正規式（比對到的整段都要符合） ---
 my (@allow, $bad);
@@ -213,6 +249,11 @@ sub check_line {
     next unless $found;
     push @hits, ($n eq "" ? "$where$path: $p->[0]" : "$where$path:$n: $p->[0]");
   }
+  return if term_exempt($path);
+  for my $t (@terms) {
+    next unless $line =~ $t->[1];
+    push @hits, ($n eq "" ? "$where$path: private-term（名單第 $t->[0] 行）" : "$where$path:$n: private-term（名單第 $t->[0] 行）");
+  }
 }
 
 sub git_read {
@@ -234,12 +275,17 @@ sub scan_blob {
 sub scan_log {
   my ($base) = @_;
   open(my $in, "-|", "git", "-c", "core.quotepath=false", "log", "-p", "-U0", "--no-color", "--no-renames",
-       "--format=\@\@commit %h", "$base..HEAD") or do { print STDERR "掃描錯誤：git log 失敗\n"; $fail = 1; return };
+       "--format=\@\@commit %h%n%B\@\@end-message", "$base..$tip") or do { print STDERR "掃描錯誤：git log 失敗\n"; $fail = 1; return };
   local $/ = "\n";
-  my ($commit, $path, $hdr) = ("", undef, 0);
+  my ($commit, $path, $hdr, $msg) = ("", undef, 0, 0);
   while (my $l = <$in>) {
     chomp $l;
-    if ($l =~ /^\@\@commit (\S+)/) { $commit = $1; $path = undef; $hdr = 0; next }
+    if ($l =~ /^\@\@commit (\S+)/) { $commit = $1; $path = undef; $hdr = 0; $msg = 1; next }
+    if ($msg) {
+      if ($l eq "\@\@end-message") { $msg = 0; next }
+      check_line("提交 $commit ", "（提交訊息）", "", $l, 0);
+      next;
+    }
     if ($l =~ /^diff --git /) { $hdr = 1; $path = undef; next }
     if ($hdr) {
       if ($l =~ m{^\+\+\+ (?:b/(.*?)|/dev/null)\t?$}) { $path = $1; $path =~ s/^"|"$//g if defined $path }
@@ -267,8 +313,8 @@ my %where = (S => "暫存區 ", W => "工作目錄 ", A => "", R => "");
       $content = git_read(":0:$path");
       if (!defined $content) { print STDERR "掃描錯誤：讀不到暫存的內容 $path\n"; $fail = 1; next }
     } elsif ($kind eq "R") {
-      $content = git_read("HEAD:$path");
-      if (!defined $content) { print STDERR "掃描錯誤：讀不到 HEAD 的內容 $path\n"; $fail = 1; next }
+      $content = git_read("$tip:$path");
+      if (!defined $content) { print STDERR "掃描錯誤：讀不到 $tip 的內容 $path\n"; $fail = 1; next }
     } else {
       next unless -f $path;
       open(my $in, "<:raw", $path) or do { print STDERR "掃描錯誤：讀不到 $path\n"; $fail = 1; next };
@@ -282,7 +328,7 @@ if (@hits) { my %s; print "$_\n" for grep { !$s{$_}++ } @hits; exit 1 }
 exit 0
 PERL
 
-secret_hits="$(perl -e "$SCANNER" "$allowlist" "$DEFAULT_ALLOWLIST" < "$sources_file")"
+secret_hits="$(perl -e "$SCANNER" "$allowlist" "$DEFAULT_ALLOWLIST" "$private_terms" "$tip" < "$sources_file")"
 status=$?
 if [ "$status" -eq 0 ]; then
   echo "（沒有命中）"
@@ -291,6 +337,7 @@ fi
 if [ "$status" -eq 1 ]; then
   printf '%s\n' "$secret_hits"
   echo "命中上面的樣式。確定是假值（測試或文件的範例）才加進 ${allowlist}（路徑、樣式名稱、值的正規式）；真的機密要先換掉。" >&2
+  echo "private-term 是私人名單（${private_terms:-沒有}）裡的真實客戶、同事或代號：換成 example 之類的假名，不要放進允許清單。" >&2
   echo "若是四段的版本號被當成 private-ip 誤報，一樣用允許清單的值放行。" >&2
   exit 1
 fi

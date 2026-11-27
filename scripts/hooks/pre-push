@@ -1,0 +1,44 @@
+#!/bin/bash
+# 推送前掃描要推上去的每一個提交（新增的行與提交訊息）：命中機密、內部資訊或私人名單就擋下推送。
+# 公開的 repo 推上去就收不回來，CI 的掃描在推上去之後才跑，已經太晚，所以最後一道放在這裡。
+# 安裝：ln -s ../../scripts/hooks/pre-push .git/hooks/pre-push
+# （已經有自己的 pre-push 時，在裡面呼叫這一支，並把 git 給的標準輸入原封不動轉給它。）
+# 標準輸入是 git 給的「本機 ref、本機 sha、遠端 ref、遠端 sha」，一個要推的 ref 一行。
+# 找不到比對的基準時擋下（寧可多擋一次，也不要整段沒掃就推上去）。
+remote="$1"
+root="$(git rev-parse --show-toplevel)" || exit 1
+readonly ZERO=0000000000000000000000000000000000000000
+status=0
+
+base_of() { # base_of <遠端 sha> <頂端>：這次推送從哪裡開始算新的
+  if [ "$1" != "$ZERO" ] && git cat-file -e "${1}^{commit}" 2>/dev/null; then
+    echo "$1"
+    return
+  fi
+  # 新的 ref，或遠端的提交本機沒有：從遠端的 main 分岔的地方開始
+  git merge-base "$2" "refs/remotes/${remote}/main" 2>/dev/null
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue # 刪除遠端的 ref，沒有內容要推
+  tip="$(git rev-parse -q --verify "${local_sha}^{commit}")" || continue # 不是提交（例如指到樹的標籤）
+  base="$(base_of "$remote_sha" "$tip")"
+  if [ -z "$base" ]; then
+    echo "已擋下 ${local_ref}：找不到比對的基準（先 git fetch ${remote}），沒辦法確認要推的內容。" >&2
+    status=1
+    continue
+  fi
+  out="$(bash "$root/scripts/precommit-scan.sh" --diff "$base" "$tip" 2>&1)"
+  scan=$?
+  if [ "$scan" -ne 0 ]; then
+    printf '%s\n' "$out" | sed -n '/^== 機密/,$p' >&2
+    echo "已擋下 ${local_ref}：要推的提交（${base:0:12}..${tip:0:12}）掃描沒過（結束代碼 ${scan}）。" >&2
+    echo "還沒推的提交可以改寫（換掉內容後重新提交）；推上去之後就收不回來。" >&2
+    status=1
+  fi
+done
+
+if [ ! -r "$root/internal/scan-terms.txt" ] && [ -z "${KUMI_SCAN_PRIVATE_TERMS:-}" ]; then
+  echo "提醒：沒有私人名單，只掃了格式看得出來的機密。" >&2
+fi
+exit "$status"

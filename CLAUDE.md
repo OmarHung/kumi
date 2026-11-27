@@ -23,7 +23,7 @@
 - 給同事下載的 kumi 執行檔：`bash scripts/cli/build-packages.sh <空的資料夾>`，建出 macOS（Apple 晶片、Intel）與 Windows 的單一執行檔（不用 .NET）；映像檔的 `cli` 階段跑的就是它。在 Linux 的容器裡建的 macOS 執行檔有 ad-hoc 簽章、Apple 晶片跑得起來；瀏覽器下載的帶隔離標記，要 `xattr -c` 才跑得起來
 - 上雲：照 `docs/DEPLOYMENT.md`。遷移與服務分開：`dotnet PmTool.Api.dll migrate`（遷移、授權給執行的角色、建立第一個擁有者，做完就結束），服務設 `Database__MigrateOnStartup=false`
 - 第三方聲明：`node scripts/licenses/third-party-notices.mjs`（重新產生 `THIRD-PARTY-NOTICES.txt`；加 `--check` 只比對）。要先 `dotnet restore`、在 `web/` 底下 `npm ci`
-- 提交前的掃描：`bash scripts/precommit-scan.sh`（工作目錄與已暫存的檔案；`--all` 掃全部追蹤的檔案，`--diff <基準>` 給 CI 用）。命中機密或內部資訊的樣式會以非 0 結束，測試與文件裡的假值放進 `scripts/precommit-scan-allowlist.txt`；`scripts/hooks/pre-commit` 的裝法見 `CONTRIBUTING.md`。以本機的第一個擁有者登入拿 Cookie：`bash scripts/dev-login.sh <檔案>`
+- 提交前的掃描：`bash scripts/precommit-scan.sh`（工作目錄與已暫存的檔案；`--all` 掃全部追蹤的檔案，`--diff <基準> [<頂端>]` 掃範圍內每個提交新增的行與提交訊息，給 CI 與 pre-push 用）。命中機密或內部資訊的樣式會以非 0 結束，測試與文件裡的假值放進 `scripts/precommit-scan-allowlist.txt`。樣式認不出真實的客戶、同事與專案代號，那些靠私人名單（`KUMI_SCAN_PRIVATE_TERMS`，預設 `internal/scan-terms.txt`；名單本身不能進這個 repo，沒有就略過）；命中的換成假名，不要加進允許清單。`scripts/hooks/pre-commit` 與 `pre-push`（推之前掃要推的每個提交，推上去就收不回來，CI 太晚）的裝法見 `CONTRIBUTING.md`。以本機的第一個擁有者登入拿 Cookie：`bash scripts/dev-login.sh <檔案>`
 - 新增資料表遷移：`dotnet ef migrations add <名稱> --project src/Modules/<模組> --output-dir Persistence/Migrations`
 
 ## 架構
@@ -112,5 +112,6 @@
 - 提交訊息：`<type>: <繁體中文說明>`。type 用 feat、fix、refactor、docs、test、chore、perf、ci。
 - 作者用 repo 層級已經設定好的身分，不要改 git 設定。
 - 程式碼、測試資料、提交訊息都不能出現真實的個人資料或任何公司的內部資訊。範例一律用 `example` 之類的假名。
+- 從真實資料測出來的問題（使用者貼的例子、截圖、試用時的對話）寫進程式、系統提示、測試、註解之前，人名、專案代號、項目編號、人員編號一律先換成假名；派給子代理的提示也先換掉，不要把真實的例子交出去。
 - 這個 repo 是公開的，推上去就收不回來：導入的公司與它的結構、客戶、試用環境、使用的人數與資料量、還沒修好的安全性問題，只寫在 `internal/`，不寫進這裡的程式、註解、文件與提交訊息。
 - 每完成一個可以驗證的段落就提交；`internal/` 有修改時那邊也要提交。
