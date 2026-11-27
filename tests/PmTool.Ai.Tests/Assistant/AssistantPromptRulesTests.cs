@@ -172,6 +172,30 @@ public sealed class AssistantPromptRulesTests
     }
 
     [Test]
+    public void BothSystemPrompts_SayDoNotRepeatTheQuestionsAndMakeOptionsActionable()
+    {
+        // Act
+        var prompts = new[] { AssistantPrompt.SystemPrompt, AssistantPrompt.OrganizationSystemPrompt };
+
+        // Assert：2026-11-27 實測時 Haiku 在文字裡把三題列一次、卡片又一次；選項「掛在既有需求底下（請告訴我編號）」選了還得再問。
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompts, Has.All.Contain("不要在區塊外再把問題列一次"));
+            Assert.That(prompts, Has.All.Contain("選了就能直接做"));
+        }
+    }
+
+    [Test]
+    public void ProjectSystemPrompt_SaysTheSelectedItemCanBeTheAnswerToYourQuestion()
+    {
+        // Act
+        var prompt = AssistantPrompt.SystemPrompt;
+
+        // Assert：使用者回「我現在選的這個項目」時是在回答上一題（要掛在哪個項目底下），不是要你把項目唸一遍。
+        Assert.That(prompt, Does.Contain("也可能是在回答你上一則問的問題"));
+    }
+
+    [Test]
     public void BothSystemPrompts_SayAMentionInTheUsersMessageIsThePersonTheyMean()
     {
         // Act
