@@ -7,11 +7,13 @@ import {
   ArrowUp,
   AppWindow,
   ArrowUpNarrowWide,
+  AtSign,
   Bell,
   Bold,
   BookOpen,
   BellRing,
   Calendar,
+  ChartGantt,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -149,6 +151,9 @@ const ICONS = {
   settings: Settings,
   // 使用說明（側欄、快速跳轉）。
   help: CircleQuestionMark,
+  // 使用說明的示意圖：時間軸版面與提及。
+  timeline: ChartGantt,
+  mention: AtSign,
   table: Table2,
   board: SquareKanban,
   signOut: LogOut,

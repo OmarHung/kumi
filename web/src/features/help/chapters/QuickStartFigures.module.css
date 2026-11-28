@@ -1,0 +1,246 @@
+/*
+ * 快速上手的示意圖：凹下去的底（--color-surface-sunken）上放一塊縮小的畫面。只用設計變數；
+ * 側欄、內容的線條是中性的灰，看得出「這裡是什麼」就好，不畫成真的介面（也就不會被誤認成可以按）。
+ */
+.figure {
+  margin: var(--space-4) 0;
+}
+
+.frame {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr);
+  min-height: 13rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+}
+
+.mockSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-2);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-sidebar);
+}
+
+.mockBrand {
+  padding: 0 var(--space-1) var(--space-1);
+  font-weight: var(--weight-semibold);
+}
+
+.mockSearch,
+.mockNavItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-0-5) var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+.mockSearch {
+  margin-bottom: var(--space-1);
+  border: 1px solid var(--color-control-border);
+  background: var(--color-surface);
+}
+
+.mockLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mockMain {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mockBar {
+  display: flex;
+  align-items: center;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mockContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.mockLine {
+  display: block;
+  width: 70%;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
+}
+
+.mockLine[data-width='short'] {
+  width: 40%;
+}
+
+.mockLine[data-width='long'] {
+  width: 90%;
+}
+
+.mockAssistant {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.mockFab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  height: var(--control-height);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-solid);
+  color: var(--color-accent-contrast);
+  box-shadow: var(--shadow-raised);
+}
+
+/* 圖例：編號、名稱、一句話；寬的時候排成兩欄。 */
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.legendText {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------- 專案頁上方 ---------- */
+.projectFrame {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+}
+
+.projectTitle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-weight: var(--weight-semibold);
+}
+
+.projectKey {
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+
+.projectActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+.projectAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.projectTabs {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: var(--space-1);
+  padding: var(--space-0-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.projectTab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+/* 目前的那一格和真的版面分頁一樣是浮起來的紙（docs/design/07-components.md 的 NavTabs）。 */
+.projectTab[data-current='true'] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: var(--shadow-raised);
+}
+
+/* ---------- AI 的建議卡 ---------- */
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 26rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  font-size: var(--text-sm);
+}
+
+.proposalHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-semibold);
+}
+
+.proposalRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.proposalField {
+  min-width: 2.5rem;
+  color: var(--color-text-muted);
+}
+
+.proposalOld {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.proposalActions {
+  display: flex;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}

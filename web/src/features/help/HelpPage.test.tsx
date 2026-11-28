@@ -77,14 +77,58 @@ describe('使用說明：章節', () => {
     expect(currentPath(router)).toBe('/account/notifications');
   });
 
-  it('側欄的對照表是有名稱、鍵盤捲得動的區塊', async () => {
+  it('畫面的示意圖：示意框不給報讀軟體，圖例是有序清單，編號對得上', async () => {
     // Arrange / Act
     await openHelp();
 
     // Assert
-    const region = screen.getByRole('region', { name: '側欄的項目' });
-    expect(region).toHaveAttribute('tabindex', '0');
-    expect(within(region).getByRole('columnheader', { name: '做什麼' })).toBeInTheDocument();
+    const figure = screen.getByRole('figure', { name: '畫面的示意圖' });
+    const legend = within(figure).getByRole('list');
+    expect(within(legend).getAllByRole('listitem')).toHaveLength(5);
+    expect(within(legend).getByRole('link', { name: '收件匣' })).toHaveAttribute('href', '/inbox');
+    // 示意框裡也畫了「收件匣」，但它是 aria-hidden：整張圖只有圖例那一個收件匣讀得到。
+    expect(within(figure).getAllByText('收件匣')).toHaveLength(2);
+    expect(within(figure).getAllByRole('link', { name: '收件匣' })).toHaveLength(1);
+  });
+
+  it('步驟流程是有名稱的有序清單，一步一項', async () => {
+    // Arrange / Act
+    await openHelp();
+
+    // Assert
+    const flow = screen.getByRole('list', { name: 'AI 助理怎麼幫你改東西' });
+    expect(flow.tagName).toBe('OL');
+    expect(within(flow).getAllByRole('listitem').map((step) => step.textContent)).toEqual([
+      '說你要做什麼可以附上會議紀錄、截圖',
+      '助理提出建議卡列出要改什麼',
+      '你按「套用」才會改以你的身分、照你的權限',
+    ]);
+  });
+
+  it('常見問題平常只看得到問題，點了才展開答案', async () => {
+    // Arrange
+    const user = userEvent.setup();
+    await openHelp();
+    const faq = screen.getByRole('region', { name: '常見問題' });
+    const question = within(faq).getByText('側欄沒有我要的專案。');
+    const details = question.closest('details');
+
+    // Act
+    await user.click(question);
+
+    // Assert
+    expect(details).toHaveAttribute('open');
+    expect(within(faq).getByText('你還不是那個專案的成員，請專案的管理員把你加進去。')).toBeVisible();
+  });
+
+  it('「接下來」的格子整格是連到那一頁的連結', async () => {
+    // Arrange / Act
+    await openHelp();
+
+    // Assert
+    const tiles = screen.getByRole('list', { name: '接下來可以看的頁面' });
+    expect(within(tiles).getByRole('link', { name: /專案總覽/ })).toHaveAttribute('href', '/overview');
+    expect(within(tiles).getByRole('link', { name: /命令列與整合/ })).toHaveAttribute('href', '/account/integrations');
   });
 
   it('網址帶著一節的錨點時捲到那一節，焦點放到它的標題', async () => {

@@ -25,6 +25,8 @@
   font-size: var(--text-md);
   line-height: var(--leading-relaxed);
   overflow-wrap: anywhere;
+  /* 步驟流程照文字欄的寬度決定橫排或直排（HelpVisuals.module.css）。 */
+  container: help-article / inline-size;
 }
 
 .lead {
@@ -55,29 +57,29 @@
   line-height: var(--leading-tight);
 }
 
-.article p,
-.article ul,
-.article ol,
-.article .scroll {
+/* 一般的段落、清單與連結：只管沒有 class 的（示意圖、步驟、格子自己排，不被這裡的間距與底線蓋掉）。 */
+.article p:not([class]),
+.article ul:not([class]),
+.article ol:not([class]) {
   margin: var(--space-3) 0;
 }
 
-.article ul,
-.article ol {
+.article ul:not([class]),
+.article ol:not([class]) {
   padding-left: var(--space-6);
 }
 
-.article li + li {
+.article :is(ul, ol):not([class]) > li + li {
   margin-top: var(--space-1);
 }
 
-.article a {
+.article a:not([class]) {
   color: var(--color-accent);
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
 
-.article a:hover {
+.article a:not([class]):hover {
   color: var(--color-accent-hover);
 }
 
@@ -95,51 +97,4 @@
   margin: var(--space-3) 0;
   padding-left: var(--space-4);
   color: var(--color-text-muted);
-}
-
-/* 表格：細線外框、表頭凹下去的底，太寬時在框裡橫向捲動（和 Markdown 的表格一樣）。 */
-.scroll {
-  max-width: 100%;
-  overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.article table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-base);
-  line-height: var(--leading-normal);
-}
-
-.article th,
-.article td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-  vertical-align: top;
-}
-
-.article th {
-  background: var(--color-surface-sunken);
-  font-weight: var(--weight-semibold);
-  white-space: nowrap;
-}
-
-.article tr:last-child td {
-  border-bottom: 0;
-}
-
-/* 第一欄是名稱（側欄的項目）：不折行，第二欄的說明才有寬度。 */
-.article td:first-child {
-  white-space: nowrap;
-}
-
-.question {
-  margin: var(--space-4) 0 var(--space-1);
-  font-weight: var(--weight-semibold);
-}
-
-.answer {
-  margin: 0;
 }

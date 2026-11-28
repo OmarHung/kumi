@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useRevealWhenTargeted } from '../../lib/useRevealWhenTargeted';
 import styles from './Help.module.css';
 
@@ -34,54 +34,4 @@ export function HelpLead({ children }: { readonly children: ReactNode }) {
 /** 順帶一提的提醒：灰字加縮排（不是 Notice：這裡沒有要使用者注意的狀態，只是旁註）。 */
 export function HelpNote({ children }: { readonly children: ReactNode }) {
   return <p className={styles.note}>{children}</p>;
-}
-
-interface HelpTableProps {
-  /** 捲動區塊的名稱（表格在裡面，不再重複一次名稱）。 */
-  readonly label: string;
-  readonly headers: readonly [string, string];
-  readonly rows: readonly HelpTableRow[];
-}
-
-export interface HelpTableRow {
-  readonly key: string;
-  readonly name: ReactNode;
-  readonly description: ReactNode;
-}
-
-/** 兩欄的對照表：太寬時在框裡橫向捲動（和 Markdown 的表格一樣是有名稱、鍵盤捲得動的區塊，docs/design/07-components.md 7.4）。 */
-export function HelpTable({ label, headers, rows }: HelpTableProps) {
-  return (
-    <div className={styles.scroll} role="region" aria-label={label} tabIndex={0}>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">{headers[0]}</th>
-            <th scope="col">{headers[1]}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <td>{row.name}</td>
-              <td>{row.description}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/** 常見問題的一題：問題是粗體的一行，答案接在下面；問題不是標題（一長串小標題會讓標題的清單變吵）。 */
-export function HelpFaq({ question, children }: { readonly question: string; readonly children: ReactNode }) {
-  const questionId = useId();
-  return (
-    <div role="group" aria-labelledby={questionId}>
-      <p id={questionId} className={styles.question}>
-        {question}
-      </p>
-      <p className={styles.answer}>{children}</p>
-    </div>
-  );
 }
